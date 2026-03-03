@@ -72,7 +72,7 @@ class DashboardService:
             .where(and_(
                 LoteProduccion.activo == True,
                 LoteProduccion.estado == EstadoLote.COMPLETADO.value,
-                func.date(LoteProduccion.fecha_completado) == hoy
+                func.date(LoteProduccion.fecha_fin_proceso) == hoy
             ))
         )
         lotes_completados_hoy = lotes_hoy_result.scalar() or 0
