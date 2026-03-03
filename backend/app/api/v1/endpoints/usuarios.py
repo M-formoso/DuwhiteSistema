@@ -130,9 +130,8 @@ async def listar_usuarios(
     return PaginatedResponse(
         items=[usuario_to_list_item(u) for u in usuarios],
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 
