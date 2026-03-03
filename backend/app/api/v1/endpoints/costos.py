@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
 from app.services.costo_service import CostoService
 from app.schemas.costo import (

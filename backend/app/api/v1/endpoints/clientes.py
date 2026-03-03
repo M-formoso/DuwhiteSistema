@@ -8,7 +8,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
 from app.services.cliente_service import ClienteService
 from app.schemas.cliente import (

@@ -7,7 +7,7 @@ from typing import Dict, List, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
 from app.services.dashboard_service import DashboardService
 
