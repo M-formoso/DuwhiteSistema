@@ -16,7 +16,7 @@ from app.models.usuario import Usuario
 
 
 def create_tables():
-    """Crear todas las tablas en la base de datos."""
+    """Crear todas las tablas en la base de datos. v2"""
     from app.db.base import Base, engine
     # Importar todos los modelos para que SQLAlchemy los registre
     from app.models import (
