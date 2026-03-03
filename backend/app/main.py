@@ -21,6 +21,8 @@ def run_migrations():
     from sqlalchemy import text
 
     migrations = [
+        # Agregar valor 'cliente' al ENUM de roles
+        "ALTER TYPE rol_usuario ADD VALUE IF NOT EXISTS 'cliente'",
         # Nuevas columnas para usuarios
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password_visible VARCHAR(255)",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(50)",
