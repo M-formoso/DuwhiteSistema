@@ -6,7 +6,8 @@ from enum import Enum
 from sqlalchemy import Column, String, Boolean, Numeric, Text, Date, Integer
 from sqlalchemy.orm import relationship
 
-from app.db.base_class import Base, BaseModelMixin
+from app.db.base import Base
+from app.models.base import BaseModelMixin
 
 
 class TipoCliente(str, Enum):

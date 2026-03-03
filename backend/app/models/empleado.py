@@ -8,8 +8,8 @@ from sqlalchemy.orm import relationship
 import uuid
 import enum
 
-from app.db.base_class import Base
-from app.models.mixins import BaseModelMixin
+from app.db.base import Base
+from app.models.base import BaseModelMixin
 
 
 class TipoEmpleado(str, enum.Enum):

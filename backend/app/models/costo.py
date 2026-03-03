@@ -9,8 +9,8 @@ import uuid
 import enum
 from decimal import Decimal
 
-from app.db.base_class import Base
-from app.models.mixins import BaseModelMixin
+from app.db.base import Base
+from app.models.base import BaseModelMixin
 
 
 class TipoCosto(str, enum.Enum):
