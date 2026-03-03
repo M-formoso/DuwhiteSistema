@@ -43,8 +43,16 @@ class Settings(BaseSettings):
         # Detectar si estamos en Railway (producción)
         railway_env = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_STATIC_URL")
         if railway_env:
-            # En Railway, permitir todos los orígenes
-            return ["*"]
+            # En Railway, permitir orígenes de Railway y otros comunes
+            return [
+                "https://frontend-production-2d95.up.railway.app",
+                "https://duwhite-frontend.up.railway.app",
+                "https://duwhite.up.railway.app",
+                # Permitir cualquier subdominio de railway.app
+                "https://*.up.railway.app",
+                "http://localhost:5173",
+                "http://localhost:3000",
+            ]
 
         # Default para desarrollo local
         return [

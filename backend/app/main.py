@@ -104,17 +104,28 @@ Sistema ERP completo para lavandería industrial que incluye:
 )
 
 # Configurar CORS
-# Si CORS_ORIGINS contiene "*", permitir todos los orígenes
-cors_origins = settings.CORS_ORIGINS
-allow_all_origins = "*" in cors_origins
+# Usar allow_origin_regex para soportar patrones wildcard de Railway
+import os
+is_production = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_STATIC_URL")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if allow_all_origins else cors_origins,
-    allow_credentials=not allow_all_origins,  # credentials no puede ser True con allow_origins=["*"]
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if is_production:
+    # En producción, usar regex para permitir cualquier subdominio de railway.app
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https://.*\.up\.railway\.app",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # En desarrollo, usar lista específica
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Incluir routers
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
