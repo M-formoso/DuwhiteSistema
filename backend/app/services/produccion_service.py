@@ -35,7 +35,7 @@ from app.schemas.lote_produccion import (
     KanbanColumna,
     KanbanLote,
 )
-from app.services.log_service import LogService
+from app.services.log_service import log_service
 from app.services.stock_service import StockService
 
 
@@ -44,7 +44,7 @@ class ProduccionService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.log_service = LogService(db)
+        self.log_service = log_service
 
     # ==================== ETAPAS ====================
 

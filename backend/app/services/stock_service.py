@@ -22,7 +22,7 @@ from app.schemas.insumo import (
 )
 from app.schemas.categoria_insumo import CategoriaInsumoCreate, CategoriaInsumoUpdate
 from app.schemas.movimiento_stock import MovimientoStockCreate, MovimientoStockFilter, ResumenMovimientos
-from app.services.log_service import LogService
+from app.services.log_service import log_service
 
 
 class StockService:
@@ -30,7 +30,7 @@ class StockService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.log_service = LogService(db)
+        self.log_service = log_service
 
     # ==================== CATEGORÍAS ====================
 
