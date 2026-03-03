@@ -143,6 +143,72 @@ duwhite-gestion/
 └── README.md
 ```
 
+## Deploy en Railway
+
+### Pasos para deployar
+
+1. **Crear proyecto en Railway**
+   - Ir a [railway.app](https://railway.app)
+   - Crear nuevo proyecto desde GitHub
+   - Conectar el repositorio `M-formoso/DuwhiteSistema`
+
+2. **Agregar servicios**
+
+   **PostgreSQL:**
+   - Click en "New" → "Database" → "PostgreSQL"
+   - Railway configurará automáticamente la variable `DATABASE_URL`
+
+   **Redis:**
+   - Click en "New" → "Database" → "Redis"
+   - Railway configurará automáticamente la variable `REDIS_URL`
+
+   **Backend:**
+   - Click en "New" → "GitHub Repo" → seleccionar repositorio
+   - En Settings → "Root Directory": `backend`
+   - Agregar variables de entorno:
+     ```
+     SECRET_KEY=<generar con: openssl rand -hex 32>
+     ALGORITHM=HS256
+     ACCESS_TOKEN_EXPIRE_MINUTES=30
+     REFRESH_TOKEN_EXPIRE_DAYS=7
+     CORS_ORIGINS=https://<tu-frontend>.railway.app
+     DEBUG=false
+     ENVIRONMENT=production
+     ```
+   - Railway inyecta automáticamente `DATABASE_URL`, `REDIS_URL` y `PORT`
+
+   **Frontend:**
+   - Click en "New" → "GitHub Repo" → seleccionar repositorio
+   - En Settings → "Root Directory": `frontend`
+   - Agregar variables de entorno:
+     ```
+     VITE_API_URL=https://<tu-backend>.railway.app/api/v1
+     ```
+
+3. **Ejecutar migraciones** (primera vez)
+   - En el servicio backend, ir a "Settings" → "Deploy"
+   - El comando de inicio ya incluye `alembic upgrade head`
+
+4. **Crear usuario admin**
+   - En el servicio backend, abrir la terminal
+   - Ejecutar: `python -m app.db.init_db`
+
+### Variables de entorno requeridas
+
+| Variable | Servicio | Descripción |
+|----------|----------|-------------|
+| `DATABASE_URL` | Backend | URL de PostgreSQL (auto-inyectada) |
+| `REDIS_URL` | Backend | URL de Redis (auto-inyectada) |
+| `SECRET_KEY` | Backend | Clave secreta para JWT |
+| `CORS_ORIGINS` | Backend | URL del frontend |
+| `VITE_API_URL` | Frontend | URL del backend API |
+
+### Dominios personalizados
+
+En cada servicio, ir a "Settings" → "Domains" para configurar dominios personalizados.
+
+---
+
 ## Desarrollo
 
 ### Crear migración
