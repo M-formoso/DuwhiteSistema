@@ -15,8 +15,33 @@ from app.db.session import SessionLocal
 from app.models.usuario import Usuario
 
 
+def run_migrations():
+    """Ejecutar migraciones manuales para agregar columnas nuevas."""
+    from app.db.base import engine
+    from sqlalchemy import text
+
+    migrations = [
+        # Nuevas columnas para usuarios
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password_visible VARCHAR(255)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(50)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos_modulos JSON",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cliente_id UUID REFERENCES clientes(id)",
+    ]
+
+    with engine.connect() as conn:
+        for migration in migrations:
+            try:
+                conn.execute(text(migration))
+                conn.commit()
+                print(f"Migración ejecutada: {migration[:50]}...")
+            except Exception as e:
+                # Ignorar errores si la columna ya existe o hay otro problema
+                print(f"Migración saltada o error: {str(e)[:100]}")
+                conn.rollback()
+
+
 def create_tables():
-    """Crear todas las tablas en la base de datos. v2"""
+    """Crear todas las tablas en la base de datos. v3"""
     from app.db.base import Base, engine
     # Importar todos los modelos para que SQLAlchemy los registre
     from app.models import (
@@ -31,6 +56,11 @@ def create_tables():
         print("Creando tablas en la base de datos...")
         Base.metadata.create_all(bind=engine)
         print("Tablas creadas correctamente")
+
+        # Ejecutar migraciones para columnas nuevas
+        print("Ejecutando migraciones...")
+        run_migrations()
+        print("Migraciones completadas")
     except Exception as e:
         print(f"Error creando tablas: {e}")
         import traceback
