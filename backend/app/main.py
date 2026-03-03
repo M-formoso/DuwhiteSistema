@@ -104,10 +104,14 @@ Sistema ERP completo para lavandería industrial que incluye:
 )
 
 # Configurar CORS
+# Si CORS_ORIGINS contiene "*", permitir todos los orígenes
+cors_origins = settings.CORS_ORIGINS
+allow_all_origins = "*" in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"] if allow_all_origins else cors_origins,
+    allow_credentials=not allow_all_origins,  # credentials no puede ser True con allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )

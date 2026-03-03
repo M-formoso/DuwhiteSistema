@@ -125,12 +125,12 @@ export default function ProveedoresList() {
               </div>
             </div>
 
-            <Select value={rubro} onValueChange={setRubro}>
+            <Select value={rubro || "all"} onValueChange={(value) => setRubro(value === "all" ? "" : value)}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Todos los rubros" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos los rubros</SelectItem>
+                <SelectItem value="all">Todos los rubros</SelectItem>
                 {RUBROS_PROVEEDOR.map((r) => (
                   <SelectItem key={r.value} value={r.value}>
                     {r.label}

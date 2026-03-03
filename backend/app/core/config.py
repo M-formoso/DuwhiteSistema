@@ -3,6 +3,7 @@ Configuración del sistema DUWHITE.
 Carga variables de entorno y define settings globales.
 """
 
+import os
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,12 +32,26 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-    ]
+    # CORS - Acepta todos los orígenes en producción o lista específica desde env
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        cors_env = os.getenv("CORS_ORIGINS", "")
+        if cors_env:
+            # Si hay variable de entorno, usar esos valores (separados por coma)
+            return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+
+        # Detectar si estamos en Railway (producción)
+        railway_env = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_STATIC_URL")
+        if railway_env:
+            # En Railway, permitir todos los orígenes
+            return ["*"]
+
+        # Default para desarrollo local
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+        ]
 
     # Redis/Celery
     REDIS_URL: str = "redis://localhost:6379/0"
