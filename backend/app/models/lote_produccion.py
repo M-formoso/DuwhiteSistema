@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 from uuid import uuid4
 
 from app.db.base import Base
-from app.models.base import BaseModelMixin
+from app.models.base import BaseModelMixin, TimestampMixin
 
 
 class EstadoLote(str, Enum):
