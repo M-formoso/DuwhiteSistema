@@ -19,7 +19,7 @@ from app.schemas.empleado import (
     MovimientoNominaCreate, MovimientoNominaResponse, PagarMovimientoRequest,
     LiquidacionCreate, LiquidacionResponse
 )
-from app.schemas.auth import PaginatedResponse
+from app.schemas.common import PaginatedResponse
 
 router = APIRouter()
 

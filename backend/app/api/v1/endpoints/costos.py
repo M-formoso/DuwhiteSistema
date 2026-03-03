@@ -21,7 +21,7 @@ from app.schemas.costo import (
     ResumenCostosMes, RentabilidadCliente,
     CATEGORIAS_COSTO, UNIDADES_MEDIDA_COSTO
 )
-from app.schemas.auth import PaginatedResponse
+from app.schemas.common import PaginatedResponse
 
 router = APIRouter()
 
