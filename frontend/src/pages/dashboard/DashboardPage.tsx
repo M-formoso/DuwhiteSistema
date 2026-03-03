@@ -2,7 +2,8 @@
  * Página del Dashboard Principal
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Package,
   Users,
@@ -18,6 +19,7 @@ import {
   AlertCircle,
   Info,
   ShoppingCart,
+  Database,
 } from 'lucide-react';
 import {
   BarChart,
@@ -31,8 +33,10 @@ import {
 import { Link } from 'react-router-dom';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { getDashboardCompleto } from '@/services/dashboardService';
+import api, { getErrorMessage } from '@/services/api';
 import type { Alerta } from '@/types/dashboard';
 
 const formatCurrency = (value: number) => {
@@ -88,12 +92,34 @@ const getEstadoBadge = (estado: string) => {
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
+  const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardCompleto,
     refetchInterval: 60000, // Refrescar cada minuto
   });
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post('/seed/datos-prueba');
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setSeedMessage(data.message);
+      // Invalidar todas las queries para refrescar los datos
+      queryClient.invalidateQueries();
+    },
+    onError: (error) => {
+      setSeedMessage(`Error: ${getErrorMessage(error)}`);
+    },
+  });
+
+  const handleLoadTestData = () => {
+    setSeedMessage(null);
+    seedMutation.mutate();
+  };
 
   if (isLoading) {
     return (
@@ -114,8 +140,54 @@ export default function DashboardPage() {
 
   const { kpis, grafico_ventas_semana, pedidos_recientes, lotes_en_proceso, alertas, movimientos_hoy } = dashboard;
 
+  // Mostrar banner si no hay datos
+  const sinDatos = kpis.operacion.clientes_activos === 0 &&
+                   kpis.ventas.mes.cantidad === 0 &&
+                   kpis.produccion.lotes_en_proceso === 0;
+
   return (
     <div className="space-y-6">
+      {/* Banner para cargar datos de prueba */}
+      {sinDatos && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="py-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Database className="h-8 w-8 text-primary" />
+                <div>
+                  <h3 className="font-semibold text-text-primary">Base de datos vacía</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Carga datos de prueba para explorar el sistema
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleLoadTestData}
+                disabled={seedMutation.isPending}
+                className="bg-primary hover:bg-primary-hover"
+              >
+                {seedMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  <>
+                    <Database className="mr-2 h-4 w-4" />
+                    Cargar datos de prueba
+                  </>
+                )}
+              </Button>
+            </div>
+            {seedMessage && (
+              <p className={`mt-3 text-sm ${seedMessage.startsWith('Error') ? 'text-destructive' : 'text-success'}`}>
+                {seedMessage}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Bienvenida */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary">
