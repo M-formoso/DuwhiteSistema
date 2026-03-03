@@ -20,6 +20,13 @@ import {
   FileText,
   Plus,
   ChevronRight,
+  Key,
+  UserPlus,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  Shield,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,6 +44,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 import { clienteService } from '@/services/clienteService';
+import { usuarioService, type Usuario } from '@/services/usuarioService';
 import { formatNumber } from '@/utils/formatters';
 import { TIPOS_CLIENTE, CONDICIONES_IVA, MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
@@ -51,6 +59,17 @@ export default function ClienteDetailPage() {
   const [pagoMonto, setPagoMonto] = useState('');
   const [pagoMedio, setPagoMedio] = useState<MedioPago>('efectivo');
   const [pagoReferencia, setPagoReferencia] = useState('');
+
+  // Estados para gestión de usuario
+  const [showCrearUsuarioModal, setShowCrearUsuarioModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [nuevoUsuarioEmail, setNuevoUsuarioEmail] = useState('');
+  const [nuevoUsuarioPassword, setNuevoUsuarioPassword] = useState('');
+  const [nuevoUsuarioNombre, setNuevoUsuarioNombre] = useState('');
+  const [nuevoUsuarioApellido, setNuevoUsuarioApellido] = useState('');
+  const [nuevaPassword, setNuevaPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Query del cliente
   const { data: cliente, isLoading } = useQuery({
@@ -78,6 +97,23 @@ export default function ClienteDetailPage() {
     queryKey: ['cliente-pedidos', id],
     queryFn: () => clienteService.getPedidos({ cliente_id: id, limit: 5 }),
     enabled: Boolean(id),
+  });
+
+  // Query de usuarios del cliente
+  const { data: usuariosCliente, isLoading: loadingUsuarios } = useQuery({
+    queryKey: ['cliente-usuarios', id],
+    queryFn: () => usuarioService.getUsuariosPorCliente(id!),
+    enabled: Boolean(id),
+  });
+
+  // El usuario principal del cliente (si existe)
+  const usuarioCliente = usuariosCliente?.[0] as Usuario | undefined;
+
+  // Query para obtener credenciales del usuario
+  const { data: usuarioConCredenciales, refetch: refetchCredenciales } = useQuery({
+    queryKey: ['usuario-credenciales', usuarioCliente?.id],
+    queryFn: () => usuarioService.getUsuarioConCredenciales(usuarioCliente!.id),
+    enabled: Boolean(usuarioCliente?.id) && showPassword,
   });
 
   // Mutation para registrar pago
@@ -109,6 +145,80 @@ export default function ClienteDetailPage() {
       });
     },
   });
+
+  // Mutation para crear usuario
+  const crearUsuarioMutation = useMutation({
+    mutationFn: () =>
+      usuarioService.createUsuarioParaCliente({
+        cliente_id: id!,
+        email: nuevoUsuarioEmail,
+        password: nuevoUsuarioPassword,
+        nombre: nuevoUsuarioNombre || cliente?.razon_social?.split(' ')[0],
+        apellido: nuevoUsuarioApellido || '',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cliente-usuarios', id] });
+      toast({
+        title: 'Usuario creado',
+        description: 'El usuario para el cliente ha sido creado exitosamente.',
+      });
+      setShowCrearUsuarioModal(false);
+      setNuevoUsuarioEmail('');
+      setNuevoUsuarioPassword('');
+      setNuevoUsuarioNombre('');
+      setNuevoUsuarioApellido('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo crear el usuario.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation para resetear contraseña
+  const resetPasswordMutation = useMutation({
+    mutationFn: () =>
+      usuarioService.resetPassword(usuarioCliente!.id, {
+        password_nuevo: nuevaPassword,
+        guardar_password_visible: true,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cliente-usuarios', id] });
+      queryClient.invalidateQueries({ queryKey: ['usuario-credenciales', usuarioCliente?.id] });
+      toast({
+        title: 'Contraseña actualizada',
+        description: 'La contraseña ha sido cambiada exitosamente.',
+      });
+      setShowResetPasswordModal(false);
+      setNuevaPassword('');
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'No se pudo cambiar la contraseña.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Función para copiar al portapapeles
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  // Generar contraseña aleatoria
+  const generarPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 10; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
 
   const getTipoLabel = (tipo: string) => {
     return TIPOS_CLIENTE.find((t) => t.value === tipo)?.label || tipo;
@@ -373,6 +483,136 @@ export default function ClienteDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Acceso al Sistema */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Acceso al Sistema
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingUsuarios ? (
+                <div className="flex items-center justify-center py-4">
+                  <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : usuarioCliente ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge className="bg-green-100 text-green-700">
+                      Usuario activo
+                    </Badge>
+                  </div>
+
+                  {/* Email */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500">Email de acceso</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm">
+                        {usuarioCliente.email}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => copyToClipboard(usuarioCliente.email, 'email')}
+                      >
+                        {copiedField === 'email' ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Contraseña */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500">Contraseña</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                        {showPassword && usuarioConCredenciales?.password_visible
+                          ? usuarioConCredenciales.password_visible
+                          : '••••••••'}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          if (!showPassword) {
+                            setShowPassword(true);
+                            refetchCredenciales();
+                          } else {
+                            setShowPassword(false);
+                          }
+                        }}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                      {showPassword && usuarioConCredenciales?.password_visible && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() =>
+                            copyToClipboard(usuarioConCredenciales.password_visible!, 'password')
+                          }
+                        >
+                          {copiedField === 'password' ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    {!usuarioConCredenciales?.password_visible && showPassword && (
+                      <p className="text-xs text-orange-600">
+                        La contraseña no está guardada. Reseteala para poder verla.
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowResetPasswordModal(true)}
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Cambiar Contraseña
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center space-y-3">
+                  <p className="text-sm text-gray-500">
+                    Este cliente no tiene usuario para acceder al sistema.
+                  </p>
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      // Pre-llenar con datos del cliente
+                      setNuevoUsuarioEmail(cliente.email || '');
+                      setNuevoUsuarioNombre(cliente.contacto_nombre?.split(' ')[0] || '');
+                      setNuevoUsuarioApellido(
+                        cliente.contacto_nombre?.split(' ').slice(1).join(' ') || ''
+                      );
+                      setNuevoUsuarioPassword(generarPassword());
+                      setShowCrearUsuarioModal(true);
+                    }}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Crear Usuario
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Condiciones Comerciales */}
           <Card>
             <CardHeader>
@@ -523,6 +763,160 @@ export default function ClienteDetailPage() {
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : null}
                   Registrar Pago
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Crear Usuario */}
+      {showCrearUsuarioModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Crear Usuario para Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={nuevoUsuarioEmail}
+                  onChange={(e) => setNuevoUsuarioEmail(e.target.value)}
+                  placeholder="cliente@ejemplo.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Contraseña *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={nuevoUsuarioPassword}
+                    onChange={(e) => setNuevoUsuarioPassword(e.target.value)}
+                    placeholder="Contraseña"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setNuevoUsuarioPassword(generarPassword())}
+                  >
+                    Generar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nombre</Label>
+                  <Input
+                    value={nuevoUsuarioNombre}
+                    onChange={(e) => setNuevoUsuarioNombre(e.target.value)}
+                    placeholder="Nombre"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Apellido</Label>
+                  <Input
+                    value={nuevoUsuarioApellido}
+                    onChange={(e) => setNuevoUsuarioApellido(e.target.value)}
+                    placeholder="Apellido"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm">
+                El usuario tendrá rol "Cliente" y solo podrá ver sus propios pedidos y datos.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowCrearUsuarioModal(false);
+                    setNuevoUsuarioEmail('');
+                    setNuevoUsuarioPassword('');
+                    setNuevoUsuarioNombre('');
+                    setNuevoUsuarioApellido('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => crearUsuarioMutation.mutate()}
+                  disabled={
+                    !nuevoUsuarioEmail ||
+                    !nuevoUsuarioPassword ||
+                    crearUsuarioMutation.isPending
+                  }
+                >
+                  {crearUsuarioMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  Crear Usuario
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Resetear Contraseña */}
+      {showResetPasswordModal && usuarioCliente && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Cambiar Contraseña
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Usuario: <span className="font-medium">{usuarioCliente.email}</span>
+              </p>
+
+              <div className="space-y-2">
+                <Label>Nueva Contraseña *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={nuevaPassword}
+                    onChange={(e) => setNuevaPassword(e.target.value)}
+                    placeholder="Nueva contraseña"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setNuevaPassword(generarPassword())}
+                  >
+                    Generar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowResetPasswordModal(false);
+                    setNuevaPassword('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => resetPasswordMutation.mutate()}
+                  disabled={!nuevaPassword || resetPasswordMutation.isPending}
+                >
+                  {resetPasswordMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  Cambiar Contraseña
                 </Button>
               </div>
             </CardContent>
