@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=Dict[str, Any])
-def get_dashboard(
+async def get_dashboard(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -35,7 +35,7 @@ def get_dashboard(
 
 
 @router.get("/kpis", response_model=Dict[str, Any])
-def get_kpis(
+async def get_kpis(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -45,7 +45,7 @@ def get_kpis(
 
 
 @router.get("/ventas-semana", response_model=List[Dict[str, Any]])
-def get_ventas_semana(
+async def get_ventas_semana(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -55,7 +55,7 @@ def get_ventas_semana(
 
 
 @router.get("/pedidos-recientes", response_model=List[Dict[str, Any]])
-def get_pedidos_recientes(
+async def get_pedidos_recientes(
     limit: int = Query(5, ge=1, le=20),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -66,7 +66,7 @@ def get_pedidos_recientes(
 
 
 @router.get("/lotes-proceso", response_model=List[Dict[str, Any]])
-def get_lotes_en_proceso(
+async def get_lotes_en_proceso(
     limit: int = Query(5, ge=1, le=20),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -77,7 +77,7 @@ def get_lotes_en_proceso(
 
 
 @router.get("/alertas", response_model=List[Dict[str, Any]])
-def get_alertas(
+async def get_alertas(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -87,7 +87,7 @@ def get_alertas(
 
 
 @router.get("/movimientos-hoy", response_model=Dict[str, Any])
-def get_movimientos_hoy(
+async def get_movimientos_hoy(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
