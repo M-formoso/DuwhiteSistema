@@ -92,6 +92,7 @@ class Cliente(Base, BaseModelMixin):
     pedidos = relationship("Pedido", back_populates="cliente", lazy="dynamic")
     movimientos_cuenta = relationship("MovimientoCuentaCorriente", back_populates="cliente", lazy="dynamic")
     lotes = relationship("LoteProduccion", back_populates="cliente", lazy="dynamic")
+    usuarios = relationship("Usuario", back_populates="cliente", foreign_keys="Usuario.cliente_id")
 
     def __repr__(self) -> str:
         return f"<Cliente {self.codigo}: {self.razon_social}>"

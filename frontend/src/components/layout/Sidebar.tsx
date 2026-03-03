@@ -17,6 +17,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  UserCog,
+  Contact,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -62,7 +64,7 @@ const navItems: NavItem[] = [
   {
     title: 'Clientes',
     href: '/clientes',
-    icon: Users,
+    icon: Contact,
     roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'contador', 'solo_lectura'],
   },
   {
@@ -99,6 +101,12 @@ const navItems: NavItem[] = [
     title: 'Actividades',
     href: '/actividades',
     icon: CheckSquare,
+  },
+  {
+    title: 'Usuarios',
+    href: '/usuarios',
+    icon: UserCog,
+    roles: ['superadmin', 'administrador'],
   },
   {
     title: 'Configuración',

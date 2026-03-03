@@ -58,6 +58,9 @@ import { ConfiguracionPage } from '@/pages/configuracion';
 // Perfil
 import { PerfilPage } from '@/pages/perfil';
 
+// Usuarios
+import UsuariosPage from '@/pages/usuarios/UsuariosPage';
+
 // Página temporal para módulos no implementados
 function ComingSoon({ title }: { title: string }) {
   return (
@@ -157,6 +160,9 @@ function App() {
 
         {/* Actividades */}
         <Route path="/actividades" element={<ActividadesPage />} />
+
+        {/* Usuarios */}
+        <Route path="/usuarios" element={<UsuariosPage />} />
 
         {/* Configuración */}
         <Route path="/configuracion" element={<ConfiguracionPage />} />
