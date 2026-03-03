@@ -166,14 +166,14 @@ export default function ClienteFormPage() {
 
   const onSubmit = (data: ClienteFormData) => {
     // Limpiar campos vacíos
-    const payload: ClienteCreate = {
+    const payload = {
       ...data,
       cuit: data.cuit || null,
       email: data.email || null,
       descuento_general: data.descuento_general || null,
       limite_credito: data.limite_credito || null,
       dias_credito: data.dias_credito || null,
-    };
+    } as ClienteCreate;
 
     if (isEditing) {
       updateMutation.mutate(payload);

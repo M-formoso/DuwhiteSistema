@@ -142,12 +142,12 @@ export default function LoteFormPage() {
   });
 
   const onSubmit = (data: LoteFormData) => {
-    const payload: LoteProduccionCreate = {
+    const payload = {
       ...data,
       peso_entrada_kg: data.peso_entrada_kg || null,
       cantidad_prendas: data.cantidad_prendas || null,
       fecha_compromiso: data.fecha_compromiso || null,
-    };
+    } as LoteProduccionCreate;
 
     if (isEditing) {
       updateMutation.mutate(payload);

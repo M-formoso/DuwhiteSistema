@@ -10,21 +10,18 @@ import {
   LayoutGrid,
   Calendar as CalendarIcon,
   Search,
-  Filter,
   Clock,
   CheckCircle2,
   Circle,
   AlertTriangle,
   X,
-  GripVertical,
   MoreVertical,
   Edit,
   Trash2,
   User,
-  Tag,
 } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -435,10 +432,11 @@ export default function ActividadesPage() {
 
   // Vista Kanban
   const VistaKanban = () => {
-    const columnas = [
-      { estado: 'pendiente' as EstadoActividad, titulo: 'Pendiente', color: 'bg-gray-100' },
-      { estado: 'en_progreso' as EstadoActividad, titulo: 'En Progreso', color: 'bg-blue-100' },
-      { estado: 'completada' as EstadoActividad, titulo: 'Completada', color: 'bg-green-100' },
+    type EstadoKanban = 'pendiente' | 'en_progreso' | 'completada';
+    const columnas: { estado: EstadoKanban; titulo: string; color: string }[] = [
+      { estado: 'pendiente', titulo: 'Pendiente', color: 'bg-gray-100' },
+      { estado: 'en_progreso', titulo: 'En Progreso', color: 'bg-blue-100' },
+      { estado: 'completada', titulo: 'Completada', color: 'bg-green-100' },
     ];
 
     return (
@@ -454,7 +452,7 @@ export default function ActividadesPage() {
               </div>
             </div>
             <div className="space-y-3 min-h-[200px]">
-              {actividadesPorEstado[columna.estado].map((actividad) => (
+              {actividadesPorEstado[columna.estado].map((actividad: Actividad) => (
                 <div
                   key={actividad.id}
                   draggable

@@ -157,7 +157,7 @@ export default function InsumoForm() {
       const { stock_actual, ...updateData } = cleanData;
       updateMutation.mutate(updateData as InsumoUpdate);
     } else {
-      createMutation.mutate(cleanData as InsumoCreate);
+      createMutation.mutate(cleanData as unknown as InsumoCreate);
     }
   };
 

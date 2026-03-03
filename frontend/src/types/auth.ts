@@ -46,3 +46,12 @@ export interface CambiarPasswordRequest {
   password_actual: string;
   password_nuevo: string;
 }
+
+// Respuesta paginada genérica
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
