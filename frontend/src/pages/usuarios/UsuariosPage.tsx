@@ -486,7 +486,7 @@ export default function UsuariosPage() {
           </div>
 
           {/* Paginación */}
-          {data && data.pages > 1 && (
+          {data && data.total > limit && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <p className="text-sm text-gray-500">
                 Mostrando {(page - 1) * limit + 1} a{' '}
@@ -505,7 +505,7 @@ export default function UsuariosPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setPage(page + 1)}
-                  disabled={page === data.pages}
+                  disabled={page * limit >= data.total}
                 >
                   Siguiente
                 </Button>
