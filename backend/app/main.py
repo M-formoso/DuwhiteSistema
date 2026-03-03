@@ -2,15 +2,57 @@
 Punto de entrada principal de la aplicación DUWHITE.
 """
 
+from contextlib import asynccontextmanager
+from uuid import uuid4
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.security import get_password_hash
+from app.db.session import SessionLocal
+from app.models.usuario import Usuario
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Crear usuario admin de prueba al iniciar si no existe."""
+    db = SessionLocal()
+    try:
+        # Verificar si existe el admin
+        admin = db.query(Usuario).filter(Usuario.email == "admin@duwhite.com").first()
+        if not admin:
+            admin = Usuario(
+                id=uuid4(),
+                email="admin@duwhite.com",
+                password_hash=get_password_hash("Admin123!"),
+                nombre="Administrador",
+                apellido="Sistema",
+                rol="superadmin",
+                activo=True,
+                debe_cambiar_password=False,
+            )
+            db.add(admin)
+            db.commit()
+            print("Usuario admin creado: admin@duwhite.com / Admin123!")
+        else:
+            print("Usuario admin ya existe")
+    except Exception as e:
+        print(f"Error creando admin: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+    yield  # La app se ejecuta aquí
+
+    # Cleanup al cerrar (si fuera necesario)
+    pass
 
 # Crear aplicación FastAPI
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    lifespan=lifespan,
     description="""
 ## Sistema de Gestión Integral DUWHITE
 
