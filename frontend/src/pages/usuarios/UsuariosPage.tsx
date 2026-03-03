@@ -81,7 +81,7 @@ export default function UsuariosPage() {
     telefono: '',
     rol: 'operador',
     guardar_password_visible: false,
-    permisos_modulos: null as Record<string, boolean> | null,
+    permisos_modulos: undefined as Record<string, boolean> | undefined,
   });
 
   // Para controlar si se personalizan los permisos
@@ -210,7 +210,7 @@ export default function UsuariosPage() {
       telefono: '',
       rol: 'operador',
       guardar_password_visible: false,
-      permisos_modulos: null,
+      permisos_modulos: undefined,
     });
     setPersonalizarPermisos(false);
   };
@@ -231,7 +231,7 @@ export default function UsuariosPage() {
     setFormData(prev => ({
       ...prev,
       rol: nuevoRol,
-      permisos_modulos: personalizarPermisos ? getPermisosDefaultPorRol(nuevoRol) : null,
+      permisos_modulos: personalizarPermisos ? getPermisosDefaultPorRol(nuevoRol) : undefined,
     }));
   };
 
@@ -246,7 +246,7 @@ export default function UsuariosPage() {
     } else {
       setFormData(prev => ({
         ...prev,
-        permisos_modulos: null,
+        permisos_modulos: undefined,
       }));
     }
   };
@@ -264,7 +264,7 @@ export default function UsuariosPage() {
 
   const handleEdit = (usuario: Usuario) => {
     setSelectedUser(usuario);
-    const tienePermisosPersonalizados = usuario.permisos_modulos && Object.keys(usuario.permisos_modulos).length > 0;
+    const tienePermisosPersonalizados = !!(usuario.permisos_modulos && Object.keys(usuario.permisos_modulos).length > 0);
     setPersonalizarPermisos(tienePermisosPersonalizados);
     setFormData({
       email: usuario.email,
@@ -274,7 +274,7 @@ export default function UsuariosPage() {
       telefono: usuario.telefono || '',
       rol: usuario.rol,
       guardar_password_visible: false,
-      permisos_modulos: tienePermisosPersonalizados ? usuario.permisos_modulos! : null,
+      permisos_modulos: tienePermisosPersonalizados ? usuario.permisos_modulos : undefined,
     });
     setShowEditModal(true);
   };
