@@ -1,0 +1,56 @@
+{
+  "project": {
+    "name": "DUWHITE Gestión",
+    "description": "Sistema de Gestión Integral para Lavandería Industrial",
+    "version": "1.0.0"
+  },
+  "preferences": {
+    "language": "es",
+    "dateFormat": "DD/MM/YYYY",
+    "currencyFormat": "es-AR",
+    "currency": "ARS"
+  },
+  "directories": {
+    "backend": "backend",
+    "frontend": "frontend",
+    "docs": "docs"
+  },
+  "stack": {
+    "backend": {
+      "language": "python",
+      "framework": "fastapi",
+      "orm": "sqlalchemy",
+      "database": "postgresql",
+      "taskQueue": "celery"
+    },
+    "frontend": {
+      "language": "typescript",
+      "framework": "react",
+      "buildTool": "vite",
+      "styling": "tailwindcss",
+      "uiLibrary": "shadcn-ui",
+      "stateManagement": "zustand",
+      "dataFetching": "tanstack-query"
+    }
+  },
+  "codeStyle": {
+    "backend": {
+      "naming": "snake_case",
+      "docstrings": true,
+      "typeHints": true,
+      "maxLineLength": 100
+    },
+    "frontend": {
+      "naming": "camelCase",
+      "components": "PascalCase",
+      "strictTypeScript": true,
+      "noAny": true
+    }
+  },
+  "conventions": {
+    "softDelete": true,
+    "timestamps": ["created_at", "updated_at"],
+    "auditLogs": true,
+    "spanishNaming": true
+  }
+}

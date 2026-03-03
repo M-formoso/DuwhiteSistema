@@ -1,0 +1,94 @@
+# ===============================================
+# DUWHITE Gestión - Git Ignore
+# ===============================================
+
+# -----------------------------------------------
+# General
+# -----------------------------------------------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# -----------------------------------------------
+# Python / Backend
+# -----------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+
+# Mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# -----------------------------------------------
+# Node / Frontend
+# -----------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+frontend/dist/
+frontend/build/
+
+# -----------------------------------------------
+# Docker
+# -----------------------------------------------
+*.log
+
+# -----------------------------------------------
+# Database
+# -----------------------------------------------
+*.db
+*.sqlite3
+
+# -----------------------------------------------
+# Uploads / Media
+# -----------------------------------------------
+uploads/
+media/
+static/uploads/
+
+# -----------------------------------------------
+# IDE / Editor specific
+# -----------------------------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

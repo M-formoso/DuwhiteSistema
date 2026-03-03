@@ -1,0 +1,11 @@
+# Railway Configuration for DUWHITE Sistema
+# This file configures the monorepo deployment
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "echo 'Root project - individual services deploy separately'"
+healthcheckPath = "/"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
