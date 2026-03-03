@@ -8,7 +8,7 @@ from typing import Optional, List, Tuple
 from uuid import UUID
 
 from sqlalchemy import select, func, and_, or_, extract
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models.costo import (
     CostoFijo, CostoVariable, TarifaServicio, AnalisisCostoLote, ParametroCosto
@@ -30,12 +30,12 @@ from app.schemas.costo import (
 class CostoService:
     """Servicio para gestión de costos"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         self.db = db
 
     # ==================== COSTOS FIJOS ====================
 
-    async def get_costos_fijos(
+    def get_costos_fijos(
         self,
         skip: int = 0,
         limit: int = 50,
@@ -43,14 +43,14 @@ class CostoService:
         solo_vigentes: bool = True
     ) -> Tuple[List[CostoFijo], int]:
         """Lista costos fijos"""
-        query = select(CostoFijo).where(CostoFijo.activo == True)
+        query = self.db.query(CostoFijo).filter(CostoFijo.activo == True)
 
         if categoria:
-            query = query.where(CostoFijo.categoria == categoria)
+            query = query.filter(CostoFijo.categoria == categoria)
 
         if solo_vigentes:
             hoy = date.today()
-            query = query.where(
+            query = query.filter(
                 and_(
                     CostoFijo.fecha_inicio <= hoy,
                     or_(
@@ -61,37 +61,31 @@ class CostoService:
             )
 
         # Contar
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
-        total = total_result.scalar() or 0
+        total = query.count()
 
         # Paginar
         query = query.order_by(CostoFijo.categoria, CostoFijo.nombre)
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
-        costos = result.scalars().all()
+        costos = query.all()
 
         return list(costos), total
 
-    async def get_costo_fijo(self, costo_id: UUID) -> Optional[CostoFijo]:
+    def get_costo_fijo(self, costo_id: UUID) -> Optional[CostoFijo]:
         """Obtiene costo fijo por ID"""
-        result = await self.db.execute(
-            select(CostoFijo).where(CostoFijo.id == costo_id)
-        )
-        return result.scalar_one_or_none()
+        return self.db.query(CostoFijo).filter(CostoFijo.id == costo_id).first()
 
-    async def create_costo_fijo(self, data: CostoFijoCreate) -> CostoFijo:
+    def create_costo_fijo(self, data: CostoFijoCreate) -> CostoFijo:
         """Crea costo fijo"""
         costo = CostoFijo(**data.model_dump())
         self.db.add(costo)
-        await self.db.commit()
-        await self.db.refresh(costo)
+        self.db.commit()
+        self.db.refresh(costo)
         return costo
 
-    async def update_costo_fijo(self, costo_id: UUID, data: CostoFijoUpdate) -> Optional[CostoFijo]:
+    def update_costo_fijo(self, costo_id: UUID, data: CostoFijoUpdate) -> Optional[CostoFijo]:
         """Actualiza costo fijo"""
-        costo = await self.get_costo_fijo(costo_id)
+        costo = self.get_costo_fijo(costo_id)
         if not costo:
             return None
 
@@ -99,21 +93,21 @@ class CostoService:
         for field, value in update_data.items():
             setattr(costo, field, value)
 
-        await self.db.commit()
-        await self.db.refresh(costo)
+        self.db.commit()
+        self.db.refresh(costo)
         return costo
 
-    async def delete_costo_fijo(self, costo_id: UUID) -> bool:
+    def delete_costo_fijo(self, costo_id: UUID) -> bool:
         """Elimina costo fijo (soft delete)"""
-        costo = await self.get_costo_fijo(costo_id)
+        costo = self.get_costo_fijo(costo_id)
         if not costo:
             return False
 
         costo.activo = False
-        await self.db.commit()
+        self.db.commit()
         return True
 
-    async def get_total_costos_fijos_mes(self, mes: int, anio: int) -> Decimal:
+    def get_total_costos_fijos_mes(self, mes: int, anio: int) -> Decimal:
         """Calcula total de costos fijos para un mes"""
         fecha_inicio_mes = date(anio, mes, 1)
         if mes == 12:
@@ -121,65 +115,59 @@ class CostoService:
         else:
             fecha_fin_mes = date(anio, mes + 1, 1)
 
-        result = await self.db.execute(
-            select(func.sum(CostoFijo.monto_mensual))
-            .where(and_(
+        result = self.db.query(func.sum(CostoFijo.monto_mensual)).filter(
+            and_(
                 CostoFijo.activo == True,
                 CostoFijo.fecha_inicio <= fecha_fin_mes,
                 or_(
                     CostoFijo.fecha_fin.is_(None),
                     CostoFijo.fecha_fin >= fecha_inicio_mes
                 )
-            ))
-        )
-        return result.scalar() or Decimal("0")
+            )
+        ).scalar()
+
+        return result or Decimal("0")
 
     # ==================== COSTOS VARIABLES ====================
 
-    async def get_costos_variables(
+    def get_costos_variables(
         self,
         skip: int = 0,
         limit: int = 50,
         categoria: Optional[str] = None
     ) -> Tuple[List[CostoVariable], int]:
         """Lista costos variables"""
-        query = select(CostoVariable).where(CostoVariable.activo == True)
+        query = self.db.query(CostoVariable).filter(CostoVariable.activo == True)
 
         if categoria:
-            query = query.where(CostoVariable.categoria == categoria)
+            query = query.filter(CostoVariable.categoria == categoria)
 
         # Contar
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
-        total = total_result.scalar() or 0
+        total = query.count()
 
         # Paginar
         query = query.order_by(CostoVariable.categoria, CostoVariable.nombre)
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
-        costos = result.scalars().all()
+        costos = query.all()
 
         return list(costos), total
 
-    async def get_costo_variable(self, costo_id: UUID) -> Optional[CostoVariable]:
+    def get_costo_variable(self, costo_id: UUID) -> Optional[CostoVariable]:
         """Obtiene costo variable por ID"""
-        result = await self.db.execute(
-            select(CostoVariable).where(CostoVariable.id == costo_id)
-        )
-        return result.scalar_one_or_none()
+        return self.db.query(CostoVariable).filter(CostoVariable.id == costo_id).first()
 
-    async def create_costo_variable(self, data: CostoVariableCreate) -> CostoVariable:
+    def create_costo_variable(self, data: CostoVariableCreate) -> CostoVariable:
         """Crea costo variable"""
         costo = CostoVariable(**data.model_dump())
         self.db.add(costo)
-        await self.db.commit()
-        await self.db.refresh(costo)
+        self.db.commit()
+        self.db.refresh(costo)
         return costo
 
-    async def update_costo_variable(self, costo_id: UUID, data: CostoVariableUpdate) -> Optional[CostoVariable]:
+    def update_costo_variable(self, costo_id: UUID, data: CostoVariableUpdate) -> Optional[CostoVariable]:
         """Actualiza costo variable"""
-        costo = await self.get_costo_variable(costo_id)
+        costo = self.get_costo_variable(costo_id)
         if not costo:
             return None
 
@@ -187,71 +175,61 @@ class CostoService:
         for field, value in update_data.items():
             setattr(costo, field, value)
 
-        await self.db.commit()
-        await self.db.refresh(costo)
+        self.db.commit()
+        self.db.refresh(costo)
         return costo
 
-    async def delete_costo_variable(self, costo_id: UUID) -> bool:
+    def delete_costo_variable(self, costo_id: UUID) -> bool:
         """Elimina costo variable (soft delete)"""
-        costo = await self.get_costo_variable(costo_id)
+        costo = self.get_costo_variable(costo_id)
         if not costo:
             return False
 
         costo.activo = False
-        await self.db.commit()
+        self.db.commit()
         return True
 
     # ==================== TARIFAS DE SERVICIO ====================
 
-    async def get_tarifas_servicios(
+    def get_tarifas_servicios(
         self,
         servicio_id: Optional[UUID] = None,
         skip: int = 0,
         limit: int = 50
     ) -> Tuple[List[TarifaServicio], int]:
         """Lista tarifas de servicios"""
-        query = select(TarifaServicio).where(TarifaServicio.activo == True)
+        query = self.db.query(TarifaServicio).filter(TarifaServicio.activo == True)
 
         if servicio_id:
-            query = query.where(TarifaServicio.servicio_id == servicio_id)
+            query = query.filter(TarifaServicio.servicio_id == servicio_id)
 
         # Contar
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
-        total = total_result.scalar() or 0
+        total = query.count()
 
         # Paginar
         query = query.order_by(TarifaServicio.fecha_vigencia.desc())
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
-        tarifas = result.scalars().all()
+        tarifas = query.all()
 
         return list(tarifas), total
 
-    async def get_tarifa_servicio(self, tarifa_id: UUID) -> Optional[TarifaServicio]:
+    def get_tarifa_servicio(self, tarifa_id: UUID) -> Optional[TarifaServicio]:
         """Obtiene tarifa de servicio por ID"""
-        result = await self.db.execute(
-            select(TarifaServicio).where(TarifaServicio.id == tarifa_id)
-        )
-        return result.scalar_one_or_none()
+        return self.db.query(TarifaServicio).filter(TarifaServicio.id == tarifa_id).first()
 
-    async def get_tarifa_vigente(self, servicio_id: UUID) -> Optional[TarifaServicio]:
+    def get_tarifa_vigente(self, servicio_id: UUID) -> Optional[TarifaServicio]:
         """Obtiene tarifa vigente para un servicio"""
         hoy = date.today()
-        result = await self.db.execute(
-            select(TarifaServicio)
-            .where(and_(
+        return self.db.query(TarifaServicio).filter(
+            and_(
                 TarifaServicio.servicio_id == servicio_id,
                 TarifaServicio.fecha_vigencia <= hoy,
                 TarifaServicio.activo == True
-            ))
-            .order_by(TarifaServicio.fecha_vigencia.desc())
-            .limit(1)
-        )
-        return result.scalar_one_or_none()
+            )
+        ).order_by(TarifaServicio.fecha_vigencia.desc()).first()
 
-    async def create_tarifa_servicio(self, data: TarifaServicioCreate) -> TarifaServicio:
+    def create_tarifa_servicio(self, data: TarifaServicioCreate) -> TarifaServicio:
         """Crea tarifa de servicio"""
         # Calcular costo total
         costo_total = (
@@ -266,13 +244,13 @@ class CostoService:
             costo_total=costo_total
         )
         self.db.add(tarifa)
-        await self.db.commit()
-        await self.db.refresh(tarifa)
+        self.db.commit()
+        self.db.refresh(tarifa)
         return tarifa
 
-    async def update_tarifa_servicio(self, tarifa_id: UUID, data: TarifaServicioUpdate) -> Optional[TarifaServicio]:
+    def update_tarifa_servicio(self, tarifa_id: UUID, data: TarifaServicioUpdate) -> Optional[TarifaServicio]:
         """Actualiza tarifa de servicio"""
-        tarifa = await self.get_tarifa_servicio(tarifa_id)
+        tarifa = self.get_tarifa_servicio(tarifa_id)
         if not tarifa:
             return None
 
@@ -288,13 +266,13 @@ class CostoService:
             tarifa.costo_otros
         )
 
-        await self.db.commit()
-        await self.db.refresh(tarifa)
+        self.db.commit()
+        self.db.refresh(tarifa)
         return tarifa
 
     # ==================== ANALISIS DE LOTES ====================
 
-    async def create_analisis_lote(self, data: AnalisisCostoLoteCreate) -> AnalisisCostoLote:
+    def create_analisis_lote(self, data: AnalisisCostoLoteCreate) -> AnalisisCostoLote:
         """Crea análisis de costo para un lote"""
         # Calcular totales
         costo_total = (
@@ -339,33 +317,25 @@ class CostoService:
         )
 
         self.db.add(analisis)
-        await self.db.commit()
-        await self.db.refresh(analisis)
+        self.db.commit()
+        self.db.refresh(analisis)
         return analisis
 
-    async def get_analisis_lote(self, lote_id: UUID) -> Optional[AnalisisCostoLote]:
+    def get_analisis_lote(self, lote_id: UUID) -> Optional[AnalisisCostoLote]:
         """Obtiene análisis de costo de un lote"""
-        result = await self.db.execute(
-            select(AnalisisCostoLote).where(AnalisisCostoLote.lote_id == lote_id)
-        )
-        return result.scalar_one_or_none()
+        return self.db.query(AnalisisCostoLote).filter(AnalisisCostoLote.lote_id == lote_id).first()
 
-    async def calcular_costo_lote(self, lote_id: UUID) -> AnalisisCostoLote:
+    def calcular_costo_lote(self, lote_id: UUID) -> AnalisisCostoLote:
         """Calcula automáticamente los costos de un lote"""
         # Obtener lote
-        lote_result = await self.db.execute(
-            select(LoteProduccion).where(LoteProduccion.id == lote_id)
-        )
-        lote = lote_result.scalar_one_or_none()
+        lote = self.db.query(LoteProduccion).filter(LoteProduccion.id == lote_id).first()
         if not lote:
             raise ValueError("Lote no encontrado")
 
         # Calcular costo de insumos consumidos
-        consumos_result = await self.db.execute(
-            select(ConsumoInsumoLote)
-            .where(ConsumoInsumoLote.lote_id == lote_id)
-        )
-        consumos = consumos_result.scalars().all()
+        consumos = self.db.query(ConsumoInsumoLote).filter(
+            ConsumoInsumoLote.lote_id == lote_id
+        ).all()
 
         costo_insumos = sum(
             (c.cantidad * c.costo_unitario) if c.costo_unitario else Decimal("0")
@@ -373,8 +343,8 @@ class CostoService:
         )
 
         # Obtener parámetros de costo
-        costo_kwh = await self._get_parametro_valor("costo_kwh", Decimal("100"))
-        factor_mano_obra = await self._get_parametro_valor("factor_mano_obra", Decimal("500"))
+        costo_kwh = self._get_parametro_valor("costo_kwh", Decimal("100"))
+        factor_mano_obra = self._get_parametro_valor("factor_mano_obra", Decimal("500"))
 
         # Estimar costo de energía (basado en kg procesados)
         kg = lote.peso_entrada_kg or Decimal("0")
@@ -387,18 +357,15 @@ class CostoService:
 
         # Prorratear costos fijos
         hoy = date.today()
-        costos_fijos_mes = await self.get_total_costos_fijos_mes(hoy.month, hoy.year)
-        capacidad_mes = await self._get_parametro_valor("capacidad_kg_mes", Decimal("10000"))
+        costos_fijos_mes = self.get_total_costos_fijos_mes(hoy.month, hoy.year)
+        capacidad_mes = self._get_parametro_valor("capacidad_kg_mes", Decimal("10000"))
         costo_fijos_por_kg = costos_fijos_mes / capacidad_mes if capacidad_mes > 0 else Decimal("0")
         costo_fijos_prorrateado = kg * costo_fijos_por_kg
 
         # Obtener ingreso del pedido asociado
         ingreso_total = None
         if lote.pedido_id:
-            pedido_result = await self.db.execute(
-                select(Pedido).where(Pedido.id == lote.pedido_id)
-            )
-            pedido = pedido_result.scalar_one_or_none()
+            pedido = self.db.query(Pedido).filter(Pedido.id == lote.pedido_id).first()
             if pedido:
                 ingreso_total = pedido.total
 
@@ -414,32 +381,28 @@ class CostoService:
             ingreso_total=ingreso_total
         )
 
-        return await self.create_analisis_lote(data)
+        return self.create_analisis_lote(data)
 
     # ==================== PARAMETROS ====================
 
-    async def get_parametros(self, categoria: Optional[str] = None) -> List[ParametroCosto]:
+    def get_parametros(self, categoria: Optional[str] = None) -> List[ParametroCosto]:
         """Lista parámetros de costo"""
-        query = select(ParametroCosto).where(ParametroCosto.activo == True)
+        query = self.db.query(ParametroCosto).filter(ParametroCosto.activo == True)
 
         if categoria:
-            query = query.where(ParametroCosto.categoria == categoria)
+            query = query.filter(ParametroCosto.categoria == categoria)
 
         query = query.order_by(ParametroCosto.categoria, ParametroCosto.clave)
 
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
+        return query.all()
 
-    async def get_parametro(self, clave: str) -> Optional[ParametroCosto]:
+    def get_parametro(self, clave: str) -> Optional[ParametroCosto]:
         """Obtiene parámetro por clave"""
-        result = await self.db.execute(
-            select(ParametroCosto).where(ParametroCosto.clave == clave)
-        )
-        return result.scalar_one_or_none()
+        return self.db.query(ParametroCosto).filter(ParametroCosto.clave == clave).first()
 
-    async def _get_parametro_valor(self, clave: str, default: Decimal) -> Decimal:
+    def _get_parametro_valor(self, clave: str, default: Decimal) -> Decimal:
         """Obtiene valor de parámetro como Decimal"""
-        param = await self.get_parametro(clave)
+        param = self.get_parametro(clave)
         if param:
             try:
                 return Decimal(param.valor)
@@ -447,28 +410,28 @@ class CostoService:
                 return default
         return default
 
-    async def set_parametro(self, data: ParametroCostoCreate) -> ParametroCosto:
+    def set_parametro(self, data: ParametroCostoCreate) -> ParametroCosto:
         """Crea o actualiza parámetro"""
-        existing = await self.get_parametro(data.clave)
+        existing = self.get_parametro(data.clave)
         if existing:
             existing.valor = data.valor
             existing.descripcion = data.descripcion
-            await self.db.commit()
-            await self.db.refresh(existing)
+            self.db.commit()
+            self.db.refresh(existing)
             return existing
 
         param = ParametroCosto(**data.model_dump())
         self.db.add(param)
-        await self.db.commit()
-        await self.db.refresh(param)
+        self.db.commit()
+        self.db.refresh(param)
         return param
 
     # ==================== REPORTES DE COSTOS ====================
 
-    async def get_resumen_costos_mes(self, mes: int, anio: int) -> ResumenCostosMes:
+    def get_resumen_costos_mes(self, mes: int, anio: int) -> ResumenCostosMes:
         """Genera resumen de costos del mes"""
         # Costos fijos
-        costos_fijos, _ = await self.get_costos_fijos(limit=1000, solo_vigentes=True)
+        costos_fijos, _ = self.get_costos_fijos(limit=1000, solo_vigentes=True)
         total_fijos = sum(c.monto_mensual for c in costos_fijos)
 
         fijos_por_categoria: dict[str, Decimal] = {}
@@ -484,14 +447,12 @@ class CostoService:
         else:
             fecha_fin = date(anio, mes + 1, 1)
 
-        analisis_result = await self.db.execute(
-            select(AnalisisCostoLote)
-            .where(and_(
+        analisis_list = self.db.query(AnalisisCostoLote).filter(
+            and_(
                 AnalisisCostoLote.created_at >= fecha_inicio,
                 AnalisisCostoLote.created_at < fecha_fin
-            ))
-        )
-        analisis_list = analisis_result.scalars().all()
+            )
+        ).all()
 
         total_variables = sum(
             (a.costo_insumos + a.costo_energia + a.costo_otros)
@@ -524,7 +485,7 @@ class CostoService:
             margen_porcentaje=margen_porcentaje
         )
 
-    async def get_rentabilidad_por_cliente(
+    def get_rentabilidad_por_cliente(
         self,
         fecha_desde: Optional[date] = None,
         fecha_hasta: Optional[date] = None,
@@ -532,31 +493,27 @@ class CostoService:
     ) -> List[RentabilidadCliente]:
         """Calcula rentabilidad por cliente"""
         # Consulta de pedidos agrupados por cliente
-        query = select(
+        query = self.db.query(
             Pedido.cliente_id,
             func.count(Pedido.id).label('cantidad_pedidos'),
             func.sum(Pedido.total).label('ingreso_total')
-        ).where(Pedido.activo == True)
+        ).filter(Pedido.activo == True)
 
         if fecha_desde:
-            query = query.where(Pedido.fecha_pedido >= fecha_desde)
+            query = query.filter(Pedido.fecha_pedido >= fecha_desde)
         if fecha_hasta:
-            query = query.where(Pedido.fecha_pedido <= fecha_hasta)
+            query = query.filter(Pedido.fecha_pedido <= fecha_hasta)
 
         query = query.group_by(Pedido.cliente_id)
         query = query.order_by(func.sum(Pedido.total).desc())
         query = query.limit(limit)
 
-        result = await self.db.execute(query)
-        rows = result.all()
+        rows = query.all()
 
         rentabilidades = []
         for row in rows:
             # Obtener cliente
-            cliente_result = await self.db.execute(
-                select(Cliente).where(Cliente.id == row.cliente_id)
-            )
-            cliente = cliente_result.scalar_one_or_none()
+            cliente = self.db.query(Cliente).filter(Cliente.id == row.cliente_id).first()
 
             ingreso = row.ingreso_total or Decimal("0")
             # Estimar costo como 60% del ingreso (simplificado)

@@ -7,7 +7,7 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
@@ -29,17 +29,17 @@ router = APIRouter()
 # ==================== COSTOS FIJOS ====================
 
 @router.get("/fijos", response_model=PaginatedResponse[CostoFijoResponse])
-async def list_costos_fijos(
+def list_costos_fijos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     categoria: Optional[str] = None,
     solo_vigentes: bool = True,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista costos fijos"""
     service = CostoService(db)
-    costos, total = await service.get_costos_fijos(
+    costos, total = service.get_costos_fijos(
         skip=skip,
         limit=limit,
         categoria=categoria,
@@ -68,14 +68,14 @@ async def list_costos_fijos(
 
 
 @router.post("/fijos", response_model=CostoFijoResponse, status_code=status.HTTP_201_CREATED)
-async def create_costo_fijo(
+def create_costo_fijo(
     data: CostoFijoCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea costo fijo"""
     service = CostoService(db)
-    costo = await service.create_costo_fijo(data)
+    costo = service.create_costo_fijo(data)
 
     hoy = date.today()
     return CostoFijoResponse(
@@ -89,14 +89,14 @@ async def create_costo_fijo(
 
 
 @router.get("/fijos/{costo_id}", response_model=CostoFijoResponse)
-async def get_costo_fijo(
+def get_costo_fijo(
     costo_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene costo fijo por ID"""
     service = CostoService(db)
-    costo = await service.get_costo_fijo(costo_id)
+    costo = service.get_costo_fijo(costo_id)
 
     if not costo:
         raise HTTPException(
@@ -116,15 +116,15 @@ async def get_costo_fijo(
 
 
 @router.put("/fijos/{costo_id}", response_model=CostoFijoResponse)
-async def update_costo_fijo(
+def update_costo_fijo(
     costo_id: UUID,
     data: CostoFijoUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualiza costo fijo"""
     service = CostoService(db)
-    costo = await service.update_costo_fijo(costo_id, data)
+    costo = service.update_costo_fijo(costo_id, data)
 
     if not costo:
         raise HTTPException(
@@ -144,14 +144,14 @@ async def update_costo_fijo(
 
 
 @router.delete("/fijos/{costo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_costo_fijo(
+def delete_costo_fijo(
     costo_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Elimina costo fijo"""
     service = CostoService(db)
-    success = await service.delete_costo_fijo(costo_id)
+    success = service.delete_costo_fijo(costo_id)
 
     if not success:
         raise HTTPException(
@@ -163,16 +163,16 @@ async def delete_costo_fijo(
 # ==================== COSTOS VARIABLES ====================
 
 @router.get("/variables", response_model=PaginatedResponse[CostoVariableResponse])
-async def list_costos_variables(
+def list_costos_variables(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     categoria: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista costos variables"""
     service = CostoService(db)
-    costos, total = await service.get_costos_variables(
+    costos, total = service.get_costos_variables(
         skip=skip,
         limit=limit,
         categoria=categoria
@@ -198,14 +198,14 @@ async def list_costos_variables(
 
 
 @router.post("/variables", response_model=CostoVariableResponse, status_code=status.HTTP_201_CREATED)
-async def create_costo_variable(
+def create_costo_variable(
     data: CostoVariableCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea costo variable"""
     service = CostoService(db)
-    costo = await service.create_costo_variable(data)
+    costo = service.create_costo_variable(data)
 
     return CostoVariableResponse(
         **costo.__dict__,
@@ -217,15 +217,15 @@ async def create_costo_variable(
 
 
 @router.put("/variables/{costo_id}", response_model=CostoVariableResponse)
-async def update_costo_variable(
+def update_costo_variable(
     costo_id: UUID,
     data: CostoVariableUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualiza costo variable"""
     service = CostoService(db)
-    costo = await service.update_costo_variable(costo_id, data)
+    costo = service.update_costo_variable(costo_id, data)
 
     if not costo:
         raise HTTPException(
@@ -243,14 +243,14 @@ async def update_costo_variable(
 
 
 @router.delete("/variables/{costo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_costo_variable(
+def delete_costo_variable(
     costo_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Elimina costo variable"""
     service = CostoService(db)
-    success = await service.delete_costo_variable(costo_id)
+    success = service.delete_costo_variable(costo_id)
 
     if not success:
         raise HTTPException(
@@ -262,16 +262,16 @@ async def delete_costo_variable(
 # ==================== TARIFAS DE SERVICIOS ====================
 
 @router.get("/tarifas", response_model=PaginatedResponse[TarifaServicioResponse])
-async def list_tarifas_servicios(
+def list_tarifas_servicios(
     servicio_id: Optional[UUID] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista tarifas de servicios"""
     service = CostoService(db)
-    tarifas, total = await service.get_tarifas_servicios(
+    tarifas, total = service.get_tarifas_servicios(
         servicio_id=servicio_id,
         skip=skip,
         limit=limit
@@ -294,14 +294,14 @@ async def list_tarifas_servicios(
 
 
 @router.post("/tarifas", response_model=TarifaServicioResponse, status_code=status.HTTP_201_CREATED)
-async def create_tarifa_servicio(
+def create_tarifa_servicio(
     data: TarifaServicioCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea tarifa de servicio"""
     service = CostoService(db)
-    tarifa = await service.create_tarifa_servicio(data)
+    tarifa = service.create_tarifa_servicio(data)
 
     return TarifaServicioResponse(
         **tarifa.__dict__,
@@ -310,14 +310,14 @@ async def create_tarifa_servicio(
 
 
 @router.get("/tarifas/servicio/{servicio_id}/vigente", response_model=TarifaServicioResponse)
-async def get_tarifa_vigente(
+def get_tarifa_vigente(
     servicio_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene tarifa vigente para un servicio"""
     service = CostoService(db)
-    tarifa = await service.get_tarifa_vigente(servicio_id)
+    tarifa = service.get_tarifa_vigente(servicio_id)
 
     if not tarifa:
         raise HTTPException(
@@ -332,15 +332,15 @@ async def get_tarifa_vigente(
 
 
 @router.put("/tarifas/{tarifa_id}", response_model=TarifaServicioResponse)
-async def update_tarifa_servicio(
+def update_tarifa_servicio(
     tarifa_id: UUID,
     data: TarifaServicioUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualiza tarifa de servicio"""
     service = CostoService(db)
-    tarifa = await service.update_tarifa_servicio(tarifa_id, data)
+    tarifa = service.update_tarifa_servicio(tarifa_id, data)
 
     if not tarifa:
         raise HTTPException(
@@ -357,11 +357,11 @@ async def update_tarifa_servicio(
 # ==================== ANALISIS DE LOTES ====================
 
 @router.post("/lotes/{lote_id}/analisis", response_model=AnalisisCostoLoteResponse, status_code=status.HTTP_201_CREATED)
-async def crear_analisis_lote(
+def crear_analisis_lote(
     lote_id: UUID,
     data: Optional[AnalisisCostoLoteCreate] = None,
     auto_calcular: bool = True,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea o calcula análisis de costo para un lote"""
@@ -369,10 +369,10 @@ async def crear_analisis_lote(
 
     try:
         if auto_calcular:
-            analisis = await service.calcular_costo_lote(lote_id)
+            analisis = service.calcular_costo_lote(lote_id)
         elif data:
             data.lote_id = lote_id
-            analisis = await service.create_analisis_lote(data)
+            analisis = service.create_analisis_lote(data)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -388,14 +388,14 @@ async def crear_analisis_lote(
 
 
 @router.get("/lotes/{lote_id}/analisis", response_model=AnalisisCostoLoteResponse)
-async def get_analisis_lote(
+def get_analisis_lote(
     lote_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene análisis de costo de un lote"""
     service = CostoService(db)
-    analisis = await service.get_analisis_lote(lote_id)
+    analisis = service.get_analisis_lote(lote_id)
 
     if not analisis:
         raise HTTPException(
@@ -409,27 +409,27 @@ async def get_analisis_lote(
 # ==================== PARAMETROS ====================
 
 @router.get("/parametros", response_model=List[ParametroCostoResponse])
-async def list_parametros(
+def list_parametros(
     categoria: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista parámetros de costo"""
     service = CostoService(db)
-    parametros = await service.get_parametros(categoria)
+    parametros = service.get_parametros(categoria)
 
     return [ParametroCostoResponse(**p.__dict__) for p in parametros]
 
 
 @router.post("/parametros", response_model=ParametroCostoResponse, status_code=status.HTTP_201_CREATED)
-async def set_parametro(
+def set_parametro(
     data: ParametroCostoCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea o actualiza parámetro de costo"""
     service = CostoService(db)
-    parametro = await service.set_parametro(data)
+    parametro = service.set_parametro(data)
 
     return ParametroCostoResponse(**parametro.__dict__)
 
@@ -437,28 +437,28 @@ async def set_parametro(
 # ==================== REPORTES ====================
 
 @router.get("/resumen/mes", response_model=ResumenCostosMes)
-async def get_resumen_costos_mes(
+def get_resumen_costos_mes(
     mes: int = Query(..., ge=1, le=12),
     anio: int = Query(..., ge=2020),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene resumen de costos del mes"""
     service = CostoService(db)
-    return await service.get_resumen_costos_mes(mes, anio)
+    return service.get_resumen_costos_mes(mes, anio)
 
 
 @router.get("/rentabilidad/clientes", response_model=List[RentabilidadCliente])
-async def get_rentabilidad_clientes(
+def get_rentabilidad_clientes(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene rentabilidad por cliente"""
     service = CostoService(db)
-    return await service.get_rentabilidad_por_cliente(
+    return service.get_rentabilidad_por_cliente(
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
         limit=limit
@@ -468,7 +468,7 @@ async def get_rentabilidad_clientes(
 # ==================== CONSTANTES ====================
 
 @router.get("/constantes", response_model=dict)
-async def get_constantes(
+def get_constantes(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene constantes de costos"""
