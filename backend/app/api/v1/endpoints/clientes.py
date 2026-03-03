@@ -20,7 +20,7 @@ from app.schemas.cliente import (
     TIPOS_CLIENTE,
     CONDICIONES_IVA,
 )
-from app.schemas.base import PaginatedResponse
+from app.schemas.common import PaginatedResponse
 
 router = APIRouter()
 

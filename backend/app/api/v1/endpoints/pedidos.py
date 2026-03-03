@@ -22,7 +22,7 @@ from app.schemas.pedido import (
     ESTADOS_PEDIDO,
     TIPOS_ENTREGA,
 )
-from app.schemas.base import PaginatedResponse
+from app.schemas.common import PaginatedResponse
 
 router = APIRouter()
 

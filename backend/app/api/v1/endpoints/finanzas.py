@@ -30,7 +30,7 @@ from app.schemas.finanzas import (
     TIPOS_CUENTA_BANCARIA,
     TIPOS_MOVIMIENTO_BANCO,
 )
-from app.schemas.base import PaginatedResponse
+from app.schemas.common import PaginatedResponse
 
 router = APIRouter()
 
