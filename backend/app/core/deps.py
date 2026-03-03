@@ -74,6 +74,27 @@ async def get_current_admin_or_superadmin(
     return current_user
 
 
+def require_permission(*allowed_roles: str):
+    """
+    Dependency factory que verifica que el usuario tenga uno de los roles permitidos.
+
+    Uso:
+        @router.get("/")
+        async def endpoint(current_user: Usuario = Depends(require_permission("admin", "superadmin"))):
+            ...
+    """
+    async def permission_checker(
+        current_user: Usuario = Depends(get_current_active_user),
+    ) -> Usuario:
+        if current_user.rol not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Se requiere uno de los siguientes roles: {', '.join(allowed_roles)}",
+            )
+        return current_user
+    return permission_checker
+
+
 def get_client_ip(request: Request) -> Optional[str]:
     """
     Obtiene la IP del cliente desde el request.
