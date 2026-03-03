@@ -160,7 +160,7 @@ def obtener_proveedor(
 def crear_proveedor(
     data: ProveedorCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
 ):
     """Crea un nuevo proveedor."""
     service = ProveedorService(db)
@@ -211,7 +211,7 @@ def actualizar_proveedor(
     proveedor_id: UUID,
     data: ProveedorUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
 ):
     """Actualiza un proveedor."""
     service = ProveedorService(db)
@@ -268,7 +268,7 @@ def actualizar_proveedor(
 def eliminar_proveedor(
     proveedor_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "eliminar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
 ):
     """Elimina (soft delete) un proveedor."""
     service = ProveedorService(db)

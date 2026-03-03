@@ -104,7 +104,7 @@ def obtener_categoria(
 def crear_categoria(
     data: CategoriaInsumoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Crea una nueva categoría de insumo."""
     service = StockService(db)
@@ -127,7 +127,7 @@ def actualizar_categoria(
     categoria_id: UUID,
     data: CategoriaInsumoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Actualiza una categoría."""
     service = StockService(db)
@@ -155,7 +155,7 @@ def actualizar_categoria(
 def eliminar_categoria(
     categoria_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "eliminar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
 ):
     """Elimina (desactiva) una categoría."""
     service = StockService(db)

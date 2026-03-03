@@ -81,7 +81,11 @@ export default function UsuariosPage() {
     telefono: '',
     rol: 'operador',
     guardar_password_visible: false,
+    permisos_modulos: null as Record<string, boolean> | null,
   });
+
+  // Para controlar si se personalizan los permisos
+  const [personalizarPermisos, setPersonalizarPermisos] = useState(false);
 
   const [newPassword, setNewPassword] = useState('');
   const [guardarPasswordVisible, setGuardarPasswordVisible] = useState(false);
@@ -206,11 +210,62 @@ export default function UsuariosPage() {
       telefono: '',
       rol: 'operador',
       guardar_password_visible: false,
+      permisos_modulos: null,
     });
+    setPersonalizarPermisos(false);
+  };
+
+  // Obtener permisos por defecto del rol seleccionado
+  const getPermisosDefaultPorRol = (rol: string): Record<string, boolean> => {
+    if (modulosData?.permisos_por_rol && modulosData.permisos_por_rol[rol]) {
+      return { ...modulosData.permisos_por_rol[rol] };
+    }
+    // Fallback
+    return Object.fromEntries(
+      (modulosData?.modulos_disponibles || Object.keys(MODULOS_LABELS)).map(m => [m, false])
+    );
+  };
+
+  // Cuando cambia el rol, actualizar los permisos personalizados si están activos
+  const handleRolChange = (nuevoRol: string) => {
+    setFormData(prev => ({
+      ...prev,
+      rol: nuevoRol,
+      permisos_modulos: personalizarPermisos ? getPermisosDefaultPorRol(nuevoRol) : null,
+    }));
+  };
+
+  // Toggle para personalizar permisos
+  const handleTogglePersonalizarPermisos = (activar: boolean) => {
+    setPersonalizarPermisos(activar);
+    if (activar) {
+      setFormData(prev => ({
+        ...prev,
+        permisos_modulos: getPermisosDefaultPorRol(prev.rol),
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        permisos_modulos: null,
+      }));
+    }
+  };
+
+  // Actualizar un permiso individual
+  const handlePermisoChange = (modulo: string, valor: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      permisos_modulos: {
+        ...(prev.permisos_modulos || {}),
+        [modulo]: valor,
+      },
+    }));
   };
 
   const handleEdit = (usuario: Usuario) => {
     setSelectedUser(usuario);
+    const tienePermisosPersonalizados = usuario.permisos_modulos && Object.keys(usuario.permisos_modulos).length > 0;
+    setPersonalizarPermisos(tienePermisosPersonalizados);
     setFormData({
       email: usuario.email,
       password: '',
@@ -219,6 +274,7 @@ export default function UsuariosPage() {
       telefono: usuario.telefono || '',
       rol: usuario.rol,
       guardar_password_visible: false,
+      permisos_modulos: tienePermisosPersonalizados ? usuario.permisos_modulos! : null,
     });
     setShowEditModal(true);
   };
@@ -576,7 +632,7 @@ export default function UsuariosPage() {
               <Label htmlFor="rol">Rol</Label>
               <Select
                 value={formData.rol}
-                onValueChange={(value) => setFormData({ ...formData, rol: value })}
+                onValueChange={handleRolChange}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -589,6 +645,48 @@ export default function UsuariosPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Sección de permisos personalizados */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Permisos de módulos
+                </Label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={personalizarPermisos}
+                    onCheckedChange={(checked) => handleTogglePersonalizarPermisos(checked === true)}
+                  />
+                  Personalizar permisos
+                </label>
+              </div>
+
+              {personalizarPermisos && formData.permisos_modulos && (
+                <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-gray-50">
+                  <p className="text-xs text-gray-500 mb-2">
+                    Selecciona los módulos a los que tendrá acceso:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(modulosData?.modulos_disponibles || Object.keys(MODULOS_LABELS)).map((modulo) => (
+                      <label key={modulo} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={formData.permisos_modulos?.[modulo] || false}
+                          onCheckedChange={(checked) => handlePermisoChange(modulo, checked === true)}
+                        />
+                        {MODULOS_LABELS[modulo] || modulo}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!personalizarPermisos && (
+                <p className="text-xs text-gray-500">
+                  Se usarán los permisos predeterminados del rol seleccionado.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -654,7 +752,7 @@ export default function UsuariosPage() {
               <Label htmlFor="edit-rol">Rol</Label>
               <Select
                 value={formData.rol}
-                onValueChange={(value) => setFormData({ ...formData, rol: value })}
+                onValueChange={handleRolChange}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -667,6 +765,48 @@ export default function UsuariosPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Sección de permisos personalizados */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Permisos de módulos
+                </Label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={personalizarPermisos}
+                    onCheckedChange={(checked) => handleTogglePersonalizarPermisos(checked === true)}
+                  />
+                  Personalizar permisos
+                </label>
+              </div>
+
+              {personalizarPermisos && formData.permisos_modulos && (
+                <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-gray-50">
+                  <p className="text-xs text-gray-500 mb-2">
+                    Selecciona los módulos a los que tendrá acceso:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(modulosData?.modulos_disponibles || Object.keys(MODULOS_LABELS)).map((modulo) => (
+                      <label key={modulo} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={formData.permisos_modulos?.[modulo] || false}
+                          onCheckedChange={(checked) => handlePermisoChange(modulo, checked === true)}
+                        />
+                        {MODULOS_LABELS[modulo] || modulo}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!personalizarPermisos && (
+                <p className="text-xs text-gray-500">
+                  Se usarán los permisos predeterminados del rol seleccionado.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -684,6 +824,7 @@ export default function UsuariosPage() {
                       apellido: formData.apellido,
                       telefono: formData.telefono,
                       rol: formData.rol,
+                      permisos_modulos: formData.permisos_modulos,
                     },
                   });
                 }

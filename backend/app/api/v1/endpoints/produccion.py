@@ -47,7 +47,7 @@ router = APIRouter()
 # ==================== KANBAN ====================
 
 @router.get("/kanban", response_model=KanbanBoard)
-def obtener_kanban(
+async def obtener_kanban(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -59,7 +59,7 @@ def obtener_kanban(
 # ==================== ETAPAS ====================
 
 @router.get("/etapas", response_model=List[EtapaProduccionResponse])
-def listar_etapas(
+async def listar_etapas(
     solo_activas: bool = True,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -91,7 +91,7 @@ def listar_etapas(
 
 
 @router.get("/etapas/lista", response_model=List[EtapaProduccionList])
-def listar_etapas_dropdown(
+async def listar_etapas_dropdown(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -111,10 +111,10 @@ def listar_etapas_dropdown(
 
 
 @router.post("/etapas", response_model=EtapaProduccionResponse, status_code=status.HTTP_201_CREATED)
-def crear_etapa(
+async def crear_etapa(
     data: EtapaProduccionCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Crea una nueva etapa de producción."""
     service = ProduccionService(db)
@@ -140,11 +140,11 @@ def crear_etapa(
 
 
 @router.put("/etapas/{etapa_id}", response_model=EtapaProduccionResponse)
-def actualizar_etapa(
+async def actualizar_etapa(
     etapa_id: UUID,
     data: EtapaProduccionUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Actualiza una etapa de producción."""
     service = ProduccionService(db)
@@ -178,7 +178,7 @@ def actualizar_etapa(
 # ==================== MÁQUINAS ====================
 
 @router.get("/maquinas", response_model=List[MaquinaResponse])
-def listar_maquinas(
+async def listar_maquinas(
     tipo: Optional[str] = None,
     estado: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -217,7 +217,7 @@ def listar_maquinas(
 
 
 @router.get("/maquinas/lista", response_model=List[MaquinaList])
-def listar_maquinas_dropdown(
+async def listar_maquinas_dropdown(
     tipo: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -239,10 +239,10 @@ def listar_maquinas_dropdown(
 
 
 @router.post("/maquinas", response_model=MaquinaResponse, status_code=status.HTTP_201_CREATED)
-def crear_maquina(
+async def crear_maquina(
     data: MaquinaCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Crea una nueva máquina."""
     service = ProduccionService(db)
@@ -276,7 +276,7 @@ def crear_maquina(
 # ==================== LOTES ====================
 
 @router.get("/lotes", response_model=PaginatedResponse)
-def listar_lotes(
+async def listar_lotes(
     skip: int = 0,
     limit: int = 50,
     estado: Optional[EstadoLote] = None,
@@ -332,7 +332,7 @@ def listar_lotes(
 
 
 @router.get("/lotes/{lote_id}", response_model=LoteProduccionResponse)
-def obtener_lote(
+async def obtener_lote(
     lote_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -410,10 +410,10 @@ def obtener_lote(
 
 
 @router.post("/lotes", response_model=LoteProduccionResponse, status_code=status.HTTP_201_CREATED)
-def crear_lote(
+async def crear_lote(
     data: LoteProduccionCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Crea un nuevo lote de producción."""
     service = ProduccionService(db)
@@ -485,11 +485,11 @@ def crear_lote(
 
 
 @router.put("/lotes/{lote_id}", response_model=LoteProduccionResponse)
-def actualizar_lote(
+async def actualizar_lote(
     lote_id: UUID,
     data: LoteProduccionUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Actualiza un lote de producción."""
     service = ProduccionService(db)
@@ -504,15 +504,15 @@ def actualizar_lote(
     # Recargar con relaciones
     lote = service.get_lote(lote.id)
 
-    return obtener_lote(lote_id, db, current_user)
+    return await obtener_lote(lote_id, db, current_user)
 
 
 @router.post("/lotes/{lote_id}/estado", response_model=MessageResponse)
-def cambiar_estado_lote(
+async def cambiar_estado_lote(
     lote_id: UUID,
     data: CambiarEstadoLoteRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Cambia el estado de un lote."""
     service = ProduccionService(db)
@@ -533,11 +533,11 @@ def cambiar_estado_lote(
 
 
 @router.post("/lotes/{lote_id}/mover", response_model=MessageResponse)
-def mover_lote(
+async def mover_lote(
     lote_id: UUID,
     data: MoverLoteRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Mueve un lote a otra etapa."""
     service = ProduccionService(db)
@@ -555,12 +555,12 @@ def mover_lote(
 # ==================== ETAPAS DE LOTE ====================
 
 @router.post("/lotes/{lote_id}/etapas/{etapa_id}/iniciar", response_model=LoteEtapaResponse)
-def iniciar_etapa_lote(
+async def iniciar_etapa_lote(
     lote_id: UUID,
     etapa_id: UUID,
     data: IniciarEtapaRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Inicia una etapa para un lote."""
     service = ProduccionService(db)
@@ -595,12 +595,12 @@ def iniciar_etapa_lote(
 
 
 @router.post("/lotes/{lote_id}/etapas/{etapa_id}/finalizar", response_model=LoteEtapaResponse)
-def finalizar_etapa_lote(
+async def finalizar_etapa_lote(
     lote_id: UUID,
     etapa_id: UUID,
     data: FinalizarEtapaRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Finaliza una etapa para un lote."""
     service = ProduccionService(db)
@@ -637,7 +637,7 @@ def finalizar_etapa_lote(
 # ==================== CONSUMOS ====================
 
 @router.get("/lotes/{lote_id}/consumos", response_model=List[ConsumoInsumoLoteResponse])
-def listar_consumos_lote(
+async def listar_consumos_lote(
     lote_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -668,11 +668,11 @@ def listar_consumos_lote(
 
 
 @router.post("/lotes/{lote_id}/consumos", response_model=ConsumoInsumoLoteResponse, status_code=status.HTTP_201_CREATED)
-def registrar_consumo(
+async def registrar_consumo(
     lote_id: UUID,
     data: ConsumoInsumoLoteCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
     """Registra consumo de insumo en un lote."""
     service = ProduccionService(db)

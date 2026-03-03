@@ -180,7 +180,7 @@ def obtener_insumo(
 def crear_insumo(
     data: InsumoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Crea un nuevo insumo."""
     service = StockService(db)
@@ -231,7 +231,7 @@ def actualizar_insumo(
     insumo_id: UUID,
     data: InsumoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Actualiza un insumo."""
     service = StockService(db)
@@ -288,7 +288,7 @@ def actualizar_insumo(
 def eliminar_insumo(
     insumo_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "eliminar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
 ):
     """Elimina (soft delete) un insumo."""
     service = StockService(db)
@@ -308,7 +308,7 @@ def ajustar_stock(
     insumo_id: UUID,
     data: AjusteStockRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Realiza un ajuste manual de stock."""
     if data.insumo_id != insumo_id:

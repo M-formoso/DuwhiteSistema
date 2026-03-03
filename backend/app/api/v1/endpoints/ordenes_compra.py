@@ -152,7 +152,7 @@ def obtener_orden_compra(
 def crear_orden_compra(
     data: OrdenCompraCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "crear")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
 ):
     """Crea una nueva orden de compra."""
     service = ProveedorService(db)
@@ -225,7 +225,7 @@ def actualizar_orden_compra(
     orden_id: UUID,
     data: OrdenCompraUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
 ):
     """Actualiza una orden de compra."""
     service = ProveedorService(db)
@@ -304,7 +304,7 @@ def aprobar_orden_compra(
     orden_id: UUID,
     data: AprobarOrdenRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "aprobar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
 ):
     """Aprueba una orden de compra."""
     service = ProveedorService(db)
@@ -323,7 +323,7 @@ def aprobar_orden_compra(
 def enviar_orden_compra(
     orden_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
 ):
     """Marca la orden como enviada al proveedor."""
     service = ProveedorService(db)
@@ -348,7 +348,7 @@ def cancelar_orden_compra(
     orden_id: UUID,
     data: CambiarEstadoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "eliminar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
 ):
     """Cancela una orden de compra."""
     service = ProveedorService(db)
@@ -374,7 +374,7 @@ def registrar_recepcion(
     orden_id: UUID,
     data: RecepcionCompraCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("stock", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Registra la recepción de mercadería de una orden."""
     if data.orden_compra_id != orden_id:
