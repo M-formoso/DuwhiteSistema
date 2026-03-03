@@ -15,12 +15,36 @@ from app.db.session import SessionLocal
 from app.models.usuario import Usuario
 
 
+def run_migrations():
+    """Ejecutar migraciones de Alembic."""
+    import subprocess
+    try:
+        print("Ejecutando migraciones de Alembic...")
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            cwd="/app"
+        )
+        if result.returncode == 0:
+            print("Migraciones ejecutadas correctamente")
+            print(result.stdout)
+        else:
+            print(f"Error en migraciones: {result.stderr}")
+    except Exception as e:
+        print(f"Error ejecutando migraciones: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Crear usuario admin de prueba al iniciar si no existe."""
+    """Ejecutar migraciones y crear usuario admin al iniciar."""
+
+    # Ejecutar migraciones primero
+    run_migrations()
+
+    # Crear usuario admin si no existe
     db = SessionLocal()
     try:
-        # Verificar si existe el admin
         admin = db.query(Usuario).filter(Usuario.email == "admin@duwhite.com").first()
         if not admin:
             admin = Usuario(
@@ -44,9 +68,8 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    yield  # La app se ejecuta aquí
+    yield
 
-    # Cleanup al cerrar (si fuera necesario)
     pass
 
 # Crear aplicación FastAPI
