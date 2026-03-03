@@ -56,6 +56,7 @@ async def root():
 
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/v1/health", tags=["Health"])
 async def health_check():
     """Health check para monitoreo."""
     return {
