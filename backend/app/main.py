@@ -49,10 +49,15 @@ async def lifespan(app: FastAPI):
     try:
         admin = db.query(Usuario).filter(Usuario.email == "admin@duwhite.com").first()
         if not admin:
+            # Usar bcrypt directamente para evitar problemas con passlib
+            import bcrypt
+            password = "Admin123!"
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
             admin = Usuario(
                 id=uuid4(),
                 email="admin@duwhite.com",
-                password_hash=get_password_hash("Admin123!"),
+                password_hash=hashed,
                 nombre="Administrador",
                 apellido="Sistema",
                 rol="superadmin",
