@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from sqlalchemy import select, func, and_, or_, case, desc
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models.pedido import Pedido, EstadoPedido
 from app.models.cliente import Cliente
@@ -21,17 +21,17 @@ from app.models.empleado import Empleado, EstadoEmpleado
 class DashboardService:
     """Servicio para el dashboard principal"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         self.db = db
 
-    async def get_kpis_principales(self) -> Dict[str, Any]:
+    def get_kpis_principales(self) -> Dict[str, Any]:
         """Obtiene los KPIs principales del dashboard"""
         hoy = date.today()
         inicio_mes = date(hoy.year, hoy.month, 1)
         inicio_semana = hoy - timedelta(days=hoy.weekday())
 
         # Ventas del mes
-        ventas_mes_result = await self.db.execute(
+        ventas_mes_result = self.db.execute(
             select(
                 func.count(Pedido.id).label('cantidad'),
                 func.sum(Pedido.total).label('total')
@@ -44,7 +44,7 @@ class DashboardService:
         ventas_mes = ventas_mes_result.one()
 
         # Ventas de hoy
-        ventas_hoy_result = await self.db.execute(
+        ventas_hoy_result = self.db.execute(
             select(
                 func.count(Pedido.id).label('cantidad'),
                 func.sum(Pedido.total).label('total')
@@ -57,7 +57,7 @@ class DashboardService:
         ventas_hoy = ventas_hoy_result.one()
 
         # Producción en proceso
-        produccion_result = await self.db.execute(
+        produccion_result = self.db.execute(
             select(func.count(LoteProduccion.id))
             .where(and_(
                 LoteProduccion.activo == True,
@@ -67,7 +67,7 @@ class DashboardService:
         lotes_en_proceso = produccion_result.scalar() or 0
 
         # Lotes completados hoy
-        lotes_hoy_result = await self.db.execute(
+        lotes_hoy_result = self.db.execute(
             select(func.count(LoteProduccion.id))
             .where(and_(
                 LoteProduccion.activo == True,
@@ -78,7 +78,7 @@ class DashboardService:
         lotes_completados_hoy = lotes_hoy_result.scalar() or 0
 
         # Caja actual
-        caja_result = await self.db.execute(
+        caja_result = self.db.execute(
             select(Caja)
             .where(and_(
                 Caja.activo == True,
@@ -94,14 +94,14 @@ class DashboardService:
             saldo_caja = caja.saldo_inicial + caja.total_ingresos - caja.total_egresos
 
         # Clientes activos
-        clientes_result = await self.db.execute(
+        clientes_result = self.db.execute(
             select(func.count(Cliente.id))
             .where(Cliente.activo == True)
         )
         clientes_activos = clientes_result.scalar() or 0
 
         # Insumos bajo mínimo
-        insumos_bajo_result = await self.db.execute(
+        insumos_bajo_result = self.db.execute(
             select(func.count(Insumo.id))
             .where(and_(
                 Insumo.activo == True,
@@ -111,7 +111,7 @@ class DashboardService:
         insumos_bajo_minimo = insumos_bajo_result.scalar() or 0
 
         # Empleados activos
-        empleados_result = await self.db.execute(
+        empleados_result = self.db.execute(
             select(func.count(Empleado.id))
             .where(and_(
                 Empleado.activo == True,
@@ -146,12 +146,12 @@ class DashboardService:
             }
         }
 
-    async def get_grafico_ventas_semana(self) -> List[Dict[str, Any]]:
+    def get_grafico_ventas_semana(self) -> List[Dict[str, Any]]:
         """Ventas de los últimos 7 días para gráfico"""
         hoy = date.today()
         hace_7_dias = hoy - timedelta(days=6)
 
-        result = await self.db.execute(
+        result = self.db.execute(
             select(
                 Pedido.fecha_pedido,
                 func.count(Pedido.id).label('cantidad'),
@@ -192,9 +192,9 @@ class DashboardService:
 
         return datos
 
-    async def get_pedidos_recientes(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_pedidos_recientes(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Últimos pedidos ingresados"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Pedido, Cliente.razon_social)
             .join(Cliente, Pedido.cliente_id == Cliente.id)
             .where(Pedido.activo == True)
@@ -215,9 +215,9 @@ class DashboardService:
             for pedido, razon_social in rows
         ]
 
-    async def get_lotes_en_proceso(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_lotes_en_proceso(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Lotes actualmente en proceso"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(LoteProduccion)
             .where(and_(
                 LoteProduccion.activo == True,
@@ -241,12 +241,12 @@ class DashboardService:
             for lote in lotes
         ]
 
-    async def get_alertas(self) -> List[Dict[str, Any]]:
+    def get_alertas(self) -> List[Dict[str, Any]]:
         """Obtiene alertas del sistema"""
         alertas = []
 
         # Alertas de stock bajo
-        insumos_bajo = await self.db.execute(
+        insumos_bajo = self.db.execute(
             select(Insumo)
             .where(and_(
                 Insumo.activo == True,
@@ -259,13 +259,13 @@ class DashboardService:
                 "tipo": "stock",
                 "nivel": "warning",
                 "titulo": "Stock bajo mínimo",
-                "mensaje": f"{insumo.nombre}: {insumo.stock_actual} {insumo.unidad_medida} (mín: {insumo.stock_minimo})",
+                "mensaje": f"{insumo.nombre}: {insumo.stock_actual} {insumo.unidad} (mín: {insumo.stock_minimo})",
                 "entidad_id": str(insumo.id),
             })
 
         # Alertas de pedidos pendientes antiguos (más de 3 días)
         hace_3_dias = date.today() - timedelta(days=3)
-        pedidos_antiguos = await self.db.execute(
+        pedidos_antiguos = self.db.execute(
             select(Pedido)
             .where(and_(
                 Pedido.activo == True,
@@ -284,7 +284,7 @@ class DashboardService:
             })
 
         # Alerta de caja no abierta
-        caja = await self.db.execute(
+        caja = self.db.execute(
             select(Caja)
             .where(and_(
                 Caja.activo == True,
@@ -302,7 +302,7 @@ class DashboardService:
             })
 
         # Lotes urgentes
-        lotes_urgentes = await self.db.execute(
+        lotes_urgentes = self.db.execute(
             select(LoteProduccion)
             .where(and_(
                 LoteProduccion.activo == True,
@@ -322,11 +322,11 @@ class DashboardService:
 
         return alertas
 
-    async def get_resumen_movimientos_hoy(self) -> Dict[str, Any]:
+    def get_resumen_movimientos_hoy(self) -> Dict[str, Any]:
         """Resumen de movimientos de caja del día"""
         hoy = date.today()
 
-        result = await self.db.execute(
+        result = self.db.execute(
             select(
                 func.sum(
                     case(
@@ -359,14 +359,14 @@ class DashboardService:
             "cantidad_movimientos": row.cantidad or 0,
         }
 
-    async def get_dashboard_completo(self) -> Dict[str, Any]:
+    def get_dashboard_completo(self) -> Dict[str, Any]:
         """Obtiene todos los datos del dashboard en una sola llamada"""
-        kpis = await self.get_kpis_principales()
-        grafico_ventas = await self.get_grafico_ventas_semana()
-        pedidos_recientes = await self.get_pedidos_recientes()
-        lotes_en_proceso = await self.get_lotes_en_proceso()
-        alertas = await self.get_alertas()
-        movimientos_hoy = await self.get_resumen_movimientos_hoy()
+        kpis = self.get_kpis_principales()
+        grafico_ventas = self.get_grafico_ventas_semana()
+        pedidos_recientes = self.get_pedidos_recientes()
+        lotes_en_proceso = self.get_lotes_en_proceso()
+        alertas = self.get_alertas()
+        movimientos_hoy = self.get_resumen_movimientos_hoy()
 
         return {
             "kpis": kpis,
