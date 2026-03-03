@@ -59,13 +59,10 @@ class Usuario(Base, BaseModelMixin):
     ultimo_acceso = Column(DateTime, nullable=True)
     intentos_fallidos = Column(String(10), default="0")  # Para rate limiting
 
-    # Relación con empleado (opcional, un usuario puede no tener empleado asociado)
-    empleado_id = Column(UUID(as_uuid=True), ForeignKey("empleados.id"), nullable=True)
-
     # Relaciones
     logs = relationship("LogActividad", back_populates="usuario", lazy="dynamic")
     movimientos_stock = relationship("MovimientoStock", back_populates="usuario")
-    empleado = relationship("Empleado", back_populates="user", uselist=False, foreign_keys=[empleado_id])
+    empleado = relationship("Empleado", back_populates="user", uselist=False)
 
     def __repr__(self) -> str:
         return f"<Usuario {self.email} ({self.rol})>"

@@ -125,7 +125,7 @@ class Empleado(Base, BaseModelMixin):
     foto_url = Column(String(500), nullable=True)
 
     # Relationships
-    user = relationship("Usuario", back_populates="empleado", uselist=False, foreign_keys=[user_id])
+    user = relationship("Usuario", back_populates="empleado", uselist=False)
     asistencias = relationship("Asistencia", back_populates="empleado", cascade="all, delete-orphan")
     movimientos_nomina = relationship("MovimientoNomina", back_populates="empleado", cascade="all, delete-orphan")
 
