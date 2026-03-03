@@ -151,7 +151,7 @@ class Asistencia(Base, BaseModelMixin):
 
     # Registro manual o automático
     es_manual = Column(Boolean, default=False)
-    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
 
     observaciones = Column(Text, nullable=True)
 
@@ -219,7 +219,7 @@ class MovimientoNomina(Base, BaseModelMixin):
     movimiento_caja_id = Column(UUID(as_uuid=True), ForeignKey("movimientos_caja.id"), nullable=True)
 
     # Registro
-    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
 
     # Relationships
     empleado = relationship("Empleado", back_populates="movimientos_nomina")
@@ -267,7 +267,7 @@ class Liquidacion(Base, BaseModelMixin):
     observaciones = Column(Text, nullable=True)
 
     # Registro
-    generada_por_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    generada_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
 
     # Relationships
     empleado = relationship("Empleado")
