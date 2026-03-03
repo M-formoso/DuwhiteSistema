@@ -15,32 +15,34 @@ from app.db.session import SessionLocal
 from app.models.usuario import Usuario
 
 
-def run_migrations():
-    """Ejecutar migraciones de Alembic."""
-    import subprocess
+def create_tables():
+    """Crear todas las tablas en la base de datos."""
+    from app.db.base import Base, engine
+    # Importar todos los modelos para que SQLAlchemy los registre
+    from app.models import (
+        usuario, cliente, pedido, empleado, insumo, proveedor,
+        lote_produccion, etapa_produccion, maquina,
+        categoria_insumo, movimiento_stock, orden_compra,
+        lista_precios, cuenta_corriente, caja, cuenta_bancaria, costo,
+        log_actividad, producto_proveedor, historial_precios_proveedor
+    )
+
     try:
-        print("Ejecutando migraciones de Alembic...")
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            cwd="/app"
-        )
-        if result.returncode == 0:
-            print("Migraciones ejecutadas correctamente")
-            print(result.stdout)
-        else:
-            print(f"Error en migraciones: {result.stderr}")
+        print("Creando tablas en la base de datos...")
+        Base.metadata.create_all(bind=engine)
+        print("Tablas creadas correctamente")
     except Exception as e:
-        print(f"Error ejecutando migraciones: {e}")
+        print(f"Error creando tablas: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ejecutar migraciones y crear usuario admin al iniciar."""
 
-    # Ejecutar migraciones primero
-    run_migrations()
+    # Crear tablas primero
+    create_tables()
 
     # Crear usuario admin si no existe
     db = SessionLocal()
