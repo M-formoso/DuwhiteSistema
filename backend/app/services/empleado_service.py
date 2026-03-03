@@ -64,7 +64,7 @@ class EmpleadoService:
         query = select(Empleado)
 
         if solo_activos:
-            query = query.where(Empleado.is_active == True)
+            query = query.where(Empleado.activo == True)
 
         if tipo:
             query = query.where(Empleado.tipo == tipo)
@@ -178,7 +178,7 @@ class EmpleadoService:
         if not empleado:
             return False
 
-        empleado.is_active = False
+        empleado.activo = False
         empleado.estado = EstadoEmpleado.DESVINCULADO.value
         empleado.fecha_egreso = date.today()
 
@@ -226,7 +226,7 @@ class EmpleadoService:
         limit: int = 100
     ) -> Tuple[List[Asistencia], int]:
         """Lista registros de asistencia"""
-        query = select(Asistencia).where(Asistencia.is_active == True)
+        query = select(Asistencia).where(Asistencia.activo == True)
 
         if empleado_id:
             query = query.where(Asistencia.empleado_id == empleado_id)
@@ -259,7 +259,7 @@ class EmpleadoService:
             .where(and_(
                 Asistencia.empleado_id == empleado_id,
                 Asistencia.fecha == fecha,
-                Asistencia.is_active == True
+                Asistencia.activo == True
             ))
             .order_by(Asistencia.hora)
         )
@@ -424,7 +424,7 @@ class EmpleadoService:
         limit: int = 100
     ) -> Tuple[List[MovimientoNomina], int]:
         """Lista movimientos de nómina"""
-        query = select(MovimientoNomina).where(MovimientoNomina.is_active == True)
+        query = select(MovimientoNomina).where(MovimientoNomina.activo == True)
 
         if empleado_id:
             query = query.where(MovimientoNomina.empleado_id == empleado_id)
@@ -525,7 +525,7 @@ class EmpleadoService:
                 MovimientoNomina.periodo_mes == data.periodo_mes,
                 MovimientoNomina.periodo_anio == data.periodo_anio,
                 MovimientoNomina.tipo == TipoMovimientoNomina.ADELANTO.value,
-                MovimientoNomina.is_active == True
+                MovimientoNomina.activo == True
             ))
         )
         adelantos = adelantos_result.scalar() or Decimal("0")
@@ -590,7 +590,7 @@ class EmpleadoService:
         limit: int = 50
     ) -> Tuple[List[Liquidacion], int]:
         """Lista liquidaciones"""
-        query = select(Liquidacion).where(Liquidacion.is_active == True)
+        query = select(Liquidacion).where(Liquidacion.activo == True)
 
         if empleado_id:
             query = query.where(Liquidacion.empleado_id == empleado_id)
@@ -646,7 +646,7 @@ class EmpleadoService:
         result = await self.db.execute(
             select(Empleado.departamento)
             .where(and_(
-                Empleado.is_active == True,
+                Empleado.activo == True,
                 Empleado.departamento.isnot(None)
             ))
             .distinct()

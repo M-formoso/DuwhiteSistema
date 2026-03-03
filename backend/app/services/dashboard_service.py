@@ -37,7 +37,7 @@ class DashboardService:
                 func.sum(Pedido.total).label('total')
             )
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido >= inicio_mes
             ))
         )
@@ -50,7 +50,7 @@ class DashboardService:
                 func.sum(Pedido.total).label('total')
             )
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido == hoy
             ))
         )
@@ -60,7 +60,7 @@ class DashboardService:
         produccion_result = await self.db.execute(
             select(func.count(LoteProduccion.id))
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteProduccion.estado == EstadoLote.EN_PROCESO.value
             ))
         )
@@ -70,7 +70,7 @@ class DashboardService:
         lotes_hoy_result = await self.db.execute(
             select(func.count(LoteProduccion.id))
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteProduccion.estado == EstadoLote.COMPLETADO.value,
                 func.date(LoteProduccion.fecha_completado) == hoy
             ))
@@ -81,7 +81,7 @@ class DashboardService:
         caja_result = await self.db.execute(
             select(Caja)
             .where(and_(
-                Caja.is_active == True,
+                Caja.activo == True,
                 Caja.estado == EstadoCaja.ABIERTA.value
             ))
             .order_by(Caja.fecha_apertura.desc())
@@ -96,7 +96,7 @@ class DashboardService:
         # Clientes activos
         clientes_result = await self.db.execute(
             select(func.count(Cliente.id))
-            .where(Cliente.is_active == True)
+            .where(Cliente.activo == True)
         )
         clientes_activos = clientes_result.scalar() or 0
 
@@ -104,7 +104,7 @@ class DashboardService:
         insumos_bajo_result = await self.db.execute(
             select(func.count(Insumo.id))
             .where(and_(
-                Insumo.is_active == True,
+                Insumo.activo == True,
                 Insumo.stock_actual < Insumo.stock_minimo
             ))
         )
@@ -114,7 +114,7 @@ class DashboardService:
         empleados_result = await self.db.execute(
             select(func.count(Empleado.id))
             .where(and_(
-                Empleado.is_active == True,
+                Empleado.activo == True,
                 Empleado.estado == EstadoEmpleado.ACTIVO.value
             ))
         )
@@ -158,7 +158,7 @@ class DashboardService:
                 func.sum(Pedido.total).label('total')
             )
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido >= hace_7_dias,
                 Pedido.fecha_pedido <= hoy
             ))
@@ -197,7 +197,7 @@ class DashboardService:
         result = await self.db.execute(
             select(Pedido, Cliente.razon_social)
             .join(Cliente, Pedido.cliente_id == Cliente.id)
-            .where(Pedido.is_active == True)
+            .where(Pedido.activo == True)
             .order_by(Pedido.created_at.desc())
             .limit(limit)
         )
@@ -220,7 +220,7 @@ class DashboardService:
         result = await self.db.execute(
             select(LoteProduccion)
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteProduccion.estado == EstadoLote.EN_PROCESO.value
             ))
             .order_by(LoteProduccion.prioridad.desc(), LoteProduccion.fecha_ingreso)
@@ -234,7 +234,7 @@ class DashboardService:
                 "codigo": lote.codigo,
                 "tipo_servicio": lote.tipo_servicio,
                 "prioridad": lote.prioridad,
-                "peso_total": float(lote.peso_total) if lote.peso_total else 0,
+                "peso_total": float(lote.peso_entrada_kg) if lote.peso_entrada_kg else 0,
                 "fecha_ingreso": lote.fecha_ingreso.isoformat(),
                 "etapa_actual_id": str(lote.etapa_actual_id) if lote.etapa_actual_id else None,
             }
@@ -249,7 +249,7 @@ class DashboardService:
         insumos_bajo = await self.db.execute(
             select(Insumo)
             .where(and_(
-                Insumo.is_active == True,
+                Insumo.activo == True,
                 Insumo.stock_actual < Insumo.stock_minimo
             ))
             .limit(5)
@@ -268,7 +268,7 @@ class DashboardService:
         pedidos_antiguos = await self.db.execute(
             select(Pedido)
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.estado == EstadoPedido.PENDIENTE.value,
                 Pedido.fecha_pedido <= hace_3_dias
             ))
@@ -287,7 +287,7 @@ class DashboardService:
         caja = await self.db.execute(
             select(Caja)
             .where(and_(
-                Caja.is_active == True,
+                Caja.activo == True,
                 Caja.fecha == date.today(),
                 Caja.estado == EstadoCaja.ABIERTA.value
             ))
@@ -305,7 +305,7 @@ class DashboardService:
         lotes_urgentes = await self.db.execute(
             select(LoteProduccion)
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteProduccion.prioridad == "urgente",
                 LoteProduccion.estado.in_([EstadoLote.PENDIENTE.value, EstadoLote.EN_PROCESO.value])
             ))

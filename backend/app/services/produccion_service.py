@@ -112,7 +112,7 @@ class ProduccionService:
         query = self.db.query(Maquina)
 
         if solo_activas:
-            query = query.filter(Maquina.is_active == True)
+            query = query.filter(Maquina.activo == True)
 
         if tipo:
             query = query.filter(Maquina.tipo == tipo)
@@ -200,7 +200,7 @@ class ProduccionService:
             joinedload(LoteProduccion.creado_por),
         )
 
-        query = query.filter(LoteProduccion.is_active == True)
+        query = query.filter(LoteProduccion.activo == True)
 
         if estado:
             query = query.filter(LoteProduccion.estado == estado.value)
@@ -595,7 +595,7 @@ class ProduccionService:
                 .options(joinedload(LoteProduccion.cliente))
                 .filter(
                     LoteProduccion.etapa_actual_id == etapa.id,
-                    LoteProduccion.is_active == True,
+                    LoteProduccion.activo == True,
                     LoteProduccion.estado.in_([
                         EstadoLote.PENDIENTE.value,
                         EstadoLote.EN_PROCESO.value,

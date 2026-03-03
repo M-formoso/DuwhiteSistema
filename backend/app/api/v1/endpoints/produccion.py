@@ -209,7 +209,7 @@ def listar_maquinas(
             notas=m.notas,
             created_at=m.created_at,
             updated_at=m.updated_at,
-            is_active=m.is_active,
+            is_active=m.activo,
             requiere_mantenimiento=m.requiere_mantenimiento,
         )
         for m in maquinas
@@ -268,7 +268,7 @@ def crear_maquina(
         notas=maquina.notas,
         created_at=maquina.created_at,
         updated_at=maquina.updated_at,
-        is_active=maquina.is_active,
+        is_active=maquina.activo,
         requiere_mantenimiento=maquina.requiere_mantenimiento,
     )
 
@@ -396,7 +396,7 @@ def obtener_lote(
         tiene_roturas=lote.tiene_roturas,
         created_at=lote.created_at,
         updated_at=lote.updated_at,
-        is_active=lote.is_active,
+        is_active=lote.activo,
         cliente_nombre=lote.cliente.razon_social if lote.cliente else None,
         pedido_numero=lote.pedido.numero if lote.pedido else None,
         etapa_actual_nombre=lote.etapa_actual.nombre if lote.etapa_actual else None,
@@ -471,7 +471,7 @@ def crear_lote(
         tiene_roturas=lote.tiene_roturas,
         created_at=lote.created_at,
         updated_at=lote.updated_at,
-        is_active=lote.is_active,
+        is_active=lote.activo,
         cliente_nombre=None,
         pedido_numero=None,
         etapa_actual_nombre=lote.etapa_actual.nombre if lote.etapa_actual else None,

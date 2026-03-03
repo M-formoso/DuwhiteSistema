@@ -57,7 +57,7 @@ class ProveedorService:
         query = self.db.query(Proveedor)
 
         if solo_activos:
-            query = query.filter(Proveedor.is_active == True)
+            query = query.filter(Proveedor.activo == True)
 
         if search:
             search_term = f"%{search}%"
@@ -143,7 +143,7 @@ class ProveedorService:
         if not proveedor:
             return False
 
-        proveedor.is_active = False
+        proveedor.activo = False
         self.db.commit()
 
         self.log_service.registrar(
@@ -351,7 +351,7 @@ class ProveedorService:
         if fecha_hasta:
             query = query.filter(OrdenCompra.fecha_emision <= fecha_hasta)
 
-        query = query.filter(OrdenCompra.is_active == True)
+        query = query.filter(OrdenCompra.activo == True)
 
         total = query.count()
         ordenes = (

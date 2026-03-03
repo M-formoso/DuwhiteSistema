@@ -148,7 +148,7 @@ class StockService:
         )
 
         if solo_activos:
-            query = query.filter(Insumo.is_active == True)
+            query = query.filter(Insumo.activo == True)
 
         if search:
             search_term = f"%{search}%"
@@ -261,7 +261,7 @@ class StockService:
         if not insumo:
             return False
 
-        insumo.is_active = False
+        insumo.activo = False
         self.db.commit()
 
         self.log_service.registrar(
@@ -498,7 +498,7 @@ class StockService:
         insumos_criticos = (
             self.db.query(Insumo)
             .filter(
-                Insumo.is_active == True,
+                Insumo.activo == True,
                 Insumo.stock_actual <= Insumo.stock_minimo,
             )
             .all()
@@ -533,7 +533,7 @@ class StockService:
         insumos_vencimiento = (
             self.db.query(Insumo)
             .filter(
-                Insumo.is_active == True,
+                Insumo.activo == True,
                 Insumo.fecha_vencimiento != None,
                 Insumo.fecha_vencimiento <= fecha_limite,
                 Insumo.stock_actual > 0,

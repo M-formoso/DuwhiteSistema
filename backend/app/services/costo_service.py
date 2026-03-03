@@ -43,7 +43,7 @@ class CostoService:
         solo_vigentes: bool = True
     ) -> Tuple[List[CostoFijo], int]:
         """Lista costos fijos"""
-        query = select(CostoFijo).where(CostoFijo.is_active == True)
+        query = select(CostoFijo).where(CostoFijo.activo == True)
 
         if categoria:
             query = query.where(CostoFijo.categoria == categoria)
@@ -109,7 +109,7 @@ class CostoService:
         if not costo:
             return False
 
-        costo.is_active = False
+        costo.activo = False
         await self.db.commit()
         return True
 
@@ -124,7 +124,7 @@ class CostoService:
         result = await self.db.execute(
             select(func.sum(CostoFijo.monto_mensual))
             .where(and_(
-                CostoFijo.is_active == True,
+                CostoFijo.activo == True,
                 CostoFijo.fecha_inicio <= fecha_fin_mes,
                 or_(
                     CostoFijo.fecha_fin.is_(None),
@@ -143,7 +143,7 @@ class CostoService:
         categoria: Optional[str] = None
     ) -> Tuple[List[CostoVariable], int]:
         """Lista costos variables"""
-        query = select(CostoVariable).where(CostoVariable.is_active == True)
+        query = select(CostoVariable).where(CostoVariable.activo == True)
 
         if categoria:
             query = query.where(CostoVariable.categoria == categoria)
@@ -197,7 +197,7 @@ class CostoService:
         if not costo:
             return False
 
-        costo.is_active = False
+        costo.activo = False
         await self.db.commit()
         return True
 
@@ -210,7 +210,7 @@ class CostoService:
         limit: int = 50
     ) -> Tuple[List[TarifaServicio], int]:
         """Lista tarifas de servicios"""
-        query = select(TarifaServicio).where(TarifaServicio.is_active == True)
+        query = select(TarifaServicio).where(TarifaServicio.activo == True)
 
         if servicio_id:
             query = query.where(TarifaServicio.servicio_id == servicio_id)
@@ -244,7 +244,7 @@ class CostoService:
             .where(and_(
                 TarifaServicio.servicio_id == servicio_id,
                 TarifaServicio.fecha_vigencia <= hoy,
-                TarifaServicio.is_active == True
+                TarifaServicio.activo == True
             ))
             .order_by(TarifaServicio.fecha_vigencia.desc())
             .limit(1)
@@ -377,7 +377,7 @@ class CostoService:
         factor_mano_obra = await self._get_parametro_valor("factor_mano_obra", Decimal("500"))
 
         # Estimar costo de energía (basado en kg procesados)
-        kg = lote.peso_total or Decimal("0")
+        kg = lote.peso_entrada_kg or Decimal("0")
         costo_energia = kg * Decimal("0.5") * costo_kwh  # Estimado: 0.5 kWh por kg
 
         # Estimar mano de obra (basado en tiempo de proceso)
@@ -420,7 +420,7 @@ class CostoService:
 
     async def get_parametros(self, categoria: Optional[str] = None) -> List[ParametroCosto]:
         """Lista parámetros de costo"""
-        query = select(ParametroCosto).where(ParametroCosto.is_active == True)
+        query = select(ParametroCosto).where(ParametroCosto.activo == True)
 
         if categoria:
             query = query.where(ParametroCosto.categoria == categoria)
@@ -535,9 +535,8 @@ class CostoService:
         query = select(
             Pedido.cliente_id,
             func.count(Pedido.id).label('cantidad_pedidos'),
-            func.sum(Pedido.peso_total).label('kg_procesados'),
             func.sum(Pedido.total).label('ingreso_total')
-        ).where(Pedido.is_active == True)
+        ).where(Pedido.activo == True)
 
         if fecha_desde:
             query = query.where(Pedido.fecha_pedido >= fecha_desde)
@@ -559,11 +558,10 @@ class CostoService:
             )
             cliente = cliente_result.scalar_one_or_none()
 
-            # Estimar costo (simplificado)
-            kg = row.kg_procesados or Decimal("0")
-            costo_estimado = kg * Decimal("150")  # Costo estimado por kg
-
             ingreso = row.ingreso_total or Decimal("0")
+            # Estimar costo como 60% del ingreso (simplificado)
+            costo_estimado = ingreso * Decimal("0.6")
+
             margen = ingreso - costo_estimado
             margen_pct = (margen / ingreso * 100) if ingreso > 0 else Decimal("0")
 
@@ -571,7 +569,7 @@ class CostoService:
                 cliente_id=row.cliente_id,
                 cliente_nombre=cliente.razon_social if cliente else "Desconocido",
                 cantidad_pedidos=row.cantidad_pedidos or 0,
-                kg_procesados=kg,
+                kg_procesados=Decimal("0"),  # No disponible sin lotes
                 costo_total=costo_estimado,
                 ingreso_total=ingreso,
                 margen_bruto=margen,

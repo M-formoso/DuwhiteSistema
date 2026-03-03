@@ -50,12 +50,11 @@ class ReporteService:
                 group_expr.label('periodo'),
                 func.count(Pedido.id).label('cantidad_pedidos'),
                 func.sum(Pedido.subtotal).label('subtotal'),
-                func.sum(Pedido.descuento).label('descuentos'),
-                func.sum(Pedido.total).label('total'),
-                func.sum(Pedido.peso_total).label('kg_total')
+                func.sum(Pedido.descuento_monto).label('descuentos'),
+                func.sum(Pedido.total).label('total')
             )
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido >= fecha_desde,
                 Pedido.fecha_pedido <= fecha_hasta
             ))
@@ -72,7 +71,6 @@ class ReporteService:
                 "subtotal": float(row.subtotal or 0),
                 "descuentos": float(row.descuentos or 0),
                 "total": float(row.total or 0),
-                "kg_total": float(row.kg_total or 0),
             }
             for row in rows
         ]
@@ -90,12 +88,11 @@ class ReporteService:
                 Cliente.razon_social,
                 func.count(Pedido.id).label('cantidad_pedidos'),
                 func.sum(Pedido.total).label('total'),
-                func.sum(Pedido.peso_total).label('kg_total'),
                 func.avg(Pedido.total).label('promedio_pedido')
             )
             .join(Cliente, Pedido.cliente_id == Cliente.id)
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido >= fecha_desde,
                 Pedido.fecha_pedido <= fecha_hasta
             ))
@@ -111,7 +108,6 @@ class ReporteService:
                 "cliente_nombre": row.razon_social,
                 "cantidad_pedidos": row.cantidad_pedidos or 0,
                 "total": float(row.total or 0),
-                "kg_total": float(row.kg_total or 0),
                 "promedio_pedido": float(row.promedio_pedido or 0),
             }
             for row in rows
@@ -134,7 +130,7 @@ class ReporteService:
             .join(Pedido, DetallePedido.pedido_id == Pedido.id)
             .join(Servicio, DetallePedido.servicio_id == Servicio.id)
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido >= fecha_desde,
                 Pedido.fecha_pedido <= fecha_hasta
             ))
@@ -174,7 +170,7 @@ class ReporteService:
             select(
                 group_expr.label('periodo'),
                 func.count(LoteProduccion.id).label('cantidad_lotes'),
-                func.sum(LoteProduccion.peso_total).label('kg_total'),
+                func.sum(LoteProduccion.peso_entrada_kg).label('kg_total'),
                 func.sum(
                     case(
                         (LoteProduccion.estado == EstadoLote.COMPLETADO.value, 1),
@@ -189,7 +185,7 @@ class ReporteService:
                 ).label('lotes_en_proceso')
             )
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteProduccion.fecha_ingreso >= fecha_desde,
                 LoteProduccion.fecha_ingreso <= fecha_hasta
             ))
@@ -225,7 +221,7 @@ class ReporteService:
             )
             .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteEtapa.fecha_fin.isnot(None),
                 LoteProduccion.fecha_ingreso >= fecha_desde,
                 LoteProduccion.fecha_ingreso <= fecha_hasta
@@ -386,7 +382,7 @@ class ReporteService:
         result = await self.db.execute(
             select(Insumo)
             .where(and_(
-                Insumo.is_active == True,
+                Insumo.activo == True,
                 Insumo.stock_actual < Insumo.stock_minimo
             ))
             .order_by((Insumo.stock_actual / Insumo.stock_minimo))
@@ -471,11 +467,10 @@ class ReporteService:
         ventas_result = await self.db.execute(
             select(
                 func.count(Pedido.id).label('cantidad_pedidos'),
-                func.sum(Pedido.total).label('total_ventas'),
-                func.sum(Pedido.peso_total).label('kg_procesados')
+                func.sum(Pedido.total).label('total_ventas')
             )
             .where(and_(
-                Pedido.is_active == True,
+                Pedido.activo == True,
                 Pedido.fecha_pedido >= fecha_desde,
                 Pedido.fecha_pedido <= fecha_hasta
             ))
@@ -494,7 +489,7 @@ class ReporteService:
                 ).label('lotes_completados')
             )
             .where(and_(
-                LoteProduccion.is_active == True,
+                LoteProduccion.activo == True,
                 LoteProduccion.fecha_ingreso >= fecha_desde,
                 LoteProduccion.fecha_ingreso <= fecha_hasta
             ))
@@ -529,7 +524,7 @@ class ReporteService:
         clientes_result = await self.db.execute(
             select(func.count(Cliente.id))
             .where(and_(
-                Cliente.is_active == True,
+                Cliente.activo == True,
                 func.date(Cliente.created_at) >= fecha_desde,
                 func.date(Cliente.created_at) <= fecha_hasta
             ))
@@ -547,7 +542,6 @@ class ReporteService:
             "ventas": {
                 "cantidad_pedidos": ventas.cantidad_pedidos or 0,
                 "total": float(ventas.total_ventas or 0),
-                "kg_procesados": float(ventas.kg_procesados or 0),
             },
             "produccion": {
                 "cantidad_lotes": produccion.cantidad_lotes or 0,

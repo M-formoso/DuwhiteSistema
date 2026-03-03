@@ -164,7 +164,7 @@ class ClienteService:
         fecha_hasta: Optional[date] = None,
     ) -> Tuple[List[Pedido], int]:
         """Obtiene lista de pedidos con filtros."""
-        query = self.db.query(Pedido).filter(Pedido.is_active == True)
+        query = self.db.query(Pedido).filter(Pedido.activo == True)
 
         if cliente_id:
             query = query.filter(Pedido.cliente_id == cliente_id)
