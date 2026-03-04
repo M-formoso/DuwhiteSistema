@@ -61,7 +61,7 @@ router = APIRouter()
 # ==================== KANBAN ====================
 
 @router.get("/kanban", response_model=KanbanBoard)
-async def obtener_kanban(
+def obtener_kanban(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -73,7 +73,7 @@ async def obtener_kanban(
 # ==================== ETAPAS ====================
 
 @router.get("/etapas", response_model=List[EtapaProduccionResponse])
-async def listar_etapas(
+def listar_etapas(
     solo_activas: bool = True,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -105,7 +105,7 @@ async def listar_etapas(
 
 
 @router.get("/etapas/lista", response_model=List[EtapaProduccionList])
-async def listar_etapas_dropdown(
+def listar_etapas_dropdown(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -125,7 +125,7 @@ async def listar_etapas_dropdown(
 
 
 @router.post("/etapas", response_model=EtapaProduccionResponse, status_code=status.HTTP_201_CREATED)
-async def crear_etapa(
+def crear_etapa(
     data: EtapaProduccionCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
@@ -154,7 +154,7 @@ async def crear_etapa(
 
 
 @router.put("/etapas/{etapa_id}", response_model=EtapaProduccionResponse)
-async def actualizar_etapa(
+def actualizar_etapa(
     etapa_id: UUID,
     data: EtapaProduccionUpdate,
     db: Session = Depends(get_db),
@@ -192,7 +192,7 @@ async def actualizar_etapa(
 # ==================== MÁQUINAS ====================
 
 @router.get("/maquinas", response_model=List[MaquinaResponse])
-async def listar_maquinas(
+def listar_maquinas(
     tipo: Optional[str] = None,
     estado: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -231,7 +231,7 @@ async def listar_maquinas(
 
 
 @router.get("/maquinas/lista", response_model=List[MaquinaList])
-async def listar_maquinas_dropdown(
+def listar_maquinas_dropdown(
     tipo: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -253,7 +253,7 @@ async def listar_maquinas_dropdown(
 
 
 @router.post("/maquinas", response_model=MaquinaResponse, status_code=status.HTTP_201_CREATED)
-async def crear_maquina(
+def crear_maquina(
     data: MaquinaCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
@@ -290,7 +290,7 @@ async def crear_maquina(
 # ==================== LOTES ====================
 
 @router.get("/lotes", response_model=PaginatedResponse)
-async def listar_lotes(
+def listar_lotes(
     skip: int = 0,
     limit: int = 50,
     estado: Optional[EstadoLote] = None,
@@ -345,7 +345,7 @@ async def listar_lotes(
 
 
 @router.get("/lotes/{lote_id}", response_model=LoteProduccionResponse)
-async def obtener_lote(
+def obtener_lote(
     lote_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -423,7 +423,7 @@ async def obtener_lote(
 
 
 @router.post("/lotes", response_model=LoteProduccionResponse, status_code=status.HTTP_201_CREATED)
-async def crear_lote(
+def crear_lote(
     data: LoteProduccionCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
@@ -498,7 +498,7 @@ async def crear_lote(
 
 
 @router.put("/lotes/{lote_id}", response_model=LoteProduccionResponse)
-async def actualizar_lote(
+def actualizar_lote(
     lote_id: UUID,
     data: LoteProduccionUpdate,
     db: Session = Depends(get_db),
@@ -521,7 +521,7 @@ async def actualizar_lote(
 
 
 @router.post("/lotes/{lote_id}/estado", response_model=MessageResponse)
-async def cambiar_estado_lote(
+def cambiar_estado_lote(
     lote_id: UUID,
     data: CambiarEstadoLoteRequest,
     db: Session = Depends(get_db),
@@ -546,7 +546,7 @@ async def cambiar_estado_lote(
 
 
 @router.post("/lotes/{lote_id}/mover", response_model=MessageResponse)
-async def mover_lote(
+def mover_lote(
     lote_id: UUID,
     data: MoverLoteRequest,
     db: Session = Depends(get_db),
@@ -568,7 +568,7 @@ async def mover_lote(
 # ==================== ETAPAS DE LOTE ====================
 
 @router.post("/lotes/{lote_id}/etapas/{etapa_id}/iniciar", response_model=LoteEtapaResponse)
-async def iniciar_etapa_lote(
+def iniciar_etapa_lote(
     lote_id: UUID,
     etapa_id: UUID,
     data: IniciarEtapaRequest,
@@ -608,7 +608,7 @@ async def iniciar_etapa_lote(
 
 
 @router.post("/lotes/{lote_id}/etapas/{etapa_id}/finalizar", response_model=LoteEtapaResponse)
-async def finalizar_etapa_lote(
+def finalizar_etapa_lote(
     lote_id: UUID,
     etapa_id: UUID,
     data: FinalizarEtapaRequest,
@@ -650,7 +650,7 @@ async def finalizar_etapa_lote(
 # ==================== CONSUMOS ====================
 
 @router.get("/lotes/{lote_id}/consumos", response_model=List[ConsumoInsumoLoteResponse])
-async def listar_consumos_lote(
+def listar_consumos_lote(
     lote_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -681,7 +681,7 @@ async def listar_consumos_lote(
 
 
 @router.post("/lotes/{lote_id}/consumos", response_model=ConsumoInsumoLoteResponse, status_code=status.HTTP_201_CREATED)
-async def registrar_consumo(
+def registrar_consumo(
     lote_id: UUID,
     data: ConsumoInsumoLoteCreate,
     db: Session = Depends(get_db),
@@ -719,7 +719,7 @@ async def registrar_consumo(
 # ==================== ÓRDENES DE PRODUCCIÓN ====================
 
 @router.get("/ordenes", response_model=PaginatedResponse)
-async def listar_ordenes_produccion(
+def listar_ordenes_produccion(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     estado: Optional[str] = None,
@@ -762,7 +762,7 @@ async def listar_ordenes_produccion(
 
 
 @router.get("/ordenes/{orden_id}", response_model=OrdenProduccionResponse)
-async def obtener_orden_produccion(
+def obtener_orden_produccion(
     orden_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -811,7 +811,7 @@ async def obtener_orden_produccion(
 
 
 @router.post("/ordenes", response_model=OrdenProduccionResponse, status_code=status.HTTP_201_CREATED)
-async def crear_orden_produccion(
+def crear_orden_produccion(
     data: OrdenProduccionCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
@@ -854,7 +854,7 @@ async def crear_orden_produccion(
 
 
 @router.put("/ordenes/{orden_id}", response_model=OrdenProduccionResponse)
-async def actualizar_orden_produccion(
+def actualizar_orden_produccion(
     orden_id: UUID,
     data: OrdenProduccionUpdate,
     db: Session = Depends(get_db),
@@ -874,7 +874,7 @@ async def actualizar_orden_produccion(
 
 
 @router.post("/ordenes/{orden_id}/estado", response_model=MessageResponse)
-async def cambiar_estado_orden_produccion(
+def cambiar_estado_orden_produccion(
     orden_id: UUID,
     estado: EstadoOrdenProduccion = Query(...),
     db: Session = Depends(get_db),
@@ -896,7 +896,7 @@ async def cambiar_estado_orden_produccion(
 # ==================== ASIGNACIÓN DE EMPLEADOS ====================
 
 @router.get("/ordenes/{orden_id}/asignaciones", response_model=List[AsignacionEmpleadoResponse])
-async def listar_asignaciones_orden(
+def listar_asignaciones_orden(
     orden_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -929,7 +929,7 @@ async def listar_asignaciones_orden(
 
 
 @router.post("/ordenes/{orden_id}/asignaciones", response_model=AsignacionEmpleadoResponse, status_code=status.HTTP_201_CREATED)
-async def crear_asignacion_empleado(
+def crear_asignacion_empleado(
     orden_id: UUID,
     data: AsignacionEmpleadoCreate,
     db: Session = Depends(get_db),
@@ -963,7 +963,7 @@ async def crear_asignacion_empleado(
 
 
 @router.put("/asignaciones/{asignacion_id}", response_model=AsignacionEmpleadoResponse)
-async def actualizar_asignacion_empleado(
+def actualizar_asignacion_empleado(
     asignacion_id: UUID,
     data: AsignacionEmpleadoUpdate,
     db: Session = Depends(get_db),
@@ -1000,7 +1000,7 @@ async def actualizar_asignacion_empleado(
 
 
 @router.delete("/asignaciones/{asignacion_id}", response_model=MessageResponse)
-async def eliminar_asignacion_empleado(
+def eliminar_asignacion_empleado(
     asignacion_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
@@ -1021,7 +1021,7 @@ async def eliminar_asignacion_empleado(
 # ==================== INCIDENCIAS ====================
 
 @router.get("/incidencias", response_model=PaginatedResponse)
-async def listar_incidencias(
+def listar_incidencias(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     orden_id: Optional[UUID] = None,
@@ -1077,7 +1077,7 @@ async def listar_incidencias(
 
 
 @router.get("/incidencias/{incidencia_id}", response_model=IncidenciaResponse)
-async def obtener_incidencia(
+def obtener_incidencia(
     incidencia_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -1119,7 +1119,7 @@ async def obtener_incidencia(
 
 
 @router.post("/incidencias", response_model=IncidenciaResponse, status_code=status.HTTP_201_CREATED)
-async def crear_incidencia(
+def crear_incidencia(
     data: IncidenciaCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
@@ -1155,7 +1155,7 @@ async def crear_incidencia(
 
 
 @router.put("/incidencias/{incidencia_id}", response_model=IncidenciaResponse)
-async def actualizar_incidencia(
+def actualizar_incidencia(
     incidencia_id: UUID,
     data: IncidenciaUpdate,
     db: Session = Depends(get_db),
@@ -1175,7 +1175,7 @@ async def actualizar_incidencia(
 
 
 @router.post("/incidencias/{incidencia_id}/resolver", response_model=IncidenciaResponse)
-async def resolver_incidencia(
+def resolver_incidencia(
     incidencia_id: UUID,
     data: IncidenciaResolverRequest,
     db: Session = Depends(get_db),

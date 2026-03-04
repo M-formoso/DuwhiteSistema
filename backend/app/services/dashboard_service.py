@@ -269,7 +269,7 @@ class DashboardService:
             select(Pedido)
             .where(and_(
                 Pedido.activo == True,
-                Pedido.estado == EstadoPedido.PENDIENTE.value,
+                Pedido.estado.in_([EstadoPedido.BORRADOR.value, EstadoPedido.CONFIRMADO.value]),
                 Pedido.fecha_pedido <= hace_3_dias
             ))
             .limit(5)
