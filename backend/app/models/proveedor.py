@@ -2,7 +2,7 @@
 Modelo de Proveedor.
 """
 
-from sqlalchemy import Boolean, Column, String, Text
+from sqlalchemy import Boolean, Column, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
@@ -47,6 +47,9 @@ class Proveedor(Base, BaseModelMixin):
 
     # Categoría de productos
     rubro = Column(String(100), nullable=True)  # Químicos, Repuestos, etc.
+
+    # Calificación (1-5 estrellas)
+    calificacion = Column(Integer, nullable=True)  # 1 a 5
 
     # Estado
     activo = Column(Boolean, default=True, nullable=False)

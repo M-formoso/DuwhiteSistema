@@ -695,3 +695,207 @@ class ProveedorService:
             nuevo_num = 1
 
         return f"{prefijo}{nuevo_num:05d}"
+
+    # ==================== NUEVAS FUNCIONALIDADES ====================
+
+    def get_historial_compras_proveedor(
+        self,
+        proveedor_id: UUID,
+        skip: int = 0,
+        limit: int = 50,
+        fecha_desde: Optional[date] = None,
+        fecha_hasta: Optional[date] = None,
+    ) -> Tuple[List[OrdenCompra], int, dict]:
+        """
+        Obtiene el historial de compras de un proveedor.
+        Retorna las órdenes, total y resumen estadístico.
+        """
+        query = (
+            self.db.query(OrdenCompra)
+            .filter(
+                OrdenCompra.proveedor_id == proveedor_id,
+                OrdenCompra.activo == True,
+            )
+        )
+
+        if fecha_desde:
+            query = query.filter(OrdenCompra.fecha_emision >= fecha_desde)
+
+        if fecha_hasta:
+            query = query.filter(OrdenCompra.fecha_emision <= fecha_hasta)
+
+        total = query.count()
+
+        # Calcular resumen
+        ordenes_todas = query.all()
+        total_comprado = sum(o.total or Decimal("0") for o in ordenes_todas)
+        ordenes_completadas = [o for o in ordenes_todas if o.estado == EstadoOrdenCompra.COMPLETADA.value]
+        ordenes_pendientes = [o for o in ordenes_todas if o.estado in [
+            EstadoOrdenCompra.BORRADOR.value,
+            EstadoOrdenCompra.APROBADA.value,
+            EstadoOrdenCompra.ENVIADA.value,
+        ]]
+
+        resumen = {
+            "total_ordenes": total,
+            "total_comprado": float(total_comprado),
+            "ordenes_completadas": len(ordenes_completadas),
+            "ordenes_pendientes": len(ordenes_pendientes),
+            "promedio_por_orden": float(total_comprado / total) if total > 0 else 0,
+        }
+
+        # Obtener órdenes paginadas
+        ordenes = (
+            query.options(joinedload(OrdenCompra.items))
+            .order_by(OrdenCompra.fecha_emision.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return ordenes, total, resumen
+
+    def comparar_precios_insumo(
+        self,
+        insumo_id: UUID,
+    ) -> List[dict]:
+        """
+        Compara precios de un insumo entre diferentes proveedores.
+        Retorna lista ordenada por precio (menor a mayor).
+        """
+        productos = (
+            self.db.query(ProductoProveedor)
+            .options(joinedload(ProductoProveedor.proveedor))
+            .filter(
+                ProductoProveedor.insumo_id == insumo_id,
+                ProductoProveedor.activo == True,
+            )
+            .all()
+        )
+
+        comparativa = []
+        for prod in productos:
+            if not prod.proveedor or not prod.proveedor.activo:
+                continue
+
+            # Obtener último precio del historial si existe
+            ultimo_historial = (
+                self.db.query(HistorialPreciosProveedor)
+                .filter(HistorialPreciosProveedor.producto_proveedor_id == prod.id)
+                .order_by(HistorialPreciosProveedor.fecha_cambio.desc())
+                .first()
+            )
+
+            precio_anterior = None
+            fecha_ultimo_cambio = None
+            variacion_porcentaje = None
+
+            if ultimo_historial:
+                precio_anterior = float(ultimo_historial.precio_anterior)
+                fecha_ultimo_cambio = ultimo_historial.fecha_cambio.isoformat()
+                if ultimo_historial.precio_anterior and ultimo_historial.precio_anterior > 0:
+                    variacion = (prod.precio_unitario - ultimo_historial.precio_anterior) / ultimo_historial.precio_anterior * 100
+                    variacion_porcentaje = float(variacion)
+
+            comparativa.append({
+                "producto_proveedor_id": str(prod.id),
+                "proveedor_id": str(prod.proveedor_id),
+                "proveedor_nombre": prod.proveedor.razon_social,
+                "proveedor_calificacion": prod.proveedor.calificacion,
+                "codigo_proveedor": prod.codigo_proveedor,
+                "nombre_producto": prod.nombre_proveedor,
+                "precio_actual": float(prod.precio_unitario),
+                "unidad_compra": prod.unidad_compra,
+                "precio_anterior": precio_anterior,
+                "fecha_ultimo_cambio": fecha_ultimo_cambio,
+                "variacion_porcentaje": variacion_porcentaje,
+                "condicion_pago": prod.proveedor.condicion_pago,
+                "dias_entrega_estimados": prod.proveedor.dias_entrega_estimados,
+            })
+
+        # Ordenar por precio actual
+        comparativa.sort(key=lambda x: x["precio_actual"])
+
+        # Agregar ranking y diferencia con el mejor precio
+        if comparativa:
+            mejor_precio = comparativa[0]["precio_actual"]
+            for i, item in enumerate(comparativa):
+                item["ranking"] = i + 1
+                item["diferencia_mejor"] = float(item["precio_actual"] - mejor_precio)
+                item["diferencia_porcentaje"] = (
+                    float((item["precio_actual"] - mejor_precio) / mejor_precio * 100)
+                    if mejor_precio > 0 else 0
+                )
+
+        return comparativa
+
+    def actualizar_calificacion_proveedor(
+        self,
+        proveedor_id: UUID,
+        calificacion: int,
+        usuario_id: UUID,
+        comentario: Optional[str] = None,
+    ) -> Optional[Proveedor]:
+        """
+        Actualiza la calificación de un proveedor (1-5 estrellas).
+        """
+        if calificacion < 1 or calificacion > 5:
+            raise ValueError("La calificación debe estar entre 1 y 5")
+
+        proveedor = self.get_proveedor(proveedor_id)
+        if not proveedor:
+            return None
+
+        calificacion_anterior = proveedor.calificacion
+        proveedor.calificacion = calificacion
+
+        if comentario:
+            nota = f"\n[{datetime.utcnow().strftime('%Y-%m-%d %H:%M')}] Calificación: {calificacion}/5 - {comentario}"
+            proveedor.notas = (proveedor.notas or "") + nota
+
+        self.db.commit()
+        self.db.refresh(proveedor)
+
+        self.log_service.registrar(
+            usuario_id=usuario_id,
+            accion="calificar",
+            entidad="Proveedor",
+            entidad_id=proveedor.id,
+            datos_anteriores={"calificacion": calificacion_anterior},
+            datos_nuevos={"calificacion": calificacion, "comentario": comentario},
+        )
+
+        return proveedor
+
+    def get_saldo_proveedor(self, proveedor_id: UUID) -> dict:
+        """
+        Calcula el saldo pendiente a pagar a un proveedor.
+        """
+        ordenes = (
+            self.db.query(OrdenCompra)
+            .filter(
+                OrdenCompra.proveedor_id == proveedor_id,
+                OrdenCompra.activo == True,
+                OrdenCompra.estado.in_([
+                    EstadoOrdenCompra.COMPLETADA.value,
+                    EstadoOrdenCompra.PARCIAL.value,
+                ]),
+            )
+            .all()
+        )
+
+        total_facturado = Decimal("0")
+        total_pagado = Decimal("0")  # TODO: Integrar con módulo de pagos cuando exista
+
+        for orden in ordenes:
+            total_facturado += orden.total or Decimal("0")
+
+        saldo_pendiente = total_facturado - total_pagado
+
+        return {
+            "proveedor_id": str(proveedor_id),
+            "total_facturado": float(total_facturado),
+            "total_pagado": float(total_pagado),
+            "saldo_pendiente": float(saldo_pendiente),
+            "cantidad_ordenes": len(ordenes),
+        }

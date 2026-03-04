@@ -33,6 +33,13 @@ from app.models.lote_produccion import (
     PrioridadLote,
     TipoServicio as TipoServicioLote,
 )
+from app.models.orden_produccion import (
+    OrdenProduccion,
+    AsignacionEmpleadoOP,
+    IncidenciaProduccion,
+    EstadoOrdenProduccion,
+    PrioridadOrden,
+)
 
 # Clientes
 from app.models.cliente import Cliente, TipoCliente, CondicionIVA

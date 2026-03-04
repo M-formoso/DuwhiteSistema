@@ -2,6 +2,7 @@
 Endpoints de Insumos (Stock).
 """
 
+from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
@@ -97,13 +98,95 @@ def listar_insumos(
 
 
 @router.get("/alertas", response_model=List[InsumoAlerta])
-def obtener_alertas(
+async def obtener_alertas(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
     """Obtiene alertas de stock (bajo, sin stock, vencimiento)."""
     service = StockService(db)
     return service.get_alertas_stock()
+
+
+@router.get("/por-vencer", response_model=PaginatedResponse)
+async def obtener_insumos_por_vencer(
+    dias: int = Query(30, ge=1, le=365, description="Días hasta vencimiento"),
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene insumos próximos a vencer en los próximos X días."""
+    service = StockService(db)
+    insumos, total = service.get_insumos_por_vencer(dias=dias, skip=skip, limit=limit)
+
+    items = []
+    for insumo in insumos:
+        dias_restantes = (insumo.fecha_vencimiento - date.today()).days if insumo.fecha_vencimiento else None
+        items.append({
+            "id": str(insumo.id),
+            "codigo": insumo.codigo,
+            "nombre": insumo.nombre,
+            "categoria_nombre": insumo.categoria.nombre if insumo.categoria else None,
+            "stock_actual": float(insumo.stock_actual),
+            "unidad": insumo.unidad,
+            "fecha_vencimiento": insumo.fecha_vencimiento.isoformat() if insumo.fecha_vencimiento else None,
+            "dias_restantes": dias_restantes,
+            "valor_stock": float(insumo.valor_stock) if insumo.valor_stock else 0,
+        })
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1 if limit > 0 else 1,
+        size=limit,
+        pages=(total + limit - 1) // limit if limit > 0 else 1,
+    )
+
+
+@router.get("/sobrestock", response_model=PaginatedResponse)
+async def obtener_insumos_sobrestock(
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene insumos con sobrestock (stock actual > stock máximo)."""
+    service = StockService(db)
+    insumos, total = service.get_insumos_sobrestock(skip=skip, limit=limit)
+
+    items = []
+    for insumo in insumos:
+        exceso = float(insumo.stock_actual - insumo.stock_maximo) if insumo.stock_maximo else 0
+        items.append({
+            "id": str(insumo.id),
+            "codigo": insumo.codigo,
+            "nombre": insumo.nombre,
+            "categoria_nombre": insumo.categoria.nombre if insumo.categoria else None,
+            "stock_actual": float(insumo.stock_actual),
+            "stock_maximo": float(insumo.stock_maximo) if insumo.stock_maximo else None,
+            "exceso": exceso,
+            "unidad": insumo.unidad,
+            "valor_exceso": exceso * float(insumo.precio_unitario_costo or 0),
+        })
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1 if limit > 0 else 1,
+        size=limit,
+        pages=(total + limit - 1) // limit if limit > 0 else 1,
+    )
+
+
+@router.get("/valorizado")
+async def obtener_stock_valorizado(
+    categoria_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene el stock valorizado total y por categoría."""
+    service = StockService(db)
+    return service.get_stock_valorizado(categoria_id=categoria_id)
 
 
 @router.get("/lista", response_model=List[InsumoList])

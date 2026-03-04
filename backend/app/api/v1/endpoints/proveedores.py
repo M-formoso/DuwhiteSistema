@@ -2,10 +2,11 @@
 Endpoints de Proveedores.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
+from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_permission
@@ -474,3 +475,161 @@ def actualizar_precio_producto(
         precio_sin_iva=producto.precio_sin_iva,
         precio_por_unidad_stock=producto.precio_por_unidad_stock,
     )
+
+
+# ==================== HISTORIAL Y ANÁLISIS ====================
+
+@router.get("/{proveedor_id}/historial-compras", response_model=Dict[str, Any])
+async def obtener_historial_compras(
+    proveedor_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Obtiene el historial de compras de un proveedor.
+
+    Incluye:
+    - Lista de órdenes de compra
+    - Estadísticas: total comprado, cantidad de órdenes, promedio por orden
+    """
+    service = ProveedorService(db)
+
+    # Verificar que el proveedor existe
+    proveedor = service.get_proveedor(proveedor_id)
+    if not proveedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proveedor no encontrado",
+        )
+
+    ordenes, total, stats = service.get_historial_compras_proveedor(
+        proveedor_id=proveedor_id,
+        skip=skip,
+        limit=limit,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+    )
+
+    return {
+        "items": [
+            {
+                "id": str(orden.id),
+                "numero": orden.numero,
+                "fecha": orden.fecha.isoformat() if orden.fecha else None,
+                "estado": orden.estado,
+                "total": float(orden.total) if orden.total else 0,
+                "cantidad_items": len(orden.items) if orden.items else 0,
+            }
+            for orden in ordenes
+        ],
+        "total": total,
+        "page": skip // limit + 1 if limit > 0 else 1,
+        "size": limit,
+        "pages": (total + limit - 1) // limit if limit > 0 else 1,
+        "estadisticas": stats,
+    }
+
+
+@router.get("/{proveedor_id}/saldo", response_model=Dict[str, Any])
+async def obtener_saldo_proveedor(
+    proveedor_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Obtiene el saldo pendiente con un proveedor.
+
+    Incluye:
+    - Total facturado
+    - Total pagado
+    - Saldo pendiente
+    - Detalle de órdenes pendientes de pago
+    """
+    service = ProveedorService(db)
+
+    # Verificar que el proveedor existe
+    proveedor = service.get_proveedor(proveedor_id)
+    if not proveedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proveedor no encontrado",
+        )
+
+    return service.get_saldo_proveedor(proveedor_id)
+
+
+@router.put("/{proveedor_id}/calificacion", response_model=ProveedorResponse)
+async def actualizar_calificacion_proveedor(
+    proveedor_id: UUID,
+    calificacion: int = Query(..., ge=1, le=5, description="Calificación del 1 al 5"),
+    comentario: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """
+    Actualiza la calificación de un proveedor (1-5 estrellas).
+    """
+    service = ProveedorService(db)
+
+    proveedor = service.actualizar_calificacion_proveedor(
+        proveedor_id=proveedor_id,
+        calificacion=calificacion,
+        usuario_id=current_user.id,
+        comentario=comentario,
+    )
+
+    if not proveedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proveedor no encontrado",
+        )
+
+    return ProveedorResponse(
+        id=proveedor.id,
+        razon_social=proveedor.razon_social,
+        nombre_fantasia=proveedor.nombre_fantasia,
+        cuit=proveedor.cuit,
+        direccion=proveedor.direccion,
+        ciudad=proveedor.ciudad,
+        provincia=proveedor.provincia,
+        codigo_postal=proveedor.codigo_postal,
+        telefono=proveedor.telefono,
+        email=proveedor.email,
+        sitio_web=proveedor.sitio_web,
+        contacto_nombre=proveedor.contacto_nombre,
+        contacto_telefono=proveedor.contacto_telefono,
+        contacto_email=proveedor.contacto_email,
+        condicion_pago=proveedor.condicion_pago,
+        dias_entrega_estimados=proveedor.dias_entrega_estimados,
+        descuento_habitual=proveedor.descuento_habitual,
+        rubro=proveedor.rubro,
+        activo=proveedor.activo,
+        notas=proveedor.notas,
+        created_at=proveedor.created_at,
+        updated_at=proveedor.updated_at,
+        is_active=proveedor.activo,
+        nombre_display=proveedor.nombre_display,
+        cuit_formateado=proveedor.cuit_formateado,
+        cantidad_productos=proveedor.productos.count() if proveedor.productos else 0,
+        cantidad_ordenes=proveedor.ordenes_compra.count() if proveedor.ordenes_compra else 0,
+    )
+
+
+@router.get("/comparar-precios/{insumo_id}", response_model=List[Dict[str, Any]])
+async def comparar_precios_insumo(
+    insumo_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Compara precios de un insumo entre distintos proveedores.
+
+    Devuelve lista de proveedores que ofrecen el insumo ordenados por precio.
+    Incluye: precio, fecha del precio, calificación del proveedor, recomendación.
+    """
+    service = ProveedorService(db)
+    return service.comparar_precios_insumo(insumo_id)

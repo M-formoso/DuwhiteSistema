@@ -97,6 +97,7 @@ class ProveedorResponse(ProveedorInDB):
     cuit_formateado: Optional[str] = None
     cantidad_productos: Optional[int] = None
     cantidad_ordenes: Optional[int] = None
+    calificacion: Optional[int] = None
 
 
 class ProveedorList(BaseModel):

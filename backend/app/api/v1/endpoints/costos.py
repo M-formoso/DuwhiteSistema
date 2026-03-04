@@ -3,8 +3,9 @@ Endpoints de Costos para DUWHITE ERP
 """
 
 from datetime import date
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -476,3 +477,136 @@ def get_constantes(
         "categorias": CATEGORIAS_COSTO,
         "unidades_medida": UNIDADES_MEDIDA_COSTO,
     }
+
+
+# ==================== RECOMENDACIÓN DE PRECIOS ====================
+
+@router.get("/recomendar-precio/{servicio_id}", response_model=Dict[str, Any])
+def recomendar_precio_servicio(
+    servicio_id: UUID,
+    margen_objetivo: float = Query(30, ge=0, le=100, description="Margen objetivo en porcentaje"),
+    incluir_costos_fijos: bool = True,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Recomienda un precio de venta para un servicio basado en costos.
+
+    - Calcula el costo total (variables + fijos prorrateados)
+    - Aplica el margen objetivo deseado
+    - Compara con el precio actual si existe
+    """
+    service = CostoService(db)
+
+    try:
+        resultado = service.recomendar_precio_servicio(
+            servicio_id=servicio_id,
+            margen_objetivo=Decimal(str(margen_objetivo)),
+            incluir_costos_fijos=incluir_costos_fijos,
+        )
+        return resultado
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.get("/recomendar-precios", response_model=List[Dict[str, Any]])
+def recomendar_precios_todos(
+    margen_objetivo: float = Query(30, ge=0, le=100, description="Margen objetivo en porcentaje"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Recomienda precios para todos los servicios activos.
+
+    Útil para revisión periódica de lista de precios.
+    """
+    service = CostoService(db)
+    return service.recomendar_precios_lista(margen_objetivo=Decimal(str(margen_objetivo)))
+
+
+# ==================== SIMULADOR "QUÉ PASA SI" ====================
+
+@router.get("/simulador/escenario", response_model=Dict[str, Any])
+def simular_escenario(
+    variacion_costos_fijos: float = Query(0, description="% de variación en costos fijos"),
+    variacion_costos_variables: float = Query(0, description="% de variación en costos variables"),
+    variacion_volumen: float = Query(0, description="% de variación en volumen de producción"),
+    variacion_precios: float = Query(0, description="% de variación en precios de venta"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Simula escenarios "qué pasa si" para análisis de sensibilidad.
+
+    Ejemplos de uso:
+    - ¿Qué pasa si los costos fijos suben 10%?
+    - ¿Qué pasa si aumentamos el volumen 20%?
+    - ¿Qué pasa si bajamos los precios 5%?
+
+    Retorna comparación entre escenario actual y simulado.
+    """
+    service = CostoService(db)
+    return service.simular_escenario(
+        variacion_costos_fijos=Decimal(str(variacion_costos_fijos)),
+        variacion_costos_variables=Decimal(str(variacion_costos_variables)),
+        variacion_volumen=Decimal(str(variacion_volumen)),
+        variacion_precios=Decimal(str(variacion_precios)),
+    )
+
+
+@router.get("/simulador/punto-equilibrio", response_model=Dict[str, Any])
+def calcular_punto_equilibrio(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Calcula el punto de equilibrio operativo.
+
+    Retorna:
+    - Cantidad de kg necesarios para cubrir costos fijos
+    - Ingresos necesarios para punto de equilibrio
+    - Comparación con volumen actual
+    - Margen de seguridad
+    """
+    service = CostoService(db)
+    return service.simular_punto_equilibrio()
+
+
+# ==================== ALERTAS DE MARGEN ====================
+
+@router.get("/alertas/margen-bajo", response_model=List[Dict[str, Any]])
+def get_alertas_margen_bajo(
+    margen_minimo: float = Query(15, ge=0, le=100, description="Margen mínimo aceptable en %"),
+    dias_atras: int = Query(30, ge=1, le=365, description="Días hacia atrás para analizar"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene alertas de servicios y lotes con margen por debajo del mínimo.
+
+    Identifica:
+    - Lotes recientes con margen bajo o negativo
+    - Servicios cuyo margen real es menor al objetivo
+    """
+    service = CostoService(db)
+    return service.get_alertas_margen_bajo(
+        margen_minimo=Decimal(str(margen_minimo)),
+        dias_atras=dias_atras,
+    )
+
+
+@router.get("/alertas/resumen", response_model=Dict[str, Any])
+def get_resumen_alertas_costos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene un resumen de todas las alertas de costos.
+
+    Útil para dashboard y monitoreo general.
+    """
+    service = CostoService(db)
+    return service.get_resumen_alertas_costos()

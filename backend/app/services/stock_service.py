@@ -623,3 +623,122 @@ class StockService:
             valor_nuevo = cantidad_nueva * precio_nuevo
             total_cantidad = insumo.stock_actual + cantidad_nueva
             insumo.precio_promedio_ponderado = (valor_actual + valor_nuevo) / total_cantidad
+
+    # ==================== ENDPOINTS ADICIONALES ====================
+
+    def get_insumos_por_vencer(
+        self,
+        dias: int = 30,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Tuple[List[Insumo], int]:
+        """Obtiene insumos próximos a vencer."""
+        fecha_limite = date.today() + timedelta(days=dias)
+
+        query = (
+            self.db.query(Insumo)
+            .options(
+                joinedload(Insumo.categoria),
+                joinedload(Insumo.proveedor_habitual),
+            )
+            .filter(
+                Insumo.activo == True,
+                Insumo.fecha_vencimiento != None,
+                Insumo.fecha_vencimiento <= fecha_limite,
+                Insumo.stock_actual > 0,
+            )
+            .order_by(Insumo.fecha_vencimiento)
+        )
+
+        total = query.count()
+        insumos = query.offset(skip).limit(limit).all()
+
+        return insumos, total
+
+    def get_insumos_sobrestock(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Tuple[List[Insumo], int]:
+        """Obtiene insumos con sobrestock (stock > stock_maximo)."""
+        query = (
+            self.db.query(Insumo)
+            .options(
+                joinedload(Insumo.categoria),
+                joinedload(Insumo.proveedor_habitual),
+            )
+            .filter(
+                Insumo.activo == True,
+                Insumo.stock_maximo != None,
+                Insumo.stock_actual > Insumo.stock_maximo,
+            )
+            .order_by((Insumo.stock_actual - Insumo.stock_maximo).desc())
+        )
+
+        total = query.count()
+        insumos = query.offset(skip).limit(limit).all()
+
+        return insumos, total
+
+    def get_stock_valorizado(
+        self,
+        categoria_id: Optional[UUID] = None,
+    ) -> dict:
+        """Obtiene el stock valorizado total y por categoría."""
+        query = self.db.query(Insumo).filter(
+            Insumo.activo == True,
+            Insumo.stock_actual > 0,
+        )
+
+        if categoria_id:
+            query = query.filter(Insumo.categoria_id == categoria_id)
+
+        insumos = query.options(joinedload(Insumo.categoria)).all()
+
+        total_valor = Decimal("0")
+        total_items = 0
+        por_categoria = {}
+        detalle = []
+
+        for insumo in insumos:
+            precio = insumo.precio_promedio_ponderado or insumo.precio_unitario_costo or Decimal("0")
+            valor = insumo.stock_actual * precio
+            total_valor += valor
+            total_items += 1
+
+            # Agrupar por categoría
+            cat_nombre = insumo.categoria.nombre if insumo.categoria else "Sin categoría"
+            cat_id = str(insumo.categoria_id) if insumo.categoria_id else "sin_categoria"
+
+            if cat_id not in por_categoria:
+                por_categoria[cat_id] = {
+                    "categoria_id": cat_id,
+                    "categoria_nombre": cat_nombre,
+                    "cantidad_items": 0,
+                    "valor_total": Decimal("0"),
+                }
+
+            por_categoria[cat_id]["cantidad_items"] += 1
+            por_categoria[cat_id]["valor_total"] += valor
+
+            detalle.append({
+                "insumo_id": str(insumo.id),
+                "codigo": insumo.codigo,
+                "nombre": insumo.nombre,
+                "categoria": cat_nombre,
+                "stock_actual": float(insumo.stock_actual),
+                "unidad": insumo.unidad,
+                "precio_unitario": float(precio),
+                "valor_stock": float(valor),
+            })
+
+        # Convertir valores Decimal a float para JSON
+        for cat in por_categoria.values():
+            cat["valor_total"] = float(cat["valor_total"])
+
+        return {
+            "total_valor": float(total_valor),
+            "total_items": total_items,
+            "por_categoria": list(por_categoria.values()),
+            "detalle": detalle,
+        }

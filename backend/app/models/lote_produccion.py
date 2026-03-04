@@ -70,6 +70,14 @@ class LoteProduccion(Base, BaseModelMixin):
         nullable=True,
     )
 
+    # Orden de producción (opcional)
+    orden_produccion_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("ordenes_produccion.id"),
+        nullable=True,
+        index=True,
+    )
+
     # Tipo de servicio
     tipo_servicio = Column(String(30), nullable=False, default=TipoServicio.LAVADO_NORMAL.value)
 
@@ -117,6 +125,7 @@ class LoteProduccion(Base, BaseModelMixin):
     # Relaciones
     cliente = relationship("Cliente", back_populates="lotes")
     pedido = relationship("Pedido", back_populates="lotes")
+    orden_produccion = relationship("OrdenProduccion", back_populates="lotes")
     etapa_actual = relationship("EtapaProduccion")
     creado_por = relationship("Usuario")
     etapas = relationship(

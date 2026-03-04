@@ -19,6 +19,12 @@ from app.models.lote_produccion import (
     EstadoLote,
     PrioridadLote,
 )
+from app.models.orden_produccion import (
+    OrdenProduccion,
+    AsignacionEmpleadoOP,
+    IncidenciaProduccion,
+    EstadoOrdenProduccion,
+)
 from app.models.insumo import Insumo
 from app.models.movimiento_stock import TipoMovimiento, OrigenMovimiento
 from app.schemas.etapa_produccion import EtapaProduccionCreate, EtapaProduccionUpdate
@@ -696,3 +702,430 @@ class ProduccionService:
                 encontrado = True
 
         return None
+
+    # ==================== ÓRDENES DE PRODUCCIÓN ====================
+
+    def get_ordenes_produccion(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+        estado: Optional[str] = None,
+        cliente_id: Optional[UUID] = None,
+        search: Optional[str] = None,
+        solo_activas: bool = True,
+    ) -> Tuple[List[OrdenProduccion], int]:
+        """Obtiene lista de órdenes de producción."""
+        query = self.db.query(OrdenProduccion)
+
+        if solo_activas:
+            query = query.filter(OrdenProduccion.activo == True)
+
+        if estado:
+            query = query.filter(OrdenProduccion.estado == estado)
+
+        if cliente_id:
+            query = query.filter(OrdenProduccion.cliente_id == cliente_id)
+
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                or_(
+                    OrdenProduccion.numero.ilike(search_term),
+                    OrdenProduccion.descripcion.ilike(search_term),
+                )
+            )
+
+        total = query.count()
+        ordenes = (
+            query.options(
+                joinedload(OrdenProduccion.cliente),
+                joinedload(OrdenProduccion.responsable),
+            )
+            .order_by(OrdenProduccion.fecha_emision.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return ordenes, total
+
+    def get_orden_produccion(self, orden_id: UUID) -> Optional[OrdenProduccion]:
+        """Obtiene una orden de producción por ID."""
+        return (
+            self.db.query(OrdenProduccion)
+            .options(
+                joinedload(OrdenProduccion.cliente),
+                joinedload(OrdenProduccion.responsable),
+                joinedload(OrdenProduccion.lotes),
+            )
+            .filter(OrdenProduccion.id == orden_id)
+            .first()
+        )
+
+    def create_orden_produccion(
+        self,
+        data,  # OrdenProduccionCreate
+        usuario_id: UUID,
+    ) -> OrdenProduccion:
+        """Crea una nueva orden de producción."""
+        numero = self._generar_numero_orden_produccion()
+
+        orden = OrdenProduccion(
+            numero=numero,
+            cliente_id=data.cliente_id,
+            pedido_id=data.pedido_id,
+            prioridad=data.prioridad,
+            fecha_programada_inicio=data.fecha_programada_inicio,
+            fecha_programada_fin=data.fecha_programada_fin,
+            descripcion=data.descripcion,
+            instrucciones_especiales=data.instrucciones_especiales,
+            cantidad_prendas_estimada=data.cantidad_prendas_estimada,
+            peso_estimado_kg=data.peso_estimado_kg,
+            responsable_id=data.responsable_id,
+            creado_por_id=usuario_id,
+            notas_internas=data.notas_internas,
+            notas_produccion=data.notas_produccion,
+        )
+
+        self.db.add(orden)
+        self.db.flush()
+
+        # Asociar lotes existentes si se proporcionaron
+        if hasattr(data, 'lotes_ids') and data.lotes_ids:
+            for lote_id in data.lotes_ids:
+                lote = self.get_lote(lote_id)
+                if lote:
+                    lote.orden_produccion_id = orden.id
+
+        self.db.commit()
+        self.db.refresh(orden)
+
+        self.log_service.registrar(
+            usuario_id=usuario_id,
+            accion="crear",
+            entidad="OrdenProduccion",
+            entidad_id=orden.id,
+            datos_nuevos={"numero": numero},
+        )
+
+        return orden
+
+    def update_orden_produccion(
+        self,
+        orden_id: UUID,
+        data,  # OrdenProduccionUpdate
+        usuario_id: UUID,
+    ) -> Optional[OrdenProduccion]:
+        """Actualiza una orden de producción."""
+        orden = self.get_orden_produccion(orden_id)
+        if not orden:
+            return None
+
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(orden, field, value)
+
+        self.db.commit()
+        self.db.refresh(orden)
+
+        return orden
+
+    def cambiar_estado_orden_produccion(
+        self,
+        orden_id: UUID,
+        nuevo_estado: EstadoOrdenProduccion,
+        usuario_id: UUID,
+    ) -> Optional[OrdenProduccion]:
+        """Cambia el estado de una orden de producción."""
+        orden = self.get_orden_produccion(orden_id)
+        if not orden:
+            return None
+
+        estado_anterior = orden.estado
+        orden.estado = nuevo_estado.value
+
+        if nuevo_estado == EstadoOrdenProduccion.EN_PROCESO and not orden.fecha_inicio_real:
+            orden.fecha_inicio_real = datetime.utcnow()
+        elif nuevo_estado == EstadoOrdenProduccion.COMPLETADA:
+            orden.fecha_fin_real = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(orden)
+
+        self.log_service.registrar(
+            usuario_id=usuario_id,
+            accion="cambiar_estado",
+            entidad="OrdenProduccion",
+            entidad_id=orden.id,
+            datos_anteriores={"estado": estado_anterior},
+            datos_nuevos={"estado": nuevo_estado.value},
+        )
+
+        return orden
+
+    def _generar_numero_orden_produccion(self) -> str:
+        """Genera el número de la siguiente orden de producción (OP-YYYY-NNNNN)."""
+        year = date.today().year
+        prefijo = f"OP-{year}-"
+
+        ultima = (
+            self.db.query(OrdenProduccion)
+            .filter(OrdenProduccion.numero.like(f"{prefijo}%"))
+            .order_by(OrdenProduccion.numero.desc())
+            .first()
+        )
+
+        if ultima:
+            ultimo_num = int(ultima.numero.split("-")[-1])
+            nuevo_num = ultimo_num + 1
+        else:
+            nuevo_num = 1
+
+        return f"{prefijo}{nuevo_num:05d}"
+
+    # ==================== ASIGNACIÓN DE EMPLEADOS ====================
+
+    def get_asignaciones_orden(self, orden_id: UUID) -> List[AsignacionEmpleadoOP]:
+        """Obtiene las asignaciones de empleados de una orden."""
+        return (
+            self.db.query(AsignacionEmpleadoOP)
+            .options(
+                joinedload(AsignacionEmpleadoOP.empleado),
+                joinedload(AsignacionEmpleadoOP.etapa),
+            )
+            .filter(
+                AsignacionEmpleadoOP.orden_id == orden_id,
+                AsignacionEmpleadoOP.activo == True,
+            )
+            .order_by(AsignacionEmpleadoOP.fecha_asignacion)
+            .all()
+        )
+
+    def crear_asignacion_empleado(
+        self,
+        data,  # AsignacionEmpleadoCreate
+        usuario_id: UUID,
+    ) -> AsignacionEmpleadoOP:
+        """Crea una asignación de empleado a una orden."""
+        asignacion = AsignacionEmpleadoOP(
+            orden_id=data.orden_id,
+            empleado_id=data.empleado_id,
+            etapa_id=data.etapa_id,
+            fecha_asignacion=data.fecha_asignacion,
+            fecha_fin_asignacion=data.fecha_fin_asignacion,
+            turno=data.turno,
+            horas_estimadas=data.horas_estimadas,
+            notas=data.notas,
+        )
+
+        self.db.add(asignacion)
+        self.db.commit()
+        self.db.refresh(asignacion)
+
+        self.log_service.registrar(
+            usuario_id=usuario_id,
+            accion="crear",
+            entidad="AsignacionEmpleadoOP",
+            entidad_id=asignacion.id,
+            datos_nuevos={"orden_id": str(data.orden_id), "empleado_id": str(data.empleado_id)},
+        )
+
+        return asignacion
+
+    def actualizar_asignacion_empleado(
+        self,
+        asignacion_id: UUID,
+        data,  # AsignacionEmpleadoUpdate
+        usuario_id: UUID,
+    ) -> Optional[AsignacionEmpleadoOP]:
+        """Actualiza una asignación de empleado."""
+        asignacion = (
+            self.db.query(AsignacionEmpleadoOP)
+            .filter(AsignacionEmpleadoOP.id == asignacion_id)
+            .first()
+        )
+
+        if not asignacion:
+            return None
+
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(asignacion, field, value)
+
+        self.db.commit()
+        self.db.refresh(asignacion)
+
+        return asignacion
+
+    def eliminar_asignacion_empleado(
+        self,
+        asignacion_id: UUID,
+        usuario_id: UUID,
+    ) -> bool:
+        """Elimina (soft delete) una asignación."""
+        asignacion = (
+            self.db.query(AsignacionEmpleadoOP)
+            .filter(AsignacionEmpleadoOP.id == asignacion_id)
+            .first()
+        )
+
+        if not asignacion:
+            return False
+
+        asignacion.activo = False
+        self.db.commit()
+
+        return True
+
+    # ==================== INCIDENCIAS ====================
+
+    def get_incidencias(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+        orden_id: Optional[UUID] = None,
+        estado: Optional[str] = None,
+        severidad: Optional[str] = None,
+    ) -> Tuple[List[IncidenciaProduccion], int]:
+        """Obtiene lista de incidencias."""
+        query = self.db.query(IncidenciaProduccion)
+
+        if orden_id:
+            query = query.filter(IncidenciaProduccion.orden_id == orden_id)
+
+        if estado:
+            query = query.filter(IncidenciaProduccion.estado == estado)
+
+        if severidad:
+            query = query.filter(IncidenciaProduccion.severidad == severidad)
+
+        total = query.count()
+        incidencias = (
+            query.options(
+                joinedload(IncidenciaProduccion.orden),
+                joinedload(IncidenciaProduccion.lote),
+                joinedload(IncidenciaProduccion.reportado_por),
+            )
+            .order_by(IncidenciaProduccion.fecha_incidencia.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return incidencias, total
+
+    def get_incidencia(self, incidencia_id: UUID) -> Optional[IncidenciaProduccion]:
+        """Obtiene una incidencia por ID."""
+        return (
+            self.db.query(IncidenciaProduccion)
+            .options(
+                joinedload(IncidenciaProduccion.orden),
+                joinedload(IncidenciaProduccion.lote),
+                joinedload(IncidenciaProduccion.etapa),
+                joinedload(IncidenciaProduccion.reportado_por),
+                joinedload(IncidenciaProduccion.resuelto_por),
+            )
+            .filter(IncidenciaProduccion.id == incidencia_id)
+            .first()
+        )
+
+    def crear_incidencia(
+        self,
+        data,  # IncidenciaCreate
+        usuario_id: UUID,
+    ) -> IncidenciaProduccion:
+        """Crea una nueva incidencia."""
+        fotos_str = None
+        if hasattr(data, 'fotos') and data.fotos:
+            fotos_str = ",".join(data.fotos)
+
+        incidencia = IncidenciaProduccion(
+            orden_id=data.orden_id,
+            lote_id=data.lote_id,
+            etapa_id=data.etapa_id,
+            tipo=data.tipo,
+            severidad=data.severidad,
+            titulo=data.titulo,
+            descripcion=data.descripcion,
+            reportado_por_id=usuario_id,
+            fotos=fotos_str,
+        )
+
+        self.db.add(incidencia)
+        self.db.commit()
+        self.db.refresh(incidencia)
+
+        self.log_service.registrar(
+            usuario_id=usuario_id,
+            accion="crear",
+            entidad="IncidenciaProduccion",
+            entidad_id=incidencia.id,
+            datos_nuevos={"titulo": data.titulo, "tipo": data.tipo, "severidad": data.severidad},
+        )
+
+        return incidencia
+
+    def actualizar_incidencia(
+        self,
+        incidencia_id: UUID,
+        data,  # IncidenciaUpdate
+        usuario_id: UUID,
+    ) -> Optional[IncidenciaProduccion]:
+        """Actualiza una incidencia."""
+        incidencia = self.get_incidencia(incidencia_id)
+        if not incidencia:
+            return None
+
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(incidencia, field, value)
+
+        self.db.commit()
+        self.db.refresh(incidencia)
+
+        return incidencia
+
+    def resolver_incidencia(
+        self,
+        incidencia_id: UUID,
+        data,  # IncidenciaResolverRequest
+        usuario_id: UUID,
+    ) -> Optional[IncidenciaProduccion]:
+        """Resuelve una incidencia."""
+        incidencia = self.get_incidencia(incidencia_id)
+        if not incidencia:
+            return None
+
+        incidencia.estado = "resuelta"
+        incidencia.fecha_resolucion = datetime.utcnow()
+        incidencia.resuelto_por_id = usuario_id
+        incidencia.acciones_tomadas = data.acciones_tomadas
+        incidencia.tiempo_perdido_minutos = data.tiempo_perdido_minutos
+        incidencia.costo_estimado = data.costo_estimado
+
+        self.db.commit()
+        self.db.refresh(incidencia)
+
+        self.log_service.registrar(
+            usuario_id=usuario_id,
+            accion="resolver",
+            entidad="IncidenciaProduccion",
+            entidad_id=incidencia.id,
+            datos_nuevos={"acciones_tomadas": data.acciones_tomadas},
+        )
+
+        return incidencia
+
+    def agregar_foto_incidencia(
+        self,
+        incidencia_id: UUID,
+        ruta_foto: str,
+        usuario_id: UUID,
+    ) -> Optional[IncidenciaProduccion]:
+        """Agrega una foto a una incidencia."""
+        incidencia = self.get_incidencia(incidencia_id)
+        if not incidencia:
+            return None
+
+        incidencia.agregar_foto(ruta_foto)
+        self.db.commit()
+        self.db.refresh(incidencia)
+
+        return incidencia

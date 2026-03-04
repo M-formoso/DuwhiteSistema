@@ -3,15 +3,16 @@ Endpoints de Producción (Lotes, Etapas, Kanban).
 """
 
 from datetime import date
-from typing import List, Optional
+from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_permission
 from app.models.usuario import Usuario
 from app.models.lote_produccion import EstadoLote, PrioridadLote
+from app.models.orden_produccion import EstadoOrdenProduccion
 from app.schemas.etapa_produccion import (
     EtapaProduccionCreate,
     EtapaProduccionUpdate,
@@ -39,6 +40,19 @@ from app.schemas.lote_produccion import (
     KanbanBoard,
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
+from app.schemas.orden_produccion import (
+    OrdenProduccionCreate,
+    OrdenProduccionUpdate,
+    OrdenProduccionResponse,
+    OrdenProduccionList,
+    AsignacionEmpleadoCreate,
+    AsignacionEmpleadoUpdate,
+    AsignacionEmpleadoResponse,
+    IncidenciaCreate,
+    IncidenciaUpdate,
+    IncidenciaResponse,
+    IncidenciaResolverRequest,
+)
 from app.services.produccion_service import ProduccionService
 
 router = APIRouter()
@@ -701,3 +715,483 @@ async def registrar_consumo(
         notas=consumo.notas,
         created_at=consumo.created_at,
     )
+
+
+# ==================== ÓRDENES DE PRODUCCIÓN ====================
+
+@router.get("/ordenes", response_model=PaginatedResponse)
+async def listar_ordenes_produccion(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    estado: Optional[str] = None,
+    cliente_id: Optional[UUID] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista órdenes de producción con filtros."""
+    service = ProduccionService(db)
+    ordenes, total = service.get_ordenes_produccion(
+        skip=skip,
+        limit=limit,
+        estado=estado,
+        cliente_id=cliente_id,
+        search=search,
+    )
+
+    items = [
+        OrdenProduccionList(
+            id=o.id,
+            numero=o.numero,
+            estado=o.estado,
+            prioridad=o.prioridad,
+            cliente_nombre=o.cliente.razon_social if o.cliente else None,
+            fecha_programada_fin=o.fecha_programada_fin,
+            porcentaje_avance=o.porcentaje_avance,
+            esta_atrasada=o.esta_atrasada,
+            cantidad_lotes=len(o.lotes) if o.lotes else 0,
+        )
+        for o in ordenes
+    ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1 if limit > 0 else 1,
+        size=limit,
+        pages=(total + limit - 1) // limit if limit > 0 else 1,
+    )
+
+
+@router.get("/ordenes/{orden_id}", response_model=OrdenProduccionResponse)
+async def obtener_orden_produccion(
+    orden_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene una orden de producción por ID."""
+    service = ProduccionService(db)
+    orden = service.get_orden_produccion(orden_id)
+
+    if not orden:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Orden de producción no encontrada",
+        )
+
+    return OrdenProduccionResponse(
+        id=orden.id,
+        numero=orden.numero,
+        cliente_id=orden.cliente_id,
+        pedido_id=orden.pedido_id,
+        estado=orden.estado,
+        prioridad=orden.prioridad,
+        fecha_emision=orden.fecha_emision,
+        fecha_programada_inicio=orden.fecha_programada_inicio,
+        fecha_programada_fin=orden.fecha_programada_fin,
+        fecha_inicio_real=orden.fecha_inicio_real,
+        fecha_fin_real=orden.fecha_fin_real,
+        descripcion=orden.descripcion,
+        instrucciones_especiales=orden.instrucciones_especiales,
+        cantidad_prendas_estimada=orden.cantidad_prendas_estimada,
+        peso_estimado_kg=orden.peso_estimado_kg,
+        cantidad_prendas_real=orden.cantidad_prendas_real,
+        peso_real_kg=orden.peso_real_kg,
+        responsable_id=orden.responsable_id,
+        notas_internas=orden.notas_internas,
+        notas_produccion=orden.notas_produccion,
+        created_at=orden.created_at,
+        updated_at=orden.updated_at,
+        activo=orden.activo,
+        porcentaje_avance=orden.porcentaje_avance,
+        esta_atrasada=orden.esta_atrasada,
+        dias_restantes=orden.dias_restantes,
+        cantidad_lotes=len(orden.lotes) if orden.lotes else 0,
+        cliente_nombre=orden.cliente.razon_social if orden.cliente else None,
+        responsable_nombre=orden.responsable.nombre_completo if orden.responsable else None,
+    )
+
+
+@router.post("/ordenes", response_model=OrdenProduccionResponse, status_code=status.HTTP_201_CREATED)
+async def crear_orden_produccion(
+    data: OrdenProduccionCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Crea una nueva orden de producción."""
+    service = ProduccionService(db)
+    orden = service.create_orden_produccion(data, current_user.id)
+
+    return OrdenProduccionResponse(
+        id=orden.id,
+        numero=orden.numero,
+        cliente_id=orden.cliente_id,
+        pedido_id=orden.pedido_id,
+        estado=orden.estado,
+        prioridad=orden.prioridad,
+        fecha_emision=orden.fecha_emision,
+        fecha_programada_inicio=orden.fecha_programada_inicio,
+        fecha_programada_fin=orden.fecha_programada_fin,
+        fecha_inicio_real=orden.fecha_inicio_real,
+        fecha_fin_real=orden.fecha_fin_real,
+        descripcion=orden.descripcion,
+        instrucciones_especiales=orden.instrucciones_especiales,
+        cantidad_prendas_estimada=orden.cantidad_prendas_estimada,
+        peso_estimado_kg=orden.peso_estimado_kg,
+        cantidad_prendas_real=orden.cantidad_prendas_real,
+        peso_real_kg=orden.peso_real_kg,
+        responsable_id=orden.responsable_id,
+        notas_internas=orden.notas_internas,
+        notas_produccion=orden.notas_produccion,
+        created_at=orden.created_at,
+        updated_at=orden.updated_at,
+        activo=orden.activo,
+        porcentaje_avance=0,
+        esta_atrasada=False,
+        dias_restantes=orden.dias_restantes,
+        cantidad_lotes=0,
+        cliente_nombre=orden.cliente.razon_social if orden.cliente else None,
+        responsable_nombre=orden.responsable.nombre_completo if orden.responsable else None,
+    )
+
+
+@router.put("/ordenes/{orden_id}", response_model=OrdenProduccionResponse)
+async def actualizar_orden_produccion(
+    orden_id: UUID,
+    data: OrdenProduccionUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Actualiza una orden de producción."""
+    service = ProduccionService(db)
+    orden = service.update_orden_produccion(orden_id, data, current_user.id)
+
+    if not orden:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Orden de producción no encontrada",
+        )
+
+    return await obtener_orden_produccion(orden_id, db, current_user)
+
+
+@router.post("/ordenes/{orden_id}/estado", response_model=MessageResponse)
+async def cambiar_estado_orden_produccion(
+    orden_id: UUID,
+    estado: EstadoOrdenProduccion = Query(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Cambia el estado de una orden de producción."""
+    service = ProduccionService(db)
+    orden = service.cambiar_estado_orden_produccion(orden_id, estado, current_user.id)
+
+    if not orden:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Orden de producción no encontrada",
+        )
+
+    return MessageResponse(message=f"Orden {orden.numero} cambiada a estado {estado.value}")
+
+
+# ==================== ASIGNACIÓN DE EMPLEADOS ====================
+
+@router.get("/ordenes/{orden_id}/asignaciones", response_model=List[AsignacionEmpleadoResponse])
+async def listar_asignaciones_orden(
+    orden_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista las asignaciones de empleados de una orden."""
+    service = ProduccionService(db)
+    asignaciones = service.get_asignaciones_orden(orden_id)
+
+    return [
+        AsignacionEmpleadoResponse(
+            id=a.id,
+            orden_id=a.orden_id,
+            empleado_id=a.empleado_id,
+            etapa_id=a.etapa_id,
+            fecha_asignacion=a.fecha_asignacion,
+            fecha_fin_asignacion=a.fecha_fin_asignacion,
+            turno=a.turno,
+            horas_estimadas=a.horas_estimadas,
+            horas_trabajadas=a.horas_trabajadas,
+            notas=a.notas,
+            activo=a.activo,
+            created_at=a.created_at,
+            updated_at=a.updated_at,
+            empleado_nombre=a.empleado.nombre_completo if a.empleado else None,
+            etapa_nombre=a.etapa.nombre if a.etapa else None,
+            orden_numero=a.orden.numero if a.orden else None,
+        )
+        for a in asignaciones
+    ]
+
+
+@router.post("/ordenes/{orden_id}/asignaciones", response_model=AsignacionEmpleadoResponse, status_code=status.HTTP_201_CREATED)
+async def crear_asignacion_empleado(
+    orden_id: UUID,
+    data: AsignacionEmpleadoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Asigna un empleado a una orden de producción."""
+    # Asegurar que el orden_id del path coincida
+    data.orden_id = orden_id
+
+    service = ProduccionService(db)
+    asignacion = service.crear_asignacion_empleado(data, current_user.id)
+
+    return AsignacionEmpleadoResponse(
+        id=asignacion.id,
+        orden_id=asignacion.orden_id,
+        empleado_id=asignacion.empleado_id,
+        etapa_id=asignacion.etapa_id,
+        fecha_asignacion=asignacion.fecha_asignacion,
+        fecha_fin_asignacion=asignacion.fecha_fin_asignacion,
+        turno=asignacion.turno,
+        horas_estimadas=asignacion.horas_estimadas,
+        horas_trabajadas=asignacion.horas_trabajadas,
+        notas=asignacion.notas,
+        activo=asignacion.activo,
+        created_at=asignacion.created_at,
+        updated_at=asignacion.updated_at,
+        empleado_nombre=asignacion.empleado.nombre_completo if asignacion.empleado else None,
+        etapa_nombre=asignacion.etapa.nombre if asignacion.etapa else None,
+        orden_numero=None,
+    )
+
+
+@router.put("/asignaciones/{asignacion_id}", response_model=AsignacionEmpleadoResponse)
+async def actualizar_asignacion_empleado(
+    asignacion_id: UUID,
+    data: AsignacionEmpleadoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Actualiza una asignación de empleado."""
+    service = ProduccionService(db)
+    asignacion = service.actualizar_asignacion_empleado(asignacion_id, data, current_user.id)
+
+    if not asignacion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asignación no encontrada",
+        )
+
+    return AsignacionEmpleadoResponse(
+        id=asignacion.id,
+        orden_id=asignacion.orden_id,
+        empleado_id=asignacion.empleado_id,
+        etapa_id=asignacion.etapa_id,
+        fecha_asignacion=asignacion.fecha_asignacion,
+        fecha_fin_asignacion=asignacion.fecha_fin_asignacion,
+        turno=asignacion.turno,
+        horas_estimadas=asignacion.horas_estimadas,
+        horas_trabajadas=asignacion.horas_trabajadas,
+        notas=asignacion.notas,
+        activo=asignacion.activo,
+        created_at=asignacion.created_at,
+        updated_at=asignacion.updated_at,
+        empleado_nombre=asignacion.empleado.nombre_completo if asignacion.empleado else None,
+        etapa_nombre=asignacion.etapa.nombre if asignacion.etapa else None,
+        orden_numero=asignacion.orden.numero if asignacion.orden else None,
+    )
+
+
+@router.delete("/asignaciones/{asignacion_id}", response_model=MessageResponse)
+async def eliminar_asignacion_empleado(
+    asignacion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Elimina una asignación de empleado."""
+    service = ProduccionService(db)
+    success = service.eliminar_asignacion_empleado(asignacion_id, current_user.id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asignación no encontrada",
+        )
+
+    return MessageResponse(message="Asignación eliminada correctamente")
+
+
+# ==================== INCIDENCIAS ====================
+
+@router.get("/incidencias", response_model=PaginatedResponse)
+async def listar_incidencias(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    orden_id: Optional[UUID] = None,
+    estado: Optional[str] = None,
+    severidad: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista incidencias de producción con filtros."""
+    service = ProduccionService(db)
+    incidencias, total = service.get_incidencias(
+        skip=skip,
+        limit=limit,
+        orden_id=orden_id,
+        estado=estado,
+        severidad=severidad,
+    )
+
+    items = [
+        IncidenciaResponse(
+            id=i.id,
+            orden_id=i.orden_id,
+            lote_id=i.lote_id,
+            etapa_id=i.etapa_id,
+            tipo=i.tipo,
+            severidad=i.severidad,
+            titulo=i.titulo,
+            descripcion=i.descripcion,
+            estado=i.estado,
+            fecha_incidencia=i.fecha_incidencia,
+            fecha_resolucion=i.fecha_resolucion,
+            acciones_tomadas=i.acciones_tomadas,
+            tiempo_perdido_minutos=i.tiempo_perdido_minutos,
+            costo_estimado=i.costo_estimado,
+            fotos=i.fotos_lista,
+            created_at=i.created_at,
+            updated_at=i.updated_at,
+            orden_numero=i.orden.numero if i.orden else None,
+            lote_numero=i.lote.numero if i.lote else None,
+            etapa_nombre=i.etapa.nombre if i.etapa else None,
+            reportado_por_nombre=i.reportado_por.nombre_completo if i.reportado_por else None,
+            resuelto_por_nombre=i.resuelto_por.nombre_completo if i.resuelto_por else None,
+        )
+        for i in incidencias
+    ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=skip // limit + 1 if limit > 0 else 1,
+        size=limit,
+        pages=(total + limit - 1) // limit if limit > 0 else 1,
+    )
+
+
+@router.get("/incidencias/{incidencia_id}", response_model=IncidenciaResponse)
+async def obtener_incidencia(
+    incidencia_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene una incidencia por ID."""
+    service = ProduccionService(db)
+    incidencia = service.get_incidencia(incidencia_id)
+
+    if not incidencia:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incidencia no encontrada",
+        )
+
+    return IncidenciaResponse(
+        id=incidencia.id,
+        orden_id=incidencia.orden_id,
+        lote_id=incidencia.lote_id,
+        etapa_id=incidencia.etapa_id,
+        tipo=incidencia.tipo,
+        severidad=incidencia.severidad,
+        titulo=incidencia.titulo,
+        descripcion=incidencia.descripcion,
+        estado=incidencia.estado,
+        fecha_incidencia=incidencia.fecha_incidencia,
+        fecha_resolucion=incidencia.fecha_resolucion,
+        acciones_tomadas=incidencia.acciones_tomadas,
+        tiempo_perdido_minutos=incidencia.tiempo_perdido_minutos,
+        costo_estimado=incidencia.costo_estimado,
+        fotos=incidencia.fotos_lista,
+        created_at=incidencia.created_at,
+        updated_at=incidencia.updated_at,
+        orden_numero=incidencia.orden.numero if incidencia.orden else None,
+        lote_numero=incidencia.lote.numero if incidencia.lote else None,
+        etapa_nombre=incidencia.etapa.nombre if incidencia.etapa else None,
+        reportado_por_nombre=incidencia.reportado_por.nombre_completo if incidencia.reportado_por else None,
+        resuelto_por_nombre=incidencia.resuelto_por.nombre_completo if incidencia.resuelto_por else None,
+    )
+
+
+@router.post("/incidencias", response_model=IncidenciaResponse, status_code=status.HTTP_201_CREATED)
+async def crear_incidencia(
+    data: IncidenciaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
+):
+    """Crea una nueva incidencia."""
+    service = ProduccionService(db)
+    incidencia = service.crear_incidencia(data, current_user.id)
+
+    return IncidenciaResponse(
+        id=incidencia.id,
+        orden_id=incidencia.orden_id,
+        lote_id=incidencia.lote_id,
+        etapa_id=incidencia.etapa_id,
+        tipo=incidencia.tipo,
+        severidad=incidencia.severidad,
+        titulo=incidencia.titulo,
+        descripcion=incidencia.descripcion,
+        estado=incidencia.estado,
+        fecha_incidencia=incidencia.fecha_incidencia,
+        fecha_resolucion=incidencia.fecha_resolucion,
+        acciones_tomadas=incidencia.acciones_tomadas,
+        tiempo_perdido_minutos=incidencia.tiempo_perdido_minutos,
+        costo_estimado=incidencia.costo_estimado,
+        fotos=incidencia.fotos_lista,
+        created_at=incidencia.created_at,
+        updated_at=incidencia.updated_at,
+        orden_numero=None,
+        lote_numero=None,
+        etapa_nombre=None,
+        reportado_por_nombre=current_user.nombre_completo,
+        resuelto_por_nombre=None,
+    )
+
+
+@router.put("/incidencias/{incidencia_id}", response_model=IncidenciaResponse)
+async def actualizar_incidencia(
+    incidencia_id: UUID,
+    data: IncidenciaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Actualiza una incidencia."""
+    service = ProduccionService(db)
+    incidencia = service.actualizar_incidencia(incidencia_id, data, current_user.id)
+
+    if not incidencia:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incidencia no encontrada",
+        )
+
+    return await obtener_incidencia(incidencia_id, db, current_user)
+
+
+@router.post("/incidencias/{incidencia_id}/resolver", response_model=IncidenciaResponse)
+async def resolver_incidencia(
+    incidencia_id: UUID,
+    data: IncidenciaResolverRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Resuelve una incidencia."""
+    service = ProduccionService(db)
+    incidencia = service.resolver_incidencia(incidencia_id, data, current_user.id)
+
+    if not incidencia:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incidencia no encontrada",
+        )
+
+    return await obtener_incidencia(incidencia_id, db, current_user)

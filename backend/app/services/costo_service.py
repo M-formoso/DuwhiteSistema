@@ -2,7 +2,7 @@
 Servicio de Costos para DUWHITE ERP
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, List, Tuple
 from uuid import UUID
@@ -534,3 +534,366 @@ class CostoService:
             ))
 
         return rentabilidades
+
+    # ==================== RECOMENDACIÓN DE PRECIOS ====================
+
+    def recomendar_precio_servicio(
+        self,
+        servicio_id: UUID,
+        margen_objetivo: Decimal = Decimal("30"),
+        incluir_costos_fijos: bool = True,
+    ) -> dict:
+        """
+        Recomienda un precio de venta para un servicio basado en costos.
+
+        Args:
+            servicio_id: ID del servicio
+            margen_objetivo: Margen de ganancia deseado en porcentaje (ej: 30 = 30%)
+            incluir_costos_fijos: Si se deben prorratear los costos fijos
+
+        Returns:
+            Dict con precio recomendado, desglose de costos y análisis
+        """
+        # Obtener servicio
+        servicio = self.db.query(Servicio).filter(Servicio.id == servicio_id).first()
+        if not servicio:
+            raise ValueError("Servicio no encontrado")
+
+        # Obtener tarifa vigente o calcular costos
+        tarifa = self.get_tarifa_vigente(servicio_id)
+
+        if tarifa:
+            costo_mano_obra = tarifa.costo_mano_obra
+            costo_insumos = tarifa.costo_insumos
+            costo_energia = tarifa.costo_energia
+            costo_otros = tarifa.costo_otros
+        else:
+            # Estimar costos basados en parámetros
+            costo_mano_obra = self._get_parametro_valor("costo_hora_mano_obra", Decimal("800"))
+            costo_insumos = self._get_parametro_valor("costo_insumo_por_kg", Decimal("150"))
+            costo_energia = self._get_parametro_valor("costo_energia_por_kg", Decimal("50"))
+            costo_otros = Decimal("0")
+
+        # Costo variable total
+        costo_variable = costo_mano_obra + costo_insumos + costo_energia + costo_otros
+
+        # Prorrateo de costos fijos si aplica
+        costo_fijo_prorrateado = Decimal("0")
+        if incluir_costos_fijos:
+            hoy = date.today()
+            costos_fijos_mes = self.get_total_costos_fijos_mes(hoy.month, hoy.year)
+            capacidad_mes = self._get_parametro_valor("capacidad_unidades_mes", Decimal("1000"))
+            if capacidad_mes > 0:
+                costo_fijo_prorrateado = costos_fijos_mes / capacidad_mes
+
+        # Costo total
+        costo_total = costo_variable + costo_fijo_prorrateado
+
+        # Calcular precio recomendado con margen objetivo
+        # Precio = Costo / (1 - margen%)
+        factor_margen = Decimal("1") - (margen_objetivo / Decimal("100"))
+        if factor_margen > 0:
+            precio_recomendado = costo_total / factor_margen
+        else:
+            precio_recomendado = costo_total * Decimal("2")  # Fallback: 100% de margen
+
+        # Precio actual del servicio
+        precio_actual = servicio.precio_unitario if hasattr(servicio, 'precio_unitario') else None
+
+        # Análisis de rentabilidad con precio actual
+        margen_actual = None
+        if precio_actual and precio_actual > 0:
+            margen_actual = ((precio_actual - costo_total) / precio_actual) * 100
+
+        return {
+            "servicio_id": str(servicio_id),
+            "servicio_nombre": servicio.nombre,
+            "costo_desglose": {
+                "mano_obra": float(costo_mano_obra),
+                "insumos": float(costo_insumos),
+                "energia": float(costo_energia),
+                "otros": float(costo_otros),
+                "fijos_prorrateado": float(costo_fijo_prorrateado),
+            },
+            "costo_total": float(costo_total),
+            "margen_objetivo": float(margen_objetivo),
+            "precio_recomendado": float(precio_recomendado),
+            "precio_actual": float(precio_actual) if precio_actual else None,
+            "margen_con_precio_actual": float(margen_actual) if margen_actual else None,
+            "diferencia_precio": float(precio_recomendado - precio_actual) if precio_actual else None,
+        }
+
+    def recomendar_precios_lista(
+        self,
+        margen_objetivo: Decimal = Decimal("30"),
+    ) -> list:
+        """
+        Recomienda precios para todos los servicios activos.
+        """
+        servicios = self.db.query(Servicio).filter(Servicio.activo == True).all()
+
+        recomendaciones = []
+        for servicio in servicios:
+            try:
+                rec = self.recomendar_precio_servicio(
+                    servicio_id=servicio.id,
+                    margen_objetivo=margen_objetivo,
+                )
+                recomendaciones.append(rec)
+            except Exception as e:
+                recomendaciones.append({
+                    "servicio_id": str(servicio.id),
+                    "servicio_nombre": servicio.nombre,
+                    "error": str(e),
+                })
+
+        return recomendaciones
+
+    # ==================== SIMULADOR "QUÉ PASA SI" ====================
+
+    def simular_escenario(
+        self,
+        variacion_costos_fijos: Decimal = Decimal("0"),  # Porcentaje de variación
+        variacion_costos_variables: Decimal = Decimal("0"),
+        variacion_volumen: Decimal = Decimal("0"),
+        variacion_precios: Decimal = Decimal("0"),
+    ) -> dict:
+        """
+        Simula escenarios de "qué pasa si" para análisis de sensibilidad.
+
+        Args:
+            variacion_costos_fijos: Porcentaje de cambio en costos fijos (ej: 10 = +10%)
+            variacion_costos_variables: Porcentaje de cambio en costos variables
+            variacion_volumen: Porcentaje de cambio en volumen de producción
+            variacion_precios: Porcentaje de cambio en precios de venta
+
+        Returns:
+            Comparación de escenario actual vs simulado
+        """
+        hoy = date.today()
+
+        # Obtener datos actuales
+        resumen_actual = self.get_resumen_costos_mes(hoy.month, hoy.year)
+
+        costos_fijos_actuales = resumen_actual.total_costos_fijos
+        costos_variables_actuales = resumen_actual.total_costos_variables
+        ingresos_actuales = resumen_actual.total_ingresos
+        volumen_actual = resumen_actual.total_kg_procesados
+
+        # Aplicar variaciones
+        factor_cf = Decimal("1") + (variacion_costos_fijos / Decimal("100"))
+        factor_cv = Decimal("1") + (variacion_costos_variables / Decimal("100"))
+        factor_vol = Decimal("1") + (variacion_volumen / Decimal("100"))
+        factor_precio = Decimal("1") + (variacion_precios / Decimal("100"))
+
+        costos_fijos_simulados = costos_fijos_actuales * factor_cf
+        # Costos variables escalan con volumen
+        costos_variables_simulados = costos_variables_actuales * factor_cv * factor_vol
+        # Ingresos escalan con volumen y precios
+        ingresos_simulados = ingresos_actuales * factor_vol * factor_precio
+        volumen_simulado = volumen_actual * factor_vol
+
+        # Calcular resultados
+        costo_total_actual = costos_fijos_actuales + costos_variables_actuales
+        costo_total_simulado = costos_fijos_simulados + costos_variables_simulados
+
+        margen_actual = ingresos_actuales - costo_total_actual
+        margen_simulado = ingresos_simulados - costo_total_simulado
+
+        margen_pct_actual = (margen_actual / ingresos_actuales * 100) if ingresos_actuales > 0 else Decimal("0")
+        margen_pct_simulado = (margen_simulado / ingresos_simulados * 100) if ingresos_simulados > 0 else Decimal("0")
+
+        costo_por_kg_actual = costo_total_actual / volumen_actual if volumen_actual > 0 else Decimal("0")
+        costo_por_kg_simulado = costo_total_simulado / volumen_simulado if volumen_simulado > 0 else Decimal("0")
+
+        return {
+            "parametros_simulacion": {
+                "variacion_costos_fijos_pct": float(variacion_costos_fijos),
+                "variacion_costos_variables_pct": float(variacion_costos_variables),
+                "variacion_volumen_pct": float(variacion_volumen),
+                "variacion_precios_pct": float(variacion_precios),
+            },
+            "escenario_actual": {
+                "costos_fijos": float(costos_fijos_actuales),
+                "costos_variables": float(costos_variables_actuales),
+                "costo_total": float(costo_total_actual),
+                "ingresos": float(ingresos_actuales),
+                "volumen_kg": float(volumen_actual),
+                "margen_bruto": float(margen_actual),
+                "margen_porcentaje": float(margen_pct_actual),
+                "costo_por_kg": float(costo_por_kg_actual),
+            },
+            "escenario_simulado": {
+                "costos_fijos": float(costos_fijos_simulados),
+                "costos_variables": float(costos_variables_simulados),
+                "costo_total": float(costo_total_simulado),
+                "ingresos": float(ingresos_simulados),
+                "volumen_kg": float(volumen_simulado),
+                "margen_bruto": float(margen_simulado),
+                "margen_porcentaje": float(margen_pct_simulado),
+                "costo_por_kg": float(costo_por_kg_simulado),
+            },
+            "impacto": {
+                "cambio_costos_fijos": float(costos_fijos_simulados - costos_fijos_actuales),
+                "cambio_costos_variables": float(costos_variables_simulados - costos_variables_actuales),
+                "cambio_ingresos": float(ingresos_simulados - ingresos_actuales),
+                "cambio_margen_bruto": float(margen_simulado - margen_actual),
+                "cambio_margen_pct": float(margen_pct_simulado - margen_pct_actual),
+            },
+        }
+
+    def simular_punto_equilibrio(self) -> dict:
+        """
+        Calcula el punto de equilibrio operativo.
+        """
+        hoy = date.today()
+
+        # Obtener costos fijos mensuales
+        costos_fijos = self.get_total_costos_fijos_mes(hoy.month, hoy.year)
+
+        # Obtener precio promedio por kg e ingreso promedio
+        resumen = self.get_resumen_costos_mes(hoy.month, hoy.year)
+
+        if resumen.total_kg_procesados > 0:
+            precio_promedio_kg = resumen.total_ingresos / resumen.total_kg_procesados
+            costo_variable_kg = resumen.total_costos_variables / resumen.total_kg_procesados
+        else:
+            precio_promedio_kg = self._get_parametro_valor("precio_promedio_kg", Decimal("1500"))
+            costo_variable_kg = self._get_parametro_valor("costo_variable_kg", Decimal("600"))
+
+        # Margen de contribución por kg
+        margen_contribucion_kg = precio_promedio_kg - costo_variable_kg
+
+        # Punto de equilibrio en kg
+        if margen_contribucion_kg > 0:
+            punto_equilibrio_kg = costos_fijos / margen_contribucion_kg
+            punto_equilibrio_ingresos = punto_equilibrio_kg * precio_promedio_kg
+        else:
+            punto_equilibrio_kg = Decimal("0")
+            punto_equilibrio_ingresos = Decimal("0")
+
+        # Capacidad y cobertura
+        capacidad_mes = self._get_parametro_valor("capacidad_kg_mes", Decimal("10000"))
+        cobertura_actual = (resumen.total_kg_procesados / punto_equilibrio_kg * 100) if punto_equilibrio_kg > 0 else Decimal("0")
+        utilidad_actual = resumen.margen_bruto
+
+        return {
+            "costos_fijos_mes": float(costos_fijos),
+            "precio_promedio_kg": float(precio_promedio_kg),
+            "costo_variable_kg": float(costo_variable_kg),
+            "margen_contribucion_kg": float(margen_contribucion_kg),
+            "punto_equilibrio_kg": float(punto_equilibrio_kg),
+            "punto_equilibrio_ingresos": float(punto_equilibrio_ingresos),
+            "volumen_actual_kg": float(resumen.total_kg_procesados),
+            "capacidad_mes_kg": float(capacidad_mes),
+            "cobertura_punto_equilibrio_pct": float(cobertura_actual),
+            "utilidad_sobre_equilibrio": float(utilidad_actual),
+        }
+
+    # ==================== ALERTAS DE MARGEN BAJO ====================
+
+    def get_alertas_margen_bajo(
+        self,
+        margen_minimo: Decimal = Decimal("15"),
+        dias_atras: int = 30,
+    ) -> list:
+        """
+        Obtiene alertas de servicios/lotes con margen por debajo del mínimo.
+
+        Args:
+            margen_minimo: Margen mínimo aceptable en porcentaje
+            dias_atras: Días hacia atrás para analizar
+
+        Returns:
+            Lista de alertas con detalles
+        """
+        alertas = []
+        fecha_desde = date.today() - timedelta(days=dias_atras)
+
+        # Alertas de análisis de lotes con margen bajo
+        analisis_lotes = self.db.query(AnalisisCostoLote).filter(
+            and_(
+                AnalisisCostoLote.created_at >= fecha_desde,
+                AnalisisCostoLote.margen_porcentaje.isnot(None),
+                AnalisisCostoLote.margen_porcentaje < margen_minimo,
+            )
+        ).all()
+
+        for analisis in analisis_lotes:
+            lote = self.db.query(LoteProduccion).filter(LoteProduccion.id == analisis.lote_id).first()
+
+            alertas.append({
+                "tipo": "lote_margen_bajo",
+                "severidad": "alta" if analisis.margen_porcentaje < 0 else "media",
+                "entidad_tipo": "lote",
+                "entidad_id": str(analisis.lote_id),
+                "entidad_numero": lote.numero if lote else "N/A",
+                "descripcion": f"Margen del {float(analisis.margen_porcentaje):.1f}% (mínimo: {float(margen_minimo)}%)",
+                "margen_actual": float(analisis.margen_porcentaje),
+                "margen_minimo": float(margen_minimo),
+                "diferencia": float(analisis.margen_porcentaje - margen_minimo),
+                "costo_total": float(analisis.costo_total),
+                "ingreso_total": float(analisis.ingreso_total) if analisis.ingreso_total else 0,
+                "fecha": analisis.created_at.isoformat(),
+            })
+
+        # Alertas de tarifas de servicios con margen bajo
+        tarifas = self.db.query(TarifaServicio).filter(
+            and_(
+                TarifaServicio.activo == True,
+                TarifaServicio.margen_objetivo.isnot(None),
+            )
+        ).all()
+
+        for tarifa in tarifas:
+            margen_real = tarifa.margen_real
+            if margen_real < margen_minimo:
+                servicio = self.db.query(Servicio).filter(Servicio.id == tarifa.servicio_id).first()
+
+                alertas.append({
+                    "tipo": "servicio_margen_bajo",
+                    "severidad": "alta" if margen_real < 0 else "media",
+                    "entidad_tipo": "servicio",
+                    "entidad_id": str(tarifa.servicio_id),
+                    "entidad_numero": servicio.codigo if servicio else "N/A",
+                    "servicio_nombre": servicio.nombre if servicio else "N/A",
+                    "descripcion": f"Margen real de {float(margen_real):.1f}% vs objetivo de {float(tarifa.margen_objetivo):.1f}%",
+                    "margen_actual": float(margen_real),
+                    "margen_objetivo": float(tarifa.margen_objetivo) if tarifa.margen_objetivo else None,
+                    "margen_minimo": float(margen_minimo),
+                    "costo_total": float(tarifa.costo_total),
+                    "precio_sugerido": float(tarifa.precio_sugerido) if tarifa.precio_sugerido else None,
+                    "fecha_vigencia": tarifa.fecha_vigencia.isoformat(),
+                })
+
+        # Ordenar por severidad y margen
+        alertas.sort(key=lambda x: (0 if x["severidad"] == "alta" else 1, x["margen_actual"]))
+
+        return alertas
+
+    def get_resumen_alertas_costos(self) -> dict:
+        """
+        Obtiene un resumen de todas las alertas de costos.
+        """
+        margen_minimo = self._get_parametro_valor("margen_minimo", Decimal("15"))
+
+        alertas_margen = self.get_alertas_margen_bajo(margen_minimo=margen_minimo)
+
+        # Contar por tipo y severidad
+        por_tipo = {}
+        por_severidad = {"alta": 0, "media": 0, "baja": 0}
+
+        for alerta in alertas_margen:
+            tipo = alerta["tipo"]
+            severidad = alerta["severidad"]
+
+            por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+            por_severidad[severidad] = por_severidad.get(severidad, 0) + 1
+
+        return {
+            "total_alertas": len(alertas_margen),
+            "por_tipo": por_tipo,
+            "por_severidad": por_severidad,
+            "margen_minimo_configurado": float(margen_minimo),
+            "alertas": alertas_margen[:10],  # Top 10 más críticas
+        }
