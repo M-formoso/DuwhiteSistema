@@ -28,6 +28,104 @@ def run_migrations():
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(50)",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos_modulos JSON",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cliente_id UUID REFERENCES clientes(id)",
+        # Calificación de proveedores
+        "ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS calificacion NUMERIC(3,2) DEFAULT 0",
+        # Columna orden_produccion_id en lotes_produccion
+        "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS orden_produccion_id UUID",
+    ]
+
+    # Migraciones que crean tablas (ejecutar después de las columnas)
+    table_migrations = [
+        # Tabla ordenes_produccion
+        """
+        CREATE TABLE IF NOT EXISTS ordenes_produccion (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            numero VARCHAR(20) NOT NULL UNIQUE,
+            cliente_id UUID REFERENCES clientes(id),
+            pedido_id UUID REFERENCES pedidos(id),
+            estado VARCHAR(20) NOT NULL DEFAULT 'borrador',
+            prioridad VARCHAR(20) NOT NULL DEFAULT 'normal',
+            fecha_emision DATE NOT NULL,
+            fecha_programada_inicio DATE,
+            fecha_programada_fin DATE,
+            fecha_inicio_real TIMESTAMP,
+            fecha_fin_real TIMESTAMP,
+            descripcion TEXT,
+            instrucciones_especiales TEXT,
+            cantidad_prendas_estimada INTEGER,
+            peso_estimado_kg NUMERIC(10,2),
+            cantidad_prendas_real INTEGER,
+            peso_real_kg NUMERIC(10,2),
+            responsable_id UUID REFERENCES usuarios(id),
+            creado_por_id UUID NOT NULL REFERENCES usuarios(id),
+            notas_internas TEXT,
+            notas_produccion TEXT,
+            activo BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMP NOT NULL DEFAULT now(),
+            updated_at TIMESTAMP
+        )
+        """,
+        # Índices para ordenes_produccion
+        "CREATE INDEX IF NOT EXISTS ix_ordenes_produccion_numero ON ordenes_produccion(numero)",
+        "CREATE INDEX IF NOT EXISTS ix_ordenes_produccion_estado ON ordenes_produccion(estado)",
+        "CREATE INDEX IF NOT EXISTS ix_ordenes_produccion_cliente_id ON ordenes_produccion(cliente_id)",
+        # Tabla asignaciones_empleado_op
+        """
+        CREATE TABLE IF NOT EXISTS asignaciones_empleado_op (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            orden_id UUID NOT NULL REFERENCES ordenes_produccion(id),
+            empleado_id UUID NOT NULL REFERENCES usuarios(id),
+            etapa_id UUID REFERENCES etapas_produccion(id),
+            fecha_asignacion DATE NOT NULL,
+            fecha_fin_asignacion DATE,
+            turno VARCHAR(20),
+            horas_estimadas NUMERIC(5,2),
+            horas_trabajadas NUMERIC(5,2),
+            notas TEXT,
+            activo BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMP NOT NULL DEFAULT now(),
+            updated_at TIMESTAMP
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_asignaciones_empleado_op_orden_id ON asignaciones_empleado_op(orden_id)",
+        # Tabla incidencias_produccion
+        """
+        CREATE TABLE IF NOT EXISTS incidencias_produccion (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            orden_id UUID REFERENCES ordenes_produccion(id),
+            lote_id UUID REFERENCES lotes_produccion(id),
+            etapa_id UUID REFERENCES etapas_produccion(id),
+            tipo VARCHAR(50) NOT NULL,
+            severidad VARCHAR(20) NOT NULL DEFAULT 'media',
+            titulo VARCHAR(255) NOT NULL,
+            descripcion TEXT,
+            fecha_incidencia TIMESTAMP NOT NULL,
+            fecha_resolucion TIMESTAMP,
+            estado VARCHAR(20) NOT NULL DEFAULT 'abierta',
+            fotos TEXT,
+            reportado_por_id UUID NOT NULL REFERENCES usuarios(id),
+            resuelto_por_id UUID REFERENCES usuarios(id),
+            acciones_tomadas TEXT,
+            tiempo_perdido_minutos INTEGER,
+            costo_estimado NUMERIC(12,2),
+            created_at TIMESTAMP NOT NULL DEFAULT now(),
+            updated_at TIMESTAMP
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_incidencias_produccion_orden_id ON incidencias_produccion(orden_id)",
+        # FK de lotes_produccion a ordenes_produccion (si no existe)
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'fk_lotes_orden_produccion'
+            ) THEN
+                ALTER TABLE lotes_produccion
+                ADD CONSTRAINT fk_lotes_orden_produccion
+                FOREIGN KEY (orden_produccion_id) REFERENCES ordenes_produccion(id);
+            END IF;
+        END $$;
+        """,
     ]
 
     with engine.connect() as conn:
@@ -41,9 +139,19 @@ def run_migrations():
                 print(f"Migración saltada o error: {str(e)[:100]}")
                 conn.rollback()
 
+        # Ejecutar migraciones de tablas
+        for migration in table_migrations:
+            try:
+                conn.execute(text(migration))
+                conn.commit()
+                print(f"Tabla/índice creado: {migration[:50]}...")
+            except Exception as e:
+                print(f"Tabla saltada o error: {str(e)[:100]}")
+                conn.rollback()
+
 
 def create_tables():
-    """Crear todas las tablas en la base de datos. v3"""
+    """Crear todas las tablas en la base de datos. v4"""
     from app.db.base import Base, engine
     # Importar todos los modelos para que SQLAlchemy los registre
     from app.models import (
@@ -51,7 +159,8 @@ def create_tables():
         lote_produccion, etapa_produccion, maquina,
         categoria_insumo, movimiento_stock, orden_compra,
         lista_precios, cuenta_corriente, caja, cuenta_bancaria, costo,
-        log_actividad, producto_proveedor, historial_precios_proveedor
+        log_actividad, producto_proveedor, historial_precios_proveedor,
+        orden_produccion
     )
 
     try:
