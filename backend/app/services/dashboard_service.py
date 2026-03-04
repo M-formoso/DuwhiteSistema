@@ -231,7 +231,7 @@ class DashboardService:
         return [
             {
                 "id": str(lote.id),
-                "codigo": lote.codigo,
+                "codigo": lote.numero,
                 "tipo_servicio": lote.tipo_servicio,
                 "prioridad": lote.prioridad,
                 "peso_total": float(lote.peso_entrada_kg) if lote.peso_entrada_kg else 0,
@@ -316,7 +316,7 @@ class DashboardService:
                 "tipo": "produccion",
                 "nivel": "error",
                 "titulo": "Lote urgente",
-                "mensaje": f"Lote {lote.codigo} marcado como urgente",
+                "mensaje": f"Lote {lote.numero} marcado como urgente",
                 "entidad_id": str(lote.id),
             })
 
