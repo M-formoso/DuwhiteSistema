@@ -91,9 +91,8 @@ def listar_insumos(
     return PaginatedResponse(
         items=items,
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -137,9 +136,8 @@ async def obtener_insumos_por_vencer(
     return PaginatedResponse(
         items=items,
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -172,9 +170,8 @@ async def obtener_insumos_sobrestock(
     return PaginatedResponse(
         items=items,
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -490,9 +487,8 @@ def listar_movimientos_insumo(
     return PaginatedResponse(
         items=items,
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 

@@ -84,9 +84,8 @@ def listar_proveedores(
     return PaginatedResponse(
         items=items,
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -336,9 +335,8 @@ def listar_productos_proveedor(
     return PaginatedResponse(
         items=items,
         total=total,
-        page=skip // limit + 1 if limit > 0 else 1,
-        size=limit,
-        pages=(total + limit - 1) // limit if limit > 0 else 1,
+        skip=skip,
+        limit=limit,
     )
 
 
