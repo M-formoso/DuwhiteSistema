@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
   List,
@@ -19,6 +20,7 @@ import {
   Edit,
   Trash2,
   User,
+  Loader2,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,99 +59,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-import type {
-  Actividad,
-  ActividadCreate,
-  PrioridadActividad,
-  EstadoActividad,
-  CategoriaActividad,
+import {
+  actividadService,
+  type Actividad,
+  type ActividadCreate,
+  type PrioridadActividad,
+  type EstadoActividad,
+  type CategoriaActividad,
 } from '@/services/actividadService';
-
-// Datos de ejemplo (en producción vendrían del backend)
-const ACTIVIDADES_EJEMPLO: Actividad[] = [
-  {
-    id: '1',
-    titulo: 'Revisar máquina lavadora #3',
-    descripcion: 'Realizar mantenimiento preventivo mensual',
-    categoria: 'mantenimiento',
-    prioridad: 'alta',
-    estado: 'pendiente',
-    fecha_limite: '2025-03-05',
-    asignado_a_id: '1',
-    asignado_a_nombre: 'Juan Pérez',
-    creado_por_id: '1',
-    creado_por_nombre: 'Admin',
-    etiquetas: ['mantenimiento', 'urgente'],
-    created_at: '2025-03-01T10:00:00',
-    updated_at: '2025-03-01T10:00:00',
-  },
-  {
-    id: '2',
-    titulo: 'Llamar a cliente Hotel Central',
-    descripcion: 'Confirmar entrega del pedido #P-2025-0045',
-    categoria: 'comercial',
-    prioridad: 'media',
-    estado: 'en_progreso',
-    fecha_limite: '2025-03-04',
-    asignado_a_id: '2',
-    asignado_a_nombre: 'María García',
-    creado_por_id: '1',
-    creado_por_nombre: 'Admin',
-    etiquetas: ['cliente', 'seguimiento'],
-    created_at: '2025-03-02T09:00:00',
-    updated_at: '2025-03-02T09:00:00',
-  },
-  {
-    id: '3',
-    titulo: 'Actualizar lista de precios',
-    descripcion: 'Revisar costos y actualizar precios para marzo',
-    categoria: 'administrativa',
-    prioridad: 'baja',
-    estado: 'completada',
-    fecha_limite: '2025-03-01',
-    fecha_completada: '2025-03-01T15:00:00',
-    asignado_a_id: '1',
-    asignado_a_nombre: 'Admin',
-    creado_por_id: '1',
-    creado_por_nombre: 'Admin',
-    etiquetas: ['precios', 'mensual'],
-    created_at: '2025-02-28T10:00:00',
-    updated_at: '2025-03-01T15:00:00',
-  },
-  {
-    id: '4',
-    titulo: 'Preparar lote especial Clínica Norte',
-    descripcion: 'Lote de ropa quirúrgica con tratamiento especial',
-    categoria: 'produccion',
-    prioridad: 'urgente',
-    estado: 'en_progreso',
-    fecha_limite: '2025-03-03',
-    asignado_a_id: '3',
-    asignado_a_nombre: 'Carlos López',
-    creado_por_id: '1',
-    creado_por_nombre: 'Admin',
-    etiquetas: ['produccion', 'prioritario'],
-    created_at: '2025-03-02T08:00:00',
-    updated_at: '2025-03-02T08:00:00',
-  },
-  {
-    id: '5',
-    titulo: 'Solicitar cotización químicos',
-    descripcion: 'Pedir cotización a 3 proveedores para detergentes industriales',
-    categoria: 'administrativa',
-    prioridad: 'media',
-    estado: 'pendiente',
-    fecha_limite: '2025-03-06',
-    creado_por_id: '1',
-    creado_por_nombre: 'Admin',
-    etiquetas: ['compras', 'proveedores'],
-    created_at: '2025-03-02T11:00:00',
-    updated_at: '2025-03-02T11:00:00',
-  },
-];
 
 type VistaActiva = 'lista' | 'kanban' | 'calendario';
 
@@ -168,7 +88,7 @@ const ESTADOS: { value: EstadoActividad; label: string; icon: React.ElementType 
 ];
 
 const CATEGORIAS: { value: CategoriaActividad; label: string }[] = [
-  { value: 'produccion', label: 'Producción' },
+  { value: 'produccion', label: 'Produccion' },
   { value: 'mantenimiento', label: 'Mantenimiento' },
   { value: 'administrativa', label: 'Administrativa' },
   { value: 'comercial', label: 'Comercial' },
@@ -191,14 +111,13 @@ const isVencida = (fechaLimite?: string) => {
 };
 
 export default function ActividadesPage() {
-  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [vistaActiva, setVistaActiva] = useState<VistaActiva>('kanban');
-  const [actividades, setActividades] = useState<Actividad[]>(ACTIVIDADES_EJEMPLO);
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('all');
   const [filtroPrioridad, setFiltroPrioridad] = useState<string>('all');
 
-  // Diálogos
+  // Dialogos
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [actividadEditar, setActividadEditar] = useState<Actividad | null>(null);
@@ -214,25 +133,93 @@ export default function ActividadesPage() {
     etiquetas: [],
   });
 
-  // Filtrar actividades
-  const actividadesFiltradas = useMemo(() => {
-    return actividades.filter((act) => {
-      const matchBusqueda = act.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
-        act.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
-      const matchCategoria = filtroCategoria === 'all' || act.categoria === filtroCategoria;
-      const matchPrioridad = filtroPrioridad === 'all' || act.prioridad === filtroPrioridad;
-      return matchBusqueda && matchCategoria && matchPrioridad;
-    });
-  }, [actividades, busqueda, filtroCategoria, filtroPrioridad]);
+  // Query para actividades
+  const { data: actividadesData, isLoading: loadingActividades } = useQuery({
+    queryKey: ['actividades', busqueda, filtroCategoria, filtroPrioridad],
+    queryFn: () => actividadService.getActividades({
+      search: busqueda || undefined,
+      categoria: filtroCategoria !== 'all' ? filtroCategoria as CategoriaActividad : undefined,
+      prioridad: filtroPrioridad !== 'all' ? filtroPrioridad as PrioridadActividad : undefined,
+      limit: 200,
+    }),
+  });
 
-  // Agrupar por estado para Kanban
-  const actividadesPorEstado = useMemo(() => {
-    return {
-      pendiente: actividadesFiltradas.filter((a) => a.estado === 'pendiente'),
-      en_progreso: actividadesFiltradas.filter((a) => a.estado === 'en_progreso'),
-      completada: actividadesFiltradas.filter((a) => a.estado === 'completada'),
-    };
-  }, [actividadesFiltradas]);
+  // Query para resumen
+  const { data: resumen } = useQuery({
+    queryKey: ['actividades-resumen'],
+    queryFn: () => actividadService.getResumenActividades(),
+  });
+
+  // Query para Kanban (por estado)
+  const { data: actividadesPorEstado, isLoading: loadingKanban } = useQuery({
+    queryKey: ['actividades-por-estado'],
+    queryFn: () => actividadService.getActividadesPorEstado(),
+    enabled: vistaActiva === 'kanban',
+  });
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: actividadService.createActividad,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['actividades'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-por-estado'] });
+      toast.success('Actividad creada correctamente');
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al crear actividad');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ActividadCreate> }) =>
+      actividadService.updateActividad(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['actividades'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-por-estado'] });
+      toast.success('Actividad actualizada correctamente');
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al actualizar actividad');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: actividadService.deleteActividad,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['actividades'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-por-estado'] });
+      toast.success('Actividad eliminada correctamente');
+      setDeleteDialogOpen(false);
+      setActividadEliminar(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al eliminar actividad');
+    },
+  });
+
+  const cambiarEstadoMutation = useMutation({
+    mutationFn: ({ id, estado }: { id: string; estado: EstadoActividad }) =>
+      actividadService.cambiarEstadoActividad(id, estado),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['actividades'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['actividades-por-estado'] });
+      toast.success('Estado actualizado');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al cambiar estado');
+    },
+  });
+
+  const actividades = actividadesData?.items || [];
+
+  // Filtrar actividades (ya filtradas por backend, pero filtro local adicional si es necesario)
+  const actividadesFiltradas = actividades;
 
   const handleOpenDialog = (actividad?: Actividad) => {
     if (actividad) {
@@ -261,82 +248,25 @@ export default function ActividadesPage() {
 
   const handleSave = () => {
     if (!formData.titulo.trim()) {
-      toast({
-        title: 'Error',
-        description: 'El título es requerido',
-        variant: 'destructive',
-      });
+      toast.error('El titulo es requerido');
       return;
     }
 
     if (actividadEditar) {
-      // Editar
-      setActividades((prev) =>
-        prev.map((a) =>
-          a.id === actividadEditar.id
-            ? {
-                ...a,
-                ...formData,
-                updated_at: new Date().toISOString(),
-              }
-            : a
-        )
-      );
-      toast({
-        title: 'Actividad actualizada',
-        description: 'Los cambios se guardaron correctamente',
-      });
+      updateMutation.mutate({ id: actividadEditar.id, data: formData });
     } else {
-      // Crear
-      const nuevaActividad: Actividad = {
-        id: Date.now().toString(),
-        ...formData,
-        estado: 'pendiente',
-        creado_por_id: '1',
-        creado_por_nombre: 'Admin',
-        etiquetas: formData.etiquetas || [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setActividades((prev) => [nuevaActividad, ...prev]);
-      toast({
-        title: 'Actividad creada',
-        description: 'La actividad se creó correctamente',
-      });
+      createMutation.mutate(formData);
     }
-
-    setDialogOpen(false);
   };
 
   const handleDelete = () => {
     if (actividadEliminar) {
-      setActividades((prev) => prev.filter((a) => a.id !== actividadEliminar.id));
-      toast({
-        title: 'Actividad eliminada',
-        description: 'La actividad se eliminó correctamente',
-      });
-      setDeleteDialogOpen(false);
-      setActividadEliminar(null);
+      deleteMutation.mutate(actividadEliminar.id);
     }
   };
 
   const handleCambiarEstado = (actividadId: string, nuevoEstado: EstadoActividad) => {
-    setActividades((prev) =>
-      prev.map((a) =>
-        a.id === actividadId
-          ? {
-              ...a,
-              estado: nuevoEstado,
-              fecha_completada: nuevoEstado === 'completada' ? new Date().toISOString() : undefined,
-              updated_at: new Date().toISOString(),
-            }
-          : a
-      )
-    );
-    toast({
-      title: 'Estado actualizado',
-      description: `La actividad pasó a "${ESTADOS.find((e) => e.value === nuevoEstado)?.label}"`,
-    });
+    cambiarEstadoMutation.mutate({ id: actividadId, estado: nuevoEstado });
   };
 
   // Componente de tarjeta de actividad
@@ -417,7 +347,11 @@ export default function ActividadesPage() {
   // Vista Lista
   const VistaLista = () => (
     <div className="space-y-3">
-      {actividadesFiltradas.length === 0 ? (
+      {loadingActividades ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : actividadesFiltradas.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Circle className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>No hay actividades que coincidan con los filtros</p>
@@ -439,6 +373,20 @@ export default function ActividadesPage() {
       { estado: 'completada', titulo: 'Completada', color: 'bg-green-100' },
     ];
 
+    const actividadesKanban = actividadesPorEstado || {
+      pendiente: [],
+      en_progreso: [],
+      completada: [],
+    };
+
+    if (loadingKanban) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
     return (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {columnas.map((columna) => (
@@ -447,12 +395,12 @@ export default function ActividadesPage() {
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-sm">{columna.titulo}</h3>
                 <Badge variant="secondary" className="text-xs">
-                  {actividadesPorEstado[columna.estado].length}
+                  {actividadesKanban[columna.estado]?.length || 0}
                 </Badge>
               </div>
             </div>
             <div className="space-y-3 min-h-[200px]">
-              {actividadesPorEstado[columna.estado].map((actividad: Actividad) => (
+              {actividadesKanban[columna.estado]?.map((actividad: Actividad) => (
                 <div
                   key={actividad.id}
                   draggable
@@ -481,7 +429,7 @@ export default function ActividadesPage() {
                   }
                 }}
               >
-                Arrastra aquí
+                Arrastra aqui
               </div>
             </div>
           </div>
@@ -493,19 +441,19 @@ export default function ActividadesPage() {
   // Vista Calendario (simplificada)
   const VistaCalendario = () => {
     const hoy = new Date();
-    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
-    // Generar días del mes actual
+    // Generar dias del mes actual
     const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
     const diasDelMes: (Date | null)[] = [];
 
-    // Días vacíos al inicio
+    // Dias vacios al inicio
     for (let i = 0; i < primerDia.getDay(); i++) {
       diasDelMes.push(null);
     }
 
-    // Días del mes
+    // Dias del mes
     for (let d = 1; d <= ultimoDia.getDate(); d++) {
       diasDelMes.push(new Date(hoy.getFullYear(), hoy.getMonth(), d));
     }
@@ -523,54 +471,60 @@ export default function ActividadesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-1">
-            {diasSemana.map((dia) => (
-              <div key={dia} className="text-center text-sm font-medium text-muted-foreground p-2">
-                {dia}
-              </div>
-            ))}
-            {diasDelMes.map((fecha, index) => {
-              if (!fecha) {
-                return <div key={`empty-${index}`} className="p-2" />;
-              }
-              const actividadesDelDia = getActividadesDelDia(fecha);
-              const esHoy = fecha.toDateString() === hoy.toDateString();
-
-              return (
-                <div
-                  key={fecha.toISOString()}
-                  className={cn(
-                    'min-h-[80px] p-1 border rounded-md',
-                    esHoy && 'bg-primary/10 border-primary'
-                  )}
-                >
-                  <span className={cn('text-sm', esHoy && 'font-bold text-primary')}>
-                    {fecha.getDate()}
-                  </span>
-                  <div className="space-y-1 mt-1">
-                    {actividadesDelDia.slice(0, 2).map((act) => (
-                      <div
-                        key={act.id}
-                        className={cn(
-                          'text-xs p-1 rounded truncate cursor-pointer',
-                          getPrioridadBadge(act.prioridad).color
-                        )}
-                        title={act.titulo}
-                        onClick={() => handleOpenDialog(act)}
-                      >
-                        {act.titulo}
-                      </div>
-                    ))}
-                    {actividadesDelDia.length > 2 && (
-                      <div className="text-xs text-muted-foreground">
-                        +{actividadesDelDia.length - 2} más
-                      </div>
-                    )}
-                  </div>
+          {loadingActividades ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-7 gap-1">
+              {diasSemana.map((dia) => (
+                <div key={dia} className="text-center text-sm font-medium text-muted-foreground p-2">
+                  {dia}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+              {diasDelMes.map((fecha, index) => {
+                if (!fecha) {
+                  return <div key={`empty-${index}`} className="p-2" />;
+                }
+                const actividadesDelDia = getActividadesDelDia(fecha);
+                const esHoy = fecha.toDateString() === hoy.toDateString();
+
+                return (
+                  <div
+                    key={fecha.toISOString()}
+                    className={cn(
+                      'min-h-[80px] p-1 border rounded-md',
+                      esHoy && 'bg-primary/10 border-primary'
+                    )}
+                  >
+                    <span className={cn('text-sm', esHoy && 'font-bold text-primary')}>
+                      {fecha.getDate()}
+                    </span>
+                    <div className="space-y-1 mt-1">
+                      {actividadesDelDia.slice(0, 2).map((act) => (
+                        <div
+                          key={act.id}
+                          className={cn(
+                            'text-xs p-1 rounded truncate cursor-pointer',
+                            getPrioridadBadge(act.prioridad).color
+                          )}
+                          title={act.titulo}
+                          onClick={() => handleOpenDialog(act)}
+                        >
+                          {act.titulo}
+                        </div>
+                      ))}
+                      {actividadesDelDia.length > 2 && (
+                        <div className="text-xs text-muted-foreground">
+                          +{actividadesDelDia.length - 2} mas
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -622,7 +576,7 @@ export default function ActividadesPage() {
               </Button>
             </div>
 
-            {/* Búsqueda */}
+            {/* Busqueda */}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -636,7 +590,7 @@ export default function ActividadesPage() {
             {/* Filtros */}
             <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
               <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Categoría" />
+                <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas</SelectItem>
@@ -674,7 +628,7 @@ export default function ActividadesPage() {
                 <Circle className="h-5 w-5 text-gray-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{actividadesPorEstado.pendiente.length}</p>
+                <p className="text-2xl font-bold">{resumen?.pendientes || 0}</p>
                 <p className="text-sm text-muted-foreground">Pendientes</p>
               </div>
             </div>
@@ -687,7 +641,7 @@ export default function ActividadesPage() {
                 <Clock className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{actividadesPorEstado.en_progreso.length}</p>
+                <p className="text-2xl font-bold">{resumen?.en_progreso || 0}</p>
                 <p className="text-sm text-muted-foreground">En Progreso</p>
               </div>
             </div>
@@ -700,8 +654,8 @@ export default function ActividadesPage() {
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{actividadesPorEstado.completada.length}</p>
-                <p className="text-sm text-muted-foreground">Completadas</p>
+                <p className="text-2xl font-bold">{resumen?.completadas_hoy || 0}</p>
+                <p className="text-sm text-muted-foreground">Completadas Hoy</p>
               </div>
             </div>
           </CardContent>
@@ -713,9 +667,7 @@ export default function ActividadesPage() {
                 <AlertTriangle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {actividadesFiltradas.filter((a) => isVencida(a.fecha_limite) && a.estado !== 'completada').length}
-                </p>
+                <p className="text-2xl font-bold">{resumen?.vencidas || 0}</p>
                 <p className="text-sm text-muted-foreground">Vencidas</p>
               </div>
             </div>
@@ -728,7 +680,7 @@ export default function ActividadesPage() {
       {vistaActiva === 'kanban' && <VistaKanban />}
       {vistaActiva === 'calendario' && <VistaCalendario />}
 
-      {/* Diálogo de crear/editar */}
+      {/* Dialogo de crear/editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -738,25 +690,25 @@ export default function ActividadesPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Título *</Label>
+              <Label>Titulo *</Label>
               <Input
                 value={formData.titulo}
                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                placeholder="Título de la actividad"
+                placeholder="Titulo de la actividad"
               />
             </div>
             <div className="space-y-2">
-              <Label>Descripción</Label>
+              <Label>Descripcion</Label>
               <Textarea
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                placeholder="Descripción opcional"
+                placeholder="Descripcion opcional"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Categoría</Label>
+                <Label>Categoria</Label>
                 <Select
                   value={formData.categoria}
                   onValueChange={(value: CategoriaActividad) =>
@@ -797,7 +749,7 @@ export default function ActividadesPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Fecha límite</Label>
+              <Label>Fecha limite</Label>
               <Input
                 type="date"
                 value={formData.fecha_limite}
@@ -809,25 +761,38 @@ export default function ActividadesPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>
+            <Button
+              onClick={handleSave}
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
               {actividadEditar ? 'Guardar Cambios' : 'Crear Actividad'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de confirmación de eliminación */}
+      {/* Dialogo de confirmacion de eliminacion */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar actividad?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar actividad?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. La actividad "{actividadEliminar?.titulo}" será eliminada permanentemente.
+              Esta accion no se puede deshacer. La actividad "{actividadEliminar?.titulo}" sera eliminada permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

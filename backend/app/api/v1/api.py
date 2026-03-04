@@ -5,7 +5,7 @@ Registra todos los endpoints de los módulos.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, usuarios, categorias_insumo, insumos, proveedores, ordenes_compra, produccion, clientes, pedidos, finanzas, empleados, costos, reportes, dashboard, seed, servicios
+from app.api.v1.endpoints import auth, usuarios, categorias_insumo, insumos, proveedores, ordenes_compra, produccion, clientes, pedidos, finanzas, empleados, costos, reportes, dashboard, seed, servicios, actividades
 
 api_router = APIRouter()
 
@@ -121,7 +121,13 @@ api_router.include_router(
     tags=["Servicios y Listas de Precios"],
 )
 
+# Actividades
+api_router.include_router(
+    actividades.router,
+    prefix="/actividades",
+    tags=["Actividades"],
+)
+
 # Los siguientes routers se agregarán a medida que se implementen los módulos:
 # api_router.include_router(facturacion.router, prefix="/facturacion", tags=["Facturación"])
-# api_router.include_router(actividades.router, prefix="/actividades", tags=["Actividades"])
 # api_router.include_router(configuracion.router, prefix="/config", tags=["Configuración"])

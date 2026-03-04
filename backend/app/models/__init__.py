@@ -99,3 +99,11 @@ from app.models.costo import (
     TipoCosto,
     CategoriaCosto,
 )
+
+# Actividades
+from app.models.actividad import (
+    Actividad,
+    PrioridadActividad,
+    EstadoActividad,
+    CategoriaActividad,
+)
