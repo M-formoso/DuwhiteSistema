@@ -118,46 +118,51 @@ export interface MovimientoCajaCreate {
 // Cuenta Bancaria
 export interface CuentaBancaria {
   id: string;
-  nombre: string;
+  nombre?: string;
   banco: string;
-  tipo_cuenta: TipoCuentaBancaria;
+  tipo_cuenta: TipoCuentaBancaria | string;
   numero_cuenta: string;
   cbu: string | null;
   alias: string | null;
   titular: string;
-  cuit_titular: string | null;
+  cuit_titular?: string | null;
   saldo_actual: number;
-  saldo_disponible: number | null;
-  activa: boolean;
-  es_principal: boolean;
-  notas: string | null;
-  created_at: string;
-  updated_at: string | null;
+  saldo_inicial?: number;
+  saldo_disponible?: number | null;
+  activa?: boolean;
+  activo?: boolean;
+  es_principal?: boolean;
+  notas?: string | null;
+  moneda?: string;
+  created_at?: string;
+  updated_at?: string | null;
 }
 
 // Movimiento Bancario
 export interface MovimientoBancario {
   id: string;
   cuenta_id: string;
-  tipo: TipoMovimientoBanco;
-  concepto: string;
-  descripcion: string | null;
+  tipo: TipoMovimientoBanco | string;
+  concepto?: string;
+  descripcion?: string | null;
   monto: number;
-  saldo_anterior: number;
-  saldo_posterior: number;
-  fecha_movimiento: string;
-  fecha_valor: string | null;
-  numero_comprobante: string | null;
-  referencia_externa: string | null;
-  cliente_id: string | null;
-  proveedor_id: string | null;
-  conciliado: boolean;
-  fecha_conciliacion: string | null;
-  registrado_por_id: string;
-  created_at: string;
-  cuenta_nombre: string | null;
-  cliente_nombre: string | null;
-  proveedor_nombre: string | null;
+  fecha: string;
+  saldo_anterior?: number;
+  saldo_posterior?: number;
+  fecha_movimiento?: string;
+  fecha_valor?: string | null;
+  numero_comprobante?: string | null;
+  referencia_externa?: string | null;
+  cliente_id?: string | null;
+  proveedor_id?: string | null;
+  conciliado?: boolean;
+  fecha_conciliacion?: string | null;
+  registrado_por_id?: string;
+  categoria?: string;
+  created_at?: string;
+  cuenta_nombre?: string | null;
+  cliente_nombre?: string | null;
+  proveedor_nombre?: string | null;
 }
 
 // Resumen Financiero
@@ -172,14 +177,42 @@ export interface ResumenCajaDiario {
   cantidad_movimientos: number;
 }
 
+export interface ResumenCaja {
+  ingresos: number;
+  egresos: number;
+  saldo_actual: number;
+  total_movimientos: number;
+  movimientos_por_categoria?: Record<string, number>;
+}
+
+export interface ResumenBancos {
+  ingresos: number;
+  egresos: number;
+  saldo_total: number;
+  total_movimientos: number;
+}
+
+export interface MovimientoResumen {
+  fecha: string;
+  tipo: string;
+  monto: number;
+  descripcion?: string;
+  categoria?: string;
+  origen: 'caja' | 'banco';
+}
+
 export interface ResumenFinanciero {
-  caja_actual: ResumenCajaDiario | null;
-  total_ingresos_periodo: number;
-  total_egresos_periodo: number;
-  balance_periodo: number;
-  ingresos_por_categoria: Record<string, number>;
-  egresos_por_categoria: Record<string, number>;
-  total_en_bancos: number;
+  caja_actual?: ResumenCajaDiario | null;
+  total_ingresos_periodo?: number;
+  total_egresos_periodo?: number;
+  balance_periodo?: number;
+  ingresos_por_categoria?: Record<string, number>;
+  egresos_por_categoria?: Record<string, number>;
+  total_en_bancos?: number;
+  // Nueva estructura alternativa
+  caja?: ResumenCaja;
+  bancos?: ResumenBancos;
+  ultimos_movimientos?: MovimientoResumen[];
 }
 
 // Constantes

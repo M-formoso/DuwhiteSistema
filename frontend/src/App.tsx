@@ -27,7 +27,7 @@ import ProveedorDetail from '@/pages/proveedores/ProveedorDetail';
 import ProductosProveedorPage from '@/pages/proveedores/ProductosProveedorPage';
 
 // Producción
-import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage } from '@/pages/produccion';
+import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage } from '@/pages/produccion';
 
 // Clientes
 import { ClientesListPage, ClienteFormPage, ClienteDetailPage } from '@/pages/clientes';
@@ -36,10 +36,10 @@ import { ClientesListPage, ClienteFormPage, ClienteDetailPage } from '@/pages/cl
 import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedidos';
 
 // Finanzas
-import { CajaPage } from '@/pages/finanzas';
+import { CajaPage, CuentasBancariasPage, ResumenFinancieroPage } from '@/pages/finanzas';
 
 // Empleados
-import { EmpleadosListPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage } from '@/pages/empleados';
+import { EmpleadosListPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage, NominaPage, LiquidacionesPage } from '@/pages/empleados';
 
 // Órdenes de Compra
 import { OrdenesCompraListPage, OrdenCompraFormPage, OrdenCompraDetailPage } from '@/pages/ordenes-compra';
@@ -61,16 +61,6 @@ import { PerfilPage } from '@/pages/perfil';
 
 // Usuarios
 import UsuariosPage from '@/pages/usuarios/UsuariosPage';
-
-// Página temporal para módulos no implementados
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-      <h1 className="text-2xl font-bold text-text-primary mb-2">{title}</h1>
-      <p className="text-muted-foreground">Este módulo está en desarrollo</p>
-    </div>
-  );
-}
 
 function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -122,8 +112,8 @@ function App() {
         <Route path="/produccion/lotes/nuevo" element={<LoteFormPage />} />
         <Route path="/produccion/lotes/:id" element={<LoteDetailPage />} />
         <Route path="/produccion/lotes/:id/editar" element={<LoteFormPage />} />
-        <Route path="/produccion/etapas" element={<ComingSoon title="Etapas de Producción" />} />
-        <Route path="/produccion/maquinas" element={<ComingSoon title="Máquinas" />} />
+        <Route path="/produccion/etapas" element={<EtapasProduccionPage />} />
+        <Route path="/produccion/maquinas" element={<MaquinasPage />} />
 
         {/* Clientes */}
         <Route path="/clientes" element={<ClientesListPage />} />
@@ -140,8 +130,8 @@ function App() {
         {/* Finanzas */}
         <Route path="/finanzas" element={<Navigate to="/finanzas/caja" replace />} />
         <Route path="/finanzas/caja" element={<CajaPage />} />
-        <Route path="/finanzas/bancos" element={<ComingSoon title="Cuentas Bancarias" />} />
-        <Route path="/finanzas/resumen" element={<ComingSoon title="Resumen Financiero" />} />
+        <Route path="/finanzas/bancos" element={<CuentasBancariasPage />} />
+        <Route path="/finanzas/resumen" element={<ResumenFinancieroPage />} />
 
         {/* Costos */}
         <Route path="/costos" element={<CostosPage />} />
@@ -153,8 +143,8 @@ function App() {
         <Route path="/empleados/:id" element={<EmpleadoDetailPage />} />
         <Route path="/empleados/:id/editar" element={<EmpleadoFormPage />} />
         <Route path="/empleados/asistencia" element={<AsistenciaPage />} />
-        <Route path="/empleados/nomina" element={<ComingSoon title="Nómina" />} />
-        <Route path="/empleados/liquidaciones" element={<ComingSoon title="Liquidaciones" />} />
+        <Route path="/empleados/nomina" element={<NominaPage />} />
+        <Route path="/empleados/liquidaciones" element={<LiquidacionesPage />} />
 
         {/* Reportes */}
         <Route path="/reportes" element={<ReportesPage />} />

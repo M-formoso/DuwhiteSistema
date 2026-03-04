@@ -90,6 +90,11 @@ export async function getCuentasBancarias(soloActivas: boolean = true): Promise<
   return response.data;
 }
 
+export async function createCuentaBancaria(data: Partial<CuentaBancaria>): Promise<CuentaBancaria> {
+  const response = await api.post('/finanzas/bancos/cuentas', data);
+  return response.data;
+}
+
 export async function getMovimientosBancarios(
   cuentaId: string,
   params?: {
@@ -100,6 +105,29 @@ export async function getMovimientosBancarios(
   }
 ): Promise<PaginatedResponse<MovimientoBancario>> {
   const response = await api.get(`/finanzas/bancos/cuentas/${cuentaId}/movimientos`, { params });
+  return response.data;
+}
+
+export async function createMovimientoBancario(data: {
+  cuenta_id: string;
+  tipo: string;
+  monto: number;
+  fecha: string;
+  descripcion?: string;
+  numero_comprobante?: string;
+  categoria?: string;
+}): Promise<MovimientoBancario> {
+  const response = await api.post('/finanzas/bancos/movimientos', data);
+  return response.data;
+}
+
+export async function getTiposCuenta(): Promise<{ value: string; label: string }[]> {
+  const response = await api.get('/finanzas/bancos/tipos-cuenta');
+  return response.data;
+}
+
+export async function getTiposMovimientoBancario(): Promise<{ value: string; label: string }[]> {
+  const response = await api.get('/finanzas/bancos/tipos-movimiento');
   return response.data;
 }
 
@@ -125,7 +153,11 @@ export const finanzasService = {
   anularMovimientoCaja,
   getCategorias,
   getCuentasBancarias,
+  createCuentaBancaria,
   getMovimientosBancarios,
+  createMovimientoBancario,
+  getTiposCuenta,
+  getTiposMovimientoBancario,
   getResumenFinanciero,
 };
 

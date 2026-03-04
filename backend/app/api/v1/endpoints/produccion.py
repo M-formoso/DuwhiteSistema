@@ -517,7 +517,7 @@ def actualizar_lote(
     # Recargar con relaciones
     lote = service.get_lote(lote.id)
 
-    return await obtener_lote(lote_id, db, current_user)
+    return obtener_lote(lote_id, db, current_user)
 
 
 @router.post("/lotes/{lote_id}/estado", response_model=MessageResponse)
@@ -870,7 +870,7 @@ def actualizar_orden_produccion(
             detail="Orden de producción no encontrada",
         )
 
-    return await obtener_orden_produccion(orden_id, db, current_user)
+    return obtener_orden_produccion(orden_id, db, current_user)
 
 
 @router.post("/ordenes/{orden_id}/estado", response_model=MessageResponse)
@@ -1171,7 +1171,7 @@ def actualizar_incidencia(
             detail="Incidencia no encontrada",
         )
 
-    return await obtener_incidencia(incidencia_id, db, current_user)
+    return obtener_incidencia(incidencia_id, db, current_user)
 
 
 @router.post("/incidencias/{incidencia_id}/resolver", response_model=IncidenciaResponse)
@@ -1191,4 +1191,4 @@ def resolver_incidencia(
             detail="Incidencia no encontrada",
         )
 
-    return await obtener_incidencia(incidencia_id, db, current_user)
+    return obtener_incidencia(incidencia_id, db, current_user)
