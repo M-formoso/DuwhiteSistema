@@ -235,7 +235,7 @@ class DashboardService:
                 "tipo_servicio": lote.tipo_servicio,
                 "prioridad": lote.prioridad,
                 "peso_total": float(lote.peso_entrada_kg) if lote.peso_entrada_kg else 0,
-                "fecha_ingreso": lote.fecha_ingreso.isoformat(),
+                "fecha_ingreso": lote.fecha_ingreso.isoformat() if lote.fecha_ingreso else None,
                 "etapa_actual_id": str(lote.etapa_actual_id) if lote.etapa_actual_id else None,
             }
             for lote in lotes
@@ -361,12 +361,46 @@ class DashboardService:
 
     def get_dashboard_completo(self) -> Dict[str, Any]:
         """Obtiene todos los datos del dashboard en una sola llamada"""
-        kpis = self.get_kpis_principales()
-        grafico_ventas = self.get_grafico_ventas_semana()
-        pedidos_recientes = self.get_pedidos_recientes()
-        lotes_en_proceso = self.get_lotes_en_proceso()
-        alertas = self.get_alertas()
-        movimientos_hoy = self.get_resumen_movimientos_hoy()
+        try:
+            kpis = self.get_kpis_principales()
+        except Exception as e:
+            print(f"Error en get_kpis_principales: {e}")
+            kpis = {
+                "ventas": {"mes": {"cantidad": 0, "total": 0}, "hoy": {"cantidad": 0, "total": 0}},
+                "produccion": {"lotes_en_proceso": 0, "lotes_completados_hoy": 0},
+                "finanzas": {"saldo_caja": 0, "caja_abierta": False},
+                "operacion": {"clientes_activos": 0, "empleados_activos": 0, "insumos_bajo_minimo": 0}
+            }
+
+        try:
+            grafico_ventas = self.get_grafico_ventas_semana()
+        except Exception as e:
+            print(f"Error en get_grafico_ventas_semana: {e}")
+            grafico_ventas = []
+
+        try:
+            pedidos_recientes = self.get_pedidos_recientes()
+        except Exception as e:
+            print(f"Error en get_pedidos_recientes: {e}")
+            pedidos_recientes = []
+
+        try:
+            lotes_en_proceso = self.get_lotes_en_proceso()
+        except Exception as e:
+            print(f"Error en get_lotes_en_proceso: {e}")
+            lotes_en_proceso = []
+
+        try:
+            alertas = self.get_alertas()
+        except Exception as e:
+            print(f"Error en get_alertas: {e}")
+            alertas = []
+
+        try:
+            movimientos_hoy = self.get_resumen_movimientos_hoy()
+        except Exception as e:
+            print(f"Error en get_resumen_movimientos_hoy: {e}")
+            movimientos_hoy = {"ingresos": 0, "egresos": 0, "balance": 0, "cantidad_movimientos": 0}
 
         return {
             "kpis": kpis,
