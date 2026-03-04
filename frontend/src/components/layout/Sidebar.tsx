@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   ClipboardList,
   Boxes,
+  FolderOpen,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -69,6 +70,12 @@ const navSections: NavSection[] = [
         href: '/stock',
         icon: Package,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador', 'comercial', 'contador', 'solo_lectura'],
+      },
+      {
+        title: 'Categorías',
+        href: '/stock/categorias',
+        icon: FolderOpen,
+        roles: ['superadmin', 'administrador', 'jefe_produccion'],
       },
       {
         title: 'Proveedores',
