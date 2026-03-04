@@ -78,7 +78,7 @@ const navSections: NavSection[] = [
       },
       {
         title: 'Órdenes de Compra',
-        href: '/ordenes-compra',
+        href: '/proveedores/ordenes',
         icon: ShoppingCart,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'contador', 'solo_lectura'],
       },
