@@ -12,6 +12,8 @@ export interface Usuario {
   debe_cambiar_password: boolean;
   ultimo_acceso?: string;
   empleado_id?: string;
+  cliente_id?: string;
+  cliente_nombre?: string;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -24,7 +26,8 @@ export type RolUsuario =
   | 'operador'
   | 'comercial'
   | 'contador'
-  | 'solo_lectura';
+  | 'solo_lectura'
+  | 'cliente';
 
 export interface LoginRequest {
   email: string;

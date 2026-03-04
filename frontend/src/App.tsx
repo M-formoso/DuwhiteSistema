@@ -62,6 +62,20 @@ import { PerfilPage } from '@/pages/perfil';
 // Usuarios
 import UsuariosPage from '@/pages/usuarios/UsuariosPage';
 
+// Portal Cliente
+import { MisPedidosPage } from '@/pages/cliente-portal';
+
+// Componente para redirección inteligente según rol
+function HomeRedirect() {
+  const user = useAuthStore((state) => state.user);
+
+  if (user?.rol === 'cliente' && user?.cliente_id) {
+    return <Navigate to={`/clientes/${user.cliente_id}`} replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
+}
+
 function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
 
@@ -160,6 +174,9 @@ function App() {
 
         {/* Perfil */}
         <Route path="/perfil" element={<PerfilPage />} />
+
+        {/* Portal Cliente */}
+        <Route path="/mis-pedidos" element={<MisPedidosPage />} />
       </Route>
 
       {/* Página de acceso no autorizado */}
@@ -176,8 +193,8 @@ function App() {
         }
       />
 
-      {/* Redirect default */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      {/* Redirect default - usa HomeRedirect para redirigir según rol */}
+      <Route path="/" element={<HomeRedirect />} />
 
       {/* 404 */}
       <Route

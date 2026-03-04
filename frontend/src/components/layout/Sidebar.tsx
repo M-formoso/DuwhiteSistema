@@ -25,6 +25,8 @@ import {
   ClipboardList,
   Boxes,
   FolderOpen,
+  User,
+  Building2,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -49,7 +51,8 @@ interface NavSection {
   defaultOpen?: boolean;
 }
 
-const navSections: NavSection[] = [
+// Navegación para usuarios internos (no clientes)
+const navSectionsInternal: NavSection[] = [
   {
     title: 'Principal',
     defaultOpen: true,
@@ -58,6 +61,7 @@ const navSections: NavSection[] = [
         title: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador', 'comercial', 'contador', 'solo_lectura'],
       },
     ],
   },
@@ -153,6 +157,7 @@ const navSections: NavSection[] = [
         title: 'Actividades',
         href: '/actividades',
         icon: CheckSquare,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador', 'comercial', 'contador', 'solo_lectura'],
       },
     ],
   },
@@ -176,9 +181,40 @@ const navSections: NavSection[] = [
   },
 ];
 
+// Navegación especial para clientes - Solo ven su propia información
+const getClientNavSections = (clienteId: string | null): NavSection[] => [
+  {
+    title: 'Mi Cuenta',
+    defaultOpen: true,
+    items: [
+      {
+        title: 'Mi Perfil',
+        href: clienteId ? `/clientes/${clienteId}` : '/perfil',
+        icon: Building2,
+      },
+      {
+        title: 'Mis Pedidos',
+        href: '/mis-pedidos',
+        icon: FileText,
+      },
+      {
+        title: 'Mi Usuario',
+        href: '/perfil',
+        icon: User,
+      },
+    ],
+  },
+];
+
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+
+  // Determinar qué navegación usar según el rol
+  const isCliente = user?.rol === 'cliente';
+  const navSections = isCliente
+    ? getClientNavSections(user?.cliente_id || null)
+    : navSectionsInternal;
 
   // Estado para secciones colapsadas
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
