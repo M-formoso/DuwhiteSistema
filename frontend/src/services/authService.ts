@@ -22,8 +22,8 @@ export const authService = {
       await api.post('/auth/logout');
     } finally {
       // Limpiar tokens aunque falle la petición
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('access_token');
+      sessionStorage.removeItem('refresh_token');
     }
   },
 
@@ -51,24 +51,24 @@ export const authService = {
   },
 
   /**
-   * Guarda los tokens en localStorage
+   * Guarda los tokens en sessionStorage (cada pestaña tiene su propia sesión)
    */
   saveTokens(accessToken: string, refreshToken: string): void {
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
+    sessionStorage.setItem('access_token', accessToken);
+    sessionStorage.setItem('refresh_token', refreshToken);
   },
 
   /**
    * Obtiene el token de acceso
    */
   getAccessToken(): string | null {
-    return localStorage.getItem('access_token');
+    return sessionStorage.getItem('access_token');
   },
 
   /**
    * Verifica si hay un token de acceso
    */
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('access_token');
+    return !!sessionStorage.getItem('access_token');
   },
 };

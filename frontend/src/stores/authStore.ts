@@ -1,9 +1,10 @@
 /**
  * Store de autenticación con Zustand
+ * Usa sessionStorage para que cada pestaña tenga su propia sesión
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Usuario } from '@/types/auth';
 import { authService } from '@/services/authService';
 
@@ -76,6 +77,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      // Usar sessionStorage en lugar de localStorage para sesiones por pestaña
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
