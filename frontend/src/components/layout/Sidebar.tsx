@@ -27,6 +27,7 @@ import {
   FolderOpen,
   User,
   Building2,
+  Tag,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -116,6 +117,12 @@ const navSectionsInternal: NavSection[] = [
         href: '/pedidos',
         icon: FileText,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'solo_lectura'],
+      },
+      {
+        title: 'Servicios y Precios',
+        href: '/servicios',
+        icon: Tag,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'contador', 'solo_lectura'],
       },
     ],
   },

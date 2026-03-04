@@ -65,6 +65,9 @@ import UsuariosPage from '@/pages/usuarios/UsuariosPage';
 // Portal Cliente
 import { MisPedidosPage, MiCuentaCorrientePage } from '@/pages/cliente-portal';
 
+// Servicios y Listas de Precios
+import { ServiciosPage, ListaPreciosDetail } from '@/pages/servicios';
+
 // Componente para redirección inteligente según rol
 function HomeRedirect() {
   const user = useAuthStore((state) => state.user);
@@ -146,6 +149,10 @@ function App() {
         <Route path="/finanzas/caja" element={<CajaPage />} />
         <Route path="/finanzas/bancos" element={<CuentasBancariasPage />} />
         <Route path="/finanzas/resumen" element={<ResumenFinancieroPage />} />
+
+        {/* Servicios y Listas de Precios */}
+        <Route path="/servicios" element={<ServiciosPage />} />
+        <Route path="/servicios/listas/:id" element={<ListaPreciosDetail />} />
 
         {/* Costos */}
         <Route path="/costos" element={<CostosPage />} />
