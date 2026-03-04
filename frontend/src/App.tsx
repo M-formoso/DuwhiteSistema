@@ -63,7 +63,7 @@ import { PerfilPage } from '@/pages/perfil';
 import UsuariosPage from '@/pages/usuarios/UsuariosPage';
 
 // Portal Cliente
-import { MisPedidosPage } from '@/pages/cliente-portal';
+import { MisPedidosPage, MiCuentaCorrientePage } from '@/pages/cliente-portal';
 
 // Componente para redirección inteligente según rol
 function HomeRedirect() {
@@ -177,6 +177,7 @@ function App() {
 
         {/* Portal Cliente */}
         <Route path="/mis-pedidos" element={<MisPedidosPage />} />
+        <Route path="/mi-cuenta" element={<MiCuentaCorrientePage />} />
       </Route>
 
       {/* Página de acceso no autorizado */}

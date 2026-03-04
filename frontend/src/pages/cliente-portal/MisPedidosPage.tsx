@@ -174,12 +174,12 @@ export default function MisPedidosPage() {
           <div className="flex items-end gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Estado</label>
-              <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+              <Select value={filtroEstado || 'todos'} onValueChange={(v) => setFiltroEstado(v === 'todos' ? '' : v)}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
                   {ESTADOS_PEDIDO.map((estado) => (
                     <SelectItem key={estado.value} value={estado.value}>
                       {estado.label}

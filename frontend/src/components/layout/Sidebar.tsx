@@ -198,6 +198,11 @@ const getClientNavSections = (clienteId: string | null): NavSection[] => [
         icon: FileText,
       },
       {
+        title: 'Cuenta Corriente',
+        href: '/mi-cuenta',
+        icon: Wallet,
+      },
+      {
         title: 'Mi Usuario',
         href: '/perfil',
         icon: User,
