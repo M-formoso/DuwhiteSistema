@@ -24,6 +24,7 @@ import AjusteStock from '@/pages/stock/AjusteStock';
 import ProveedoresList from '@/pages/proveedores/ProveedoresList';
 import ProveedorForm from '@/pages/proveedores/ProveedorForm';
 import ProveedorDetail from '@/pages/proveedores/ProveedorDetail';
+import ProductosProveedorPage from '@/pages/proveedores/ProductosProveedorPage';
 
 // Producción
 import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage } from '@/pages/produccion';
@@ -109,7 +110,7 @@ function App() {
         <Route path="/proveedores/nuevo" element={<ProveedorForm />} />
         <Route path="/proveedores/:id" element={<ProveedorDetail />} />
         <Route path="/proveedores/:id/editar" element={<ProveedorForm />} />
-        <Route path="/proveedores/:id/productos" element={<ComingSoon title="Productos del Proveedor" />} />
+        <Route path="/proveedores/:id/productos" element={<ProductosProveedorPage />} />
         <Route path="/proveedores/ordenes" element={<OrdenesCompraListPage />} />
         <Route path="/proveedores/ordenes/nueva" element={<OrdenCompraFormPage />} />
         <Route path="/proveedores/ordenes/:id" element={<OrdenCompraDetailPage />} />

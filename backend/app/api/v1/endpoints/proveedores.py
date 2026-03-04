@@ -345,7 +345,7 @@ def crear_producto_proveedor(
     proveedor_id: UUID,
     data: ProductoProveedorCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Agrega un producto al catálogo del proveedor."""
     if data.proveedor_id != proveedor_id:
@@ -390,7 +390,7 @@ def actualizar_producto_proveedor(
     producto_id: UUID,
     data: ProductoProveedorUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Actualiza un producto del catálogo del proveedor."""
     service = ProveedorService(db)
@@ -435,7 +435,7 @@ def actualizar_precio_producto(
     producto_id: UUID,
     data: ActualizarPrecioRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("proveedores", "editar")),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
 ):
     """Actualiza el precio de un producto (registra en historial)."""
     service = ProveedorService(db)
