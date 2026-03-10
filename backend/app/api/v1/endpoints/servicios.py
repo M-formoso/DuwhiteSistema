@@ -8,8 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.api.deps import get_current_user
+from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
 from app.services import servicio_service
 from app.schemas.servicio import (
