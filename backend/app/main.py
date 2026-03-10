@@ -28,6 +28,7 @@ def run_migrations():
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(50)",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS permisos_modulos JSON",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cliente_id UUID REFERENCES clientes(id)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pin VARCHAR(6)",
         # Calificación de proveedores
         "ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS calificacion NUMERIC(3,2) DEFAULT 0",
         # Columna orden_produccion_id en lotes_produccion
