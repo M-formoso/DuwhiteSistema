@@ -147,3 +147,13 @@ ESTADOS_ORDEN_PAGO = [
     {"value": "pagada", "label": "Pagada", "color": "green"},
     {"value": "anulada", "label": "Anulada", "color": "red"},
 ]
+
+MEDIOS_PAGO = [
+    {"value": "efectivo", "label": "Efectivo"},
+    {"value": "transferencia", "label": "Transferencia Bancaria"},
+    {"value": "cheque", "label": "Cheque"},
+    {"value": "tarjeta_debito", "label": "Tarjeta de Débito"},
+    {"value": "tarjeta_credito", "label": "Tarjeta de Crédito"},
+    {"value": "mercadopago", "label": "MercadoPago"},
+    {"value": "otro", "label": "Otro"},
+]
