@@ -28,6 +28,10 @@ import {
   User,
   Building2,
   Tag,
+  CreditCard,
+  ArrowRightLeft,
+  Landmark,
+  Clock,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -135,6 +139,30 @@ const navSectionsInternal: NavSection[] = [
         href: '/finanzas',
         icon: Wallet,
         roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
+      },
+      {
+        title: 'Órdenes de Pago',
+        href: '/finanzas/ordenes-pago',
+        icon: CreditCard,
+        roles: ['superadmin', 'administrador', 'contador'],
+      },
+      {
+        title: 'Vencimientos',
+        href: '/finanzas/analisis-vencimientos',
+        icon: Clock,
+        roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
+      },
+      {
+        title: 'Cruces',
+        href: '/finanzas/cruces',
+        icon: ArrowRightLeft,
+        roles: ['superadmin', 'administrador', 'contador'],
+      },
+      {
+        title: 'Conciliación',
+        href: '/finanzas/conciliacion',
+        icon: Landmark,
+        roles: ['superadmin', 'administrador', 'contador'],
       },
       {
         title: 'Costos',

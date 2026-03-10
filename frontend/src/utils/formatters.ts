@@ -19,13 +19,21 @@ export function formatCurrency(amount: number): string {
 /**
  * Formatea un número con separadores argentinos
  * @param num Número a formatear
- * @param decimals Cantidad de decimales (default: 2)
- * @returns String formateado (ej: "1.234,56")
+ * @param formatOrDecimals 'currency' para moneda, o número de decimales (default: 2)
+ * @returns String formateado (ej: "1.234,56" o "$ 1.234,56")
  */
-export function formatNumber(num: number, decimals: number = 2): string {
+export function formatNumber(num: number, formatOrDecimals: number | 'currency' = 2): string {
+  if (formatOrDecimals === 'currency') {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  }
   return new Intl.NumberFormat('es-AR', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: formatOrDecimals,
+    maximumFractionDigits: formatOrDecimals,
   }).format(num);
 }
 

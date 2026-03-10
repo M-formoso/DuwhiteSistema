@@ -2,10 +2,11 @@
 Modelo de Proveedor.
 """
 
-from sqlalchemy import Boolean, Column, Integer, String, Text
+from sqlalchemy import Boolean, Column, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
+from decimal import Decimal
 
 from app.db.base import Base
 from app.models.base import BaseModelMixin
@@ -54,6 +55,9 @@ class Proveedor(Base, BaseModelMixin):
     # Estado
     activo = Column(Boolean, default=True, nullable=False)
 
+    # Cuenta Corriente
+    saldo_cuenta_corriente = Column(Numeric(14, 2), nullable=False, default=Decimal("0"))
+
     # Notas
     notas = Column(Text, nullable=True)
 
@@ -62,6 +66,12 @@ class Proveedor(Base, BaseModelMixin):
     productos = relationship("ProductoProveedor", back_populates="proveedor", lazy="dynamic")
     ordenes_compra = relationship("OrdenCompra", back_populates="proveedor", lazy="dynamic")
     movimientos_stock = relationship("MovimientoStock", back_populates="proveedor")
+    movimientos_cuenta_proveedor = relationship(
+        "MovimientoCuentaCorrienteProveedor",
+        back_populates="proveedor",
+        lazy="dynamic"
+    )
+    ordenes_pago = relationship("OrdenPago", back_populates="proveedor", lazy="dynamic")
 
     def __repr__(self) -> str:
         return f"<Proveedor {self.razon_social}>"
@@ -78,3 +88,8 @@ class Proveedor(Base, BaseModelMixin):
         if len(cuit) == 11:
             return f"{cuit[:2]}-{cuit[2:10]}-{cuit[10]}"
         return self.cuit
+
+    @property
+    def tiene_deuda(self) -> bool:
+        """Indica si el proveedor tiene saldo pendiente (le debemos)."""
+        return self.saldo_cuenta_corriente > 0

@@ -74,6 +74,20 @@ from app.models.cuenta_bancaria import (
     TipoCuenta,
     TipoMovimientoBanco,
 )
+from app.models.cuenta_corriente_proveedor import (
+    MovimientoCuentaCorrienteProveedor,
+    OrdenPago,
+    DetalleOrdenPago,
+    ImputacionPagoProveedor,
+    TipoMovimientoCCProveedor,
+    EstadoOrdenPago,
+)
+from app.models.cruce_cliente_proveedor import EntidadConsolidada
+from app.models.conciliacion_bancaria import (
+    ConciliacionBancaria,
+    ItemConciliacion,
+    EstadoConciliacion,
+)
 
 # Empleados
 from app.models.empleado import (

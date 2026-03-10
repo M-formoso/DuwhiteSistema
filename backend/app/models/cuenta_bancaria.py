@@ -104,6 +104,9 @@ class MovimientoBancario(Base, BaseModelMixin):
     # Conciliación
     conciliado = Column(Boolean, default=False)
     fecha_conciliacion = Column(DateTime, nullable=True)
+    conciliacion_id = Column(UUID(as_uuid=True), ForeignKey("conciliaciones_bancarias.id"), nullable=True)
+    conciliado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    referencia_conciliacion = Column(String(100), nullable=True)  # Referencia del extracto bancario
 
     # Control
     registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
@@ -113,6 +116,8 @@ class MovimientoBancario(Base, BaseModelMixin):
     cliente = relationship("Cliente", foreign_keys=[cliente_id])
     proveedor = relationship("Proveedor", foreign_keys=[proveedor_id])
     registrado_por = relationship("Usuario", foreign_keys=[registrado_por_id])
+    conciliacion = relationship("ConciliacionBancaria", foreign_keys=[conciliacion_id])
+    usuario_conciliacion = relationship("Usuario", foreign_keys=[conciliado_por_id])
 
     def __repr__(self) -> str:
         return f"<MovimientoBancario {self.tipo}: ${self.monto}>"

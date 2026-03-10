@@ -22,6 +22,8 @@ import {
   DollarSign,
   Loader2,
   AlertTriangle,
+  Wallet,
+  CreditCard,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -123,17 +125,31 @@ export default function ProveedorDetail() {
         <div className="flex gap-2">
           <Button
             variant="outline"
+            onClick={() => navigate(`/finanzas/cuenta-corriente-proveedor/${id}`)}
+          >
+            <Wallet className="h-4 w-4 mr-2" />
+            Cuenta Corriente
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/finanzas/ordenes-pago/nueva?proveedor_id=${id}`)}
+          >
+            <CreditCard className="h-4 w-4 mr-2" />
+            Nueva OP
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => navigate(`/proveedores/${id}/productos`)}
           >
             <Package className="h-4 w-4 mr-2" />
-            Ver Productos
+            Productos
           </Button>
           <Button
             variant="outline"
             onClick={() => navigate(`/proveedores/ordenes/nueva?proveedor=${id}`)}
           >
             <FileText className="h-4 w-4 mr-2" />
-            Nueva Orden
+            Nueva OC
           </Button>
           <Button onClick={() => navigate(`/proveedores/${id}/editar`)}>
             <Pencil className="h-4 w-4 mr-2" />

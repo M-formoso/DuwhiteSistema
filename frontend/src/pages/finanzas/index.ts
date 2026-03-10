@@ -1,3 +1,9 @@
 export { default as CajaPage } from './CajaPage';
 export { default as CuentasBancariasPage } from './CuentasBancariasPage';
 export { default as ResumenFinancieroPage } from './ResumenFinancieroPage';
+export { default as CuentaCorrienteProveedorPage } from './CuentaCorrienteProveedorPage';
+export { default as AnalisisVencimientosPage } from './AnalisisVencimientosPage';
+export { default as OrdenesPagoPage } from './OrdenesPagoPage';
+export { default as OrdenPagoFormPage } from './OrdenPagoFormPage';
+export { default as CrucesConsolidadosPage } from './CrucesConsolidadosPage';
+export { default as ConciliacionBancariaPage } from './ConciliacionBancariaPage';

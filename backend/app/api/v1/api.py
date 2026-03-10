@@ -5,7 +5,29 @@ Registra todos los endpoints de los módulos.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, usuarios, categorias_insumo, insumos, proveedores, ordenes_compra, produccion, clientes, pedidos, finanzas, empleados, costos, reportes, dashboard, seed, servicios, actividades
+from app.api.v1.endpoints import (
+    auth,
+    usuarios,
+    categorias_insumo,
+    insumos,
+    proveedores,
+    ordenes_compra,
+    produccion,
+    clientes,
+    pedidos,
+    finanzas,
+    empleados,
+    costos,
+    reportes,
+    dashboard,
+    seed,
+    servicios,
+    actividades,
+    cuenta_corriente_proveedor,
+    ordenes_pago,
+    cruces_consolidados,
+    conciliacion_bancaria,
+)
 
 api_router = APIRouter()
 
@@ -126,6 +148,34 @@ api_router.include_router(
     actividades.router,
     prefix="/actividades",
     tags=["Actividades"],
+)
+
+# Cuenta Corriente Proveedores
+api_router.include_router(
+    cuenta_corriente_proveedor.router,
+    prefix="/proveedores/cuenta-corriente",
+    tags=["Cuenta Corriente Proveedores"],
+)
+
+# Órdenes de Pago
+api_router.include_router(
+    ordenes_pago.router,
+    prefix="/ordenes-pago",
+    tags=["Órdenes de Pago"],
+)
+
+# Cruces Consolidados Cliente-Proveedor
+api_router.include_router(
+    cruces_consolidados.router,
+    prefix="/cruces-consolidados",
+    tags=["Cruces Consolidados"],
+)
+
+# Conciliación Bancaria
+api_router.include_router(
+    conciliacion_bancaria.router,
+    prefix="/conciliacion-bancaria",
+    tags=["Conciliación Bancaria"],
 )
 
 # Los siguientes routers se agregarán a medida que se implementen los módulos:

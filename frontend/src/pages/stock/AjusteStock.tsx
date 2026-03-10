@@ -37,38 +37,8 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 
-import type { Insumo, AjusteStockRequest } from '@/types/stock';
-
-// Datos de ejemplo (en producción vendría del backend)
-const INSUMO_EJEMPLO: Insumo = {
-  id: '1',
-  codigo: 'INS-001',
-  codigo_barras: '7790001234567',
-  nombre: 'Detergente Industrial Premium',
-  categoria_id: '1',
-  subcategoria: null,
-  unidad: 'litros',
-  stock_actual: 45.5,
-  stock_minimo: 20,
-  stock_maximo: 100,
-  precio_unitario_costo: 1250.00,
-  precio_promedio_ponderado: 1200.00,
-  proveedor_habitual_id: '1',
-  ubicacion_deposito: 'Depósito A - Estante 3',
-  fecha_vencimiento: '2025-12-15',
-  foto: null,
-  notas: 'Producto para lavado industrial de ropa blanca',
-  created_at: '2024-06-15T10:00:00',
-  updated_at: '2025-03-01T10:00:00',
-  is_active: true,
-  categoria_nombre: 'Químicos',
-  proveedor_nombre: 'Química Industrial S.A.',
-  stock_bajo: false,
-  sin_stock: false,
-  sobrestock: false,
-  proximo_a_vencer: false,
-  valor_stock: 56875.00,
-};
+import { stockService } from '@/services/stockService';
+import type { Insumo } from '@/types/stock';
 
 type TipoAjuste = 'positivo' | 'negativo' | 'reemplazo';
 
@@ -103,12 +73,12 @@ export default function AjusteStock() {
   // Cargar insumo
   useEffect(() => {
     const cargarInsumo = async () => {
+      if (!id) return;
       setLoading(true);
       try {
-        // En producción: const data = await stockService.getInsumo(id);
-        await new Promise((r) => setTimeout(r, 500));
-        setInsumo(INSUMO_EJEMPLO);
-        setNuevoStock(INSUMO_EJEMPLO.stock_actual.toString());
+        const data = await stockService.getInsumo(id);
+        setInsumo(data);
+        setNuevoStock(data.stock_actual.toString());
       } catch (error) {
         toast({
           title: 'Error',
@@ -120,9 +90,7 @@ export default function AjusteStock() {
       }
     };
 
-    if (id) {
-      cargarInsumo();
-    }
+    cargarInsumo();
   }, [id, toast]);
 
   // Calcular stock resultante
@@ -192,17 +160,15 @@ export default function AjusteStock() {
 
     setSaving(true);
     try {
-      // En producción:
-      // const ajusteData: AjusteStockRequest = {
-      //   insumo_id: insumo.id,
-      //   cantidad: diferencia,
-      //   motivo: `${MOTIVOS_AJUSTE.find(m => m.value === motivo)?.label}${motivoDetalle ? `: ${motivoDetalle}` : ''}`,
-      //   numero_lote: numeroLote || null,
-      //   fecha_vencimiento: fechaVencimiento || null,
-      // };
-      // await stockService.ajustarStock(insumo.id, ajusteData);
+      const motivoCompleto = `${MOTIVOS_AJUSTE.find(m => m.value === motivo)?.label}${motivoDetalle ? `: ${motivoDetalle}` : ''}`;
 
-      await new Promise((r) => setTimeout(r, 1000));
+      await stockService.ajustarStock(insumo.id, {
+        insumo_id: insumo.id,
+        cantidad: diferencia,
+        motivo: motivoCompleto,
+        numero_lote: numeroLote || undefined,
+        fecha_vencimiento: fechaVencimiento || undefined,
+      });
 
       toast({
         title: 'Ajuste realizado',
@@ -210,10 +176,10 @@ export default function AjusteStock() {
       });
 
       navigate(`/stock/insumos/${insumo.id}`);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: 'No se pudo realizar el ajuste de stock',
+        description: error.response?.data?.detail || 'No se pudo realizar el ajuste de stock',
         variant: 'destructive',
       });
     } finally {

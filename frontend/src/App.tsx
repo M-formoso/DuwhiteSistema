@@ -37,6 +37,12 @@ import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedid
 
 // Finanzas
 import { CajaPage, CuentasBancariasPage, ResumenFinancieroPage } from '@/pages/finanzas';
+import CuentaCorrienteProveedorPage from '@/pages/finanzas/CuentaCorrienteProveedorPage';
+import AnalisisVencimientosPage from '@/pages/finanzas/AnalisisVencimientosPage';
+import OrdenesPagoPage from '@/pages/finanzas/OrdenesPagoPage';
+import OrdenPagoFormPage from '@/pages/finanzas/OrdenPagoFormPage';
+import CrucesConsolidadosPage from '@/pages/finanzas/CrucesConsolidadosPage';
+import ConciliacionBancariaPage from '@/pages/finanzas/ConciliacionBancariaPage';
 
 // Empleados
 import { EmpleadosListPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage, NominaPage, LiquidacionesPage } from '@/pages/empleados';
@@ -149,6 +155,16 @@ function App() {
         <Route path="/finanzas/caja" element={<CajaPage />} />
         <Route path="/finanzas/bancos" element={<CuentasBancariasPage />} />
         <Route path="/finanzas/resumen" element={<ResumenFinancieroPage />} />
+        <Route path="/finanzas/cuenta-corriente-proveedor/:proveedorId" element={<CuentaCorrienteProveedorPage />} />
+        <Route path="/finanzas/analisis-vencimientos" element={<AnalisisVencimientosPage />} />
+        <Route path="/finanzas/ordenes-pago" element={<OrdenesPagoPage />} />
+        <Route path="/finanzas/ordenes-pago/nueva" element={<OrdenPagoFormPage />} />
+        <Route path="/finanzas/ordenes-pago/:ordenId" element={<OrdenesPagoPage />} />
+        <Route path="/finanzas/ordenes-pago/:ordenId/editar" element={<OrdenPagoFormPage />} />
+        <Route path="/finanzas/cruces" element={<CrucesConsolidadosPage />} />
+        <Route path="/finanzas/cruces/:cuit" element={<CrucesConsolidadosPage />} />
+        <Route path="/finanzas/conciliacion" element={<ConciliacionBancariaPage />} />
+        <Route path="/finanzas/conciliacion/:conciliacionId" element={<ConciliacionBancariaPage />} />
 
         {/* Servicios y Listas de Precios */}
         <Route path="/servicios" element={<ServiciosPage />} />

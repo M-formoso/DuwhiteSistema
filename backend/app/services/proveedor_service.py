@@ -34,6 +34,7 @@ from app.schemas.orden_compra import (
 )
 from app.services.log_service import log_service
 from app.services.stock_service import StockService
+from app.services.cuenta_corriente_proveedor_service import CuentaCorrienteProveedorService
 
 
 class ProveedorService:
@@ -626,6 +627,29 @@ class ProveedorService:
 
         # Verificar si la orden está completa
         self._verificar_orden_completa(orden)
+
+        # INTEGRACIÓN CC PROVEEDOR: Registrar cargo automático si hay factura
+        if data.factura_numero:
+            cc_service = CuentaCorrienteProveedorService(self.db)
+
+            # Calcular fecha de vencimiento basada en condición de pago
+            fecha_vencimiento = None
+            if orden.plazo_pago_dias:
+                from datetime import timedelta
+                fecha_vencimiento = date.today() + timedelta(days=orden.plazo_pago_dias)
+
+            # Registrar cargo en cuenta corriente del proveedor
+            cc_service.registrar_cargo(
+                proveedor_id=str(orden.proveedor_id),
+                monto=orden.total,
+                concepto=f"Factura {data.factura_numero} - OC {orden.numero}",
+                factura_numero=data.factura_numero,
+                fecha_factura=date.today(),
+                fecha_vencimiento=fecha_vencimiento,
+                fecha_movimiento=date.today(),
+                usuario_id=str(usuario_id),
+                recepcion_compra_id=str(recepcion.id),
+            )
 
         self.db.commit()
         self.db.refresh(recepcion)
