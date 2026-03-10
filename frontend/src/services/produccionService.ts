@@ -17,6 +17,35 @@ import type {
 } from '@/types/produccion';
 import type { PaginatedResponse } from '@/types/auth';
 
+// ==================== OPERARIOS Y PIN ====================
+
+export interface ValidarPinResponse {
+  valido: boolean;
+  operario_id: string;
+  operario_nombre: string;
+  mensaje?: string;
+}
+
+export async function getOperariosConPin(): Promise<{
+  id: string;
+  nombre: string;
+  rol: string;
+}[]> {
+  const response = await api.get('/produccion/operarios');
+  return response.data;
+}
+
+export async function validarPin(
+  operarioId: string,
+  pin: string
+): Promise<ValidarPinResponse> {
+  const response = await api.post('/produccion/validar-pin', {
+    operario_id: operarioId,
+    pin,
+  });
+  return response.data;
+}
+
 // ==================== KANBAN ====================
 
 export async function getKanbanBoard(): Promise<KanbanBoard> {
@@ -75,6 +104,31 @@ export async function getMaquinasLista(tipo?: string): Promise<{
   const response = await api.get('/produccion/maquinas/lista', {
     params: { tipo },
   });
+  return response.data;
+}
+
+export async function getMaquinasDisponibles(tipo?: string): Promise<{
+  id: string;
+  codigo: string;
+  nombre: string;
+  tipo: string;
+  estado: string;
+  capacidad_kg: number | null;
+}[]> {
+  const response = await api.get('/produccion/maquinas/disponibles', {
+    params: { tipo },
+  });
+  return response.data;
+}
+
+export async function verificarMaquinaEnUso(maquinaId: string): Promise<{
+  en_uso: boolean;
+  lote_id?: string;
+  lote_numero?: string;
+  etapa_id?: string;
+  fecha_inicio?: string;
+}> {
+  const response = await api.get(`/produccion/maquinas/${maquinaId}/en-uso`);
   return response.data;
 }
 
@@ -203,6 +257,9 @@ export async function registrarConsumo(
 // ==================== EXPORTS ====================
 
 export const produccionService = {
+  // Operarios y PIN
+  getOperariosConPin,
+  validarPin,
   // Kanban
   getKanbanBoard,
   // Etapas
@@ -213,6 +270,8 @@ export const produccionService = {
   // Máquinas
   getMaquinas,
   getMaquinasLista,
+  getMaquinasDisponibles,
+  verificarMaquinaEnUso,
   createMaquina,
   updateMaquina,
   // Lotes

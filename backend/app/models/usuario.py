@@ -94,6 +94,9 @@ class Usuario(Base, BaseModelMixin):
     # Password en texto plano (solo para usuarios cliente, para mostrar en panel admin)
     password_visible = Column(String(255), nullable=True)
 
+    # PIN para validación rápida en producción (4-6 dígitos)
+    pin = Column(String(6), nullable=True)
+
     # Datos personales
     nombre = Column(String(100), nullable=False)
     apellido = Column(String(100), nullable=False)

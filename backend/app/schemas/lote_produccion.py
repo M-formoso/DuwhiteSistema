@@ -213,6 +213,7 @@ class KanbanColumna(BaseModel):
     etapa_nombre: str
     etapa_color: str
     orden: int
+    tiempo_estimado_minutos: Optional[int] = None
     lotes: List[KanbanLote] = []
 
 
@@ -230,12 +231,18 @@ class IniciarEtapaRequest(BaseModel):
     responsable_id: Optional[UUID] = None
     maquina_id: Optional[UUID] = None
     observaciones: Optional[str] = None
+    # Para validación con PIN del operario
+    operario_id: Optional[UUID] = None
+    pin: Optional[str] = Field(None, min_length=4, max_length=6)
 
 
 class FinalizarEtapaRequest(BaseModel):
     """Schema para finalizar una etapa."""
     peso_kg: Optional[Decimal] = Field(None, ge=0)
     observaciones: Optional[str] = None
+    # Para validación con PIN del operario
+    operario_id: Optional[UUID] = None
+    pin: Optional[str] = Field(None, min_length=4, max_length=6)
 
 
 class MoverLoteRequest(BaseModel):
@@ -243,9 +250,29 @@ class MoverLoteRequest(BaseModel):
     etapa_destino_id: UUID
     responsable_id: Optional[UUID] = None
     observaciones: Optional[str] = None
+    # Para validación con PIN del operario
+    operario_id: Optional[UUID] = None
+    pin: Optional[str] = Field(None, min_length=4, max_length=6)
 
 
 class CambiarEstadoLoteRequest(BaseModel):
     """Schema para cambiar estado del lote."""
     estado: EstadoLote
     observaciones: Optional[str] = None
+    # Para validación con PIN del operario
+    operario_id: Optional[UUID] = None
+    pin: Optional[str] = Field(None, min_length=4, max_length=6)
+
+
+class ValidarPinRequest(BaseModel):
+    """Schema para validar PIN de operario."""
+    operario_id: UUID
+    pin: str = Field(..., min_length=4, max_length=6)
+
+
+class ValidarPinResponse(BaseModel):
+    """Schema de respuesta de validación de PIN."""
+    valido: bool
+    operario_id: UUID
+    operario_nombre: str
+    mensaje: Optional[str] = None

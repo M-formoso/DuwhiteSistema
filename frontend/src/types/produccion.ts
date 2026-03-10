@@ -182,6 +182,7 @@ export interface KanbanColumna {
   etapa_nombre: string;
   etapa_color: string;
   orden: number;
+  tiempo_estimado_minutos: number | null;
   lotes: KanbanLote[];
 }
 

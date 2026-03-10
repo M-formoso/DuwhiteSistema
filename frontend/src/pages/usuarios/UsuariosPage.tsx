@@ -79,6 +79,7 @@ export default function UsuariosPage() {
     nombre: '',
     apellido: '',
     telefono: '',
+    pin: '',
     rol: 'operador',
     guardar_password_visible: false,
     permisos_modulos: undefined as Record<string, boolean> | undefined,
@@ -208,6 +209,7 @@ export default function UsuariosPage() {
       nombre: '',
       apellido: '',
       telefono: '',
+      pin: '',
       rol: 'operador',
       guardar_password_visible: false,
       permisos_modulos: undefined,
@@ -272,6 +274,7 @@ export default function UsuariosPage() {
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       telefono: usuario.telefono || '',
+      pin: usuario.pin || '',
       rol: usuario.rol,
       guardar_password_visible: false,
       permisos_modulos: tienePermisosPersonalizados ? usuario.permisos_modulos : undefined,
@@ -409,6 +412,9 @@ export default function UsuariosPage() {
                     Cliente
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    PIN
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                     Estado
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -422,13 +428,13 @@ export default function UsuariosPage() {
               <tbody className="divide-y">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                       Cargando...
                     </td>
                   </tr>
                 ) : data?.items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                       <Users className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                       No se encontraron usuarios
                     </td>
@@ -463,6 +469,15 @@ export default function UsuariosPage() {
                       <td className="px-4 py-3 text-sm">
                         {usuario.cliente_nombre ? (
                           <span className="text-primary">{usuario.cliente_nombre}</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {usuario.pin ? (
+                          <Badge variant="outline" className="font-mono">
+                            {usuario.pin}
+                          </Badge>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
@@ -620,13 +635,31 @@ export default function UsuariosPage() {
                 Mínimo 8 caracteres, una mayúscula, una minúscula y un número
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="telefono">Teléfono</Label>
-              <Input
-                id="telefono"
-                value={formData.telefono}
-                onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="telefono">Teléfono</Label>
+                <Input
+                  id="telefono"
+                  value={formData.telefono}
+                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pin">PIN (4-6 dígitos)</Label>
+                <Input
+                  id="pin"
+                  value={formData.pin}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setFormData({ ...formData, pin: value });
+                  }}
+                  placeholder="Ej: 1234"
+                  maxLength={6}
+                />
+                <p className="text-xs text-gray-500">
+                  Para validar acciones en producción
+                </p>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="rol">Rol</Label>
@@ -740,13 +773,31 @@ export default function UsuariosPage() {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-telefono">Teléfono</Label>
-              <Input
-                id="edit-telefono"
-                value={formData.telefono}
-                onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-telefono">Teléfono</Label>
+                <Input
+                  id="edit-telefono"
+                  value={formData.telefono}
+                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-pin">PIN (4-6 dígitos)</Label>
+                <Input
+                  id="edit-pin"
+                  value={formData.pin}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setFormData({ ...formData, pin: value });
+                  }}
+                  placeholder="Ej: 1234"
+                  maxLength={6}
+                />
+                <p className="text-xs text-gray-500">
+                  Para validar acciones en producción
+                </p>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-rol">Rol</Label>
@@ -823,6 +874,7 @@ export default function UsuariosPage() {
                       nombre: formData.nombre,
                       apellido: formData.apellido,
                       telefono: formData.telefono,
+                      pin: formData.pin || null,
                       rol: formData.rol,
                       permisos_modulos: formData.permisos_modulos,
                     },

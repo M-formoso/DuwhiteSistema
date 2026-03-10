@@ -38,6 +38,8 @@ from app.schemas.lote_produccion import (
     MoverLoteRequest,
     CambiarEstadoLoteRequest,
     KanbanBoard,
+    ValidarPinRequest,
+    ValidarPinResponse,
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.schemas.orden_produccion import (
@@ -56,6 +58,36 @@ from app.schemas.orden_produccion import (
 from app.services.produccion_service import ProduccionService
 
 router = APIRouter()
+
+
+# ==================== OPERARIOS Y PIN ====================
+
+@router.get("/operarios", response_model=List[Dict[str, Any]])
+def listar_operarios_con_pin(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista operarios que tienen PIN configurado para validación."""
+    service = ProduccionService(db)
+    return service.get_operarios_con_pin()
+
+
+@router.post("/validar-pin", response_model=ValidarPinResponse)
+def validar_pin_operario(
+    data: ValidarPinRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Valida el PIN de un operario."""
+    service = ProduccionService(db)
+    valido, nombre, error = service.validar_pin_operario(data.operario_id, data.pin)
+
+    return ValidarPinResponse(
+        valido=valido,
+        operario_id=data.operario_id,
+        operario_nombre=nombre or "Desconocido",
+        mensaje=error,
+    )
 
 
 # ==================== KANBAN ====================
@@ -250,6 +282,47 @@ def listar_maquinas_dropdown(
         )
         for m in maquinas
     ]
+
+
+@router.get("/maquinas/disponibles", response_model=List[MaquinaList])
+def listar_maquinas_disponibles(
+    tipo: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista máquinas disponibles para asignación."""
+    service = ProduccionService(db)
+    maquinas = service.get_maquinas_disponibles(tipo=tipo)
+    return [
+        MaquinaList(
+            id=m.id,
+            codigo=m.codigo,
+            nombre=m.nombre,
+            tipo=m.tipo,
+            estado=m.estado,
+            capacidad_kg=m.capacidad_kg,
+        )
+        for m in maquinas
+    ]
+
+
+@router.get("/maquinas/{maquina_id}/en-uso", response_model=Dict[str, Any])
+def verificar_maquina_en_uso(
+    maquina_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Verifica si una máquina está en uso y retorna info del lote que la usa."""
+    service = ProduccionService(db)
+    lote_info = service.get_lote_usando_maquina(maquina_id)
+
+    if lote_info:
+        return {
+            "en_uso": True,
+            **lote_info
+        }
+
+    return {"en_uso": False}
 
 
 @router.post("/maquinas", response_model=MaquinaResponse, status_code=status.HTTP_201_CREATED)
@@ -577,7 +650,14 @@ def iniciar_etapa_lote(
 ):
     """Inicia una etapa para un lote."""
     service = ProduccionService(db)
-    lote_etapa = service.iniciar_etapa(lote_id, etapa_id, data, current_user.id)
+
+    try:
+        lote_etapa = service.iniciar_etapa(lote_id, etapa_id, data, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
     if not lote_etapa:
         raise HTTPException(

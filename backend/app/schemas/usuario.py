@@ -42,6 +42,7 @@ class UsuarioCreate(UsuarioBase):
     """Schema para crear usuario."""
 
     password: str = Field(..., min_length=8, max_length=100)
+    pin: Optional[str] = Field(default=None, min_length=4, max_length=6)
     empleado_id: Optional[UUID] = None
     cliente_id: Optional[UUID] = None
     permisos_modulos: Optional[Dict[str, bool]] = None
@@ -58,6 +59,17 @@ class UsuarioCreate(UsuarioBase):
             raise ValueError("La contraseña debe tener al menos una minúscula")
         if not any(c.isdigit() for c in v):
             raise ValueError("La contraseña debe tener al menos un número")
+        return v
+
+    @field_validator("pin")
+    @classmethod
+    def validar_pin(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.isdigit():
+            raise ValueError("El PIN debe contener solo números")
+        if len(v) < 4 or len(v) > 6:
+            raise ValueError("El PIN debe tener entre 4 y 6 dígitos")
         return v
 
 
@@ -87,6 +99,7 @@ class UsuarioUpdate(BaseModel):
     telefono: Optional[str] = Field(default=None, max_length=50)
     rol: Optional[str] = None
     avatar: Optional[str] = None
+    pin: Optional[str] = Field(default=None, min_length=4, max_length=6)
     empleado_id: Optional[UUID] = None
     cliente_id: Optional[UUID] = None
     permisos_modulos: Optional[Dict[str, bool]] = None
@@ -100,6 +113,17 @@ class UsuarioUpdate(BaseModel):
             return v
         if v not in ROLES_VALIDOS:
             raise ValueError(f"Rol inválido. Roles válidos: {ROLES_VALIDOS}")
+        return v
+
+    @field_validator("pin")
+    @classmethod
+    def validar_pin(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.isdigit():
+            raise ValueError("El PIN debe contener solo números")
+        if len(v) < 4 or len(v) > 6:
+            raise ValueError("El PIN debe tener entre 4 y 6 dígitos")
         return v
 
 
@@ -120,6 +144,7 @@ class UsuarioResponse(BaseModel):
     telefono: Optional[str] = None
     rol: str
     avatar: Optional[str] = None
+    pin: Optional[str] = None
     debe_cambiar_password: bool
     ultimo_acceso: Optional[datetime] = None
     empleado_id: Optional[UUID] = None
@@ -168,6 +193,7 @@ class UsuarioListItem(BaseModel):
     apellido: str
     telefono: Optional[str] = None
     rol: str
+    pin: Optional[str] = None
     activo: bool
     ultimo_acceso: Optional[datetime] = None
     cliente_id: Optional[UUID] = None

@@ -43,6 +43,7 @@ from app.schemas.lote_produccion import (
 )
 from app.services.log_service import log_service
 from app.services.stock_service import StockService
+from app.models.usuario import Usuario
 
 
 class ProduccionService:
@@ -51,6 +52,71 @@ class ProduccionService:
     def __init__(self, db: Session):
         self.db = db
         self.log_service = log_service
+
+    # ==================== VALIDACIÓN DE PIN ====================
+
+    def validar_pin_operario(
+        self,
+        operario_id: UUID,
+        pin: str,
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Valida el PIN de un operario.
+
+        Returns:
+            Tuple[valido, operario_nombre, mensaje_error]
+        """
+        usuario = self.db.query(Usuario).filter(Usuario.id == operario_id).first()
+
+        if not usuario:
+            return (False, None, "Operario no encontrado")
+
+        if not usuario.activo:
+            return (False, None, "Usuario inactivo")
+
+        if not usuario.pin:
+            return (False, usuario.nombre_completo, "El operario no tiene PIN configurado")
+
+        if usuario.pin != pin:
+            return (False, usuario.nombre_completo, "PIN incorrecto")
+
+        return (True, usuario.nombre_completo, None)
+
+    def _validar_pin_si_requerido(
+        self,
+        operario_id: Optional[UUID],
+        pin: Optional[str],
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Valida el PIN si se proporcionaron los datos.
+        Retorna (valido, mensaje_error)
+        """
+        if operario_id and pin:
+            valido, nombre, error = self.validar_pin_operario(operario_id, pin)
+            if not valido:
+                return (False, error)
+        return (True, None)
+
+    def get_operarios_con_pin(self) -> List[dict]:
+        """Obtiene lista de operarios que tienen PIN configurado."""
+        usuarios = (
+            self.db.query(Usuario)
+            .filter(
+                Usuario.activo == True,
+                Usuario.pin.isnot(None),
+                Usuario.rol.in_(["operador", "jefe_produccion", "administrador", "superadmin"])
+            )
+            .all()
+        )
+
+        return [
+            {
+                "id": str(u.id),
+                "nombre": u.nombre_completo,
+                "rol": u.rol,
+            }
+            for u in usuarios
+        ]
 
     # ==================== ETAPAS ====================
 
@@ -184,6 +250,51 @@ class ProduccionService:
         self.db.refresh(maquina)
 
         return maquina
+
+    def is_maquina_disponible(self, maquina_id: UUID) -> bool:
+        """Verifica si una máquina está disponible para asignación."""
+        maquina = self.get_maquina(maquina_id)
+        if not maquina:
+            return False
+        return maquina.estado == "disponible" and maquina.activo
+
+    def get_maquinas_disponibles(self, tipo: Optional[str] = None) -> List[Maquina]:
+        """Obtiene máquinas disponibles para asignar."""
+        query = self.db.query(Maquina).filter(
+            Maquina.activo == True,
+            Maquina.estado == "disponible",
+        )
+
+        if tipo:
+            query = query.filter(Maquina.tipo == tipo)
+
+        return query.order_by(Maquina.codigo).all()
+
+    def get_lote_usando_maquina(self, maquina_id: UUID) -> Optional[dict]:
+        """Obtiene el lote que está usando una máquina."""
+        lote_etapa = (
+            self.db.query(LoteEtapa)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+            .filter(
+                LoteEtapa.maquina_id == maquina_id,
+                LoteEtapa.estado == "en_proceso",
+            )
+            .first()
+        )
+
+        if not lote_etapa:
+            return None
+
+        lote = self.get_lote(lote_etapa.lote_id)
+        if not lote:
+            return None
+
+        return {
+            "lote_id": str(lote.id),
+            "lote_numero": lote.numero,
+            "etapa_id": str(lote_etapa.etapa_id),
+            "fecha_inicio": lote_etapa.fecha_inicio.isoformat() if lote_etapa.fecha_inicio else None,
+        }
 
     # ==================== LOTES ====================
 
@@ -405,6 +516,16 @@ class ProduccionService:
 
         if not lote_etapa:
             return None
+
+        # Verificar si la máquina está disponible
+        if data.maquina_id:
+            if not self.is_maquina_disponible(data.maquina_id):
+                lote_en_uso = self.get_lote_usando_maquina(data.maquina_id)
+                if lote_en_uso:
+                    raise ValueError(
+                        f"La máquina está siendo usada por el lote {lote_en_uso['lote_numero']}"
+                    )
+                raise ValueError("La máquina no está disponible")
 
         lote_etapa.estado = "en_proceso"
         lote_etapa.fecha_inicio = datetime.utcnow()
@@ -655,6 +776,7 @@ class ProduccionService:
                 etapa_nombre=etapa.nombre,
                 etapa_color=etapa.color,
                 orden=etapa.orden,
+                tiempo_estimado_minutos=etapa.tiempo_estimado_minutos,
                 lotes=kanban_lotes,
             ))
 

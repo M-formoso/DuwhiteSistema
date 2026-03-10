@@ -10,6 +10,7 @@ export interface Usuario {
   nombre: string;
   apellido: string;
   telefono?: string;
+  pin?: string;
   rol: string;
   avatar?: string;
   activo: boolean;
@@ -31,6 +32,7 @@ export interface UsuarioCreate {
   nombre: string;
   apellido: string;
   telefono?: string;
+  pin?: string;
   rol: string;
   cliente_id?: string;
   permisos_modulos?: Record<string, boolean>;
@@ -50,6 +52,7 @@ export interface UsuarioUpdate {
   nombre?: string;
   apellido?: string;
   telefono?: string;
+  pin?: string | null;
   rol?: string;
   cliente_id?: string;
   permisos_modulos?: Record<string, boolean>;
