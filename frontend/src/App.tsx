@@ -27,7 +27,7 @@ import ProveedorDetail from '@/pages/proveedores/ProveedorDetail';
 import ProductosProveedorPage from '@/pages/proveedores/ProductosProveedorPage';
 
 // Producción
-import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage } from '@/pages/produccion';
+import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage, PanelOperariosPage } from '@/pages/produccion';
 
 // Clientes
 import { ClientesListPage, ClienteFormPage, ClienteDetailPage } from '@/pages/clientes';
@@ -131,6 +131,7 @@ function App() {
 
         {/* Producción */}
         <Route path="/produccion" element={<KanbanBoardPage />} />
+        <Route path="/produccion/panel" element={<PanelOperariosPage />} />
         <Route path="/produccion/lotes" element={<LotesListPage />} />
         <Route path="/produccion/lotes/nuevo" element={<LoteFormPage />} />
         <Route path="/produccion/lotes/:id" element={<LoteDetailPage />} />

@@ -300,6 +300,10 @@ export default function KanbanBoardPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => navigate('/produccion/panel')} className="bg-green-600 hover:bg-green-700">
+            <Play className="h-4 w-4 mr-2" />
+            Panel Operarios
+          </Button>
           <Button variant="outline" onClick={() => navigate('/produccion/maquinas')}>
             <Settings2 className="h-4 w-4 mr-2" />
             Máquinas
