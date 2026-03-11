@@ -327,12 +327,12 @@ export default function MaquinasPage() {
         <CardContent className="pt-6">
           <div className="flex gap-4">
             <div className="w-48">
-              <Select value={filterTipo} onValueChange={setFilterTipo}>
+              <Select value={filterTipo || 'all'} onValueChange={(v) => setFilterTipo(v === 'all' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos los tipos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los tipos</SelectItem>
+                  <SelectItem value="all">Todos los tipos</SelectItem>
                   {TIPOS_MAQUINA.map((tipo) => (
                     <SelectItem key={tipo.value} value={tipo.value}>
                       {tipo.label}
@@ -342,12 +342,12 @@ export default function MaquinasPage() {
               </Select>
             </div>
             <div className="w-48">
-              <Select value={filterEstado} onValueChange={setFilterEstado}>
+              <Select value={filterEstado || 'all'} onValueChange={(v) => setFilterEstado(v === 'all' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los estados</SelectItem>
+                  <SelectItem value="all">Todos los estados</SelectItem>
                   {ESTADOS_MAQUINA.map((estado) => (
                     <SelectItem key={estado.value} value={estado.value}>
                       {estado.label}
