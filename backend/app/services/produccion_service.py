@@ -746,7 +746,7 @@ class ProduccionService:
 
             kanban_lotes = []
             for lote in lotes_en_etapa:
-                # Calcular tiempo en etapa
+                # Calcular tiempo en etapa y si está en proceso
                 lote_etapa = (
                     self.db.query(LoteEtapa)
                     .filter(
@@ -757,9 +757,12 @@ class ProduccionService:
                 )
 
                 tiempo_en_etapa = 0
+                etapa_en_proceso = False
                 if lote_etapa and lote_etapa.fecha_inicio:
                     delta = datetime.utcnow() - lote_etapa.fecha_inicio
                     tiempo_en_etapa = int(delta.total_seconds() / 60)
+                    # Está en proceso si tiene fecha_inicio pero no fecha_fin
+                    etapa_en_proceso = lote_etapa.fecha_fin is None
 
                 kanban_lotes.append(KanbanLote(
                     id=lote.id,
@@ -772,6 +775,7 @@ class ProduccionService:
                     fecha_compromiso=lote.fecha_compromiso,
                     esta_atrasado=lote.esta_atrasado,
                     tiempo_en_etapa_minutos=tiempo_en_etapa,
+                    etapa_en_proceso=etapa_en_proceso,
                 ))
 
                 total_lotes += 1

@@ -231,7 +231,7 @@ function EtapaColumna({
   columna: KanbanColumna;
   onIniciar: (lote: KanbanLote, columna: KanbanColumna) => void;
   onFinalizar: (lote: KanbanLote, columna: KanbanColumna) => void;
-  getLoteEnProceso: (loteId: string) => boolean;
+  getLoteEnProceso: (lote: KanbanLote) => boolean;
 }) {
   const lotesAtrasados = columna.lotes.filter((l) => l.esta_atrasado).length;
   const lotesUrgentes = columna.lotes.filter((l) => l.prioridad === 'urgente').length;
@@ -294,7 +294,7 @@ function EtapaColumna({
               columna={columna}
               onIniciar={() => onIniciar(lote, columna)}
               onFinalizar={() => onFinalizar(lote, columna)}
-              enProceso={getLoteEnProceso(lote.id)}
+              enProceso={getLoteEnProceso(lote)}
             />
           ))
         )}
@@ -525,22 +525,19 @@ export default function PanelOperariosPage() {
     columna?: KanbanColumna;
   }>({ open: false, accion: 'iniciar' });
 
-  // Track de lotes en proceso (por sesión)
-  const [lotesEnProceso, setLotesEnProceso] = useState<Set<string>>(new Set());
-
-  // Cargar Kanban
+  // Cargar Kanban - refetch cada 10 segundos para mantener sincronizado
   const { data: kanban, isLoading, refetch } = useQuery({
     queryKey: ['kanban'],
     queryFn: () => produccionService.getKanbanBoard(),
-    refetchInterval: 15000, // Refrescar cada 15 segundos
+    refetchInterval: 10000,
   });
 
   // Mutations
   const iniciarMutation = useMutation({
     mutationFn: ({ loteId, etapaId, operarioId }: { loteId: string; etapaId: string; operarioId: string }) =>
       produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId }),
-    onSuccess: (_, variables) => {
-      setLotesEnProceso((prev) => new Set(prev).add(variables.loteId));
+    onSuccess: () => {
+      // Invalidar inmediatamente y refetch para actualizar UI
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       toast({ title: 'Etapa iniciada correctamente' });
     },
@@ -552,12 +549,8 @@ export default function PanelOperariosPage() {
   const finalizarMutation = useMutation({
     mutationFn: ({ loteId, etapaId }: { loteId: string; etapaId: string }) =>
       produccionService.finalizarEtapa(loteId, etapaId, {}),
-    onSuccess: (_, variables) => {
-      setLotesEnProceso((prev) => {
-        const next = new Set(prev);
-        next.delete(variables.loteId);
-        return next;
-      });
+    onSuccess: () => {
+      // Invalidar inmediatamente y refetch para actualizar UI
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       toast({ title: 'Etapa finalizada correctamente' });
     },
@@ -597,8 +590,9 @@ export default function PanelOperariosPage() {
     setPinModal({ open: false, accion: 'iniciar' });
   };
 
-  const getLoteEnProceso = (loteId: string) => {
-    return lotesEnProceso.has(loteId);
+  // Usar el campo del backend para determinar si está en proceso
+  const getLoteEnProceso = (lote: KanbanLote) => {
+    return lote.etapa_en_proceso;
   };
 
   // Toggle fullscreen
@@ -612,11 +606,12 @@ export default function PanelOperariosPage() {
     }
   };
 
-  // Resumen stats
+  // Resumen stats - calculado desde los datos del backend
   const stats = kanban ? {
     total: kanban.total_lotes,
     atrasados: kanban.lotes_atrasados,
-    enProceso: lotesEnProceso.size,
+    enProceso: kanban.columnas.reduce((acc, col) =>
+      acc + col.lotes.filter((l) => l.etapa_en_proceso).length, 0),
     urgentes: kanban.columnas.reduce((acc, col) =>
       acc + col.lotes.filter((l) => l.prioridad === 'urgente').length, 0),
   } : { total: 0, atrasados: 0, enProceso: 0, urgentes: 0 };

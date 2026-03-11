@@ -201,6 +201,7 @@ class KanbanLote(BaseModel):
     fecha_compromiso: Optional[datetime] = None
     esta_atrasado: bool = False
     tiempo_en_etapa_minutos: int = 0
+    etapa_en_proceso: bool = False  # True si la etapa actual tiene fecha_inicio pero no fecha_fin
 
     class Config:
         from_attributes = True

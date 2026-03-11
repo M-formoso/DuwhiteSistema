@@ -174,6 +174,7 @@ export interface KanbanLote {
   fecha_compromiso: string | null;
   esta_atrasado: boolean;
   tiempo_en_etapa_minutos: number;
+  etapa_en_proceso: boolean; // True si la etapa actual está en proceso (tiene fecha_inicio pero no fecha_fin)
 }
 
 export interface KanbanColumna {

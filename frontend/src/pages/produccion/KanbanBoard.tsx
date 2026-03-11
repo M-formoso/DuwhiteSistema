@@ -183,11 +183,11 @@ export default function KanbanBoardPage() {
     etapaNombre?: string;
   } | null>(null);
 
-  // Cargar tablero Kanban
+  // Cargar tablero Kanban - refetch cada 10 segundos para mantener actualizado
   const { data: kanban, isLoading, refetch } = useQuery({
     queryKey: ['kanban'],
     queryFn: () => produccionService.getKanbanBoard(),
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   // Iniciar etapa
@@ -277,11 +277,9 @@ export default function KanbanBoardPage() {
     setPendingAction(null);
   };
 
-  // Determinar si un lote está en proceso en su etapa actual
+  // Determinar si un lote está en proceso en su etapa actual (desde el backend)
   const isLoteEnProceso = (lote: KanbanLote): boolean => {
-    // Por ahora asumimos que si tiene tiempo en etapa > 0, está en proceso
-    // Esto se puede mejorar con un campo adicional en el backend
-    return lote.tiempo_en_etapa_minutos > 0;
+    return lote.etapa_en_proceso;
   };
 
   return (
