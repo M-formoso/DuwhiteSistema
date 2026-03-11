@@ -8,7 +8,7 @@ from typing import Optional, List, Tuple
 from uuid import UUID
 
 from sqlalchemy import select, func, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models.empleado import (
     Empleado, Asistencia, JornadaLaboral, MovimientoNomina, Liquidacion,
@@ -25,14 +25,14 @@ from app.schemas.empleado import (
 class EmpleadoService:
     """Servicio para gestión de empleados"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: Session):
         self.db = db
 
     # ==================== EMPLEADOS ====================
 
-    async def _generate_codigo(self) -> str:
+    def _generate_codigo(self) -> str:
         """Genera código único para empleado"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(func.max(Empleado.codigo))
             .where(Empleado.codigo.like("EMP-%"))
         )
@@ -46,11 +46,11 @@ class EmpleadoService:
                 pass
 
         # Contar empleados para generar código
-        count_result = await self.db.execute(select(func.count(Empleado.id)))
+        count_result = self.db.execute(select(func.count(Empleado.id)))
         count = count_result.scalar() or 0
         return f"EMP-{str(count + 1).zfill(4)}"
 
-    async def get_empleados(
+    def get_empleados(
         self,
         skip: int = 0,
         limit: int = 50,
@@ -86,35 +86,35 @@ class EmpleadoService:
 
         # Contar total
         count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
+        total_result = self.db.execute(count_query)
         total = total_result.scalar() or 0
 
         # Aplicar paginación
         query = query.order_by(Empleado.apellido, Empleado.nombre)
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         empleados = result.scalars().all()
 
         return list(empleados), total
 
-    async def get_empleado(self, empleado_id: UUID) -> Optional[Empleado]:
+    def get_empleado(self, empleado_id: UUID) -> Optional[Empleado]:
         """Obtiene empleado por ID"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Empleado).where(Empleado.id == empleado_id)
         )
         return result.scalar_one_or_none()
 
-    async def get_empleado_by_dni(self, dni: str) -> Optional[Empleado]:
+    def get_empleado_by_dni(self, dni: str) -> Optional[Empleado]:
         """Obtiene empleado por DNI"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Empleado).where(Empleado.dni == dni)
         )
         return result.scalar_one_or_none()
 
-    async def create_empleado(self, data: EmpleadoCreate) -> Empleado:
+    def create_empleado(self, data: EmpleadoCreate) -> Empleado:
         """Crea nuevo empleado"""
-        codigo = data.codigo or await self._generate_codigo()
+        codigo = data.codigo or self._generate_codigo()
 
         empleado = Empleado(
             codigo=codigo,
@@ -158,13 +158,13 @@ class EmpleadoService:
         )
 
         self.db.add(empleado)
-        await self.db.commit()
-        await self.db.refresh(empleado)
+        self.db.commit()
+        self.db.refresh(empleado)
         return empleado
 
-    async def update_empleado(self, empleado_id: UUID, data: EmpleadoUpdate) -> Optional[Empleado]:
+    def update_empleado(self, empleado_id: UUID, data: EmpleadoUpdate) -> Optional[Empleado]:
         """Actualiza empleado"""
-        empleado = await self.get_empleado(empleado_id)
+        empleado = self.get_empleado(empleado_id)
         if not empleado:
             return None
 
@@ -172,13 +172,13 @@ class EmpleadoService:
         for field, value in update_data.items():
             setattr(empleado, field, value)
 
-        await self.db.commit()
-        await self.db.refresh(empleado)
+        self.db.commit()
+        self.db.refresh(empleado)
         return empleado
 
-    async def delete_empleado(self, empleado_id: UUID) -> bool:
+    def delete_empleado(self, empleado_id: UUID) -> bool:
         """Elimina empleado (soft delete)"""
-        empleado = await self.get_empleado(empleado_id)
+        empleado = self.get_empleado(empleado_id)
         if not empleado:
             return False
 
@@ -186,12 +186,12 @@ class EmpleadoService:
         empleado.estado = EstadoEmpleado.DESVINCULADO.value
         empleado.fecha_egreso = date.today()
 
-        await self.db.commit()
+        self.db.commit()
         return True
 
     # ==================== ASISTENCIA ====================
 
-    async def registrar_asistencia(
+    def registrar_asistencia(
         self,
         data: AsistenciaCreate,
         registrado_por_id: UUID,
@@ -213,15 +213,15 @@ class EmpleadoService:
         )
 
         self.db.add(asistencia)
-        await self.db.commit()
-        await self.db.refresh(asistencia)
+        self.db.commit()
+        self.db.refresh(asistencia)
 
         # Actualizar jornada laboral si corresponde
-        await self._actualizar_jornada(data.empleado_id, asistencia.fecha)
+        self._actualizar_jornada(data.empleado_id, asistencia.fecha)
 
         return asistencia
 
-    async def get_asistencias(
+    def get_asistencias(
         self,
         empleado_id: Optional[UUID] = None,
         fecha_desde: Optional[date] = None,
@@ -243,22 +243,22 @@ class EmpleadoService:
 
         # Contar
         count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
+        total_result = self.db.execute(count_query)
         total = total_result.scalar() or 0
 
         # Paginar
         query = query.order_by(Asistencia.fecha.desc(), Asistencia.hora.desc())
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         asistencias = result.scalars().all()
 
         return list(asistencias), total
 
-    async def _actualizar_jornada(self, empleado_id: UUID, fecha: date):
+    def _actualizar_jornada(self, empleado_id: UUID, fecha: date):
         """Actualiza o crea jornada laboral basada en asistencias"""
         # Obtener todas las asistencias del día
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Asistencia)
             .where(and_(
                 Asistencia.empleado_id == empleado_id,
@@ -273,7 +273,7 @@ class EmpleadoService:
             return
 
         # Buscar o crear jornada
-        jornada_result = await self.db.execute(
+        jornada_result = self.db.execute(
             select(JornadaLaboral)
             .where(and_(
                 JornadaLaboral.empleado_id == empleado_id,
@@ -313,6 +313,9 @@ class EmpleadoService:
         jornada.hora_salida = hora_salida
         jornada.minutos_break = minutos_break
 
+        # Obtener empleado para jornada configurada
+        empleado = self.get_empleado(empleado_id)
+
         # Calcular horas trabajadas
         if hora_entrada and hora_salida:
             entrada_dt = datetime.combine(fecha, hora_entrada)
@@ -329,16 +332,15 @@ class EmpleadoService:
                 jornada.horas_extra = Decimal("0")
 
         # Verificar tardanza
-        empleado = await self.get_empleado(empleado_id)
         if empleado and empleado.horario_entrada and hora_entrada:
             if hora_entrada > empleado.horario_entrada:
                 jornada.llegada_tarde = True
 
-        await self.db.commit()
+        self.db.commit()
 
     # ==================== JORNADAS ====================
 
-    async def get_jornadas(
+    def get_jornadas(
         self,
         empleado_id: Optional[UUID] = None,
         fecha_desde: Optional[date] = None,
@@ -360,25 +362,25 @@ class EmpleadoService:
 
         # Contar
         count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
+        total_result = self.db.execute(count_query)
         total = total_result.scalar() or 0
 
         # Paginar
         query = query.order_by(JornadaLaboral.fecha.desc())
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         jornadas = result.scalars().all()
 
         return list(jornadas), total
 
-    async def justificar_jornada(
+    def justificar_jornada(
         self,
         jornada_id: UUID,
         data: JornadaJustificacion
     ) -> Optional[JornadaLaboral]:
         """Justifica ausencia o tardanza"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(JornadaLaboral).where(JornadaLaboral.id == jornada_id)
         )
         jornada = result.scalar_one_or_none()
@@ -389,13 +391,13 @@ class EmpleadoService:
         jornada.justificado = data.justificado
         jornada.motivo_justificacion = data.motivo_justificacion
 
-        await self.db.commit()
-        await self.db.refresh(jornada)
+        self.db.commit()
+        self.db.refresh(jornada)
         return jornada
 
     # ==================== MOVIMIENTOS NOMINA ====================
 
-    async def create_movimiento_nomina(
+    def create_movimiento_nomina(
         self,
         data: MovimientoNominaCreate,
         registrado_por_id: UUID
@@ -403,12 +405,12 @@ class EmpleadoService:
         """Crea movimiento de nómina"""
         # Si es adelanto, validar que no supere el máximo permitido
         if data.tipo == TipoMovimientoNomina.ADELANTO.value:
-            empleado = await self.get_empleado(data.empleado_id)
+            empleado = self.get_empleado(data.empleado_id)
             if not empleado:
                 raise ValueError("Empleado no encontrado")
 
             # Calcular adelantos ya registrados en el período
-            adelantos_existentes = await self.db.execute(
+            adelantos_existentes = self.db.execute(
                 select(func.sum(MovimientoNomina.monto))
                 .where(and_(
                     MovimientoNomina.empleado_id == data.empleado_id,
@@ -447,11 +449,11 @@ class EmpleadoService:
         )
 
         self.db.add(movimiento)
-        await self.db.commit()
-        await self.db.refresh(movimiento)
+        self.db.commit()
+        self.db.refresh(movimiento)
         return movimiento
 
-    async def get_movimientos_nomina(
+    def get_movimientos_nomina(
         self,
         empleado_id: Optional[UUID] = None,
         periodo_mes: Optional[int] = None,
@@ -481,25 +483,25 @@ class EmpleadoService:
 
         # Contar
         count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
+        total_result = self.db.execute(count_query)
         total = total_result.scalar() or 0
 
         # Paginar
         query = query.order_by(MovimientoNomina.created_at.desc())
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         movimientos = result.scalars().all()
 
         return list(movimientos), total
 
-    async def pagar_movimiento(
+    def pagar_movimiento(
         self,
         movimiento_id: UUID,
         data: PagarMovimientoRequest
     ) -> Optional[MovimientoNomina]:
         """Marca movimiento como pagado"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(MovimientoNomina).where(MovimientoNomina.id == movimiento_id)
         )
         movimiento = result.scalar_one_or_none()
@@ -512,33 +514,33 @@ class EmpleadoService:
         movimiento.medio_pago = data.medio_pago
         movimiento.comprobante = data.comprobante
 
-        await self.db.commit()
-        await self.db.refresh(movimiento)
+        self.db.commit()
+        self.db.refresh(movimiento)
         return movimiento
 
     # ==================== LIQUIDACIONES ====================
 
-    async def _get_next_numero_liquidacion(self) -> int:
+    def _get_next_numero_liquidacion(self) -> int:
         """Obtiene siguiente número de liquidación"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(func.max(Liquidacion.numero))
         )
         last_num = result.scalar()
         return (last_num or 0) + 1
 
-    async def create_liquidacion(
+    def create_liquidacion(
         self,
         data: LiquidacionCreate,
         generada_por_id: UUID
     ) -> Liquidacion:
         """Genera liquidación de sueldo"""
         # Obtener empleado
-        empleado = await self.get_empleado(data.empleado_id)
+        empleado = self.get_empleado(data.empleado_id)
         if not empleado:
             raise ValueError("Empleado no encontrado")
 
         # Calcular horas extra del período
-        jornadas_result = await self.db.execute(
+        jornadas_result = self.db.execute(
             select(JornadaLaboral)
             .where(and_(
                 JornadaLaboral.empleado_id == data.empleado_id,
@@ -556,7 +558,7 @@ class EmpleadoService:
         monto_horas_extra = horas_extra_total * valor_hora_extra
 
         # Calcular adelantos del período
-        adelantos_result = await self.db.execute(
+        adelantos_result = self.db.execute(
             select(func.sum(MovimientoNomina.monto))
             .where(and_(
                 MovimientoNomina.empleado_id == data.empleado_id,
@@ -596,7 +598,7 @@ class EmpleadoService:
 
         neto = total_haberes - total_deducciones
 
-        numero = await self._get_next_numero_liquidacion()
+        numero = self._get_next_numero_liquidacion()
 
         liquidacion = Liquidacion(
             numero=numero,
@@ -621,11 +623,11 @@ class EmpleadoService:
         )
 
         self.db.add(liquidacion)
-        await self.db.commit()
-        await self.db.refresh(liquidacion)
+        self.db.commit()
+        self.db.refresh(liquidacion)
         return liquidacion
 
-    async def get_liquidaciones(
+    def get_liquidaciones(
         self,
         empleado_id: Optional[UUID] = None,
         periodo_mes: Optional[int] = None,
@@ -651,25 +653,25 @@ class EmpleadoService:
 
         # Contar
         count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
+        total_result = self.db.execute(count_query)
         total = total_result.scalar() or 0
 
         # Paginar
         query = query.order_by(Liquidacion.numero.desc())
         query = query.offset(skip).limit(limit)
 
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         liquidaciones = result.scalars().all()
 
         return list(liquidaciones), total
 
-    async def pagar_liquidacion(
+    def pagar_liquidacion(
         self,
         liquidacion_id: UUID,
         fecha_pago: date
     ) -> Optional[Liquidacion]:
         """Marca liquidación como pagada"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Liquidacion).where(Liquidacion.id == liquidacion_id)
         )
         liquidacion = result.scalar_one_or_none()
@@ -680,15 +682,15 @@ class EmpleadoService:
         liquidacion.pagada = True
         liquidacion.fecha_pago = fecha_pago
 
-        await self.db.commit()
-        await self.db.refresh(liquidacion)
+        self.db.commit()
+        self.db.refresh(liquidacion)
         return liquidacion
 
     # ==================== DEPARTAMENTOS ====================
 
-    async def get_departamentos(self) -> List[str]:
+    def get_departamentos(self) -> List[str]:
         """Lista departamentos únicos"""
-        result = await self.db.execute(
+        result = self.db.execute(
             select(Empleado.departamento)
             .where(and_(
                 Empleado.activo == True,

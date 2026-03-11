@@ -7,7 +7,7 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
@@ -27,7 +27,7 @@ router = APIRouter()
 # ==================== EMPLEADOS ====================
 
 @router.get("", response_model=PaginatedResponse[EmpleadoList])
-async def list_empleados(
+def list_empleados(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     tipo: Optional[str] = None,
@@ -35,12 +35,12 @@ async def list_empleados(
     departamento: Optional[str] = None,
     search: Optional[str] = None,
     solo_activos: bool = True,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista empleados con filtros"""
     service = EmpleadoService(db)
-    empleados, total = await service.get_empleados(
+    empleados, total = service.get_empleados(
         skip=skip,
         limit=limit,
         tipo=tipo,
@@ -62,7 +62,9 @@ async def list_empleados(
             departamento=e.departamento,
             fecha_ingreso=e.fecha_ingreso,
             telefono=e.telefono,
-            email=e.email
+            email=e.email,
+            tipo_contratacion=e.tipo_contratacion,
+            salario_base=e.salario_base
         )
         for e in empleados
     ]
@@ -76,33 +78,33 @@ async def list_empleados(
 
 
 @router.get("/departamentos", response_model=List[str])
-async def list_departamentos(
-    db: AsyncSession = Depends(get_db),
+def list_departamentos(
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista departamentos únicos"""
     service = EmpleadoService(db)
-    return await service.get_departamentos()
+    return service.get_departamentos()
 
 
 @router.post("", response_model=EmpleadoResponse, status_code=status.HTTP_201_CREATED)
-async def create_empleado(
+def create_empleado(
     data: EmpleadoCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea nuevo empleado"""
     service = EmpleadoService(db)
 
     # Verificar DNI único
-    existing = await service.get_empleado_by_dni(data.dni)
+    existing = service.get_empleado_by_dni(data.dni)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ya existe un empleado con ese DNI"
         )
 
-    empleado = await service.create_empleado(data)
+    empleado = service.create_empleado(data)
     return EmpleadoResponse(
         **empleado.__dict__,
         nombre_completo=empleado.nombre_completo
@@ -110,14 +112,14 @@ async def create_empleado(
 
 
 @router.get("/{empleado_id}", response_model=EmpleadoResponse)
-async def get_empleado(
+def get_empleado(
     empleado_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene empleado por ID"""
     service = EmpleadoService(db)
-    empleado = await service.get_empleado(empleado_id)
+    empleado = service.get_empleado(empleado_id)
 
     if not empleado:
         raise HTTPException(
@@ -132,15 +134,15 @@ async def get_empleado(
 
 
 @router.put("/{empleado_id}", response_model=EmpleadoResponse)
-async def update_empleado(
+def update_empleado(
     empleado_id: UUID,
     data: EmpleadoUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualiza empleado"""
     service = EmpleadoService(db)
-    empleado = await service.update_empleado(empleado_id, data)
+    empleado = service.update_empleado(empleado_id, data)
 
     if not empleado:
         raise HTTPException(
@@ -155,14 +157,14 @@ async def update_empleado(
 
 
 @router.delete("/{empleado_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_empleado(
+def delete_empleado(
     empleado_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Elimina empleado (soft delete)"""
     service = EmpleadoService(db)
-    success = await service.delete_empleado(empleado_id)
+    success = service.delete_empleado(empleado_id)
 
     if not success:
         raise HTTPException(
@@ -174,24 +176,24 @@ async def delete_empleado(
 # ==================== ASISTENCIA ====================
 
 @router.post("/asistencia", response_model=AsistenciaResponse, status_code=status.HTTP_201_CREATED)
-async def registrar_asistencia(
+def registrar_asistencia(
     data: AsistenciaCreate,
     es_manual: bool = False,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Registra asistencia de empleado"""
     service = EmpleadoService(db)
 
     # Verificar que el empleado existe
-    empleado = await service.get_empleado(data.empleado_id)
+    empleado = service.get_empleado(data.empleado_id)
     if not empleado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Empleado no encontrado"
         )
 
-    asistencia = await service.registrar_asistencia(
+    asistencia = service.registrar_asistencia(
         data=data,
         registrado_por_id=current_user.id,
         es_manual=es_manual
@@ -201,18 +203,18 @@ async def registrar_asistencia(
 
 
 @router.get("/asistencia/listado", response_model=PaginatedResponse[AsistenciaResponse])
-async def list_asistencias(
+def list_asistencias(
     empleado_id: Optional[UUID] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista registros de asistencia"""
     service = EmpleadoService(db)
-    asistencias, total = await service.get_asistencias(
+    asistencias, total = service.get_asistencias(
         empleado_id=empleado_id,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
@@ -233,18 +235,18 @@ async def list_asistencias(
 # ==================== JORNADAS ====================
 
 @router.get("/jornadas", response_model=PaginatedResponse[JornadaLaboralResponse])
-async def list_jornadas(
+def list_jornadas(
     empleado_id: Optional[UUID] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista jornadas laborales"""
     service = EmpleadoService(db)
-    jornadas, total = await service.get_jornadas(
+    jornadas, total = service.get_jornadas(
         empleado_id=empleado_id,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
@@ -263,15 +265,15 @@ async def list_jornadas(
 
 
 @router.post("/jornadas/{jornada_id}/justificar", response_model=JornadaLaboralResponse)
-async def justificar_jornada(
+def justificar_jornada(
     jornada_id: UUID,
     data: JornadaJustificacion,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Justifica ausencia o tardanza"""
     service = EmpleadoService(db)
-    jornada = await service.justificar_jornada(jornada_id, data)
+    jornada = service.justificar_jornada(jornada_id, data)
 
     if not jornada:
         raise HTTPException(
@@ -285,26 +287,32 @@ async def justificar_jornada(
 # ==================== MOVIMIENTOS NOMINA ====================
 
 @router.post("/nomina/movimientos", response_model=MovimientoNominaResponse, status_code=status.HTTP_201_CREATED)
-async def create_movimiento_nomina(
+def create_movimiento_nomina(
     data: MovimientoNominaCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea movimiento de nómina (bono, adelanto, descuento, etc.)"""
     service = EmpleadoService(db)
 
     # Verificar que el empleado existe
-    empleado = await service.get_empleado(data.empleado_id)
+    empleado = service.get_empleado(data.empleado_id)
     if not empleado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Empleado no encontrado"
         )
 
-    movimiento = await service.create_movimiento_nomina(
-        data=data,
-        registrado_por_id=current_user.id
-    )
+    try:
+        movimiento = service.create_movimiento_nomina(
+            data=data,
+            registrado_por_id=current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
     return MovimientoNominaResponse(
         **movimiento.__dict__,
@@ -313,7 +321,7 @@ async def create_movimiento_nomina(
 
 
 @router.get("/nomina/movimientos", response_model=PaginatedResponse[MovimientoNominaResponse])
-async def list_movimientos_nomina(
+def list_movimientos_nomina(
     empleado_id: Optional[UUID] = None,
     periodo_mes: Optional[int] = Query(None, ge=1, le=12),
     periodo_anio: Optional[int] = Query(None, ge=2020),
@@ -321,12 +329,12 @@ async def list_movimientos_nomina(
     pagado: Optional[bool] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista movimientos de nómina"""
     service = EmpleadoService(db)
-    movimientos, total = await service.get_movimientos_nomina(
+    movimientos, total = service.get_movimientos_nomina(
         empleado_id=empleado_id,
         periodo_mes=periodo_mes,
         periodo_anio=periodo_anio,
@@ -347,15 +355,15 @@ async def list_movimientos_nomina(
 
 
 @router.post("/nomina/movimientos/{movimiento_id}/pagar", response_model=MovimientoNominaResponse)
-async def pagar_movimiento_nomina(
+def pagar_movimiento_nomina(
     movimiento_id: UUID,
     data: PagarMovimientoRequest,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Marca movimiento de nómina como pagado"""
     service = EmpleadoService(db)
-    movimiento = await service.pagar_movimiento(movimiento_id, data)
+    movimiento = service.pagar_movimiento(movimiento_id, data)
 
     if not movimiento:
         raise HTTPException(
@@ -369,16 +377,16 @@ async def pagar_movimiento_nomina(
 # ==================== LIQUIDACIONES ====================
 
 @router.post("/liquidaciones", response_model=LiquidacionResponse, status_code=status.HTTP_201_CREATED)
-async def create_liquidacion(
+def create_liquidacion(
     data: LiquidacionCreate,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Genera liquidación de sueldo"""
     service = EmpleadoService(db)
 
     try:
-        liquidacion = await service.create_liquidacion(
+        liquidacion = service.create_liquidacion(
             data=data,
             generada_por_id=current_user.id
         )
@@ -389,7 +397,7 @@ async def create_liquidacion(
         )
 
     # Obtener nombre del empleado
-    empleado = await service.get_empleado(liquidacion.empleado_id)
+    empleado = service.get_empleado(liquidacion.empleado_id)
 
     return LiquidacionResponse(
         **liquidacion.__dict__,
@@ -398,19 +406,19 @@ async def create_liquidacion(
 
 
 @router.get("/liquidaciones", response_model=PaginatedResponse[LiquidacionResponse])
-async def list_liquidaciones(
+def list_liquidaciones(
     empleado_id: Optional[UUID] = None,
     periodo_mes: Optional[int] = Query(None, ge=1, le=12),
     periodo_anio: Optional[int] = Query(None, ge=2020),
     pagada: Optional[bool] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista liquidaciones"""
     service = EmpleadoService(db)
-    liquidaciones, total = await service.get_liquidaciones(
+    liquidaciones, total = service.get_liquidaciones(
         empleado_id=empleado_id,
         periodo_mes=periodo_mes,
         periodo_anio=periodo_anio,
@@ -430,15 +438,15 @@ async def list_liquidaciones(
 
 
 @router.post("/liquidaciones/{liquidacion_id}/pagar", response_model=LiquidacionResponse)
-async def pagar_liquidacion(
+def pagar_liquidacion(
     liquidacion_id: UUID,
     fecha_pago: date,
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Marca liquidación como pagada"""
     service = EmpleadoService(db)
-    liquidacion = await service.pagar_liquidacion(liquidacion_id, fecha_pago)
+    liquidacion = service.pagar_liquidacion(liquidacion_id, fecha_pago)
 
     if not liquidacion:
         raise HTTPException(
@@ -452,7 +460,7 @@ async def pagar_liquidacion(
 # ==================== TIPOS Y CONSTANTES ====================
 
 @router.get("/tipos", response_model=dict)
-async def get_tipos_empleado(
+def get_tipos_empleado(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtiene tipos y estados de empleados"""
@@ -469,6 +477,11 @@ async def get_tipos_empleado(
             {"value": "temporal", "label": "Temporal"},
             {"value": "medio_tiempo", "label": "Medio Tiempo"},
             {"value": "por_hora", "label": "Por Hora"},
+        ],
+        "tipos_contratacion": [
+            {"value": "blanco", "label": "En Blanco"},
+            {"value": "negro", "label": "Sin Registrar"},
+            {"value": "monotributo", "label": "Monotributo"},
         ],
         "estados_empleado": [
             {"value": "activo", "label": "Activo"},
