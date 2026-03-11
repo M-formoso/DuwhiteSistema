@@ -68,6 +68,7 @@ export async function getEtapasLista(): Promise<{
   nombre: string;
   color: string;
   orden: number;
+  tiempo_estimado_minutos?: number;
 }[]> {
   const response = await api.get('/produccion/etapas/lista');
   return response.data;

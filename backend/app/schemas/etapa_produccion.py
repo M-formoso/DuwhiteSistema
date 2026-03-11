@@ -66,6 +66,7 @@ class EtapaProduccionList(BaseModel):
     nombre: str
     color: str
     orden: int
+    tiempo_estimado_minutos: Optional[int] = None
 
     class Config:
         from_attributes = True

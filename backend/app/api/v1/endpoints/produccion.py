@@ -151,6 +151,7 @@ def listar_etapas_dropdown(
             nombre=e.nombre,
             color=e.color,
             orden=e.orden,
+            tiempo_estimado_minutos=e.tiempo_estimado_minutos,
         )
         for e in etapas
     ]

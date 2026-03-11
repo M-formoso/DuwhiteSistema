@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal
 from app.models.usuario import Usuario
+from app.models.etapa_produccion import EtapaProduccion
 
 
 def run_migrations():
@@ -211,8 +212,118 @@ async def lifespan(app: FastAPI):
             print("Usuario admin creado: admin@duwhite.com / Admin123!")
         else:
             print("Usuario admin ya existe")
+
+        # Crear etapas de producción por defecto si no existen
+        etapas_count = db.query(EtapaProduccion).count()
+        if etapas_count == 0:
+            etapas_default = [
+                {
+                    "codigo": "REC",
+                    "nombre": "Recepción",
+                    "descripcion": "Ingreso y pesaje de ropa",
+                    "orden": 1,
+                    "color": "#6366F1",
+                    "es_inicial": True,
+                    "es_final": False,
+                    "requiere_peso": True,
+                    "requiere_maquina": False,
+                    "tiempo_estimado_minutos": 15,
+                },
+                {
+                    "codigo": "CLA",
+                    "nombre": "Clasificación",
+                    "descripcion": "Separación por tipo, color y grado de suciedad",
+                    "orden": 2,
+                    "color": "#8B5CF6",
+                    "es_inicial": False,
+                    "es_final": False,
+                    "requiere_peso": False,
+                    "requiere_maquina": False,
+                    "tiempo_estimado_minutos": 20,
+                },
+                {
+                    "codigo": "LAV",
+                    "nombre": "Lavado",
+                    "descripcion": "Proceso de lavado industrial",
+                    "orden": 3,
+                    "color": "#3B82F6",
+                    "es_inicial": False,
+                    "es_final": False,
+                    "requiere_peso": False,
+                    "requiere_maquina": True,
+                    "tiempo_estimado_minutos": 45,
+                },
+                {
+                    "codigo": "SEC",
+                    "nombre": "Secado",
+                    "descripcion": "Secado industrial",
+                    "orden": 4,
+                    "color": "#F59E0B",
+                    "es_inicial": False,
+                    "es_final": False,
+                    "requiere_peso": False,
+                    "requiere_maquina": True,
+                    "tiempo_estimado_minutos": 30,
+                },
+                {
+                    "codigo": "PLA",
+                    "nombre": "Planchado",
+                    "descripcion": "Planchado y doblado",
+                    "orden": 5,
+                    "color": "#EF4444",
+                    "es_inicial": False,
+                    "es_final": False,
+                    "requiere_peso": False,
+                    "requiere_maquina": True,
+                    "tiempo_estimado_minutos": 25,
+                },
+                {
+                    "codigo": "CAL",
+                    "nombre": "Control de Calidad",
+                    "descripcion": "Inspección final de calidad",
+                    "orden": 6,
+                    "color": "#10B981",
+                    "es_inicial": False,
+                    "es_final": False,
+                    "requiere_peso": False,
+                    "requiere_maquina": False,
+                    "tiempo_estimado_minutos": 10,
+                },
+                {
+                    "codigo": "EMP",
+                    "nombre": "Empaque",
+                    "descripcion": "Preparación y empaque para entrega",
+                    "orden": 7,
+                    "color": "#14B8A6",
+                    "es_inicial": False,
+                    "es_final": False,
+                    "requiere_peso": True,
+                    "requiere_maquina": False,
+                    "tiempo_estimado_minutos": 15,
+                },
+                {
+                    "codigo": "ENT",
+                    "nombre": "Listo para Entrega",
+                    "descripcion": "Lote listo para despacho al cliente",
+                    "orden": 8,
+                    "color": "#22C55E",
+                    "es_inicial": False,
+                    "es_final": True,
+                    "requiere_peso": False,
+                    "requiere_maquina": False,
+                    "tiempo_estimado_minutos": 0,
+                },
+            ]
+            for etapa_data in etapas_default:
+                etapa = EtapaProduccion(id=uuid4(), activo=True, **etapa_data)
+                db.add(etapa)
+            db.commit()
+            print(f"Creadas {len(etapas_default)} etapas de producción por defecto")
+        else:
+            print(f"Ya existen {etapas_count} etapas de producción")
+
     except Exception as e:
-        print(f"Error creando admin: {e}")
+        print(f"Error en inicialización: {e}")
         db.rollback()
     finally:
         db.close()
