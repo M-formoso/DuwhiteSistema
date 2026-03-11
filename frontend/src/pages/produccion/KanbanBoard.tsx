@@ -285,9 +285,9 @@ export default function KanbanBoardPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-[calc(100vh-120px)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Producción</h1>
           <p className="text-gray-500">
@@ -324,19 +324,19 @@ export default function KanbanBoardPage() {
 
       {/* Kanban Board */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-96">
+        <div className="flex items-center justify-center flex-1">
           <RefreshCw className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto flex-1 pb-2">
           {kanban?.columnas.map((columna) => (
             <div
               key={columna.etapa_id}
-              className="flex-shrink-0 w-80"
+              className="flex-shrink-0 w-80 flex flex-col"
             >
-              <Card className="h-full">
+              <Card className="flex flex-col h-full">
                 <CardHeader
-                  className="py-3 px-4"
+                  className="py-3 px-4 flex-shrink-0"
                   style={{ borderTopColor: columna.etapa_color, borderTopWidth: '4px' }}
                 >
                   <div className="flex items-center justify-between">
@@ -358,9 +358,9 @@ export default function KanbanBoardPage() {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-2 space-y-2 min-h-[400px] max-h-[600px] overflow-y-auto">
+                <CardContent className="p-2 space-y-2 flex-1 overflow-y-auto">
                   {columna.lotes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
                       <Package className="h-8 w-8 mb-2" />
                       <span className="text-sm">Sin lotes</span>
                     </div>
@@ -384,7 +384,7 @@ export default function KanbanBoardPage() {
       )}
 
       {/* Leyenda */}
-      <Card>
+      <Card className="flex-shrink-0 mt-2">
         <CardContent className="py-3 px-4">
           <div className="flex items-center gap-6 text-sm">
             <span className="font-medium text-gray-700">Prioridad:</span>
