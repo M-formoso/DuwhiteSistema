@@ -9,8 +9,8 @@ import { ArrowLeft, Save, Loader2, User, Briefcase, CreditCard, Heart } from 'lu
 import { toast } from 'sonner';
 
 import { getEmpleado, createEmpleado, updateEmpleado } from '@/services/empleadoService';
-import type { EmpleadoCreate, EmpleadoUpdate, TipoEmpleado, TipoContrato } from '@/types/empleado';
-import { TIPOS_EMPLEADO, TIPOS_CONTRATO, DIAS_SEMANA } from '@/types/empleado';
+import type { EmpleadoCreate, EmpleadoUpdate, TipoEmpleado, TipoContrato, TipoContratacion } from '@/types/empleado';
+import { TIPOS_EMPLEADO, TIPOS_CONTRATO, TIPOS_CONTRATACION, DIAS_SEMANA } from '@/types/empleado';
 
 type TabType = 'personal' | 'laboral' | 'bancario' | 'salud';
 
@@ -44,6 +44,10 @@ export default function EmpleadoFormPage() {
     dias_trabajo: null,
     salario_base: 0,
     salario_hora: null,
+    tipo_contratacion: 'blanco',
+    dia_pago: 5,
+    jornada_horas: 8,
+    adelanto_maximo_porcentaje: 50,
     banco: null,
     tipo_cuenta_banco: null,
     numero_cuenta_banco: null,
@@ -90,6 +94,10 @@ export default function EmpleadoFormPage() {
         dias_trabajo: empleado.dias_trabajo,
         salario_base: empleado.salario_base,
         salario_hora: empleado.salario_hora,
+        tipo_contratacion: empleado.tipo_contratacion,
+        dia_pago: empleado.dia_pago,
+        jornada_horas: empleado.jornada_horas,
+        adelanto_maximo_porcentaje: empleado.adelanto_maximo_porcentaje,
         banco: empleado.banco,
         tipo_cuenta_banco: empleado.tipo_cuenta_banco,
         numero_cuenta_banco: empleado.numero_cuenta_banco,
@@ -435,6 +443,28 @@ export default function EmpleadoFormPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-text-primary mb-1">
+                    Tipo de Contratación *
+                  </label>
+                  <select
+                    name="tipo_contratacion"
+                    value={formData.tipo_contratacion}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {TIPOS_CONTRATACION.map((tipo) => (
+                      <option key={tipo.value} value={tipo.value}>
+                        {tipo.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {TIPOS_CONTRATACION.find(t => t.value === formData.tipo_contratacion)?.description}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">
                     Puesto
                   </label>
                   <input
@@ -503,6 +533,55 @@ export default function EmpleadoFormPage() {
                     step="0.01"
                     className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">
+                    Día de Pago
+                  </label>
+                  <input
+                    type="number"
+                    name="dia_pago"
+                    value={formData.dia_pago || ''}
+                    onChange={handleChange}
+                    min="1"
+                    max="31"
+                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Día del mes en que se paga (1-31)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">
+                    Jornada (Horas)
+                  </label>
+                  <input
+                    type="number"
+                    name="jornada_horas"
+                    value={formData.jornada_horas || ''}
+                    onChange={handleChange}
+                    min="1"
+                    max="12"
+                    step="0.5"
+                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Horas de jornada laboral diaria</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">
+                    Adelanto Máximo (%)
+                  </label>
+                  <input
+                    type="number"
+                    name="adelanto_maximo_porcentaje"
+                    value={formData.adelanto_maximo_porcentaje || ''}
+                    onChange={handleChange}
+                    min="0"
+                    max="100"
+                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">% máximo del salario que se puede adelantar</p>
                 </div>
 
                 <div className="md:col-span-2">

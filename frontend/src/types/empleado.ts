@@ -5,6 +5,7 @@
 // Estados y enums
 export type TipoEmpleado = 'operario' | 'administrativo' | 'supervisor' | 'repartidor' | 'gerente';
 export type TipoContrato = 'permanente' | 'temporal' | 'medio_tiempo' | 'por_hora';
+export type TipoContratacion = 'blanco' | 'negro' | 'monotributo';
 export type EstadoEmpleado = 'activo' | 'licencia' | 'vacaciones' | 'suspendido' | 'desvinculado';
 export type TipoAsistencia = 'entrada' | 'salida' | 'inicio_break' | 'fin_break';
 export type TipoMovimientoNomina =
@@ -55,9 +56,13 @@ export interface Empleado {
   horario_salida: string | null;
   dias_trabajo: string | null;
 
-  // Salario
+  // Salario y pago
   salario_base: number;
   salario_hora: number | null;
+  tipo_contratacion: TipoContratacion;
+  dia_pago: number | null;
+  jornada_horas: number;
+  adelanto_maximo_porcentaje: number | null;
 
   // Datos bancarios
   banco: string | null;
@@ -93,6 +98,8 @@ export interface EmpleadoList {
   fecha_ingreso: string;
   telefono: string | null;
   email: string | null;
+  tipo_contratacion: TipoContratacion;
+  salario_base: number;
 }
 
 export interface EmpleadoCreate {
@@ -118,6 +125,10 @@ export interface EmpleadoCreate {
   dias_trabajo?: string | null;
   salario_base?: number;
   salario_hora?: number | null;
+  tipo_contratacion?: TipoContratacion;
+  dia_pago?: number | null;
+  jornada_horas?: number;
+  adelanto_maximo_porcentaje?: number | null;
   banco?: string | null;
   tipo_cuenta_banco?: string | null;
   numero_cuenta_banco?: string | null;
@@ -154,6 +165,10 @@ export interface EmpleadoUpdate {
   dias_trabajo?: string | null;
   salario_base?: number;
   salario_hora?: number | null;
+  tipo_contratacion?: TipoContratacion;
+  dia_pago?: number | null;
+  jornada_horas?: number;
+  adelanto_maximo_porcentaje?: number | null;
   banco?: string | null;
   tipo_cuenta_banco?: string | null;
   numero_cuenta_banco?: string | null;
@@ -308,6 +323,12 @@ export const TIPOS_CONTRATO = [
   { value: 'por_hora', label: 'Por Hora' },
 ];
 
+export const TIPOS_CONTRATACION = [
+  { value: 'blanco', label: 'En Blanco', description: 'Registrado con aportes legales' },
+  { value: 'negro', label: 'Sin Registrar', description: 'Sin aportes automáticos' },
+  { value: 'monotributo', label: 'Monotributo', description: 'Autónomo que factura' },
+];
+
 export const ESTADOS_EMPLEADO = [
   { value: 'activo', label: 'Activo' },
   { value: 'licencia', label: 'En Licencia' },
@@ -360,4 +381,22 @@ export const getTipoBadgeColor = (tipo: TipoEmpleado): string => {
     gerente: 'bg-emerald-500/10 text-emerald-500',
   };
   return colors[tipo] || 'bg-zinc-500/10 text-zinc-500';
+};
+
+export const getTipoContratacionBadgeColor = (tipo: TipoContratacion): string => {
+  const colors: Record<TipoContratacion, string> = {
+    blanco: 'bg-emerald-500/10 text-emerald-500',
+    negro: 'bg-red-500/10 text-red-500',
+    monotributo: 'bg-blue-500/10 text-blue-500',
+  };
+  return colors[tipo] || 'bg-zinc-500/10 text-zinc-500';
+};
+
+export const getTipoContratacionLabel = (tipo: TipoContratacion): string => {
+  const labels: Record<TipoContratacion, string> = {
+    blanco: 'En Blanco',
+    negro: 'Sin Registrar',
+    monotributo: 'Monotributo',
+  };
+  return labels[tipo] || tipo;
 };

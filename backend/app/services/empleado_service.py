@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.empleado import (
     Empleado, Asistencia, JornadaLaboral, MovimientoNomina, Liquidacion,
-    TipoEmpleado, TipoContrato, EstadoEmpleado, TipoAsistencia, TipoMovimientoNomina
+    TipoEmpleado, TipoContrato, TipoContratacion, EstadoEmpleado, TipoAsistencia, TipoMovimientoNomina
 )
 from app.schemas.empleado import (
     EmpleadoCreate, EmpleadoUpdate,
@@ -141,6 +141,10 @@ class EmpleadoService:
             dias_trabajo=data.dias_trabajo,
             salario_base=data.salario_base,
             salario_hora=data.salario_hora,
+            tipo_contratacion=data.tipo_contratacion,
+            dia_pago=data.dia_pago,
+            jornada_horas=data.jornada_horas,
+            adelanto_maximo_porcentaje=data.adelanto_maximo_porcentaje,
             banco=data.banco,
             tipo_cuenta_banco=data.tipo_cuenta_banco,
             numero_cuenta_banco=data.numero_cuenta_banco,
@@ -317,9 +321,10 @@ class EmpleadoService:
             total_minutos -= minutos_break
             jornada.horas_trabajadas = Decimal(str(round(total_minutos / 60, 2)))
 
-            # Verificar horas extra (más de 8 horas)
-            if jornada.horas_trabajadas > 8:
-                jornada.horas_extra = jornada.horas_trabajadas - 8
+            # Verificar horas extra (más de la jornada configurada del empleado)
+            jornada_normal = empleado.jornada_horas if empleado and empleado.jornada_horas else Decimal("8")
+            if jornada.horas_trabajadas > jornada_normal:
+                jornada.horas_extra = jornada.horas_trabajadas - jornada_normal
             else:
                 jornada.horas_extra = Decimal("0")
 
@@ -396,6 +401,39 @@ class EmpleadoService:
         registrado_por_id: UUID
     ) -> MovimientoNomina:
         """Crea movimiento de nómina"""
+        # Si es adelanto, validar que no supere el máximo permitido
+        if data.tipo == TipoMovimientoNomina.ADELANTO.value:
+            empleado = await self.get_empleado(data.empleado_id)
+            if not empleado:
+                raise ValueError("Empleado no encontrado")
+
+            # Calcular adelantos ya registrados en el período
+            adelantos_existentes = await self.db.execute(
+                select(func.sum(MovimientoNomina.monto))
+                .where(and_(
+                    MovimientoNomina.empleado_id == data.empleado_id,
+                    MovimientoNomina.periodo_mes == data.periodo_mes,
+                    MovimientoNomina.periodo_anio == data.periodo_anio,
+                    MovimientoNomina.tipo == TipoMovimientoNomina.ADELANTO.value,
+                    MovimientoNomina.activo == True
+                ))
+            )
+            total_adelantos = adelantos_existentes.scalar() or Decimal("0")
+
+            # Calcular máximo permitido
+            porcentaje_maximo = empleado.adelanto_maximo_porcentaje or 50
+            monto_maximo = empleado.salario_base * Decimal(str(porcentaje_maximo)) / Decimal("100")
+
+            # Verificar si el nuevo adelanto supera el límite
+            if total_adelantos + data.monto > monto_maximo:
+                disponible = monto_maximo - total_adelantos
+                raise ValueError(
+                    f"El adelanto supera el máximo permitido. "
+                    f"Máximo: ${monto_maximo:.2f} ({porcentaje_maximo}% del salario). "
+                    f"Ya adelantado: ${total_adelantos:.2f}. "
+                    f"Disponible: ${disponible:.2f}"
+                )
+
         movimiento = MovimientoNomina(
             empleado_id=data.empleado_id,
             tipo=data.tipo,
@@ -538,13 +576,20 @@ class EmpleadoService:
             data.otros_haberes
         )
 
-        # Calcular deducciones legales (Argentina)
-        jubilacion = total_haberes * Decimal("0.11")  # 11%
-        obra_social = total_haberes * Decimal("0.03")  # 3%
+        # Calcular deducciones legales según tipo de contratación
+        # Solo empleados "en blanco" tienen aportes legales
+        jubilacion = Decimal("0")
+        obra_social_deduccion = Decimal("0")
+
+        if empleado.tipo_contratacion == TipoContratacion.BLANCO.value:
+            # Empleado registrado - deducciones legales Argentina
+            jubilacion = total_haberes * Decimal("0.11")  # 11%
+            obra_social_deduccion = total_haberes * Decimal("0.03")  # 3%
+        # Para "negro" y "monotributo" no se aplican deducciones automáticas
 
         total_deducciones = (
             jubilacion +
-            obra_social +
+            obra_social_deduccion +
             adelantos +
             data.otras_deducciones
         )
@@ -566,7 +611,7 @@ class EmpleadoService:
             otros_haberes=data.otros_haberes,
             total_haberes=total_haberes,
             jubilacion=jubilacion,
-            obra_social=obra_social,
+            obra_social=obra_social_deduccion,
             adelantos=adelantos,
             otras_deducciones=data.otras_deducciones,
             total_deducciones=total_deducciones,

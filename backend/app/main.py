@@ -37,6 +37,14 @@ def run_migrations():
         "ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS saldo_cuenta_corriente NUMERIC(15,2) DEFAULT 0",
         # Columna orden_produccion_id en lotes_produccion
         "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS orden_produccion_id UUID",
+        # Nuevas columnas para empleados (gestión de pagos)
+        "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS tipo_contratacion VARCHAR(20) DEFAULT 'blanco'",
+        "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS dia_pago INTEGER DEFAULT 5",
+        "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS jornada_horas NUMERIC(4,2) DEFAULT 8",
+        "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS adelanto_maximo_porcentaje INTEGER DEFAULT 50",
+        # Nuevas columnas para jornadas_laborales (autorización de HE)
+        "ALTER TABLE jornadas_laborales ADD COLUMN IF NOT EXISTS horas_extra_autorizadas BOOLEAN DEFAULT false",
+        "ALTER TABLE jornadas_laborales ADD COLUMN IF NOT EXISTS autorizado_por_id UUID",
     ]
 
     # Migraciones que crean tablas (ejecutar después de las columnas)

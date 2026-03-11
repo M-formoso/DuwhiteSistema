@@ -14,6 +14,8 @@ import {
   ESTADOS_EMPLEADO,
   getEstadoBadgeColor,
   getTipoBadgeColor,
+  getTipoContratacionBadgeColor,
+  getTipoContratacionLabel,
 } from '@/types/empleado';
 
 export default function EmpleadosListPage() {
@@ -211,6 +213,9 @@ export default function EmpleadosListPage() {
                   Estado
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                  Contratación
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
                   Puesto
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
@@ -224,13 +229,13 @@ export default function EmpleadosListPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     Cargando...
                   </td>
                 </tr>
               ) : empleados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No se encontraron empleados
                   </td>
                 </tr>
@@ -275,6 +280,15 @@ export default function EmpleadosListPage() {
                         )}`}
                       >
                         {ESTADOS_EMPLEADO.find((e) => e.value === empleado.estado)?.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTipoContratacionBadgeColor(
+                          empleado.tipo_contratacion
+                        )}`}
+                      >
+                        {getTipoContratacionLabel(empleado.tipo_contratacion)}
                       </span>
                     </td>
                     <td className="px-4 py-3">

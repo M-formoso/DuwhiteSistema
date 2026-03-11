@@ -29,6 +29,13 @@ class TipoContrato(str, enum.Enum):
     POR_HORA = "por_hora"
 
 
+class TipoContratacion(str, enum.Enum):
+    """Tipo de contratación fiscal/laboral"""
+    BLANCO = "blanco"  # Registrado, con aportes legales
+    NEGRO = "negro"    # Sin registración, sin aportes automáticos
+    MONOTRIBUTO = "monotributo"  # Autónomo factura
+
+
 class EstadoEmpleado(str, enum.Enum):
     """Estados del empleado"""
     ACTIVO = "activo"
@@ -99,9 +106,13 @@ class Empleado(Base, BaseModelMixin):
     horario_salida = Column(Time, nullable=True)
     dias_trabajo = Column(String(50), nullable=True)  # "lun,mar,mie,jue,vie"
 
-    # Salario
+    # Salario y pago
     salario_base = Column(Numeric(12, 2), nullable=False, default=0)
     salario_hora = Column(Numeric(10, 2), nullable=True)
+    tipo_contratacion = Column(String(20), nullable=False, default="blanco")  # blanco, negro, monotributo
+    dia_pago = Column(Integer, nullable=True, default=5)  # Día del mes en que se paga (1-31)
+    jornada_horas = Column(Numeric(4, 2), nullable=False, default=8)  # Horas de jornada laboral diaria
+    adelanto_maximo_porcentaje = Column(Integer, nullable=True, default=50)  # % máximo de adelanto permitido
 
     # Datos bancarios
     banco = Column(String(100), nullable=True)
@@ -182,6 +193,10 @@ class JornadaLaboral(Base, BaseModelMixin):
     ausente = Column(Boolean, default=False)
     justificado = Column(Boolean, default=False)
     motivo_justificacion = Column(String(255), nullable=True)
+
+    # Control de horas extra
+    horas_extra_autorizadas = Column(Boolean, default=False)  # Si las HE fueron aprobadas
+    autorizado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
 
     observaciones = Column(Text, nullable=True)
 

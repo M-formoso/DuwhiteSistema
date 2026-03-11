@@ -26,6 +26,13 @@ class TipoContrato:
     POR_HORA = "por_hora"
 
 
+class TipoContratacion:
+    """Tipo de contratación fiscal/laboral"""
+    BLANCO = "blanco"       # Registrado, con aportes legales
+    NEGRO = "negro"         # Sin registración, sin aportes automáticos
+    MONOTRIBUTO = "monotributo"  # Autónomo que factura
+
+
 class EstadoEmpleado:
     ACTIVO = "activo"
     LICENCIA = "licencia"
@@ -67,9 +74,13 @@ class EmpleadoBase(BaseModel):
     horario_salida: Optional[time] = None
     dias_trabajo: Optional[str] = Field(None, max_length=50)
 
-    # Salario
+    # Salario y pago
     salario_base: Decimal = Field(default=Decimal("0"), ge=0)
     salario_hora: Optional[Decimal] = Field(None, ge=0)
+    tipo_contratacion: str = Field(default=TipoContratacion.BLANCO)  # blanco, negro, monotributo
+    dia_pago: Optional[int] = Field(default=5, ge=1, le=31)  # Día del mes para pago
+    jornada_horas: Decimal = Field(default=Decimal("8"), ge=1, le=12)  # Horas de jornada diaria
+    adelanto_maximo_porcentaje: Optional[int] = Field(default=50, ge=0, le=100)  # % máximo de adelanto
 
     # Datos bancarios
     banco: Optional[str] = Field(None, max_length=100)
@@ -124,9 +135,13 @@ class EmpleadoUpdate(BaseModel):
     horario_salida: Optional[time] = None
     dias_trabajo: Optional[str] = Field(None, max_length=50)
 
-    # Salario
+    # Salario y pago
     salario_base: Optional[Decimal] = Field(None, ge=0)
     salario_hora: Optional[Decimal] = Field(None, ge=0)
+    tipo_contratacion: Optional[str] = None  # blanco, negro, monotributo
+    dia_pago: Optional[int] = Field(None, ge=1, le=31)
+    jornada_horas: Optional[Decimal] = Field(None, ge=1, le=12)
+    adelanto_maximo_porcentaje: Optional[int] = Field(None, ge=0, le=100)
 
     # Datos bancarios
     banco: Optional[str] = Field(None, max_length=100)
@@ -183,9 +198,13 @@ class EmpleadoResponse(BaseModel):
     horario_salida: Optional[time]
     dias_trabajo: Optional[str]
 
-    # Salario
+    # Salario y pago
     salario_base: Decimal
     salario_hora: Optional[Decimal]
+    tipo_contratacion: str
+    dia_pago: Optional[int]
+    jornada_horas: Decimal
+    adelanto_maximo_porcentaje: Optional[int]
 
     # Datos bancarios
     banco: Optional[str]
@@ -225,6 +244,8 @@ class EmpleadoList(BaseModel):
     fecha_ingreso: date
     telefono: Optional[str]
     email: Optional[str]
+    tipo_contratacion: str
+    salario_base: Decimal
 
     class Config:
         from_attributes = True
