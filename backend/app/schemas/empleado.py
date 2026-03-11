@@ -224,7 +224,7 @@ class EmpleadoResponse(BaseModel):
     # Meta
     notas: Optional[str]
     foto_url: Optional[str]
-    is_active: bool
+    activo: bool
     created_at: datetime
 
     class Config:
