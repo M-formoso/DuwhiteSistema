@@ -127,6 +127,7 @@ class UsuarioService:
             nombre=data.nombre,
             apellido=data.apellido,
             telefono=data.telefono,
+            pin=data.pin,  # PIN para validación en producción
             rol=data.rol,
             cliente_id=data.cliente_id,
             permisos_modulos=data.permisos_modulos,

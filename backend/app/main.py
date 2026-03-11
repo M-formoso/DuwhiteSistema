@@ -32,6 +32,8 @@ def run_migrations():
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pin VARCHAR(6)",
         # Calificación de proveedores
         "ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS calificacion NUMERIC(3,2) DEFAULT 0",
+        # Saldo cuenta corriente de proveedores
+        "ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS saldo_cuenta_corriente NUMERIC(15,2) DEFAULT 0",
         # Columna orden_produccion_id en lotes_produccion
         "ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS orden_produccion_id UUID",
     ]
