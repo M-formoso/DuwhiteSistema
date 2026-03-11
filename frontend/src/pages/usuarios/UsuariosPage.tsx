@@ -121,10 +121,22 @@ export default function UsuariosPage() {
       resetForm();
     },
     onError: (error: any) => {
+      let errorMsg = 'No se pudo crear el usuario.';
+      const detail = error.response?.data?.detail;
+
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (Array.isArray(detail)) {
+        // Error de validación de Pydantic
+        errorMsg = detail.map((e: any) => e.msg || e.message || String(e)).join('. ');
+      } else if (detail && typeof detail === 'object') {
+        errorMsg = detail.msg || detail.message || JSON.stringify(detail);
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo crear el usuario.',
+        description: errorMsg,
       });
     },
   });
@@ -139,10 +151,21 @@ export default function UsuariosPage() {
       setSelectedUser(null);
     },
     onError: (error: any) => {
+      let errorMsg = 'No se pudo actualizar el usuario.';
+      const detail = error.response?.data?.detail;
+
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (Array.isArray(detail)) {
+        errorMsg = detail.map((e: any) => e.msg || e.message || String(e)).join('. ');
+      } else if (detail && typeof detail === 'object') {
+        errorMsg = detail.msg || detail.message || JSON.stringify(detail);
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo actualizar el usuario.',
+        description: errorMsg,
       });
     },
   });
@@ -161,10 +184,21 @@ export default function UsuariosPage() {
       setGuardarPasswordVisible(false);
     },
     onError: (error: any) => {
+      let errorMsg = 'No se pudo resetear la contraseña.';
+      const detail = error.response?.data?.detail;
+
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (Array.isArray(detail)) {
+        errorMsg = detail.map((e: any) => e.msg || e.message || String(e)).join('. ');
+      } else if (detail && typeof detail === 'object') {
+        errorMsg = detail.msg || detail.message || JSON.stringify(detail);
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo resetear la contraseña.',
+        description: errorMsg,
       });
     },
   });
@@ -179,10 +213,19 @@ export default function UsuariosPage() {
       });
     },
     onError: (error: any) => {
+      let errorMsg = 'No se pudo cambiar el estado.';
+      const detail = error.response?.data?.detail;
+
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (Array.isArray(detail)) {
+        errorMsg = detail.map((e: any) => e.msg || e.message || String(e)).join('. ');
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo cambiar el estado.',
+        description: errorMsg,
       });
     },
   });
@@ -194,10 +237,19 @@ export default function UsuariosPage() {
       toast({ title: 'Usuario eliminado', description: 'El usuario ha sido eliminado.' });
     },
     onError: (error: any) => {
+      let errorMsg = 'No se pudo eliminar el usuario.';
+      const detail = error.response?.data?.detail;
+
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (Array.isArray(detail)) {
+        errorMsg = detail.map((e: any) => e.msg || e.message || String(e)).join('. ');
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo eliminar el usuario.',
+        description: errorMsg,
       });
     },
   });
