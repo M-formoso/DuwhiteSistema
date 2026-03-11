@@ -215,6 +215,8 @@ class KanbanColumna(BaseModel):
     etapa_color: str
     orden: int
     tiempo_estimado_minutos: Optional[int] = None
+    requiere_maquina: bool = False
+    tipo_maquina: Optional[str] = None  # lavadora, secadora, planchadora según código de etapa
     lotes: List[KanbanLote] = []
 
 

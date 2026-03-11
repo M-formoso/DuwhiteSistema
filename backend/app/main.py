@@ -14,6 +14,7 @@ from app.core.security import get_password_hash
 from app.db.session import SessionLocal
 from app.models.usuario import Usuario
 from app.models.etapa_produccion import EtapaProduccion
+from app.models.maquina import Maquina
 
 
 def run_migrations():
@@ -323,6 +324,51 @@ async def lifespan(app: FastAPI):
             print(f"Creadas {len(etapas_default)} etapas de producción por defecto")
         else:
             print(f"Ya existen {etapas_count} etapas de producción")
+
+        # Crear máquinas por defecto si no existen
+        maquinas_count = db.query(Maquina).count()
+        if maquinas_count == 0:
+            maquinas_default = []
+
+            # 9 Lavadoras
+            for i in range(1, 10):
+                maquinas_default.append({
+                    "codigo": f"LAV-{i:02d}",
+                    "nombre": f"Lavadora {i}",
+                    "tipo": "lavadora",
+                    "estado": "disponible",
+                    "capacidad_kg": 50 if i <= 5 else 30,  # 5 grandes, 4 medianas
+                    "ubicacion": "Área de Lavado",
+                })
+
+            # 8 Secadoras de toallas
+            for i in range(1, 9):
+                maquinas_default.append({
+                    "codigo": f"SEC-{i:02d}",
+                    "nombre": f"Secadora {i}",
+                    "tipo": "secadora",
+                    "estado": "disponible",
+                    "capacidad_kg": 40 if i <= 4 else 25,  # 4 grandes, 4 medianas
+                    "ubicacion": "Área de Secado",
+                })
+
+            # 2 Planchas
+            for i in range(1, 3):
+                maquinas_default.append({
+                    "codigo": f"PLA-{i:02d}",
+                    "nombre": f"Plancha Industrial {i}",
+                    "tipo": "planchadora",
+                    "estado": "disponible",
+                    "ubicacion": "Área de Planchado",
+                })
+
+            for maquina_data in maquinas_default:
+                maquina = Maquina(id=uuid4(), **maquina_data)
+                db.add(maquina)
+            db.commit()
+            print(f"Creadas {len(maquinas_default)} máquinas por defecto (9 lavadoras, 8 secadoras, 2 planchas)")
+        else:
+            print(f"Ya existen {maquinas_count} máquinas")
 
     except Exception as e:
         print(f"Error en inicialización: {e}")

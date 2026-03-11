@@ -46,7 +46,7 @@ const PRIORIDAD_LABELS: Record<PrioridadLote, string> = {
 interface KanbanCardProps {
   lote: KanbanLote;
   columna: KanbanColumna;
-  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string) => void;
+  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null) => void;
   onFinalizar: (loteId: string, etapaId: string) => void;
   isEnProceso: boolean;
 }
@@ -142,7 +142,7 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, isEnProceso }: Kanb
               className="flex-1 text-xs"
               onClick={(e) => {
                 e.stopPropagation();
-                onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre);
+                onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.requiere_maquina, columna.tipo_maquina);
               }}
             >
               <Play className="h-3 w-3 mr-1" />
@@ -181,6 +181,8 @@ export default function KanbanBoardPage() {
     etapaId: string;
     loteNumero?: string;
     etapaNombre?: string;
+    requiereMaquina?: boolean;
+    tipoMaquina?: string | null;
   } | null>(null);
 
   // Cargar tablero Kanban - refetch cada 10 segundos para mantener actualizado
@@ -233,8 +235,8 @@ export default function KanbanBoardPage() {
     },
   });
 
-  const handleIniciar = (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string) => {
-    setPendingAction({ type: 'iniciar', loteId, etapaId, loteNumero, etapaNombre });
+  const handleIniciar = (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null) => {
+    setPendingAction({ type: 'iniciar', loteId, etapaId, loteNumero, etapaNombre, requiereMaquina, tipoMaquina });
     setShowIniciarModal(true);
   };
 
@@ -412,6 +414,8 @@ export default function KanbanBoardPage() {
         loteNumero={pendingAction?.loteNumero}
         etapaNombre={pendingAction?.etapaNombre}
         showMachineSelection={true}
+        requiereMaquina={pendingAction?.requiereMaquina}
+        tipoMaquina={pendingAction?.tipoMaquina}
       />
 
       {/* Modal de validación de PIN para finalizar */}

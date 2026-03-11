@@ -184,6 +184,8 @@ export interface KanbanColumna {
   etapa_color: string;
   orden: number;
   tiempo_estimado_minutos: number | null;
+  requiere_maquina: boolean;
+  tipo_maquina: string | null; // lavadora, secadora, planchadora según etapa
   lotes: KanbanLote[];
 }
 

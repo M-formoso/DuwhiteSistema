@@ -525,6 +525,15 @@ class ProduccionService:
         if not lote_etapa:
             return None
 
+        # Obtener la etapa para verificar si requiere máquina
+        etapa = self.get_etapa(etapa_id)
+
+        # Validar que se seleccione máquina si la etapa lo requiere
+        if etapa and etapa.requiere_maquina and not data.maquina_id:
+            raise ValueError(
+                f"La etapa '{etapa.nombre}' requiere seleccionar una máquina"
+            )
+
         # Verificar si la máquina está disponible
         if data.maquina_id:
             if not self.is_maquina_disponible(data.maquina_id):
@@ -782,6 +791,16 @@ class ProduccionService:
                 if lote.esta_atrasado:
                     lotes_atrasados += 1
 
+            # Determinar tipo de máquina según código de etapa
+            tipo_maquina = None
+            if etapa.requiere_maquina:
+                if etapa.codigo == "LAV":
+                    tipo_maquina = "lavadora"
+                elif etapa.codigo == "SEC":
+                    tipo_maquina = "secadora"
+                elif etapa.codigo == "PLA":
+                    tipo_maquina = "planchadora"
+
             columnas.append(KanbanColumna(
                 etapa_id=etapa.id,
                 etapa_codigo=etapa.codigo,
@@ -789,6 +808,8 @@ class ProduccionService:
                 etapa_color=etapa.color,
                 orden=etapa.orden,
                 tiempo_estimado_minutos=etapa.tiempo_estimado_minutos,
+                requiere_maquina=etapa.requiere_maquina,
+                tipo_maquina=tipo_maquina,
                 lotes=kanban_lotes,
             ))
 

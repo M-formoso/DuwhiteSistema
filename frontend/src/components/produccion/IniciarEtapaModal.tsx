@@ -52,6 +52,8 @@ interface IniciarEtapaModalProps {
   title?: string;
   description?: string;
   showMachineSelection?: boolean;
+  requiereMaquina?: boolean;  // Si es true, es obligatorio seleccionar máquina
+  tipoMaquina?: string | null;  // Filtrar por tipo: lavadora, secadora, planchadora
   etapaNombre?: string;
   loteNumero?: string;
 }
@@ -63,6 +65,8 @@ export function IniciarEtapaModal({
   title = 'Iniciar Etapa',
   description = 'Valida tu PIN para iniciar esta etapa',
   showMachineSelection = true,
+  requiereMaquina = false,
+  tipoMaquina = null,
   etapaNombre,
   loteNumero,
 }: IniciarEtapaModalProps) {
@@ -80,11 +84,11 @@ export function IniciarEtapaModal({
     enabled: open,
   });
 
-  // Cargar máquinas disponibles
+  // Cargar máquinas disponibles (filtradas por tipo si se especifica)
   const { data: maquinas = [], isLoading: loadingMaquinas, refetch: refetchMaquinas } = useQuery<Maquina[]>({
-    queryKey: ['maquinas-disponibles'],
-    queryFn: () => produccionService.getMaquinasDisponibles(),
-    enabled: open && showMachineSelection,
+    queryKey: ['maquinas-disponibles', tipoMaquina],
+    queryFn: () => produccionService.getMaquinasDisponibles(tipoMaquina || undefined),
+    enabled: open && (showMachineSelection || requiereMaquina),
   });
 
   // Reset estado cuando se abre/cierra
@@ -108,6 +112,12 @@ export function IniciarEtapaModal({
   const handleValidate = async () => {
     if (!operarioId || !pin) {
       setError('Selecciona un operario e ingresa el PIN');
+      return;
+    }
+
+    // Validar que se seleccione máquina si es obligatorio
+    if (requiereMaquina && !maquinaId) {
+      setError('Debes seleccionar una máquina para esta etapa');
       return;
     }
 
@@ -214,12 +224,17 @@ export function IniciarEtapaModal({
             />
           </div>
 
-          {/* Selector de máquina (opcional) */}
-          {showMachineSelection && (
+          {/* Selector de máquina */}
+          {(showMachineSelection || requiereMaquina) && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
-                Máquina (opcional)
+                Máquina {requiereMaquina ? <span className="text-red-500">*</span> : '(opcional)'}
+                {tipoMaquina && (
+                  <Badge variant="outline" className="ml-2 capitalize">
+                    {tipoMaquina}
+                  </Badge>
+                )}
               </Label>
               {loadingMaquinas ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -227,16 +242,20 @@ export function IniciarEtapaModal({
                   Cargando máquinas...
                 </div>
               ) : maquinas.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-2">
-                  No hay máquinas disponibles en este momento
-                </div>
+                <Alert variant={requiereMaquina ? 'destructive' : 'default'}>
+                  <AlertDescription>
+                    {requiereMaquina
+                      ? `No hay ${tipoMaquina || 'máquinas'}s disponibles. Todas están en uso.`
+                      : 'No hay máquinas disponibles en este momento'}
+                  </AlertDescription>
+                </Alert>
               ) : (
                 <Select value={maquinaId} onValueChange={setMaquinaId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin máquina asignada" />
+                  <SelectTrigger className={requiereMaquina && !maquinaId ? 'border-orange-400' : ''}>
+                    <SelectValue placeholder={requiereMaquina ? 'Seleccionar máquina...' : 'Sin máquina asignada'} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin máquina</SelectItem>
+                    {!requiereMaquina && <SelectItem value="">Sin máquina</SelectItem>}
                     {maquinas.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         <div className="flex items-center justify-between w-full gap-2">
@@ -252,6 +271,11 @@ export function IniciarEtapaModal({
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {requiereMaquina && maquinas.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Hay {maquinas.length} {tipoMaquina || 'máquina'}(s) disponible(s)
+                </p>
               )}
             </div>
           )}
@@ -270,7 +294,13 @@ export function IniciarEtapaModal({
           </Button>
           <Button
             onClick={handleValidate}
-            disabled={!operarioId || pin.length < 4 || validating || isLoading}
+            disabled={
+              !operarioId ||
+              pin.length < 4 ||
+              validating ||
+              isLoading ||
+              (requiereMaquina && (!maquinaId || maquinas.length === 0))
+            }
           >
             {validating ? (
               <>

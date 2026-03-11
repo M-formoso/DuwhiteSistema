@@ -25,7 +25,6 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -37,6 +36,16 @@ import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
 import type { KanbanLote, KanbanColumna, PrioridadLote } from '@/types/produccion';
+
+// Tipo local para máquinas disponibles
+interface MaquinaDisponible {
+  id: string;
+  codigo: string;
+  nombre: string;
+  tipo: string;
+  estado: string;
+  capacidad_kg: number | null;
+}
 
 // Colores más vivos para prioridades
 const PRIORIDAD_CONFIG: Record<PrioridadLote, { bg: string; text: string; border: string; label: string }> = {
@@ -303,7 +312,7 @@ function EtapaColumna({
   );
 }
 
-// Modal de PIN grande para táctil
+// Modal de PIN grande para táctil con selección de máquina
 function PinModalGrande({
   open,
   onClose,
@@ -312,16 +321,21 @@ function PinModalGrande({
   loteNumero,
   etapaNombre,
   accion,
+  requiereMaquina = false,
+  tipoMaquina = null,
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string) => void;
+  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string) => void;
   title: string;
   loteNumero?: string;
   etapaNombre?: string;
   accion: 'iniciar' | 'finalizar';
+  requiereMaquina?: boolean;
+  tipoMaquina?: string | null;
 }) {
   const [selectedOperario, setSelectedOperario] = useState('');
+  const [selectedMaquina, setSelectedMaquina] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -331,6 +345,23 @@ function PinModalGrande({
     queryFn: () => produccionService.getOperariosConPin(),
     enabled: open,
   });
+
+  // Cargar máquinas disponibles si es necesario
+  const { data: maquinas = [] } = useQuery<MaquinaDisponible[]>({
+    queryKey: ['maquinas-disponibles', tipoMaquina],
+    queryFn: () => produccionService.getMaquinasDisponibles(tipoMaquina || undefined),
+    enabled: open && accion === 'iniciar' && requiereMaquina,
+  });
+
+  // Reset cuando se abre
+  useEffect(() => {
+    if (open) {
+      setSelectedOperario('');
+      setSelectedMaquina('');
+      setPin('');
+      setError('');
+    }
+  }, [open]);
 
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
@@ -358,6 +389,11 @@ function PinModalGrande({
       setError('Ingrese su PIN completo');
       return;
     }
+    // Validar máquina si es requerida
+    if (accion === 'iniciar' && requiereMaquina && !selectedMaquina) {
+      setError('Debe seleccionar una máquina');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -365,9 +401,10 @@ function PinModalGrande({
     try {
       const result = await produccionService.validarPin(selectedOperario, pin);
       if (result.valido) {
-        onConfirm(result.operario_id, result.operario_nombre);
+        onConfirm(result.operario_id, result.operario_nombre, selectedMaquina || undefined);
         setPin('');
         setSelectedOperario('');
+        setSelectedMaquina('');
       } else {
         setError(result.mensaje || 'PIN incorrecto');
         setPin('');
@@ -439,6 +476,51 @@ function PinModalGrande({
           </Select>
         </div>
 
+        {/* Selector de máquina (solo para iniciar y si requiere) */}
+        {accion === 'iniciar' && requiereMaquina && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Seleccione la máquina <span className="text-red-500">*</span>
+              {tipoMaquina && (
+                <span className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs uppercase">
+                  {tipoMaquina}
+                </span>
+              )}
+            </label>
+            {maquinas.length === 0 ? (
+              <div className="bg-red-50 border border-red-300 rounded-xl p-4 text-red-700 text-center">
+                <AlertTriangle className="h-6 w-6 mx-auto mb-2" />
+                <p className="font-medium">No hay {tipoMaquina || 'máquinas'} disponibles</p>
+                <p className="text-sm">Todas están en uso</p>
+              </div>
+            ) : (
+              <Select value={selectedMaquina} onValueChange={setSelectedMaquina}>
+                <SelectTrigger className={`h-14 text-lg ${!selectedMaquina ? 'border-orange-400' : ''}`}>
+                  <SelectValue placeholder="Toque para seleccionar máquina..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {maquinas.map((m) => (
+                    <SelectItem key={m.id} value={m.id} className="text-lg py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono font-bold">{m.codigo}</span>
+                        <span>{m.nombre}</span>
+                        {m.capacidad_kg && (
+                          <span className="text-sm text-gray-500">({m.capacidad_kg} kg)</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {maquinas.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                {maquinas.length} {tipoMaquina || 'máquina'}(s) disponible(s)
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Display del PIN */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -487,7 +569,12 @@ function PinModalGrande({
         {/* Botón confirmar */}
         <button
           onClick={handleConfirm}
-          disabled={loading || !selectedOperario || pin.length < 4}
+          disabled={
+            loading ||
+            !selectedOperario ||
+            pin.length < 4 ||
+            (accion === 'iniciar' && requiereMaquina && (!selectedMaquina || maquinas.length === 0))
+          }
           className={`
             w-full py-5 rounded-2xl text-xl font-bold flex items-center justify-center gap-3
             transition-all disabled:opacity-50 disabled:cursor-not-allowed
@@ -534,15 +621,17 @@ export default function PanelOperariosPage() {
 
   // Mutations
   const iniciarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId, operarioId }: { loteId: string; etapaId: string; operarioId: string }) =>
-      produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId }),
+    mutationFn: ({ loteId, etapaId, operarioId, maquinaId }: { loteId: string; etapaId: string; operarioId: string; maquinaId?: string }) =>
+      produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId, maquina_id: maquinaId }),
     onSuccess: () => {
       // Invalidar inmediatamente y refetch para actualizar UI
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
       toast({ title: 'Etapa iniciada correctamente' });
     },
-    onError: () => {
-      toast({ title: 'Error al iniciar etapa', variant: 'destructive' });
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const detail = error.response?.data?.detail || 'Error al iniciar etapa';
+      toast({ title: 'Error', description: detail, variant: 'destructive' });
     },
   });
 
@@ -552,6 +641,7 @@ export default function PanelOperariosPage() {
     onSuccess: () => {
       // Invalidar inmediatamente y refetch para actualizar UI
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
       toast({ title: 'Etapa finalizada correctamente' });
     },
     onError: () => {
@@ -567,7 +657,7 @@ export default function PanelOperariosPage() {
     setPinModal({ open: true, accion: 'finalizar', lote, columna });
   };
 
-  const handlePinConfirm = (operarioId: string, operarioNombre: string) => {
+  const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string) => {
     const { accion, lote, columna } = pinModal;
 
     if (!lote || !columna) return;
@@ -579,6 +669,7 @@ export default function PanelOperariosPage() {
         loteId: lote.id,
         etapaId: columna.etapa_id,
         operarioId,
+        maquinaId,
       });
     } else {
       finalizarMutation.mutate({
@@ -731,6 +822,8 @@ export default function PanelOperariosPage() {
         loteNumero={pinModal.lote?.numero}
         etapaNombre={pinModal.columna?.etapa_nombre}
         accion={pinModal.accion}
+        requiereMaquina={pinModal.columna?.requiere_maquina}
+        tipoMaquina={pinModal.columna?.tipo_maquina}
       />
     </div>
   );
