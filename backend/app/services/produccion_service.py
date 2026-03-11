@@ -144,9 +144,11 @@ class ProduccionService:
         self.db.refresh(etapa)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="EtapaProduccion",
+            modulo="produccion",
+            entidad_tipo="EtapaProduccion",
             entidad_id=etapa.id,
             datos_nuevos=data.model_dump(),
         )
@@ -206,9 +208,11 @@ class ProduccionService:
         self.db.refresh(maquina)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="Maquina",
+            modulo="produccion",
+            entidad_tipo="Maquina",
             entidad_id=maquina.id,
             datos_nuevos=data.model_dump(),
         )
@@ -429,9 +433,11 @@ class ProduccionService:
         self.db.refresh(lote)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="LoteProduccion",
+            modulo="produccion",
+            entidad_tipo="LoteProduccion",
             entidad_id=lote.id,
             datos_nuevos={"numero": numero},
         )
@@ -488,9 +494,11 @@ class ProduccionService:
         self.db.refresh(lote)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="cambiar_estado",
-            entidad="LoteProduccion",
+            modulo="produccion",
+            entidad_tipo="LoteProduccion",
             entidad_id=lote.id,
             datos_anteriores={"estado": estado_anterior},
             datos_nuevos={"estado": estado.value},
@@ -923,9 +931,11 @@ class ProduccionService:
         self.db.refresh(orden)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="OrdenProduccion",
+            modulo="produccion",
+            entidad_tipo="OrdenProduccion",
             entidad_id=orden.id,
             datos_nuevos={"numero": numero},
         )
@@ -974,9 +984,11 @@ class ProduccionService:
         self.db.refresh(orden)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="cambiar_estado",
-            entidad="OrdenProduccion",
+            modulo="produccion",
+            entidad_tipo="OrdenProduccion",
             entidad_id=orden.id,
             datos_anteriores={"estado": estado_anterior},
             datos_nuevos={"estado": nuevo_estado.value},
@@ -1044,9 +1056,11 @@ class ProduccionService:
         self.db.refresh(asignacion)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="AsignacionEmpleadoOP",
+            modulo="produccion",
+            entidad_tipo="AsignacionEmpleadoOP",
             entidad_id=asignacion.id,
             datos_nuevos={"orden_id": str(data.orden_id), "empleado_id": str(data.empleado_id)},
         )
@@ -1176,9 +1190,11 @@ class ProduccionService:
         self.db.refresh(incidencia)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="IncidenciaProduccion",
+            modulo="produccion",
+            entidad_tipo="IncidenciaProduccion",
             entidad_id=incidencia.id,
             datos_nuevos={"titulo": data.titulo, "tipo": data.tipo, "severidad": data.severidad},
         )
@@ -1226,9 +1242,11 @@ class ProduccionService:
         self.db.refresh(incidencia)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="resolver",
-            entidad="IncidenciaProduccion",
+            modulo="produccion",
+            entidad_tipo="IncidenciaProduccion",
             entidad_id=incidencia.id,
             datos_nuevos={"acciones_tomadas": data.acciones_tomadas},
         )
