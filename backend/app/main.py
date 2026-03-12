@@ -4,11 +4,18 @@ Punto de entrada principal de la aplicación DUWHITE.
 
 from contextlib import asynccontextmanager
 from uuid import uuid4
+import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from app.api.v1.api import api_router
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal
@@ -434,6 +441,27 @@ else:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+# Exception handler para errores de validación
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    logger.error(f"Validation error on {request.url.path}: {errors}")
+
+    # Formatear errores de forma más legible
+    error_messages = []
+    for error in errors:
+        loc = " -> ".join(str(l) for l in error.get("loc", []))
+        msg = error.get("msg", "Error de validación")
+        error_messages.append(f"{loc}: {msg}")
+
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": "; ".join(error_messages),
+            "errors": errors
+        }
     )
 
 # Incluir routers

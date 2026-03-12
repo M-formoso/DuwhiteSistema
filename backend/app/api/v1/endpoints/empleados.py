@@ -2,12 +2,15 @@
 Endpoints de Empleados para DUWHITE ERP
 """
 
+import logging
 from datetime import date
 from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.deps import get_db, get_current_user
 from app.models.usuario import Usuario
@@ -145,11 +148,14 @@ def create_empleado(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crea nuevo empleado"""
+    logger.info(f"Creando empleado: nombre={data.nombre}, apellido={data.apellido}, dni={data.dni}")
+
     service = EmpleadoService(db)
 
     # Verificar DNI único (incluyendo inactivos)
     existing = service.get_empleado_by_dni(data.dni)
     if existing:
+        logger.warning(f"DNI duplicado: {data.dni}, activo={existing.activo}")
         if existing.activo:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -163,8 +169,10 @@ def create_empleado(
 
     try:
         empleado = service.create_empleado(data)
+        logger.info(f"Empleado creado: id={empleado.id}, codigo={empleado.codigo}")
         return _empleado_to_response(empleado)
     except Exception as e:
+        logger.error(f"Error al crear empleado: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
