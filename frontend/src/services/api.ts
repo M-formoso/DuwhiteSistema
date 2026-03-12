@@ -18,7 +18,8 @@ const api: AxiosInstance = axios.create({
 // Interceptor para agregar token de autenticación
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+    // Usar sessionStorage (cada pestaña tiene su propia sesión)
+    const token = sessionStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -42,7 +43,7 @@ api.interceptors.response.use(
       !originalRequest.url?.includes('/auth/login') &&
       !originalRequest.url?.includes('/auth/refresh')
     ) {
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = sessionStorage.getItem('refresh_token');
 
       if (refreshToken) {
         try {
@@ -53,9 +54,9 @@ api.interceptors.response.use(
 
           const { access_token, refresh_token } = response.data;
 
-          // Guardar nuevos tokens
-          localStorage.setItem('access_token', access_token);
-          localStorage.setItem('refresh_token', refresh_token);
+          // Guardar nuevos tokens en sessionStorage
+          sessionStorage.setItem('access_token', access_token);
+          sessionStorage.setItem('refresh_token', refresh_token);
 
           // Reintentar la petición original
           if (originalRequest.headers) {
@@ -64,8 +65,8 @@ api.interceptors.response.use(
           return api(originalRequest);
         } catch (refreshError) {
           // Si falla el refresh, limpiar tokens y redirigir a login
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
+          sessionStorage.removeItem('access_token');
+          sessionStorage.removeItem('refresh_token');
           window.location.href = '/login';
           return Promise.reject(refreshError);
         }
