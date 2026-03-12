@@ -3,7 +3,7 @@
  * Interfaz táctil optimizada para tablets en planta
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -312,7 +312,7 @@ function EtapaColumna({
   );
 }
 
-// Modal de PIN grande para táctil con selección de máquina
+// Modal de PIN con input de texto (igual que admin)
 function PinModalGrande({
   open,
   onClose,
@@ -339,6 +339,7 @@ function PinModalGrande({
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   const { data: operarios } = useQuery({
     queryKey: ['operarios-pin'],
@@ -363,59 +364,12 @@ function PinModalGrande({
     }
   }, [open]);
 
-  // Manejar teclado físico
+  // Focus en PIN cuando se selecciona operario
   useEffect(() => {
-    if (!open) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Solo números
-      if (/^[0-9]$/.test(e.key)) {
-        e.preventDefault();
-        if (pin.length < 6) {
-          setPin(prev => prev + e.key);
-          setError('');
-        }
-      }
-      // Backspace
-      else if (e.key === 'Backspace') {
-        e.preventDefault();
-        setPin(prev => prev.slice(0, -1));
-        setError('');
-      }
-      // Escape para cerrar
-      else if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-      // Enter para confirmar
-      else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (selectedOperario && pin.length >= 4) {
-          handleConfirm();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, pin, selectedOperario, onClose]);
-
-  const handleDigit = (digit: string) => {
-    if (pin.length < 6) {
-      setPin(pin + digit);
-      setError('');
+    if (selectedOperario && pinInputRef.current) {
+      pinInputRef.current.focus();
     }
-  };
-
-  const handleDelete = () => {
-    setPin(pin.slice(0, -1));
-    setError('');
-  };
-
-  const handleClear = () => {
-    setPin('');
-    setError('');
-  };
+  }, [selectedOperario]);
 
   const handleConfirm = async () => {
     if (!selectedOperario) {
@@ -445,6 +399,7 @@ function PinModalGrande({
       } else {
         setError(result.mensaje || 'PIN incorrecto');
         setPin('');
+        pinInputRef.current?.focus();
       }
     } catch {
       setError('Error al validar');
@@ -454,182 +409,170 @@ function PinModalGrande({
     }
   };
 
-  // Auto-submit cuando se completa el PIN
-  useEffect(() => {
-    if (pin.length === 6 && selectedOperario) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && selectedOperario && pin.length >= 4) {
       handleConfirm();
     }
-  }, [pin]);
+  };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-lg p-8 relative">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-[450px] p-6 relative shadow-xl">
         {/* Cerrar */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100"
+          className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100"
         >
-          <X className="h-8 w-8 text-gray-400" />
+          <X className="h-5 w-5 text-gray-400" />
         </button>
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
-            accion === 'iniciar' ? 'bg-green-100' : 'bg-blue-100'
-          }`}>
-            {accion === 'iniciar' ? (
-              <Play className={`h-10 w-10 ${accion === 'iniciar' ? 'text-green-600' : 'text-blue-600'}`} />
-            ) : (
-              <CheckCircle className="h-10 w-10 text-blue-600" />
-            )}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Lock className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-          {loteNumero && (
-            <p className="text-lg text-gray-600 mt-2">
-              Lote <span className="font-mono font-bold">{loteNumero}</span>
-              {etapaNombre && <> - {etapaNombre}</>}
+          <p className="text-sm text-gray-500">
+            Valida tu PIN para {accion === 'iniciar' ? 'iniciar' : 'finalizar'} esta etapa
+          </p>
+          {loteNumero && etapaNombre && (
+            <p className="text-sm font-medium text-gray-900 mt-1">
+              Lote {loteNumero} - {etapaNombre}
             </p>
           )}
         </div>
 
-        {/* Selector de operario */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Seleccione su nombre
-          </label>
-          <Select value={selectedOperario} onValueChange={setSelectedOperario}>
-            <SelectTrigger className="h-14 text-lg">
-              <SelectValue placeholder="Toque para seleccionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              {operarios?.map((op) => (
-                <SelectItem key={op.id} value={op.id} className="text-lg py-3">
-                  {op.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Selector de máquina (solo para iniciar y si requiere) */}
-        {accion === 'iniciar' && requiereMaquina && (
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Seleccione la máquina <span className="text-red-500">*</span>
-              {tipoMaquina && (
-                <span className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs uppercase">
-                  {tipoMaquina}
-                </span>
-              )}
+        <div className="space-y-4">
+          {/* Selector de operario */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Operario
             </label>
-            {maquinas.length === 0 ? (
-              <div className="bg-red-50 border border-red-300 rounded-xl p-4 text-red-700 text-center">
-                <AlertTriangle className="h-6 w-6 mx-auto mb-2" />
-                <p className="font-medium">No hay {tipoMaquina || 'máquinas'} disponibles</p>
-                <p className="text-sm">Todas están en uso</p>
-              </div>
-            ) : (
-              <Select value={selectedMaquina} onValueChange={setSelectedMaquina}>
-                <SelectTrigger className={`h-14 text-lg ${!selectedMaquina ? 'border-orange-400' : ''}`}>
-                  <SelectValue placeholder="Toque para seleccionar máquina..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {maquinas.map((m) => (
-                    <SelectItem key={m.id} value={m.id} className="text-lg py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold">{m.codigo}</span>
-                        <span>{m.nombre}</span>
-                        {m.capacidad_kg && (
-                          <span className="text-sm text-gray-500">({m.capacidad_kg} kg)</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {maquinas.length > 0 && (
-              <p className="text-xs text-gray-500 mt-2">
-                {maquinas.length} {tipoMaquina || 'máquina'}(s) disponible(s)
-              </p>
-            )}
+            <Select value={selectedOperario} onValueChange={setSelectedOperario}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar operario..." />
+              </SelectTrigger>
+              <SelectContent>
+                {operarios?.map((op) => (
+                  <SelectItem key={op.id} value={op.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      {op.nombre}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
 
-        {/* Display del PIN */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Ingrese su PIN
-          </label>
-          <div className="flex justify-center gap-3">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className={`w-12 h-16 rounded-xl border-2 flex items-center justify-center text-2xl font-bold
-                  ${pin.length > i ? 'border-primary bg-primary/10' : 'border-gray-300'}
-                `}
-              >
-                {pin.length > i ? '•' : ''}
-              </div>
-            ))}
-          </div>
-          {error && (
-            <p className="text-center text-red-500 mt-3 font-medium">{error}</p>
-          )}
-        </div>
-
-        {/* Teclado numérico */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map((key) => (
-            <button
-              key={key}
-              onClick={() => {
-                if (key === 'C') handleClear();
-                else if (key === '⌫') handleDelete();
-                else handleDigit(key);
+          {/* Input de PIN */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              PIN
+            </label>
+            <input
+              ref={pinInputRef}
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, '');
+                setPin(value);
+                setError('');
               }}
-              disabled={loading}
-              className={`
-                h-16 rounded-xl text-2xl font-bold transition-all active:scale-95
-                ${key === 'C' ? 'bg-gray-200 text-gray-600' : ''}
-                ${key === '⌫' ? 'bg-gray-200 text-gray-600' : ''}
-                ${!['C', '⌫'].includes(key) ? 'bg-gray-100 hover:bg-gray-200' : ''}
-              `}
-            >
-              {key}
-            </button>
-          ))}
+              onKeyDown={handleKeyDown}
+              placeholder="Ingrese PIN de 4-6 dígitos"
+              disabled={!selectedOperario}
+              className="w-full h-10 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono
+                         focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
+                         disabled:bg-gray-100 disabled:cursor-not-allowed"
+            />
+          </div>
+
+          {/* Selector de máquina (solo para iniciar y si requiere) */}
+          {accion === 'iniciar' && requiereMaquina && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                Máquina <span className="text-red-500">*</span>
+                {tipoMaquina && (
+                  <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded text-xs uppercase">
+                    {tipoMaquina}
+                  </span>
+                )}
+              </label>
+              {maquinas.length === 0 ? (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-700 text-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>No hay {tipoMaquina || 'máquinas'} disponibles. Todas están en uso.</span>
+                  </div>
+                </div>
+              ) : (
+                <Select value={selectedMaquina || 'none'} onValueChange={(v) => setSelectedMaquina(v === 'none' ? '' : v)}>
+                  <SelectTrigger className={!selectedMaquina ? 'border-orange-400' : ''}>
+                    <SelectValue placeholder="Seleccionar máquina..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {maquinas.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono">{m.codigo}</span>
+                          <span className="text-gray-500">{m.nombre}</span>
+                          {m.capacidad_kg && (
+                            <span className="text-xs text-gray-400">({m.capacidad_kg} kg)</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
         </div>
 
-        {/* Botón confirmar */}
-        <button
-          onClick={handleConfirm}
-          disabled={
-            loading ||
-            !selectedOperario ||
-            pin.length < 4 ||
-            (accion === 'iniciar' && requiereMaquina && (!selectedMaquina || maquinas.length === 0))
-          }
-          className={`
-            w-full py-5 rounded-2xl text-xl font-bold flex items-center justify-center gap-3
-            transition-all disabled:opacity-50 disabled:cursor-not-allowed
-            ${accion === 'iniciar'
-              ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
-              : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+        {/* Botones */}
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={
+              loading ||
+              !selectedOperario ||
+              pin.length < 4 ||
+              (accion === 'iniciar' && requiereMaquina && (!selectedMaquina || maquinas.length === 0))
             }
-          `}
-        >
-          {loading ? (
-            <RefreshCw className="h-6 w-6 animate-spin" />
-          ) : (
-            <>
-              <Lock className="h-6 w-6" />
-              CONFIRMAR
-            </>
-          )}
-        </button>
+            className="px-4 py-2 rounded-md bg-primary text-white hover:bg-primary/90
+                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Validando...
+              </>
+            ) : (
+              <>{accion === 'iniciar' ? 'Iniciar Etapa' : 'Finalizar Etapa'}</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
