@@ -756,9 +756,9 @@ export default function PanelOperariosPage() {
   }
 
   return (
-    <div className={`min-h-screen bg-gray-50 ${fullscreen ? 'p-4' : ''}`}>
+    <div className={`h-screen bg-gray-50 flex flex-col overflow-hidden ${fullscreen ? 'p-4' : ''}`}>
       {/* Header fijo */}
-      <div className="bg-white border-b sticky top-0 z-40 px-6 py-4">
+      <div className="bg-white border-b flex-shrink-0 px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo y título */}
           <div className="flex items-center gap-4">
@@ -836,7 +836,7 @@ export default function PanelOperariosPage() {
       </div>
 
       {/* Tablero Kanban */}
-      <div className="p-6 overflow-x-auto h-[calc(100vh-120px)]">
+      <div className="p-6 overflow-x-auto flex-1 overflow-y-hidden">
         <div className="flex gap-6 h-full" style={{ minWidth: 'max-content' }}>
           {kanban?.columnas.map((columna) => (
             <EtapaColumna
