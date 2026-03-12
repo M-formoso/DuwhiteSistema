@@ -147,16 +147,29 @@ def create_empleado(
     """Crea nuevo empleado"""
     service = EmpleadoService(db)
 
-    # Verificar DNI único
+    # Verificar DNI único (incluyendo inactivos)
     existing = service.get_empleado_by_dni(data.dni)
     if existing:
+        if existing.activo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ya existe un empleado activo con el DNI {data.dni}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ya existe un empleado inactivo con el DNI {data.dni}. Puede reactivarlo en lugar de crear uno nuevo."
+            )
+
+    try:
+        empleado = service.create_empleado(data)
+        return _empleado_to_response(empleado)
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe un empleado con ese DNI"
+            detail=f"Error al crear empleado: {str(e)}"
         )
-
-    empleado = service.create_empleado(data)
-    return _empleado_to_response(empleado)
 
 
 @router.get("/{empleado_id}", response_model=EmpleadoResponse)

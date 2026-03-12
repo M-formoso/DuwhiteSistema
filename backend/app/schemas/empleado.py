@@ -4,7 +4,7 @@ Schemas de Empleados para DUWHITE ERP
 
 from datetime import date, time, datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 
@@ -75,11 +75,11 @@ class EmpleadoBase(BaseModel):
     dias_trabajo: Optional[str] = Field(None, max_length=50)
 
     # Salario y pago
-    salario_base: Decimal = Field(default=Decimal("0"), ge=0)
-    salario_hora: Optional[Decimal] = Field(None, ge=0)
+    salario_base: Union[Decimal, float, int] = Field(default=0, ge=0)
+    salario_hora: Optional[Union[Decimal, float, int]] = Field(None, ge=0)
     tipo_contratacion: str = Field(default=TipoContratacion.BLANCO)  # blanco, negro, monotributo
     dia_pago: Optional[int] = Field(default=5, ge=1, le=31)  # Día del mes para pago
-    jornada_horas: Decimal = Field(default=Decimal("8"), ge=1, le=12)  # Horas de jornada diaria
+    jornada_horas: Union[Decimal, float, int] = Field(default=8, ge=1, le=12)  # Horas de jornada diaria
     adelanto_maximo_porcentaje: Optional[int] = Field(default=50, ge=0, le=100)  # % máximo de adelanto
 
     # Datos bancarios
