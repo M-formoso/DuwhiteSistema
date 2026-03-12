@@ -250,12 +250,12 @@ export function IniciarEtapaModal({
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Select value={maquinaId} onValueChange={setMaquinaId}>
+                <Select value={maquinaId || 'none'} onValueChange={(v) => setMaquinaId(v === 'none' ? '' : v)}>
                   <SelectTrigger className={requiereMaquina && !maquinaId ? 'border-orange-400' : ''}>
                     <SelectValue placeholder={requiereMaquina ? 'Seleccionar máquina...' : 'Sin máquina asignada'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {!requiereMaquina && <SelectItem value="">Sin máquina</SelectItem>}
+                    {!requiereMaquina && <SelectItem value="none">Sin máquina</SelectItem>}
                     {maquinas.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         <div className="flex items-center justify-between w-full gap-2">

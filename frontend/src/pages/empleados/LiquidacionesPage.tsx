@@ -291,12 +291,12 @@ export default function LiquidacionesPage() {
             </div>
             <div className="space-y-2">
               <Label>Empleado</Label>
-              <Select value={filtroEmpleado} onValueChange={setFiltroEmpleado}>
+              <Select value={filtroEmpleado || 'all'} onValueChange={(v) => setFiltroEmpleado(v === 'all' ? '' : v)}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {empleados.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.nombre_completo}
