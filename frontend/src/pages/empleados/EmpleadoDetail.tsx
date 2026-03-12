@@ -36,8 +36,12 @@ import {
   TIPOS_EMPLEADO,
   ESTADOS_EMPLEADO,
   TIPOS_CONTRATO,
+  TIPOS_CONTRATACION,
+  TIPOS_MOVIMIENTO_NOMINA,
   getEstadoBadgeColor,
   getTipoBadgeColor,
+  getTipoContratacionBadgeColor,
+  getTipoContratacionLabel,
 } from '@/types/empleado';
 
 export default function EmpleadoDetailPage() {
@@ -354,11 +358,36 @@ export default function EmpleadoDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Salario */}
+          {/* Tipo de Contratación */}
+          <div className={`border rounded-lg p-6 ${
+            empleado.tipo_contratacion === 'blanco'
+              ? 'bg-emerald-50 border-emerald-200'
+              : empleado.tipo_contratacion === 'negro'
+              ? 'bg-red-50 border-red-200'
+              : 'bg-blue-50 border-blue-200'
+          }`}>
+            <h3 className="text-lg font-semibold text-text-primary mb-3">
+              Tipo de Contratación
+            </h3>
+            <div className="flex items-center gap-3">
+              <span
+                className={`inline-flex px-3 py-1.5 text-sm font-bold rounded-full ${getTipoContratacionBadgeColor(
+                  empleado.tipo_contratacion
+                )}`}
+              >
+                {getTipoContratacionLabel(empleado.tipo_contratacion)}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {TIPOS_CONTRATACION.find(t => t.value === empleado.tipo_contratacion)?.description}
+            </p>
+          </div>
+
+          {/* Información de Pago */}
           <div className="bg-card border border-border rounded-lg p-6">
             <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-primary" />
-              Salario
+              Información de Pago
             </h3>
             <div className="space-y-4">
               <div>
@@ -375,8 +404,82 @@ export default function EmpleadoDetailPage() {
                   </p>
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border">
+                <div>
+                  <p className="text-sm text-muted-foreground">Día de Pago</p>
+                  <p className="text-lg font-semibold text-text-primary">
+                    {empleado.dia_pago || 5}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Jornada</p>
+                  <p className="text-lg font-semibold text-text-primary">
+                    {empleado.jornada_horas}h
+                  </p>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-border">
+                <p className="text-sm text-muted-foreground">Adelanto Máximo</p>
+                <p className="text-lg font-semibold text-text-primary">
+                  {empleado.adelanto_maximo_porcentaje || 50}% del salario
+                </p>
+                <p className="text-sm text-emerald-600 font-medium">
+                  (Hasta {formatCurrency((empleado.salario_base * (empleado.adelanto_maximo_porcentaje || 50)) / 100)})
+                </p>
+              </div>
             </div>
           </div>
+
+          {/* Adelantos Pendientes */}
+          {movimientosData?.items && (
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-amber-500" />
+                Adelantos
+              </h3>
+              {(() => {
+                const adelantos = movimientosData.items.filter(m => m.tipo === 'adelanto');
+                const adelantosPendientes = adelantos.filter(m => !m.pagado);
+                const totalPendiente = adelantosPendientes.reduce((sum, m) => sum + m.monto, 0);
+
+                return (
+                  <div className="space-y-3">
+                    {adelantosPendientes.length > 0 ? (
+                      <>
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-sm text-amber-800">Pendientes de pago</p>
+                          <p className="text-xl font-bold text-amber-600">
+                            {formatCurrency(totalPendiente)}
+                          </p>
+                        </div>
+                        {adelantosPendientes.slice(0, 3).map((mov) => (
+                          <div
+                            key={mov.id}
+                            className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                          >
+                            <div>
+                              <p className="text-sm text-text-primary">{mov.concepto}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {mov.periodo_mes}/{mov.periodo_anio}
+                              </p>
+                            </div>
+                            <span className="font-medium text-amber-600">
+                              {formatCurrency(mov.monto)}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                        Sin adelantos pendientes
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Últimas Asistencias */}
           <div className="bg-card border border-border rounded-lg p-6">

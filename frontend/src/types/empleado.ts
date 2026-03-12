@@ -82,7 +82,7 @@ export interface Empleado {
   // Meta
   notas: string | null;
   foto_url: string | null;
-  is_active: boolean;
+  activo: boolean;
   created_at: string;
 }
 
