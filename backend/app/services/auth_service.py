@@ -3,12 +3,15 @@ Servicio de Autenticación.
 Maneja login, logout, tokens, y validación de usuarios.
 """
 
+import logging
 from datetime import datetime
 from typing import Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.security import (
     create_access_token,
@@ -171,6 +174,7 @@ class AuthService:
         payload = decode_token(token)
 
         if not payload:
+            logger.warning(f"Token inválido o expirado: {token[:20]}...")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido o expirado",
@@ -178,6 +182,7 @@ class AuthService:
 
         # Verificar que sea un access token
         if payload.get("type") != "access":
+            logger.warning(f"Token no es access, tipo: {payload.get('type')}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido",
@@ -188,12 +193,14 @@ class AuthService:
         usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
 
         if not usuario:
+            logger.warning(f"Usuario no encontrado: {user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Usuario no encontrado",
             )
 
         if not usuario.activo:
+            logger.warning(f"Usuario inactivo: {usuario.email}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Usuario desactivado",
