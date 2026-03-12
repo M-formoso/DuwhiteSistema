@@ -246,7 +246,7 @@ function EtapaColumna({
   const lotesUrgentes = columna.lotes.filter((l) => l.prioridad === 'urgente').length;
 
   return (
-    <div className="flex-shrink-0 w-[400px]">
+    <div className="flex-shrink-0 w-[400px] flex flex-col h-full">
       {/* Header de etapa */}
       <div
         className="rounded-t-2xl p-4 text-white"
@@ -289,7 +289,7 @@ function EtapaColumna({
       </div>
 
       {/* Lista de lotes */}
-      <div className="bg-gray-100 rounded-b-2xl p-4 min-h-[500px] max-h-[calc(100vh-280px)] overflow-y-auto space-y-4">
+      <div className="bg-gray-100 rounded-b-2xl p-4 flex-1 overflow-y-auto space-y-4">
         {columna.lotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Package className="h-16 w-16 mb-4 opacity-50" />
@@ -362,6 +362,43 @@ function PinModalGrande({
       setError('');
     }
   }, [open]);
+
+  // Manejar teclado físico
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Solo números
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        if (pin.length < 6) {
+          setPin(prev => prev + e.key);
+          setError('');
+        }
+      }
+      // Backspace
+      else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setPin(prev => prev.slice(0, -1));
+        setError('');
+      }
+      // Escape para cerrar
+      else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+      // Enter para confirmar
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedOperario && pin.length >= 4) {
+          handleConfirm();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, pin, selectedOperario, onClose]);
 
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
@@ -799,8 +836,8 @@ export default function PanelOperariosPage() {
       </div>
 
       {/* Tablero Kanban */}
-      <div className="p-6 overflow-x-auto">
-        <div className="flex gap-6" style={{ minWidth: 'max-content' }}>
+      <div className="p-6 overflow-x-auto h-[calc(100vh-120px)]">
+        <div className="flex gap-6 h-full" style={{ minWidth: 'max-content' }}>
           {kanban?.columnas.map((columna) => (
             <EtapaColumna
               key={columna.etapa_id}
