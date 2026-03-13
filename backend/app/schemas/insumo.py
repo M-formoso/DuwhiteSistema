@@ -21,6 +21,7 @@ class InsumoBase(BaseModel):
     stock_actual: Decimal = Field(default=Decimal("0"), ge=0)
     stock_minimo: Decimal = Field(default=Decimal("0"), ge=0)
     stock_maximo: Optional[Decimal] = Field(None, ge=0)
+    precio_unitario_sin_iva: Optional[Decimal] = Field(None, ge=0)
     precio_unitario_costo: Optional[Decimal] = Field(None, ge=0)
     precio_promedio_ponderado: Optional[Decimal] = Field(None, ge=0)
     proveedor_habitual_id: Optional[UUID] = None
@@ -45,6 +46,7 @@ class InsumoUpdate(BaseModel):
     unidad: Optional[str] = Field(None, min_length=1, max_length=20)
     stock_minimo: Optional[Decimal] = Field(None, ge=0)
     stock_maximo: Optional[Decimal] = Field(None, ge=0)
+    precio_unitario_sin_iva: Optional[Decimal] = Field(None, ge=0)
     precio_unitario_costo: Optional[Decimal] = Field(None, ge=0)
     proveedor_habitual_id: Optional[UUID] = None
     ubicacion_deposito: Optional[str] = Field(None, max_length=100)

@@ -46,7 +46,8 @@ class Insumo(Base, BaseModelMixin):
     stock_maximo = Column(Numeric(12, 2), nullable=True)
 
     # Precios
-    precio_unitario_costo = Column(Numeric(12, 2), nullable=True)  # Último precio compra
+    precio_unitario_sin_iva = Column(Numeric(12, 2), nullable=True)  # Precio neto sin IVA
+    precio_unitario_costo = Column(Numeric(12, 2), nullable=True)  # Precio con IVA incluido
     precio_promedio_ponderado = Column(Numeric(12, 2), nullable=True)
 
     # Proveedor habitual

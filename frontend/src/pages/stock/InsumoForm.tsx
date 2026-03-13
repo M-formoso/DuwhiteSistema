@@ -38,6 +38,7 @@ const insumoSchema = z.object({
   stock_actual: z.coerce.number().min(0).default(0),
   stock_minimo: z.coerce.number().min(0).default(0),
   stock_maximo: z.coerce.number().min(0).optional().nullable(),
+  precio_unitario_sin_iva: z.coerce.number().min(0).optional().nullable(),
   precio_unitario_costo: z.coerce.number().min(0).optional().nullable(),
   ubicacion_deposito: z.string().max(100).optional().nullable(),
   fecha_vencimiento: z.string().optional().nullable(),
@@ -97,6 +98,7 @@ export default function InsumoForm() {
         stock_actual: insumo.stock_actual,
         stock_minimo: insumo.stock_minimo,
         stock_maximo: insumo.stock_maximo,
+        precio_unitario_sin_iva: insumo.precio_unitario_sin_iva,
         precio_unitario_costo: insumo.precio_unitario_costo,
         ubicacion_deposito: insumo.ubicacion_deposito,
         fecha_vencimiento: insumo.fecha_vencimiento,
@@ -337,20 +339,53 @@ export default function InsumoForm() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="precio_unitario_costo">Precio Unitario (Costo)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                    $
-                  </span>
-                  <Input
-                    id="precio_unitario_costo"
-                    type="number"
-                    step="0.01"
-                    {...register('precio_unitario_costo')}
-                    className="pl-8"
-                    placeholder="0.00"
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="precio_unitario_sin_iva">Precio sin IVA (Neto)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id="precio_unitario_sin_iva"
+                      type="number"
+                      step="0.01"
+                      {...register('precio_unitario_sin_iva')}
+                      className="pl-8"
+                      placeholder="0.00"
+                      onChange={(e) => {
+                        const sinIva = parseFloat(e.target.value) || 0;
+                        const conIva = sinIva * 1.21;
+                        setValue('precio_unitario_sin_iva', sinIva);
+                        setValue('precio_unitario_costo', Math.round(conIva * 100) / 100);
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Precio neto del proveedor</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="precio_unitario_costo">Precio con IVA (21%)</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id="precio_unitario_costo"
+                      type="number"
+                      step="0.01"
+                      {...register('precio_unitario_costo')}
+                      className="pl-8"
+                      placeholder="0.00"
+                      onChange={(e) => {
+                        const conIva = parseFloat(e.target.value) || 0;
+                        const sinIva = conIva / 1.21;
+                        setValue('precio_unitario_costo', conIva);
+                        setValue('precio_unitario_sin_iva', Math.round(sinIva * 100) / 100);
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Precio final con IVA incluido</p>
                 </div>
               </div>
 

@@ -40,6 +40,7 @@ export interface Insumo {
   stock_actual: number;
   stock_minimo: number;
   stock_maximo: number | null;
+  precio_unitario_sin_iva: number | null;
   precio_unitario_costo: number | null;
   precio_promedio_ponderado: number | null;
   proveedor_habitual_id: string | null;
@@ -70,6 +71,7 @@ export interface InsumoCreate {
   stock_actual?: number;
   stock_minimo?: number;
   stock_maximo?: number | null;
+  precio_unitario_sin_iva?: number | null;
   precio_unitario_costo?: number | null;
   proveedor_habitual_id?: string | null;
   ubicacion_deposito?: string | null;
@@ -87,6 +89,7 @@ export interface InsumoUpdate {
   unidad?: string;
   stock_minimo?: number;
   stock_maximo?: number | null;
+  precio_unitario_sin_iva?: number | null;
   precio_unitario_costo?: number | null;
   proveedor_habitual_id?: string | null;
   ubicacion_deposito?: string | null;

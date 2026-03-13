@@ -55,6 +55,8 @@ def run_migrations():
         # Nuevas columnas para jornadas_laborales (autorización de HE)
         "ALTER TABLE jornadas_laborales ADD COLUMN IF NOT EXISTS horas_extra_autorizadas BOOLEAN DEFAULT false",
         "ALTER TABLE jornadas_laborales ADD COLUMN IF NOT EXISTS autorizado_por_id UUID",
+        # Nueva columna para precio sin IVA en insumos
+        "ALTER TABLE insumos ADD COLUMN IF NOT EXISTS precio_unitario_sin_iva NUMERIC(12,2)",
     ]
 
     # Migraciones que crean tablas (ejecutar después de las columnas)
