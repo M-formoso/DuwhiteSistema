@@ -320,6 +320,7 @@ export const TIPOS_EMPLEADO = [
   { value: 'supervisor', label: 'Supervisor' },
   { value: 'repartidor', label: 'Repartidor' },
   { value: 'gerente', label: 'Gerente' },
+  { value: 'limpieza', label: 'Limpieza' },
 ];
 
 export const TIPOS_CONTRATO = [
