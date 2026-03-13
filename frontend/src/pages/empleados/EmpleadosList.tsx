@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Users, Filter, Phone, Mail, Building2 } from 'lucide-react';
 
+import { formatDateAR } from '@/lib/utils';
 import { getEmpleados, getDepartamentos } from '@/services/empleadoService';
 import type { EmpleadoList, TipoEmpleado, EstadoEmpleado } from '@/types/empleado';
 import {
@@ -50,9 +51,6 @@ export default function EmpleadosListPage() {
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / limit);
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-AR');
-  };
 
   const clearFilters = () => {
     setTipoFilter('');
@@ -301,7 +299,7 @@ export default function EmpleadosListPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-text-primary">
-                      {formatDate(empleado.fecha_ingreso)}
+                      {formatDateAR(empleado.fecha_ingreso)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
