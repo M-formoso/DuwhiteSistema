@@ -97,6 +97,23 @@ class EmpleadoBase(BaseModel):
     # Observaciones
     notas: Optional[str] = None
 
+    @field_validator('fecha_ingreso', 'fecha_nacimiento', mode='before')
+    @classmethod
+    def parse_date_without_timezone(cls, v):
+        """Parsea fecha asegurando que no haya conversión de timezone"""
+        if v is None:
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            # Si viene como YYYY-MM-DD, parsearlo directamente
+            if len(v) == 10 and v[4] == '-' and v[7] == '-':
+                return date.fromisoformat(v)
+            # Si viene con tiempo (ISO format con T), tomar solo la parte de fecha
+            if 'T' in v:
+                return date.fromisoformat(v.split('T')[0])
+        return v
+
 
 class EmpleadoCreate(EmpleadoBase):
     """Schema para crear empleado"""
@@ -130,6 +147,23 @@ class EmpleadoUpdate(BaseModel):
     departamento: Optional[str] = Field(None, max_length=100)
     fecha_ingreso: Optional[date] = None
     fecha_egreso: Optional[date] = None
+
+    @field_validator('fecha_ingreso', 'fecha_egreso', 'fecha_nacimiento', mode='before')
+    @classmethod
+    def parse_date_without_timezone(cls, v):
+        """Parsea fecha asegurando que no haya conversión de timezone"""
+        if v is None:
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            # Si viene como YYYY-MM-DD, parsearlo directamente
+            if len(v) == 10 and v[4] == '-' and v[7] == '-':
+                return date.fromisoformat(v)
+            # Si viene con tiempo (ISO format con T), tomar solo la parte de fecha
+            if 'T' in v:
+                return date.fromisoformat(v.split('T')[0])
+        return v
 
     # Horario
     horario_entrada: Optional[time] = None

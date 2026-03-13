@@ -207,8 +207,16 @@ def update_empleado(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualiza empleado"""
+    # Debug: ver qué fecha llega
+    if data.fecha_ingreso:
+        logger.info(f"UPDATE empleado {empleado_id}: fecha_ingreso recibida = {data.fecha_ingreso} (tipo: {type(data.fecha_ingreso)})")
+
     service = EmpleadoService(db)
     empleado = service.update_empleado(empleado_id, data)
+
+    # Debug: ver qué fecha se guardó
+    if empleado:
+        logger.info(f"UPDATE empleado {empleado_id}: fecha_ingreso guardada = {empleado.fecha_ingreso}")
 
     if not empleado:
         raise HTTPException(
