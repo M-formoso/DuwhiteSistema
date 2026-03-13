@@ -94,7 +94,7 @@ const initialFormData: FormData = {
   unidad_compra: '',
   factor_conversion: '1',
   cantidad_minima: '',
-  fecha_precio: new Date().toISOString().split('T')[0],
+  fecha_precio: new Date().toLocaleDateString('en-CA'),
   fecha_vencimiento_precio: '',
   es_preferido: false,
   notas: '',
@@ -114,7 +114,7 @@ export default function ProductosProveedorPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [priceData, setPriceData] = useState({
     precio_unitario: '',
-    fecha_precio: new Date().toISOString().split('T')[0],
+    fecha_precio: new Date().toLocaleDateString('en-CA'),
     fecha_vencimiento_precio: '',
     documento_referencia: '',
     notas: '',
@@ -214,7 +214,7 @@ export default function ProductosProveedorPage() {
       unidad_compra: producto.unidad_compra || '',
       factor_conversion: producto.factor_conversion?.toString() || '1',
       cantidad_minima: producto.cantidad_minima?.toString() || '',
-      fecha_precio: producto.fecha_precio || new Date().toISOString().split('T')[0],
+      fecha_precio: producto.fecha_precio || new Date().toLocaleDateString('en-CA'),
       fecha_vencimiento_precio: producto.fecha_vencimiento_precio || '',
       es_preferido: producto.es_preferido ?? false,
       notas: producto.notas || '',
@@ -226,7 +226,7 @@ export default function ProductosProveedorPage() {
     setEditingProducto(producto);
     setPriceData({
       precio_unitario: producto.precio_unitario?.toString() || '',
-      fecha_precio: new Date().toISOString().split('T')[0],
+      fecha_precio: new Date().toLocaleDateString('en-CA'),
       fecha_vencimiento_precio: '',
       documento_referencia: '',
       notas: '',

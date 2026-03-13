@@ -38,7 +38,7 @@ export default function EmpleadoFormPage() {
     tipo_contrato: 'permanente',
     puesto: null,
     departamento: null,
-    fecha_ingreso: new Date().toISOString().split('T')[0],
+    fecha_ingreso: new Date().toLocaleDateString('en-CA'), // Formato YYYY-MM-DD en zona horaria local
     horario_entrada: null,
     horario_salida: null,
     dias_trabajo: null,

@@ -80,7 +80,7 @@ export default function AsistenciaPage() {
 
   const [vista, setVista] = useState<'diaria' | 'mensual'>('diaria');
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    new Date().toLocaleDateString('en-CA')
   );
   const [mesSeleccionado, setMesSeleccionado] = useState<Date>(new Date());
   const [busqueda, setBusqueda] = useState('');
@@ -571,7 +571,7 @@ export default function AsistenciaPage() {
               </Card>
 
               {/* Empleados sin registro hoy */}
-              {fechaSeleccionada === new Date().toISOString().split('T')[0] && (
+              {fechaSeleccionada === new Date().toLocaleDateString('en-CA') && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Registrar Asistencia</CardTitle>

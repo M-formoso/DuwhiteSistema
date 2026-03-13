@@ -77,7 +77,7 @@ export default function OrdenPagoFormPage() {
   const [proveedorOpen, setProveedorOpen] = useState(false);
   const [busquedaProveedor, setBusquedaProveedor] = useState('');
 
-  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaEmision, setFechaEmision] = useState(new Date().toLocaleDateString('en-CA'));
   const [fechaPagoProgramada, setFechaPagoProgramada] = useState('');
   const [concepto, setConcepto] = useState('');
   const [notas, setNotas] = useState('');

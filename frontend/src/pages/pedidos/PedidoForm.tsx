@@ -86,7 +86,7 @@ export default function PedidoForm() {
   } = useForm<PedidoFormData>({
     resolver: zodResolver(pedidoSchema),
     defaultValues: {
-      fecha_pedido: new Date().toISOString().split('T')[0],
+      fecha_pedido: new Date().toLocaleDateString('en-CA'),
       tipo_entrega: 'retiro_local',
       detalles: [],
     },

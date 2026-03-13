@@ -137,7 +137,7 @@ export default function OrdenesPagoPage() {
     pagarMutation.mutate({
       ordenId: ordenPagar.id,
       data: {
-        fecha_pago: new Date().toISOString().split('T')[0],
+        fecha_pago: new Date().toLocaleDateString('en-CA'),
         medio_pago: medioPago,
         referencia_pago: referenciaPago || undefined,
       },

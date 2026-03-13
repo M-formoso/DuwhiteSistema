@@ -88,7 +88,7 @@ export default function OrdenCompraForm() {
   } = useForm<OrdenFormData>({
     resolver: zodResolver(ordenSchema),
     defaultValues: {
-      fecha_emision: new Date().toISOString().split('T')[0],
+      fecha_emision: new Date().toLocaleDateString('en-CA'),
       moneda: 'ARS',
       descuento_porcentaje: 0,
       requiere_aprobacion: false,

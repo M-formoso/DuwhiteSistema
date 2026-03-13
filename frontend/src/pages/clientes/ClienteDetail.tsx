@@ -121,7 +121,7 @@ export default function ClienteDetailPage() {
     mutationFn: () =>
       clienteService.registrarPago(id!, {
         monto: parseFloat(pagoMonto),
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: new Date().toLocaleDateString('en-CA'),
         medio_pago: pagoMedio,
         referencia_pago: pagoReferencia || undefined,
       }),
