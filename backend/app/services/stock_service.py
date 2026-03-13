@@ -67,9 +67,11 @@ class StockService:
         self.db.refresh(categoria)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="CategoriaInsumo",
+            modulo="stock",
+            entidad_tipo="CategoriaInsumo",
             entidad_id=categoria.id,
             datos_nuevos=data.model_dump(),
         )
@@ -101,9 +103,11 @@ class StockService:
         self.db.refresh(categoria)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="actualizar",
-            entidad="CategoriaInsumo",
+            modulo="stock",
+            entidad_tipo="CategoriaInsumo",
             entidad_id=categoria.id,
             datos_anteriores=datos_anteriores,
             datos_nuevos=data.model_dump(exclude_unset=True),
@@ -121,9 +125,11 @@ class StockService:
         self.db.commit()
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="eliminar",
-            entidad="CategoriaInsumo",
+            modulo="stock",
+            entidad_tipo="CategoriaInsumo",
             entidad_id=categoria.id,
         )
 
@@ -211,9 +217,11 @@ class StockService:
             )
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="Insumo",
+            modulo="stock",
+            entidad_tipo="Insumo",
             entidad_id=insumo.id,
             datos_nuevos=data.model_dump(),
         )
@@ -245,9 +253,11 @@ class StockService:
         self.db.refresh(insumo)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="actualizar",
-            entidad="Insumo",
+            modulo="stock",
+            entidad_tipo="Insumo",
             entidad_id=insumo.id,
             datos_anteriores=datos_anteriores,
             datos_nuevos=data.model_dump(exclude_unset=True),
@@ -265,9 +275,11 @@ class StockService:
         self.db.commit()
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="eliminar",
-            entidad="Insumo",
+            modulo="stock",
+            entidad_tipo="Insumo",
             entidad_id=insumo.id,
         )
 
