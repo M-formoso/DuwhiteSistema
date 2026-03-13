@@ -3,12 +3,47 @@ Servicio de Logging de Actividad.
 Registra todas las acciones para auditoría.
 """
 
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.models.log_actividad import LogActividad
+
+
+def _serializar_para_json(data: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """
+    Convierte valores no serializables a JSON (Decimal, UUID, date, datetime) a tipos básicos.
+    """
+    if data is None:
+        return None
+
+    resultado = {}
+    for key, value in data.items():
+        if isinstance(value, Decimal):
+            resultado[key] = str(value)
+        elif isinstance(value, UUID):
+            resultado[key] = str(value)
+        elif isinstance(value, datetime):
+            resultado[key] = value.isoformat()
+        elif isinstance(value, date):
+            resultado[key] = value.isoformat()
+        elif isinstance(value, dict):
+            resultado[key] = _serializar_para_json(value)
+        elif isinstance(value, list):
+            resultado[key] = [
+                _serializar_para_json(item) if isinstance(item, dict)
+                else str(item) if isinstance(item, (Decimal, UUID))
+                else item.isoformat() if isinstance(item, (date, datetime))
+                else item
+                for item in value
+            ]
+        else:
+            resultado[key] = value
+
+    return resultado
 
 
 class LogService:
@@ -53,8 +88,8 @@ class LogService:
             modulo=modulo,
             entidad_tipo=entidad_tipo,
             entidad_id=entidad_id,
-            datos_anteriores=datos_anteriores,
-            datos_nuevos=datos_nuevos,
+            datos_anteriores=_serializar_para_json(datos_anteriores),
+            datos_nuevos=_serializar_para_json(datos_nuevos),
             descripcion=descripcion,
             ip=ip,
             user_agent=user_agent,
