@@ -128,6 +128,7 @@ class EmpleadoUpdate(BaseModel):
     estado: Optional[str] = None
     puesto: Optional[str] = Field(None, max_length=100)
     departamento: Optional[str] = Field(None, max_length=100)
+    fecha_ingreso: Optional[date] = None
     fecha_egreso: Optional[date] = None
 
     # Horario
