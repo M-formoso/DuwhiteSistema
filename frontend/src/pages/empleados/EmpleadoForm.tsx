@@ -32,6 +32,8 @@ export default function EmpleadoFormPage() {
     telefono_emergencia: null,
     contacto_emergencia: null,
     direccion: null,
+    barrio: null,
+    localidad: null,
     ciudad: null,
     codigo_postal: null,
     tipo: 'operario',
@@ -82,6 +84,8 @@ export default function EmpleadoFormPage() {
         telefono_emergencia: empleado.telefono_emergencia,
         contacto_emergencia: empleado.contacto_emergencia,
         direccion: empleado.direccion,
+        barrio: empleado.barrio,
+        localidad: empleado.localidad,
         ciudad: empleado.ciudad,
         codigo_postal: empleado.codigo_postal,
         tipo: empleado.tipo,
@@ -367,6 +371,33 @@ export default function EmpleadoFormPage() {
                     type="text"
                     name="direccion"
                     value={formData.direccion || ''}
+                    onChange={handleChange}
+                    placeholder="Calle y número"
+                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">
+                    Barrio
+                  </label>
+                  <input
+                    type="text"
+                    name="barrio"
+                    value={formData.barrio || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-1">
+                    Localidad
+                  </label>
+                  <input
+                    type="text"
+                    name="localidad"
+                    value={formData.localidad || ''}
                     onChange={handleChange}
                     className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   />

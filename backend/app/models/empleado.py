@@ -89,6 +89,8 @@ class Empleado(Base, BaseModelMixin):
 
     # Dirección
     direccion = Column(String(255), nullable=True)
+    barrio = Column(String(100), nullable=True)
+    localidad = Column(String(100), nullable=True)
     ciudad = Column(String(100), nullable=True)
     codigo_postal = Column(String(10), nullable=True)
 

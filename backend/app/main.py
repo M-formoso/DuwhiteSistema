@@ -49,6 +49,9 @@ def run_migrations():
         "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS dia_pago INTEGER DEFAULT 5",
         "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS jornada_horas NUMERIC(4,2) DEFAULT 8",
         "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS adelanto_maximo_porcentaje INTEGER DEFAULT 50",
+        # Nuevas columnas para dirección de empleados
+        "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS barrio VARCHAR(100)",
+        "ALTER TABLE empleados ADD COLUMN IF NOT EXISTS localidad VARCHAR(100)",
         # Nuevas columnas para jornadas_laborales (autorización de HE)
         "ALTER TABLE jornadas_laborales ADD COLUMN IF NOT EXISTS horas_extra_autorizadas BOOLEAN DEFAULT false",
         "ALTER TABLE jornadas_laborales ADD COLUMN IF NOT EXISTS autorizado_por_id UUID",

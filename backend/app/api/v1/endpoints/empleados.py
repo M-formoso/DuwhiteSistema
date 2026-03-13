@@ -44,6 +44,8 @@ def _empleado_to_response(empleado: Empleado) -> EmpleadoResponse:
         telefono_emergencia=empleado.telefono_emergencia,
         contacto_emergencia=empleado.contacto_emergencia,
         direccion=empleado.direccion,
+        barrio=empleado.barrio,
+        localidad=empleado.localidad,
         ciudad=empleado.ciudad,
         codigo_postal=empleado.codigo_postal,
         tipo=empleado.tipo,

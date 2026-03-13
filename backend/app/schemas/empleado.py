@@ -59,6 +59,8 @@ class EmpleadoBase(BaseModel):
 
     # Dirección
     direccion: Optional[str] = Field(None, max_length=255)
+    barrio: Optional[str] = Field(None, max_length=100)
+    localidad: Optional[str] = Field(None, max_length=100)
     ciudad: Optional[str] = Field(None, max_length=100)
     codigo_postal: Optional[str] = Field(None, max_length=10)
 
@@ -136,6 +138,8 @@ class EmpleadoUpdate(BaseModel):
 
     # Dirección
     direccion: Optional[str] = Field(None, max_length=255)
+    barrio: Optional[str] = Field(None, max_length=100)
+    localidad: Optional[str] = Field(None, max_length=100)
     ciudad: Optional[str] = Field(None, max_length=100)
     codigo_postal: Optional[str] = Field(None, max_length=10)
 
@@ -216,6 +220,8 @@ class EmpleadoResponse(BaseModel):
 
     # Dirección
     direccion: Optional[str]
+    barrio: Optional[str]
+    localidad: Optional[str]
     ciudad: Optional[str]
     codigo_postal: Optional[str]
 

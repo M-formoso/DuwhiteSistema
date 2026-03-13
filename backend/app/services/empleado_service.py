@@ -128,6 +128,8 @@ class EmpleadoService:
             telefono_emergencia=data.telefono_emergencia,
             contacto_emergencia=data.contacto_emergencia,
             direccion=data.direccion,
+            barrio=data.barrio,
+            localidad=data.localidad,
             ciudad=data.ciudad,
             codigo_postal=data.codigo_postal,
             tipo=data.tipo,

@@ -39,6 +39,8 @@ export interface Empleado {
 
   // Dirección
   direccion: string | null;
+  barrio: string | null;
+  localidad: string | null;
   ciudad: string | null;
   codigo_postal: string | null;
 
@@ -113,6 +115,8 @@ export interface EmpleadoCreate {
   telefono_emergencia?: string | null;
   contacto_emergencia?: string | null;
   direccion?: string | null;
+  barrio?: string | null;
+  localidad?: string | null;
   ciudad?: string | null;
   codigo_postal?: string | null;
   tipo?: TipoEmpleado;
@@ -152,6 +156,8 @@ export interface EmpleadoUpdate {
   telefono_emergencia?: string | null;
   contacto_emergencia?: string | null;
   direccion?: string | null;
+  barrio?: string | null;
+  localidad?: string | null;
   ciudad?: string | null;
   codigo_postal?: string | null;
   tipo?: TipoEmpleado;
