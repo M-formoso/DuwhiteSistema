@@ -385,6 +385,7 @@ export const getTipoBadgeColor = (tipo: TipoEmpleado): string => {
     supervisor: 'bg-amber-500/10 text-amber-500',
     repartidor: 'bg-blue-500/10 text-blue-500',
     gerente: 'bg-emerald-500/10 text-emerald-500',
+    limpieza: 'bg-teal-500/10 text-teal-500',
   };
   return colors[tipo] || 'bg-zinc-500/10 text-zinc-500';
 };
