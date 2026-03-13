@@ -544,6 +544,7 @@ def get_tipos_empleado(
             {"value": "supervisor", "label": "Supervisor"},
             {"value": "repartidor", "label": "Repartidor"},
             {"value": "gerente", "label": "Gerente"},
+            {"value": "limpieza", "label": "Limpieza"},
         ],
         "tipos_contrato": [
             {"value": "permanente", "label": "Permanente"},

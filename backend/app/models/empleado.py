@@ -19,6 +19,7 @@ class TipoEmpleado(str, enum.Enum):
     SUPERVISOR = "supervisor"
     REPARTIDOR = "repartidor"
     GERENTE = "gerente"
+    LIMPIEZA = "limpieza"
 
 
 class TipoContrato(str, enum.Enum):

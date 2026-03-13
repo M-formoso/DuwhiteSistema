@@ -3,7 +3,7 @@
  */
 
 // Estados y enums
-export type TipoEmpleado = 'operario' | 'administrativo' | 'supervisor' | 'repartidor' | 'gerente';
+export type TipoEmpleado = 'operario' | 'administrativo' | 'supervisor' | 'repartidor' | 'gerente' | 'limpieza';
 export type TipoContrato = 'permanente' | 'temporal' | 'medio_tiempo' | 'por_hora';
 export type TipoContratacion = 'blanco' | 'negro' | 'monotributo';
 export type EstadoEmpleado = 'activo' | 'licencia' | 'vacaciones' | 'suspendido' | 'desvinculado';
