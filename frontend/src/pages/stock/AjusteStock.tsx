@@ -106,20 +106,24 @@ export default function AjusteStock() {
   const calcularStockResultante = (): number => {
     if (!insumo) return 0;
 
+    // Asegurar que stock_actual sea número
+    const stockActual = Number(insumo.stock_actual) || 0;
+
     if (tipoAjuste === 'reemplazo') {
       return parsearCantidad(nuevoStock);
     }
 
     const cantidadNum = parsearCantidad(cantidad);
     if (tipoAjuste === 'positivo') {
-      return insumo.stock_actual + cantidadNum;
+      return stockActual + cantidadNum;
     } else {
-      return Math.max(0, insumo.stock_actual - cantidadNum);
+      return Math.max(0, stockActual - cantidadNum);
     }
   };
 
   const stockResultante = Math.round(calcularStockResultante() * 100) / 100;
-  const diferencia = insumo ? Math.round((stockResultante - insumo.stock_actual) * 100) / 100 : 0;
+  const stockActualNum = insumo ? Number(insumo.stock_actual) || 0 : 0;
+  const diferencia = Math.round((stockResultante - stockActualNum) * 100) / 100;
 
   // Validaciones
   const validarFormulario = (): boolean => {
