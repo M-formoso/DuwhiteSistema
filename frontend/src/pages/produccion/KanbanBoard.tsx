@@ -27,6 +27,7 @@ import { PinValidationModal } from '@/components/produccion/PinValidationModal';
 import { IniciarEtapaModal } from '@/components/produccion/IniciarEtapaModal';
 import { produccionService } from '@/services/produccionService';
 import { formatNumber } from '@/utils/formatters';
+import { formatDateAR } from '@/lib/utils';
 import type { KanbanLote, PrioridadLote, KanbanColumna } from '@/types/produccion';
 
 const PRIORIDAD_COLORS: Record<PrioridadLote, string> = {
@@ -128,7 +129,7 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, isEnProceso }: Kanb
 
           {lote.fecha_compromiso && (
             <div className="text-xs text-gray-400 mt-2">
-              Compromiso: {new Date(lote.fecha_compromiso).toLocaleDateString('es-AR')}
+              Compromiso: {formatDateAR(lote.fecha_compromiso)}
             </div>
           )}
         </div>

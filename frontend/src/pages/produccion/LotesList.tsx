@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { produccionService } from '@/services/produccionService';
 import { formatNumber } from '@/utils/formatters';
+import { formatDateAR } from '@/lib/utils';
 import type { EstadoLote, PrioridadLote, LoteProduccionList } from '@/types/produccion';
 import { ESTADOS_LOTE, PRIORIDADES, TIPOS_SERVICIO } from '@/types/produccion';
 
@@ -297,7 +298,7 @@ export default function LotesListPage() {
                     </TableCell>
                     <TableCell>
                       {lote.fecha_compromiso
-                        ? new Date(lote.fecha_compromiso).toLocaleDateString('es-AR')
+                        ? formatDateAR(lote.fecha_compromiso)
                         : '-'}
                     </TableCell>
                     <TableCell>
@@ -369,7 +370,7 @@ export default function LotesListPage() {
                 {lote.fecha_compromiso && (
                   <div className="flex items-center gap-1 text-xs text-gray-500">
                     <Clock className="h-3 w-3" />
-                    Compromiso: {new Date(lote.fecha_compromiso).toLocaleDateString('es-AR')}
+                    Compromiso: {formatDateAR(lote.fecha_compromiso)}
                   </div>
                 )}
 

@@ -93,15 +93,24 @@ export default function AjusteStock() {
     cargarInsumo();
   }, [id, toast]);
 
+  // Parsear cantidad de forma robusta (soporta coma o punto decimal)
+  const parsearCantidad = (valor: string): number => {
+    if (!valor || valor.trim() === '') return 0;
+    // Reemplazar coma por punto para manejar locale argentino
+    const valorNormalizado = valor.replace(',', '.');
+    const num = parseFloat(valorNormalizado);
+    return isNaN(num) ? 0 : num;
+  };
+
   // Calcular stock resultante
   const calcularStockResultante = (): number => {
     if (!insumo) return 0;
 
     if (tipoAjuste === 'reemplazo') {
-      return parseFloat(nuevoStock) || 0;
+      return parsearCantidad(nuevoStock);
     }
 
-    const cantidadNum = parseFloat(cantidad) || 0;
+    const cantidadNum = parsearCantidad(cantidad);
     if (tipoAjuste === 'positivo') {
       return insumo.stock_actual + cantidadNum;
     } else {
@@ -109,8 +118,8 @@ export default function AjusteStock() {
     }
   };
 
-  const stockResultante = calcularStockResultante();
-  const diferencia = insumo ? stockResultante - insumo.stock_actual : 0;
+  const stockResultante = Math.round(calcularStockResultante() * 100) / 100;
+  const diferencia = insumo ? Math.round((stockResultante - insumo.stock_actual) * 100) / 100 : 0;
 
   // Validaciones
   const validarFormulario = (): boolean => {
@@ -341,7 +350,7 @@ export default function AjusteStock() {
                     <Input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={nuevoStock}
                       onChange={(e) => setNuevoStock(e.target.value)}
                       className="text-lg"
@@ -358,8 +367,8 @@ export default function AjusteStock() {
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      min="0.01"
-                      step="0.01"
+                      min="1"
+                      step="1"
                       value={cantidad}
                       onChange={(e) => setCantidad(e.target.value)}
                       className="text-lg"

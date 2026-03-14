@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { getDashboardCompleto } from '@/services/dashboardService';
 import api, { getErrorMessage } from '@/services/api';
+import { formatDateAR } from '@/lib/utils';
 import type { Alerta } from '@/types/dashboard';
 
 const formatCurrency = (value: number) => {
@@ -48,9 +49,7 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('es-AR');
-};
+const formatDate = formatDateAR;
 
 const getAlertIcon = (nivel: Alerta['nivel']) => {
   switch (nivel) {

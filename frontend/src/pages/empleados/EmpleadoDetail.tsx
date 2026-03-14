@@ -230,7 +230,9 @@ export default function EmpleadoDetailPage() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('es-AR');
+    // Parsear como fecha local para evitar problemas de timezone
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('es-AR');
   };
 
   const formatTime = (timeStr: string | null) => {

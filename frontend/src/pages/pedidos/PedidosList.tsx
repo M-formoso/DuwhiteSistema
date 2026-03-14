@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { clienteService } from '@/services/clienteService';
 import { formatNumber } from '@/utils/formatters';
+import { formatDateAR } from '@/lib/utils';
 import type { EstadoPedido } from '@/types/cliente';
 import { ESTADOS_PEDIDO, TIPOS_ENTREGA } from '@/types/cliente';
 
@@ -226,12 +227,12 @@ export default function PedidosListPage() {
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Calendar className="h-3 w-3 text-gray-400" />
-                        {new Date(pedido.fecha_pedido).toLocaleDateString('es-AR')}
+                        {formatDateAR(pedido.fecha_pedido)}
                       </div>
                     </TableCell>
                     <TableCell>
                       {pedido.fecha_entrega_estimada
-                        ? new Date(pedido.fecha_entrega_estimada).toLocaleDateString('es-AR')
+                        ? formatDateAR(pedido.fecha_entrega_estimada)
                         : '-'}
                     </TableCell>
                     <TableCell>
