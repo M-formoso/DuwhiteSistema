@@ -297,6 +297,10 @@ class StockService:
         if not insumo:
             raise ValueError("Insumo no encontrado")
 
+        # Validar que la cantidad no sea cero
+        if data.cantidad == 0:
+            raise ValueError("La cantidad de ajuste no puede ser cero")
+
         stock_anterior = insumo.stock_actual
 
         if data.cantidad > 0:

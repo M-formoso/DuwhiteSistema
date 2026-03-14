@@ -47,12 +47,34 @@ class MovimientoStockInDB(MovimientoStockBase):
         from_attributes = True
 
 
-class MovimientoStockResponse(MovimientoStockInDB):
+class MovimientoStockResponse(BaseModel):
     """Schema de respuesta con datos relacionados."""
+    id: UUID
+    insumo_id: UUID
+    tipo: TipoMovimiento
+    origen: Optional[OrigenMovimiento] = None
+    cantidad: Decimal = Field(..., ge=0)  # ge=0 para response, la validación gt=0 es en create
+    stock_anterior: Decimal
+    stock_posterior: Decimal
+    precio_unitario: Optional[Decimal] = None
+    costo_total: Optional[Decimal] = None
+    documento_tipo: Optional[str] = None
+    documento_id: Optional[UUID] = None
+    numero_documento: Optional[str] = None
+    proveedor_id: Optional[UUID] = None
+    numero_lote: Optional[str] = None
+    fecha_vencimiento_lote: Optional[datetime] = None
+    notas: Optional[str] = None
+    usuario_id: UUID
+    fecha_movimiento: datetime
+    created_at: datetime
     insumo_codigo: Optional[str] = None
     insumo_nombre: Optional[str] = None
     proveedor_nombre: Optional[str] = None
     usuario_nombre: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 
 class MovimientoStockFilter(BaseModel):
