@@ -162,12 +162,24 @@ export default function AjusteStock() {
     try {
       const motivoCompleto = `${MOTIVOS_AJUSTE.find(m => m.value === motivo)?.label}${motivoDetalle ? `: ${motivoDetalle}` : ''}`;
 
+      // Asegurar que la cantidad sea un número válido
+      const cantidadAjuste = Number(diferencia);
+      if (isNaN(cantidadAjuste) || cantidadAjuste === 0) {
+        toast({
+          title: 'Error',
+          description: 'La cantidad de ajuste no es válida',
+          variant: 'destructive',
+        });
+        setSaving(false);
+        return;
+      }
+
       await stockService.ajustarStock(insumo.id, {
         insumo_id: insumo.id,
-        cantidad: diferencia,
+        cantidad: cantidadAjuste,
         motivo: motivoCompleto,
-        numero_lote: numeroLote || undefined,
-        fecha_vencimiento: fechaVencimiento || undefined,
+        numero_lote: numeroLote || null,
+        fecha_vencimiento: fechaVencimiento || null,
       });
 
       toast({
