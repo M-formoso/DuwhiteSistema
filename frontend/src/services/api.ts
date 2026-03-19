@@ -85,7 +85,10 @@ export default api;
 // Helper para extraer mensaje de error
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<{ detail: string }>;
+    const axiosError = error as AxiosError<{ detail: string; errors?: unknown[] }>;
+    // Log completo del error para debugging
+    console.error('API Error Response:', axiosError.response?.data);
+    console.error('API Error Status:', axiosError.response?.status);
     return axiosError.response?.data?.detail || axiosError.message || 'Error desconocido';
   }
   if (error instanceof Error) {
