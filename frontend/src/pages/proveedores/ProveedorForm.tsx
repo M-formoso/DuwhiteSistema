@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
 import { proveedorService } from '@/services/proveedorService';
+import { getErrorMessage } from '@/services/api';
 import { RUBROS_PROVEEDOR, CONDICIONES_PAGO } from '@/types/proveedor';
 
 const PROVINCIAS = [
@@ -149,10 +150,10 @@ export default function ProveedorForm() {
       });
       navigate(`/proveedores/${data.id}`);
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Error',
-        description: error.message || 'No se pudo crear el proveedor.',
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     },
@@ -170,10 +171,10 @@ export default function ProveedorForm() {
       });
       navigate(`/proveedores/${data.id}`);
     },
-    onError: (error: Error) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Error',
-        description: error.message || 'No se pudo actualizar el proveedor.',
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     },
