@@ -48,22 +48,34 @@ export function formatDate(date: string | Date): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'America/Argentina/Buenos_Aires',
   }).format(d);
 }
 
 /**
- * Formatea una fecha con hora
+ * Formatea una fecha con hora en zona horaria Argentina
+ * El backend guarda en UTC, así que forzamos la interpretación como UTC
  * @param date Fecha a formatear
  * @returns String formateado (ej: "15/01/2026 14:30")
  */
 export function formatDateTime(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === 'string') {
+    // Si el string no tiene indicador de timezone, agregar Z para interpretarlo como UTC
+    const dateStr = date.includes('Z') || date.includes('+') || date.includes('-', 10)
+      ? date
+      : date + 'Z';
+    d = new Date(dateStr);
+  } else {
+    d = date;
+  }
   return new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
   }).format(d);
 }
 

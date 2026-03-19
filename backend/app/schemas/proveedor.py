@@ -41,6 +41,25 @@ class ProveedorBase(BaseModel):
             raise ValueError('El CUIT debe tener 11 dígitos')
         return cuit_limpio
 
+    @field_validator('email', 'contacto_email', mode='before')
+    @classmethod
+    def empty_str_to_none_email(cls, v):
+        """Convierte strings vacíos a None para campos de email."""
+        if v == '' or v is None:
+            return None
+        return v
+
+    @field_validator('nombre_fantasia', 'direccion', 'ciudad', 'codigo_postal',
+                     'telefono', 'sitio_web', 'contacto_nombre', 'contacto_telefono',
+                     'condicion_pago', 'dias_entrega_estimados', 'descuento_habitual',
+                     'rubro', 'notas', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        """Convierte strings vacíos a None para campos opcionales."""
+        if v == '':
+            return None
+        return v
+
 
 class ProveedorCreate(ProveedorBase):
     """Schema para crear proveedor."""
@@ -78,6 +97,25 @@ class ProveedorUpdate(BaseModel):
         if len(cuit_limpio) != 11:
             raise ValueError('El CUIT debe tener 11 dígitos')
         return cuit_limpio
+
+    @field_validator('email', 'contacto_email', mode='before')
+    @classmethod
+    def empty_str_to_none_email(cls, v):
+        """Convierte strings vacíos a None para campos de email."""
+        if v == '' or v is None:
+            return None
+        return v
+
+    @field_validator('nombre_fantasia', 'direccion', 'ciudad', 'codigo_postal',
+                     'telefono', 'sitio_web', 'contacto_nombre', 'contacto_telefono',
+                     'condicion_pago', 'dias_entrega_estimados', 'descuento_habitual',
+                     'rubro', 'notas', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        """Convierte strings vacíos a None para campos opcionales."""
+        if v == '':
+            return None
+        return v
 
 
 class ProveedorInDB(ProveedorBase):

@@ -20,16 +20,22 @@ export function formatDateAR(dateStr: string | null | undefined): string {
 }
 
 /**
- * Formatea fecha y hora a formato argentino
+ * Formatea fecha y hora a formato argentino con timezone correcto
+ * El backend guarda en UTC, así que forzamos la interpretación como UTC
  */
 export function formatDateTimeAR(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  const date = new Date(dateStr);
+  // Si el string no tiene indicador de timezone, agregar Z para interpretarlo como UTC
+  const str = dateStr.includes('Z') || dateStr.includes('+') || dateStr.includes('-', 10)
+    ? dateStr
+    : dateStr + 'Z';
+  const date = new Date(str);
   return date.toLocaleString('es-AR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
   });
 }
