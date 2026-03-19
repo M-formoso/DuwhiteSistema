@@ -94,12 +94,13 @@ class ProveedorService:
         self.db.commit()
         self.db.refresh(proveedor)
 
-        self.log_service.registrar(
+        self.log_service.registrar_creacion(
+            db=self.db,
             usuario_id=usuario_id,
-            accion="crear",
-            entidad="Proveedor",
+            modulo="proveedores",
+            entidad_tipo="Proveedor",
             entidad_id=proveedor.id,
-            datos_nuevos=data.model_dump(),
+            datos=data.model_dump(),
         )
 
         return proveedor
@@ -127,10 +128,11 @@ class ProveedorService:
         self.db.commit()
         self.db.refresh(proveedor)
 
-        self.log_service.registrar(
+        self.log_service.registrar_edicion(
+            db=self.db,
             usuario_id=usuario_id,
-            accion="actualizar",
-            entidad="Proveedor",
+            modulo="proveedores",
+            entidad_tipo="Proveedor",
             entidad_id=proveedor.id,
             datos_anteriores=datos_anteriores,
             datos_nuevos=data.model_dump(exclude_unset=True),
@@ -147,11 +149,13 @@ class ProveedorService:
         proveedor.activo = False
         self.db.commit()
 
-        self.log_service.registrar(
+        self.log_service.registrar_eliminacion(
+            db=self.db,
             usuario_id=usuario_id,
-            accion="eliminar",
-            entidad="Proveedor",
+            modulo="proveedores",
+            entidad_tipo="Proveedor",
             entidad_id=proveedor.id,
+            datos={"razon_social": proveedor.razon_social, "cuit": proveedor.cuit},
         )
 
         return True
