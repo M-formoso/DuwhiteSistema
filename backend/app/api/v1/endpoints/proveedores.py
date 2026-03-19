@@ -163,17 +163,23 @@ def crear_proveedor(
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
 ):
     """Crea un nuevo proveedor."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Creando proveedor con CUIT: {data.cuit}, razón social: {data.razon_social}")
+
     service = ProveedorService(db)
 
     # Verificar CUIT único
     existing = service.get_proveedor_by_cuit(data.cuit)
     if existing:
+        logger.warning(f"Ya existe proveedor con CUIT {data.cuit}: {existing.razon_social}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe un proveedor con ese CUIT",
+            detail=f"Ya existe un proveedor con ese CUIT: {existing.razon_social}",
         )
 
     proveedor = service.create_proveedor(data, current_user.id)
+    logger.info(f"Proveedor creado exitosamente: {proveedor.id}")
 
     return ProveedorResponse(
         id=proveedor.id,
