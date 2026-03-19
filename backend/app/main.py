@@ -456,16 +456,24 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     # Formatear errores de forma más legible
     error_messages = []
+    serializable_errors = []
     for error in errors:
         loc = " -> ".join(str(l) for l in error.get("loc", []))
         msg = error.get("msg", "Error de validación")
         error_messages.append(f"{loc}: {msg}")
+        # Crear versión serializable del error (sin objetos ValueError)
+        serializable_errors.append({
+            "loc": error.get("loc"),
+            "msg": msg,
+            "type": error.get("type"),
+            "input": str(error.get("input", ""))
+        })
 
     return JSONResponse(
         status_code=400,
         content={
             "detail": "; ".join(error_messages),
-            "errors": errors
+            "errors": serializable_errors
         }
     )
 
