@@ -27,6 +27,8 @@ import {
   Eye,
   EyeOff,
   Shield,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -70,6 +72,7 @@ export default function ClienteDetailPage() {
   const [nuevaPassword, setNuevaPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showEliminarModal, setShowEliminarModal] = useState(false);
 
   // Query del cliente
   const { data: cliente, isLoading } = useQuery({
@@ -203,6 +206,27 @@ export default function ClienteDetailPage() {
     },
   });
 
+  // Mutation para eliminar (desactivar) cliente
+  const eliminarMutation = useMutation({
+    mutationFn: () => clienteService.deleteCliente(id!),
+    onSuccess: () => {
+      toast({
+        title: 'Cliente desactivado',
+        description: 'El cliente ha sido desactivado correctamente.',
+      });
+      navigate('/clientes');
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const mensaje = error.response?.data?.detail || 'No se pudo desactivar el cliente.';
+      toast({
+        title: 'Error',
+        description: mensaje,
+        variant: 'destructive',
+      });
+      setShowEliminarModal(false);
+    },
+  });
+
   // Función para copiar al portapapeles
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -274,6 +298,16 @@ export default function ClienteDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          {cliente.activo && (
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+              onClick={() => setShowEliminarModal(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
+            </Button>
+          )}
           <Button variant="outline" onClick={() => navigate(`/clientes/${id}/editar`)}>
             <Edit className="h-4 w-4 mr-2" />
             Editar
@@ -917,6 +951,68 @@ export default function ClienteDetailPage() {
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : null}
                   Cambiar Contraseña
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Confirmar Eliminación */}
+      {showEliminarModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Eliminar Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-600">
+                ¿Estás seguro de que deseas eliminar al cliente{' '}
+                <span className="font-medium">
+                  {cliente.nombre_fantasia || cliente.razon_social}
+                </span>
+                ?
+              </p>
+
+              <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm">
+                <p className="font-medium">Esta acción desactivará el cliente.</p>
+                <p className="mt-1">
+                  El cliente no será eliminado permanentemente, pero no aparecerá en las listas
+                  activas ni podrá realizar operaciones.
+                </p>
+              </div>
+
+              {cliente.tiene_deuda && (
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
+                  <p className="font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    No se puede eliminar
+                  </p>
+                  <p className="mt-1">
+                    Este cliente tiene deuda pendiente. Debe saldar su cuenta antes de poder
+                    desactivarlo.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="ghost" onClick={() => setShowEliminarModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => eliminarMutation.mutate()}
+                  disabled={cliente.tiene_deuda || eliminarMutation.isPending}
+                >
+                  {eliminarMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Eliminar Cliente
                 </Button>
               </div>
             </CardContent>
