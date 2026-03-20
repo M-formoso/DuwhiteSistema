@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -18,6 +18,10 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Trash2,
+  MoreHorizontal,
+  Eye,
+  Edit,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,12 +41,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
 
 import { clienteService } from '@/services/clienteService';
 import { formatNumber } from '@/utils/formatters';
-import type { TipoCliente } from '@/types/cliente';
+import type { TipoCliente, ClienteList } from '@/types/cliente';
 import { TIPOS_CLIENTE } from '@/types/cliente';
 
 const TIPO_ICONS: Record<TipoCliente, typeof User> = {
@@ -57,8 +68,11 @@ const TIPO_ICONS: Record<TipoCliente, typeof User> = {
 
 export default function ClientesListPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [busqueda, setBusqueda] = useState(searchParams.get('buscar') || '');
+  const [clienteAEliminar, setClienteAEliminar] = useState<ClienteList | null>(null);
 
   // Filtros desde URL
   const tipo = searchParams.get('tipo') as TipoCliente | null;
@@ -109,6 +123,28 @@ export default function ClientesListPage() {
   const getTipoLabel = (t: TipoCliente) => {
     return TIPOS_CLIENTE.find((x) => x.value === t)?.label || t;
   };
+
+  // Mutation para eliminar cliente
+  const eliminarMutation = useMutation({
+    mutationFn: (clienteId: string) => clienteService.deleteCliente(clienteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      toast({
+        title: 'Cliente eliminado',
+        description: 'El cliente ha sido desactivado correctamente.',
+      });
+      setClienteAEliminar(null);
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const mensaje = error.response?.data?.detail || 'No se pudo eliminar el cliente.';
+      toast({
+        title: 'Error',
+        description: mensaje,
+        variant: 'destructive',
+      });
+      setClienteAEliminar(null);
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -200,12 +236,13 @@ export default function ClientesListPage() {
                 <TableHead>Ciudad</TableHead>
                 <TableHead className="text-right">Saldo CC</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clientes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                     No se encontraron clientes
                   </TableCell>
                 </TableRow>
@@ -282,6 +319,52 @@ export default function ClientesListPage() {
                           {cliente.activo ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/clientes/${cliente.id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Ver detalle
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/clientes/${cliente.id}/editar`);
+                              }}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            {cliente.activo && (
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClienteAEliminar(cliente);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -313,6 +396,68 @@ export default function ClientesListPage() {
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
+        </div>
+      )}
+
+      {/* Modal de Confirmar Eliminación */}
+      {clienteAEliminar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Eliminar Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-600">
+                ¿Estás seguro de que deseas eliminar al cliente{' '}
+                <span className="font-medium">
+                  {clienteAEliminar.nombre_fantasia || clienteAEliminar.razon_social}
+                </span>
+                ?
+              </p>
+
+              <div className="bg-amber-50 text-amber-800 p-3 rounded-lg text-sm">
+                <p className="font-medium">Esta acción desactivará el cliente.</p>
+                <p className="mt-1">
+                  El cliente no será eliminado permanentemente, pero no aparecerá en las listas
+                  activas ni podrá realizar operaciones.
+                </p>
+              </div>
+
+              {clienteAEliminar.tiene_deuda && (
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
+                  <p className="font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    No se puede eliminar
+                  </p>
+                  <p className="mt-1">
+                    Este cliente tiene deuda pendiente. Debe saldar su cuenta antes de poder
+                    desactivarlo.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="ghost" onClick={() => setClienteAEliminar(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => eliminarMutation.mutate(clienteAEliminar.id)}
+                  disabled={clienteAEliminar.tiene_deuda || eliminarMutation.isPending}
+                >
+                  {eliminarMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Eliminar Cliente
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
