@@ -38,6 +38,7 @@ import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedid
 // Finanzas
 import { CajaPage, CuentasBancariasPage, ResumenFinancieroPage } from '@/pages/finanzas';
 import CuentaCorrienteProveedorPage from '@/pages/finanzas/CuentaCorrienteProveedorPage';
+import CuentaCorrienteClientesPage from '@/pages/finanzas/CuentaCorrienteClientesPage';
 import AnalisisVencimientosPage from '@/pages/finanzas/AnalisisVencimientosPage';
 import OrdenesPagoPage from '@/pages/finanzas/OrdenesPagoPage';
 import OrdenPagoFormPage from '@/pages/finanzas/OrdenPagoFormPage';
@@ -156,6 +157,7 @@ function App() {
         <Route path="/finanzas/caja" element={<CajaPage />} />
         <Route path="/finanzas/bancos" element={<CuentasBancariasPage />} />
         <Route path="/finanzas/resumen" element={<ResumenFinancieroPage />} />
+        <Route path="/finanzas/cuentas-corrientes-clientes" element={<CuentaCorrienteClientesPage />} />
         <Route path="/finanzas/cuenta-corriente-proveedor/:proveedorId" element={<CuentaCorrienteProveedorPage />} />
         <Route path="/finanzas/analisis-vencimientos" element={<AnalisisVencimientosPage />} />
         <Route path="/finanzas/ordenes-pago" element={<OrdenesPagoPage />} />

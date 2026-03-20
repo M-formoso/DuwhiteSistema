@@ -141,6 +141,12 @@ const navSectionsInternal: NavSection[] = [
         roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
       },
       {
+        title: 'Cuentas Corrientes',
+        href: '/finanzas/cuentas-corrientes-clientes',
+        icon: Users,
+        roles: ['superadmin', 'administrador', 'contador', 'comercial'],
+      },
+      {
         title: 'Órdenes de Pago',
         href: '/finanzas/ordenes-pago',
         icon: CreditCard,

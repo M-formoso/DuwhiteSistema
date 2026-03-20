@@ -33,6 +33,162 @@ import {
   ResumenConciliacionCuenta,
 } from '@/types/finanzas-avanzadas';
 
+// ==================== CUENTA CORRIENTE CLIENTES ====================
+
+export interface ClienteConDeuda {
+  id: string;
+  codigo: string;
+  razon_social: string;
+  nombre_fantasia: string | null;
+  cuit: string | null;
+  telefono: string | null;
+  email: string | null;
+  saldo: number;
+  limite_credito: number | null;
+  dias_antiguedad: number | null;
+}
+
+export interface ResumenCCClientes {
+  clientes_con_deuda: number;
+  total_deuda: number;
+  total_facturado_mes: number;
+  total_cobrado_mes: number;
+  promedio_dias_cobranza: number;
+}
+
+export interface MovimientoCCCliente {
+  id: string;
+  tipo: string;
+  concepto: string;
+  monto: number;
+  fecha_movimiento: string;
+  saldo_anterior: number;
+  saldo_posterior: number;
+  factura_numero: string | null;
+  recibo_numero: string | null;
+  medio_pago: string | null;
+  referencia_pago: string | null;
+}
+
+export interface RegistrarPagoClienteRequest {
+  monto: number;
+  fecha: string;
+  medio_pago: string;
+  referencia_pago?: string;
+  notas?: string;
+  aplicar_a_pedidos?: string[];
+}
+
+export interface RegistrarCargoClienteRequest {
+  monto: number;
+  concepto: string;
+  factura_numero?: string;
+  fecha_vencimiento?: string;
+}
+
+export const cuentaCorrienteClienteService = {
+  // Listar clientes con deuda
+  async getClientesConDeuda(params?: {
+    skip?: number;
+    limit?: number;
+    buscar?: string;
+    orden?: 'saldo_desc' | 'saldo_asc' | 'nombre' | 'antiguedad';
+  }) {
+    const response = await api.get<{
+      items: ClienteConDeuda[];
+      total: number;
+      total_deuda: number;
+      skip: number;
+      limit: number;
+    }>('/clientes/cuenta-corriente/clientes-con-deuda', { params });
+    return response.data;
+  },
+
+  // Resumen general
+  async getResumen() {
+    const response = await api.get<ResumenCCClientes>(
+      '/clientes/cuenta-corriente/resumen'
+    );
+    return response.data;
+  },
+
+  // Movimientos de un cliente
+  async getMovimientos(
+    clienteId: string,
+    params?: {
+      skip?: number;
+      limit?: number;
+      fecha_desde?: string;
+      fecha_hasta?: string;
+      tipo?: string;
+    }
+  ) {
+    const response = await api.get<{
+      items: MovimientoCCCliente[];
+      total: number;
+      skip: number;
+      limit: number;
+    }>(`/clientes/cuenta-corriente/${clienteId}/movimientos`, { params });
+    return response.data;
+  },
+
+  // Estado de cuenta de un cliente
+  async getEstadoCuenta(clienteId: string) {
+    const response = await api.get<{
+      cliente_id: string;
+      cliente_nombre: string;
+      saldo_actual: number;
+      limite_credito: number | null;
+      credito_disponible: number | null;
+      total_facturado_mes: number;
+      total_pagado_mes: number;
+      cantidad_facturas_pendientes: number;
+      factura_mas_antigua_dias: number | null;
+    }>(`/clientes/cuenta-corriente/${clienteId}/estado-cuenta`);
+    return response.data;
+  },
+
+  // Registrar cargo
+  async registrarCargo(clienteId: string, data: RegistrarCargoClienteRequest) {
+    const response = await api.post<{ id: string; mensaje: string; saldo_posterior: number }>(
+      `/clientes/cuenta-corriente/${clienteId}/cargo`,
+      null,
+      { params: data }
+    );
+    return response.data;
+  },
+
+  // Registrar pago
+  async registrarPago(clienteId: string, data: RegistrarPagoClienteRequest) {
+    const response = await api.post<{
+      id: string;
+      recibo_numero: string;
+      mensaje: string;
+      saldo_posterior: number;
+    }>(`/clientes/cuenta-corriente/${clienteId}/pago`, {
+      cliente_id: clienteId,
+      ...data,
+    });
+    return response.data;
+  },
+
+  // Tipos de movimiento
+  async getTiposMovimiento() {
+    const response = await api.get<{ value: string; label: string }[]>(
+      '/clientes/cuenta-corriente/tipos-movimiento'
+    );
+    return response.data;
+  },
+
+  // Medios de pago
+  async getMediosPago() {
+    const response = await api.get<{ value: string; label: string }[]>(
+      '/clientes/cuenta-corriente/medios-pago'
+    );
+    return response.data;
+  },
+};
+
 // ==================== CUENTA CORRIENTE PROVEEDOR ====================
 
 export const cuentaCorrienteProveedorService = {
@@ -337,6 +493,7 @@ export const conciliacionBancariaService = {
 
 // Export all services
 export default {
+  cuentaCorrienteCliente: cuentaCorrienteClienteService,
   cuentaCorrienteProveedor: cuentaCorrienteProveedorService,
   ordenesPago: ordenesPagoService,
   crucesConsolidados: crucesConsolidadosService,

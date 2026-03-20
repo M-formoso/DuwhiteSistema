@@ -24,6 +24,7 @@ from app.api.v1.endpoints import (
     servicios,
     actividades,
     cuenta_corriente_proveedor,
+    cuenta_corriente_cliente,
     ordenes_pago,
     cruces_consolidados,
     conciliacion_bancaria,
@@ -155,6 +156,13 @@ api_router.include_router(
     cuenta_corriente_proveedor.router,
     prefix="/proveedores/cuenta-corriente",
     tags=["Cuenta Corriente Proveedores"],
+)
+
+# Cuenta Corriente Clientes
+api_router.include_router(
+    cuenta_corriente_cliente.router,
+    prefix="/clientes/cuenta-corriente",
+    tags=["Cuenta Corriente Clientes"],
 )
 
 # Órdenes de Pago

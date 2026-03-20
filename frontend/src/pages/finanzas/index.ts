@@ -2,6 +2,7 @@ export { default as CajaPage } from './CajaPage';
 export { default as CuentasBancariasPage } from './CuentasBancariasPage';
 export { default as ResumenFinancieroPage } from './ResumenFinancieroPage';
 export { default as CuentaCorrienteProveedorPage } from './CuentaCorrienteProveedorPage';
+export { default as CuentaCorrienteClientesPage } from './CuentaCorrienteClientesPage';
 export { default as AnalisisVencimientosPage } from './AnalisisVencimientosPage';
 export { default as OrdenesPagoPage } from './OrdenesPagoPage';
 export { default as OrdenPagoFormPage } from './OrdenPagoFormPage';
