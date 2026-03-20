@@ -15,9 +15,11 @@ from app.services.cliente_service import ClienteService
 from app.schemas.cuenta_corriente import (
     MovimientoCCList,
     RegistrarPagoRequest,
+    RegistrarCobranzaRequest,
     EstadoCuentaResponse,
     TIPOS_MOVIMIENTO_CC,
     MEDIOS_PAGO,
+    ESTADOS_FACTURACION,
 )
 from app.schemas.common import PaginatedResponse
 
@@ -221,6 +223,9 @@ def listar_movimientos_cliente(
             "recibo_numero": m.recibo_numero,
             "medio_pago": m.medio_pago,
             "referencia_pago": m.referencia_pago,
+            "estado_facturacion": getattr(m, 'estado_facturacion', 'sin_facturar'),
+            "pedido_id": str(m.pedido_id) if m.pedido_id else None,
+            "lote_id": str(m.lote_id) if m.lote_id else None,
         })
 
     return {
@@ -327,3 +332,179 @@ def obtener_tipos_movimiento():
 def obtener_medios_pago():
     """Obtiene los medios de pago disponibles."""
     return MEDIOS_PAGO
+
+
+@router.get("/estados-facturacion")
+def obtener_estados_facturacion():
+    """Obtiene los estados de facturación disponibles."""
+    return ESTADOS_FACTURACION
+
+
+# ==================== COBRANZA COMPLETA ====================
+
+@router.post("/{cliente_id}/cobranza", status_code=status.HTTP_201_CREATED)
+def registrar_cobranza(
+    cliente_id: str,
+    data: RegistrarCobranzaRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador", "comercial")),
+):
+    """
+    Registra una cobranza/ingreso de un cliente.
+
+    Permite:
+    - Cobrar sin asociar a pedido/lote (ingreso libre)
+    - Asociar a un pedido específico
+    - Asociar a un lote de producción
+    - Marcar estado de facturación (sin facturar, factura A, B, ticket)
+    """
+    service = ClienteService(db)
+
+    # Verificar cliente
+    cliente = service.get_cliente(cliente_id)
+    if not cliente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente no encontrado",
+        )
+
+    # Verificar pedido si se especificó
+    pedido = None
+    if data.pedido_id:
+        pedido = service.get_pedido(data.pedido_id)
+        if not pedido:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pedido no encontrado",
+            )
+        if str(pedido.cliente_id) != cliente_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El pedido no pertenece a este cliente",
+            )
+
+    # Verificar lote si se especificó
+    lote = None
+    if data.lote_id:
+        from app.models.produccion import Lote
+        lote = db.query(Lote).filter(Lote.id == data.lote_id).first()
+        if not lote:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lote no encontrado",
+            )
+
+    # Generar concepto si no se proveyó
+    concepto = data.concepto
+    if not concepto:
+        if pedido:
+            concepto = f"Cobro pedido {pedido.numero}"
+        elif lote:
+            concepto = f"Cobro lote {lote.numero}"
+        else:
+            concepto = f"Cobro - {data.medio_pago}"
+
+    # Agregar estado de facturación al concepto si está facturado
+    if data.estado_facturacion != "sin_facturar":
+        estado_label = next(
+            (e["label"] for e in ESTADOS_FACTURACION if e["value"] == data.estado_facturacion),
+            data.estado_facturacion
+        )
+        if data.factura_numero:
+            concepto = f"{concepto} ({estado_label} {data.factura_numero})"
+        else:
+            concepto = f"{concepto} ({estado_label})"
+
+    # Crear el pago usando RegistrarPagoRequest
+    pago_data = RegistrarPagoRequest(
+        cliente_id=cliente_id,
+        monto=data.monto,
+        fecha=data.fecha,
+        medio_pago=data.medio_pago,
+        referencia_pago=data.referencia_pago,
+        notas=data.notas,
+        pedido_id=data.pedido_id,
+        lote_id=data.lote_id,
+        estado_facturacion=data.estado_facturacion,
+        factura_numero=data.factura_numero,
+    )
+
+    try:
+        recibo, movimiento = service.registrar_pago(pago_data, str(current_user.id))
+
+        # Actualizar el concepto del movimiento
+        movimiento.concepto = concepto
+        db.commit()
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return {
+        "id": str(movimiento.id),
+        "recibo_numero": recibo.numero,
+        "mensaje": "Cobranza registrada correctamente",
+        "saldo_anterior": float(movimiento.saldo_anterior),
+        "saldo_posterior": float(movimiento.saldo_posterior),
+        "estado_facturacion": data.estado_facturacion,
+        "pedido_numero": pedido.numero if pedido else None,
+        "lote_numero": lote.numero if lote else None,
+    }
+
+
+# ==================== PEDIDOS Y LOTES PARA ASOCIAR ====================
+
+@router.get("/{cliente_id}/pedidos-pendientes")
+def obtener_pedidos_pendientes(
+    cliente_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene pedidos del cliente que tienen saldo pendiente o están sin facturar."""
+    from app.models.pedido import Pedido
+
+    pedidos = db.query(Pedido).filter(
+        Pedido.cliente_id == cliente_id,
+        Pedido.activo == True,
+        Pedido.saldo_pendiente > 0,
+    ).order_by(Pedido.fecha_pedido.desc()).limit(50).all()
+
+    return [
+        {
+            "id": str(p.id),
+            "numero": p.numero,
+            "fecha": p.fecha_pedido.isoformat(),
+            "total": float(p.total),
+            "saldo_pendiente": float(p.saldo_pendiente),
+            "estado": p.estado,
+        }
+        for p in pedidos
+    ]
+
+
+@router.get("/{cliente_id}/lotes")
+def obtener_lotes_cliente(
+    cliente_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Obtiene lotes de producción asociados al cliente."""
+    from app.models.produccion import Lote
+
+    lotes = db.query(Lote).filter(
+        Lote.cliente_id == cliente_id,
+        Lote.activo == True,
+    ).order_by(Lote.fecha_ingreso.desc()).limit(50).all()
+
+    return [
+        {
+            "id": str(l.id),
+            "numero": l.numero,
+            "fecha_ingreso": l.fecha_ingreso.isoformat() if l.fecha_ingreso else None,
+            "estado": l.estado,
+            "descripcion": l.descripcion,
+        }
+        for l in lotes
+    ]

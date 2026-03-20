@@ -79,6 +79,36 @@ export interface RegistrarPagoClienteRequest {
   aplicar_a_pedidos?: string[];
 }
 
+export interface RegistrarCobranzaRequest {
+  monto: number;
+  fecha: string;
+  medio_pago: string;
+  concepto?: string;
+  referencia_pago?: string;
+  notas?: string;
+  pedido_id?: string;
+  lote_id?: string;
+  estado_facturacion: string;  // sin_facturar, factura_a, factura_b, ticket
+  factura_numero?: string;
+}
+
+export interface PedidoPendiente {
+  id: string;
+  numero: string;
+  fecha: string;
+  total: number;
+  saldo_pendiente: number;
+  estado: string;
+}
+
+export interface LoteCliente {
+  id: string;
+  numero: string;
+  fecha_ingreso: string | null;
+  estado: string;
+  descripcion: string | null;
+}
+
 export interface RegistrarCargoClienteRequest {
   monto: number;
   concepto: string;
@@ -184,6 +214,45 @@ export const cuentaCorrienteClienteService = {
   async getMediosPago() {
     const response = await api.get<{ value: string; label: string }[]>(
       '/clientes/cuenta-corriente/medios-pago'
+    );
+    return response.data;
+  },
+
+  // Estados de facturación
+  async getEstadosFacturacion() {
+    const response = await api.get<{ value: string; label: string }[]>(
+      '/clientes/cuenta-corriente/estados-facturacion'
+    );
+    return response.data;
+  },
+
+  // Registrar cobranza completa
+  async registrarCobranza(clienteId: string, data: RegistrarCobranzaRequest) {
+    const response = await api.post<{
+      id: string;
+      recibo_numero: string;
+      mensaje: string;
+      saldo_anterior: number;
+      saldo_posterior: number;
+      estado_facturacion: string;
+      pedido_numero: string | null;
+      lote_numero: string | null;
+    }>(`/clientes/cuenta-corriente/${clienteId}/cobranza`, data);
+    return response.data;
+  },
+
+  // Pedidos pendientes de un cliente
+  async getPedidosPendientes(clienteId: string) {
+    const response = await api.get<PedidoPendiente[]>(
+      `/clientes/cuenta-corriente/${clienteId}/pedidos-pendientes`
+    );
+    return response.data;
+  },
+
+  // Lotes de un cliente
+  async getLotesCliente(clienteId: string) {
+    const response = await api.get<LoteCliente[]>(
+      `/clientes/cuenta-corriente/${clienteId}/lotes`
     );
     return response.data;
   },

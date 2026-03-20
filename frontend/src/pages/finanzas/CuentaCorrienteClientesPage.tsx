@@ -16,17 +16,19 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Plus,
   RefreshCw,
   AlertTriangle,
   CreditCard,
   FileText,
   ArrowUpDown,
+  Package,
+  Receipt,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -44,15 +46,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 
 import {
   cuentaCorrienteClienteService,
   type ClienteConDeuda,
-  type RegistrarPagoClienteRequest,
+  type RegistrarCobranzaRequest,
 } from '@/services/finanzasAvanzadasService';
-import { formatNumber, formatDate } from '@/utils/formatters';
+import { formatNumber } from '@/utils/formatters';
 import { MEDIOS_PAGO } from '@/types/cliente';
+
+const ESTADOS_FACTURACION = [
+  { value: 'sin_facturar', label: 'Sin Facturar' },
+  { value: 'factura_a', label: 'Factura A' },
+  { value: 'factura_b', label: 'Factura B' },
+  { value: 'factura_c', label: 'Factura C' },
+  { value: 'ticket', label: 'Ticket' },
+];
 
 export default function CuentaCorrienteClientesPage() {
   const navigate = useNavigate();
@@ -64,11 +75,17 @@ export default function CuentaCorrienteClientesPage() {
   const [pagina, setPagina] = useState(0);
   const limite = 20;
 
-  // Modal de pago
-  const [clientePago, setClientePago] = useState<ClienteConDeuda | null>(null);
-  const [pagoMonto, setPagoMonto] = useState('');
-  const [pagoMedio, setPagoMedio] = useState('efectivo');
-  const [pagoReferencia, setPagoReferencia] = useState('');
+  // Modal de cobranza
+  const [clienteCobranza, setClienteCobranza] = useState<ClienteConDeuda | null>(null);
+  const [cobranzaMonto, setCobranzaMonto] = useState('');
+  const [cobranzaMedio, setCobranzaMedio] = useState('efectivo');
+  const [cobranzaReferencia, setCobranzaReferencia] = useState('');
+  const [cobranzaConcepto, setCobranzaConcepto] = useState('');
+  const [cobranzaNotas, setCobranzaNotas] = useState('');
+  const [cobranzaEstadoFacturacion, setCobranzaEstadoFacturacion] = useState('sin_facturar');
+  const [cobranzaFacturaNumero, setCobranzaFacturaNumero] = useState('');
+  const [cobranzaPedidoId, setCobranzaPedidoId] = useState<string>('');
+  const [cobranzaLoteId, setCobranzaLoteId] = useState<string>('');
 
   // Query resumen
   const { data: resumen } = useQuery({
@@ -88,30 +105,42 @@ export default function CuentaCorrienteClientesPage() {
       }),
   });
 
+  // Query pedidos pendientes del cliente seleccionado
+  const { data: pedidosPendientes } = useQuery({
+    queryKey: ['cc-pedidos-pendientes', clienteCobranza?.id],
+    queryFn: () => cuentaCorrienteClienteService.getPedidosPendientes(clienteCobranza!.id),
+    enabled: !!clienteCobranza,
+  });
+
+  // Query lotes del cliente seleccionado
+  const { data: lotesCliente } = useQuery({
+    queryKey: ['cc-lotes-cliente', clienteCobranza?.id],
+    queryFn: () => cuentaCorrienteClienteService.getLotesCliente(clienteCobranza!.id),
+    enabled: !!clienteCobranza,
+  });
+
   const clientes = clientesData?.items || [];
   const total = clientesData?.total || 0;
   const totalDeuda = clientesData?.total_deuda || 0;
   const totalPages = Math.ceil(total / limite);
 
-  // Mutation para registrar pago
-  const pagoMutation = useMutation({
-    mutationFn: (data: { clienteId: string; pago: RegistrarPagoClienteRequest }) =>
-      cuentaCorrienteClienteService.registrarPago(data.clienteId, data.pago),
+  // Mutation para registrar cobranza
+  const cobranzaMutation = useMutation({
+    mutationFn: (data: { clienteId: string; cobranza: RegistrarCobranzaRequest }) =>
+      cuentaCorrienteClienteService.registrarCobranza(data.clienteId, data.cobranza),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['cc-clientes-deuda'] });
       queryClient.invalidateQueries({ queryKey: ['cc-clientes-resumen'] });
       toast({
-        title: 'Pago registrado',
+        title: 'Cobranza registrada',
         description: `Recibo ${result.recibo_numero} generado correctamente.`,
       });
-      setClientePago(null);
-      setPagoMonto('');
-      setPagoReferencia('');
+      cerrarModalCobranza();
     },
     onError: () => {
       toast({
         title: 'Error',
-        description: 'No se pudo registrar el pago.',
+        description: 'No se pudo registrar la cobranza.',
         variant: 'destructive',
       });
     },
@@ -121,16 +150,47 @@ export default function CuentaCorrienteClientesPage() {
     setPagina(0);
   };
 
-  const handleRegistrarPago = () => {
-    if (!clientePago || !pagoMonto) return;
+  const abrirModalCobranza = (cliente: ClienteConDeuda) => {
+    setClienteCobranza(cliente);
+    setCobranzaMonto(cliente.saldo.toString());
+    setCobranzaMedio('efectivo');
+    setCobranzaReferencia('');
+    setCobranzaConcepto('');
+    setCobranzaNotas('');
+    setCobranzaEstadoFacturacion('sin_facturar');
+    setCobranzaFacturaNumero('');
+    setCobranzaPedidoId('');
+    setCobranzaLoteId('');
+  };
 
-    pagoMutation.mutate({
-      clienteId: clientePago.id,
-      pago: {
-        monto: parseFloat(pagoMonto),
+  const cerrarModalCobranza = () => {
+    setClienteCobranza(null);
+    setCobranzaMonto('');
+    setCobranzaReferencia('');
+    setCobranzaConcepto('');
+    setCobranzaNotas('');
+    setCobranzaEstadoFacturacion('sin_facturar');
+    setCobranzaFacturaNumero('');
+    setCobranzaPedidoId('');
+    setCobranzaLoteId('');
+  };
+
+  const handleRegistrarCobranza = () => {
+    if (!clienteCobranza || !cobranzaMonto) return;
+
+    cobranzaMutation.mutate({
+      clienteId: clienteCobranza.id,
+      cobranza: {
+        monto: parseFloat(cobranzaMonto),
         fecha: new Date().toISOString().split('T')[0],
-        medio_pago: pagoMedio,
-        referencia_pago: pagoReferencia || undefined,
+        medio_pago: cobranzaMedio,
+        concepto: cobranzaConcepto || undefined,
+        referencia_pago: cobranzaReferencia || undefined,
+        notas: cobranzaNotas || undefined,
+        pedido_id: cobranzaPedidoId || undefined,
+        lote_id: cobranzaLoteId || undefined,
+        estado_facturacion: cobranzaEstadoFacturacion,
+        factura_numero: cobranzaFacturaNumero || undefined,
       },
     });
   };
@@ -335,8 +395,7 @@ export default function CuentaCorrienteClientesPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setClientePago(cliente);
-                          setPagoMonto(cliente.saldo.toString());
+                          abrirModalCobranza(cliente);
                         }}
                       >
                         <CreditCard className="h-4 w-4 mr-1" />
@@ -376,81 +435,199 @@ export default function CuentaCorrienteClientesPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de Pago */}
-      {clientePago && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md m-4">
+      {/* Modal de Cobranza Completo */}
+      {clienteCobranza && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
+          <Card className="w-full max-w-2xl m-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
-                Registrar Pago
+                Registrar Cobranza
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Info del cliente */}
               <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="font-medium">{clientePago.nombre_fantasia || clientePago.razon_social}</p>
-                <p className="text-sm text-gray-500">Deuda actual: ${formatNumber(clientePago.saldo, 2)}</p>
+                <p className="font-medium">{clienteCobranza.nombre_fantasia || clienteCobranza.razon_social}</p>
+                <p className="text-sm text-gray-500">
+                  Deuda actual: <span className="font-semibold text-red-600">${formatNumber(clienteCobranza.saldo, 2)}</span>
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Monto a cobrar *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  max={clientePago.saldo}
-                  value={pagoMonto}
-                  onChange={(e) => setPagoMonto(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
+              <Tabs defaultValue="basico" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="basico">Datos Básicos</TabsTrigger>
+                  <TabsTrigger value="asociar">Asociar a</TabsTrigger>
+                  <TabsTrigger value="facturacion">Facturación</TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-2">
-                <Label>Medio de Pago *</Label>
-                <Select value={pagoMedio} onValueChange={setPagoMedio}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MEDIOS_PAGO.map((mp) => (
-                      <SelectItem key={mp.value} value={mp.value}>
-                        {mp.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <TabsContent value="basico" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Monto a cobrar *</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={cobranzaMonto}
+                        onChange={(e) => setCobranzaMonto(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label>Referencia (opcional)</Label>
-                <Input
-                  value={pagoReferencia}
-                  onChange={(e) => setPagoReferencia(e.target.value)}
-                  placeholder="Nro. transferencia, cheque, etc."
-                />
-              </div>
+                    <div className="space-y-2">
+                      <Label>Medio de Pago *</Label>
+                      <Select value={cobranzaMedio} onValueChange={setCobranzaMedio}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MEDIOS_PAGO.map((mp) => (
+                            <SelectItem key={mp.value} value={mp.value}>
+                              {mp.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setClientePago(null);
-                    setPagoMonto('');
-                    setPagoReferencia('');
-                  }}
-                >
+                  <div className="space-y-2">
+                    <Label>Referencia de Pago</Label>
+                    <Input
+                      value={cobranzaReferencia}
+                      onChange={(e) => setCobranzaReferencia(e.target.value)}
+                      placeholder="Nro. transferencia, cheque, etc."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Concepto (opcional)</Label>
+                    <Input
+                      value={cobranzaConcepto}
+                      onChange={(e) => setCobranzaConcepto(e.target.value)}
+                      placeholder="Se genera automáticamente si no se especifica"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Notas</Label>
+                    <Textarea
+                      value={cobranzaNotas}
+                      onChange={(e) => setCobranzaNotas(e.target.value)}
+                      placeholder="Observaciones adicionales..."
+                      rows={2}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="asociar" className="space-y-4 mt-4">
+                  <p className="text-sm text-gray-500">
+                    Opcionalmente podés asociar esta cobranza a un pedido o lote específico.
+                  </p>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Pedido
+                    </Label>
+                    <Select value={cobranzaPedidoId} onValueChange={setCobranzaPedidoId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin asociar a pedido" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Sin asociar a pedido</SelectItem>
+                        {pedidosPendientes?.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.numero} - ${formatNumber(p.saldo_pendiente, 2)} pendiente
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {pedidosPendientes?.length === 0 && (
+                      <p className="text-xs text-gray-400">No hay pedidos con saldo pendiente</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Lote de Producción
+                    </Label>
+                    <Select value={cobranzaLoteId} onValueChange={setCobranzaLoteId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin asociar a lote" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Sin asociar a lote</SelectItem>
+                        {lotesCliente?.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>
+                            {l.numero} - {l.descripcion || l.estado}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {lotesCliente?.length === 0 && (
+                      <p className="text-xs text-gray-400">No hay lotes registrados para este cliente</p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="facturacion" className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Receipt className="h-4 w-4" />
+                      Estado de Facturación
+                    </Label>
+                    <Select value={cobranzaEstadoFacturacion} onValueChange={setCobranzaEstadoFacturacion}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ESTADOS_FACTURACION.map((ef) => (
+                          <SelectItem key={ef.value} value={ef.value}>
+                            {ef.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {cobranzaEstadoFacturacion !== 'sin_facturar' && (
+                    <div className="space-y-2">
+                      <Label>Número de Factura/Ticket</Label>
+                      <Input
+                        value={cobranzaFacturaNumero}
+                        onChange={(e) => setCobranzaFacturaNumero(e.target.value)}
+                        placeholder="Ej: 0001-00001234"
+                      />
+                    </div>
+                  )}
+
+                  <div className="bg-blue-50 text-blue-800 p-3 rounded-lg text-sm">
+                    <p className="font-medium">Nota sobre facturación</p>
+                    <p className="mt-1">
+                      Podés registrar el cobro ahora y facturarlo después, o indicar que ya está facturado
+                      ingresando el número de comprobante.
+                    </p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="ghost" onClick={cerrarModalCobranza}>
                   Cancelar
                 </Button>
                 <Button
-                  onClick={handleRegistrarPago}
-                  disabled={!pagoMonto || parseFloat(pagoMonto) <= 0 || pagoMutation.isPending}
+                  onClick={handleRegistrarCobranza}
+                  disabled={!cobranzaMonto || parseFloat(cobranzaMonto) <= 0 || cobranzaMutation.isPending}
                 >
-                  {pagoMutation.isPending ? (
+                  {cobranzaMutation.isPending ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <CreditCard className="h-4 w-4 mr-2" />
                   )}
-                  Registrar Pago
+                  Registrar Cobranza
                 </Button>
               </div>
             </CardContent>

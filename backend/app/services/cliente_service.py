@@ -452,12 +452,23 @@ class ClienteService:
         saldo_anterior = cliente.saldo_cuenta_corriente
         saldo_posterior = saldo_anterior - data.monto
 
+        # Generar concepto según el contexto
+        concepto = f"Pago recibido - {data.medio_pago}"
+        if hasattr(data, 'pedido_id') and data.pedido_id:
+            pedido = self.get_pedido(data.pedido_id)
+            if pedido:
+                concepto = f"Pago pedido {pedido.numero} - {data.medio_pago}"
+
+        # Estado de facturación
+        estado_facturacion = getattr(data, 'estado_facturacion', 'sin_facturar') or 'sin_facturar'
+        factura_numero = getattr(data, 'factura_numero', None)
+
         # Crear movimiento
         movimiento = MovimientoCuentaCorriente(
             id=str(uuid4()),
             cliente_id=data.cliente_id,
             tipo=TipoMovimientoCC.PAGO.value,
-            concepto=f"Pago recibido - {data.medio_pago}",
+            concepto=concepto,
             monto=data.monto,
             saldo_anterior=saldo_anterior,
             saldo_posterior=saldo_posterior,
@@ -466,6 +477,10 @@ class ClienteService:
             fecha_movimiento=data.fecha,
             registrado_por_id=usuario_id,
             notas=data.notas,
+            pedido_id=getattr(data, 'pedido_id', None),
+            lote_id=getattr(data, 'lote_id', None),
+            estado_facturacion=estado_facturacion,
+            factura_numero=factura_numero,
         )
 
         self.db.add(movimiento)

@@ -63,7 +63,25 @@ class MovimientoCCList(BaseModel):
         from_attributes = True
 
 
-# ==================== PAGO ====================
+# ==================== COBRANZA ====================
+
+class RegistrarCobranzaRequest(BaseModel):
+    """Request para registrar una cobranza/ingreso de un cliente."""
+    monto: Decimal = Field(..., gt=0)
+    fecha: date
+    medio_pago: str
+    concepto: Optional[str] = None  # Si no se provee, se genera automáticamente
+    referencia_pago: Optional[str] = None
+    notas: Optional[str] = None
+    # Opcional: asociar a pedido o lote
+    pedido_id: Optional[str] = None
+    lote_id: Optional[str] = None
+    # Estado de facturación
+    estado_facturacion: str = "sin_facturar"  # sin_facturar, factura_a, factura_b, ticket
+    factura_numero: Optional[str] = None  # Si ya está facturado
+
+
+# ==================== PAGO (LEGACY - mantener compatibilidad) ====================
 
 class RegistrarPagoRequest(BaseModel):
     """Request para registrar un pago."""
@@ -75,6 +93,11 @@ class RegistrarPagoRequest(BaseModel):
     notas: Optional[str] = None
     # Opcional: facturas/pedidos a los que aplicar el pago
     aplicar_a_pedidos: Optional[List[str]] = None
+    # Nuevos campos opcionales
+    pedido_id: Optional[str] = None
+    lote_id: Optional[str] = None
+    estado_facturacion: str = "sin_facturar"
+    factura_numero: Optional[str] = None
 
 
 class PagoResponse(BaseModel):
@@ -175,4 +198,12 @@ MEDIOS_PAGO = [
     {"value": "mercado_pago", "label": "Mercado Pago"},
     {"value": "cuenta_corriente", "label": "Cuenta Corriente"},
     {"value": "otro", "label": "Otro"},
+]
+
+ESTADOS_FACTURACION = [
+    {"value": "sin_facturar", "label": "Sin Facturar"},
+    {"value": "factura_a", "label": "Factura A"},
+    {"value": "factura_b", "label": "Factura B"},
+    {"value": "factura_c", "label": "Factura C"},
+    {"value": "ticket", "label": "Ticket"},
 ]

@@ -19,6 +19,15 @@ class TipoMovimientoCC(str, Enum):
     AJUSTE = "ajuste"  # Ajuste manual
 
 
+class EstadoFacturacion(str, Enum):
+    """Estado de facturación del movimiento."""
+    SIN_FACTURAR = "sin_facturar"  # No facturado aún
+    FACTURA_A = "factura_a"  # Facturado tipo A (Resp. Inscripto)
+    FACTURA_B = "factura_b"  # Facturado tipo B (CF, Monotributo)
+    FACTURA_C = "factura_c"  # Facturado tipo C
+    TICKET = "ticket"  # Ticket/Comprobante simple
+
+
 class MedioPago(str, Enum):
     """Medios de pago."""
     EFECTIVO = "efectivo"
@@ -47,8 +56,12 @@ class MovimientoCuentaCorriente(Base, BaseModelMixin):
 
     # Referencias
     pedido_id = Column(UUID(as_uuid=True), ForeignKey("pedidos.id"), nullable=True)
+    lote_id = Column(UUID(as_uuid=True), ForeignKey("lotes.id"), nullable=True)  # Lote de producción asociado
     factura_numero = Column(String(30), nullable=True)
     recibo_numero = Column(String(30), nullable=True)
+
+    # Estado de facturación
+    estado_facturacion = Column(String(20), default="sin_facturar")  # sin_facturar, factura_a, factura_b, ticket
 
     # Montos
     monto = Column(Numeric(12, 2), nullable=False)
@@ -72,6 +85,7 @@ class MovimientoCuentaCorriente(Base, BaseModelMixin):
     # Relaciones
     cliente = relationship("Cliente", back_populates="movimientos_cuenta")
     pedido = relationship("Pedido", foreign_keys=[pedido_id])
+    lote = relationship("Lote", foreign_keys=[lote_id])
     registrado_por = relationship("Usuario", foreign_keys=[registrado_por_id])
 
     def __repr__(self) -> str:
