@@ -56,7 +56,7 @@ class MovimientoCuentaCorriente(Base, BaseModelMixin):
 
     # Referencias
     pedido_id = Column(UUID(as_uuid=True), ForeignKey("pedidos.id"), nullable=True)
-    lote_id = Column(UUID(as_uuid=True), ForeignKey("lotes.id"), nullable=True)  # Lote de producción asociado
+    lote_id = Column(UUID(as_uuid=True), ForeignKey("lotes_produccion.id"), nullable=True)  # Lote de producción asociado
     factura_numero = Column(String(30), nullable=True)
     recibo_numero = Column(String(30), nullable=True)
 
@@ -85,7 +85,7 @@ class MovimientoCuentaCorriente(Base, BaseModelMixin):
     # Relaciones
     cliente = relationship("Cliente", back_populates="movimientos_cuenta")
     pedido = relationship("Pedido", foreign_keys=[pedido_id])
-    lote = relationship("Lote", foreign_keys=[lote_id])
+    lote = relationship("LoteProduccion", foreign_keys=[lote_id])
     registrado_por = relationship("Usuario", foreign_keys=[registrado_por_id])
 
     def __repr__(self) -> str:

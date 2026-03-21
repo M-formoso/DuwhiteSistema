@@ -35,7 +35,7 @@ def upgrade() -> None:
     op.create_foreign_key(
         'fk_movimientos_cc_lote',
         'movimientos_cuenta_corriente',
-        'lotes',
+        'lotes_produccion',
         ['lote_id'],
         ['id']
     )
