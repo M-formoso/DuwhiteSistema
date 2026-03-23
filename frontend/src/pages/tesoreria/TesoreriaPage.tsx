@@ -603,12 +603,12 @@ export default function TesoreriaPage() {
                     />
                   </div>
                 </div>
-                <Select value={chequeFiltroEstado} onValueChange={setChequeFiltroEstado}>
+                <Select value={chequeFiltroEstado || "_all"} onValueChange={(v) => setChequeFiltroEstado(v === "_all" ? "" : v)}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Estado" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos los estados</SelectItem>
+                    <SelectItem value="_all">Todos los estados</SelectItem>
                     {ESTADOS_CHEQUE.map((e) => (
                       <SelectItem key={e.value} value={e.value}>
                         {e.label}
@@ -616,12 +616,12 @@ export default function TesoreriaPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={chequeFiltroTipo} onValueChange={setChequeFiltroTipo}>
+                <Select value={chequeFiltroTipo || "_all"} onValueChange={(v) => setChequeFiltroTipo(v === "_all" ? "" : v)}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos los tipos</SelectItem>
+                    <SelectItem value="_all">Todos los tipos</SelectItem>
                     {TIPOS_CHEQUE.map((t) => (
                       <SelectItem key={t.value} value={t.value}>
                         {t.label}
@@ -768,12 +768,12 @@ export default function TesoreriaPage() {
                     />
                   </div>
                 </div>
-                <Select value={movFiltroTipo} onValueChange={setMovFiltroTipo}>
+                <Select value={movFiltroTipo || "_all"} onValueChange={(v) => setMovFiltroTipo(v === "_all" ? "" : v)}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Método de pago" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="_all">Todos</SelectItem>
                     {METODOS_PAGO_TESORERIA.map((m) => (
                       <SelectItem key={m.value} value={m.value}>
                         {m.label}
@@ -1181,14 +1181,14 @@ export default function TesoreriaPage() {
                 <div className="space-y-2">
                   <Label>Cliente (opcional)</Label>
                   <Select
-                    value={movimientoForm.cliente_id || ''}
-                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, cliente_id: v || null })}
+                    value={movimientoForm.cliente_id || '_none'}
+                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, cliente_id: v === '_none' ? null : v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar cliente" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin cliente</SelectItem>
+                      <SelectItem value="_none">Sin cliente</SelectItem>
                       {clientes?.items.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.razon_social}
@@ -1201,14 +1201,14 @@ export default function TesoreriaPage() {
                 <div className="space-y-2">
                   <Label>Proveedor (opcional)</Label>
                   <Select
-                    value={movimientoForm.proveedor_id || ''}
-                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v || null })}
+                    value={movimientoForm.proveedor_id || '_none'}
+                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v === '_none' ? null : v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar proveedor" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin proveedor</SelectItem>
+                      <SelectItem value="_none">Sin proveedor</SelectItem>
                       {proveedores?.items.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.razon_social}
@@ -1302,14 +1302,14 @@ export default function TesoreriaPage() {
                   <div className="space-y-2">
                     <Label>Proveedor (opcional)</Label>
                     <Select
-                      value={accionForm.proveedor_id}
-                      onValueChange={(v) => setAccionForm({ ...accionForm, proveedor_id: v })}
+                      value={accionForm.proveedor_id || '_none'}
+                      onValueChange={(v) => setAccionForm({ ...accionForm, proveedor_id: v === '_none' ? '' : v })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar proveedor" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sin proveedor</SelectItem>
+                        <SelectItem value="_none">Sin proveedor</SelectItem>
                         {proveedores?.items.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             {p.razon_social}
