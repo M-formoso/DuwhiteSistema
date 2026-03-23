@@ -32,6 +32,7 @@ import {
   ArrowRightLeft,
   Landmark,
   Clock,
+  Banknote,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -168,6 +169,12 @@ const navSectionsInternal: NavSection[] = [
         title: 'Conciliación',
         href: '/finanzas/conciliacion',
         icon: Landmark,
+        roles: ['superadmin', 'administrador', 'contador'],
+      },
+      {
+        title: 'Tesorería',
+        href: '/tesoreria',
+        icon: Banknote,
         roles: ['superadmin', 'administrador', 'contador'],
       },
       {

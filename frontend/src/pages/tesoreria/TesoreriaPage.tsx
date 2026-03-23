@@ -1,0 +1,1357 @@
+/**
+ * Página de Tesorería - Gestión de cheques y movimientos
+ */
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  RefreshCw,
+  Plus,
+  FileCheck,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Wallet,
+  AlertTriangle,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Search,
+  Filter,
+  Eye,
+  Banknote,
+  CreditCard,
+  ArrowRight,
+  Ban,
+  Building2,
+  Calendar,
+  User,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+
+import { tesoreriaService } from '@/services/tesoreriaService';
+import { clienteService } from '@/services/clienteService';
+import { proveedorService } from '@/services/proveedorService';
+import { formatNumber } from '@/utils/formatters';
+import {
+  TIPOS_CHEQUE,
+  ORIGENES_CHEQUE,
+  ESTADOS_CHEQUE,
+  METODOS_PAGO_TESORERIA,
+  BANCOS_ARGENTINA,
+} from '@/types/tesoreria';
+import type {
+  ChequeList,
+  ChequeCreate,
+  MovimientoTesoreriaList,
+  MovimientoTesoreriaCreate,
+  EstadoCheque,
+} from '@/types/tesoreria';
+
+export default function TesoreriaPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Estados
+  const [activeTab, setActiveTab] = useState('resumen');
+  const [showChequeModal, setShowChequeModal] = useState(false);
+  const [showMovimientoModal, setShowMovimientoModal] = useState(false);
+  const [showAccionChequeModal, setShowAccionChequeModal] = useState(false);
+  const [accionCheque, setAccionCheque] = useState<'depositar' | 'cobrar' | 'rechazar' | 'entregar' | null>(null);
+  const [chequeSeleccionado, setChequeSeleccionado] = useState<ChequeList | null>(null);
+
+  // Filtros cheques
+  const [chequeFiltroEstado, setChequeFiltroEstado] = useState<string>('');
+  const [chequeFiltroBuscar, setChequeFiltroBuscar] = useState('');
+  const [chequeFiltroTipo, setChequeFiltroTipo] = useState<string>('');
+
+  // Filtros movimientos
+  const [movFiltroTipo, setMovFiltroTipo] = useState<string>('');
+  const [movFiltroBuscar, setMovFiltroBuscar] = useState('');
+
+  // Form cheque
+  const [chequeForm, setChequeForm] = useState<ChequeCreate>({
+    numero: '',
+    tipo: 'fisico',
+    origen: 'recibido_cliente',
+    monto: 0,
+    fecha_vencimiento: new Date().toISOString().split('T')[0],
+    banco_origen: '',
+    cliente_id: null,
+    proveedor_id: null,
+    librador: '',
+    cuit_librador: '',
+    notas: '',
+  });
+
+  // Form movimiento
+  const [movimientoForm, setMovimientoForm] = useState<MovimientoTesoreriaCreate>({
+    tipo: 'ingreso_efectivo',
+    concepto: '',
+    monto: 0,
+    es_ingreso: true,
+    fecha_movimiento: new Date().toISOString().split('T')[0],
+    metodo_pago: 'efectivo',
+    cliente_id: null,
+    proveedor_id: null,
+  });
+
+  // Form acción cheque
+  const [accionForm, setAccionForm] = useState({
+    cuenta_destino_id: '',
+    fecha: new Date().toISOString().split('T')[0],
+    motivo_rechazo: '',
+    concepto: '',
+    proveedor_id: '',
+    notas: '',
+  });
+
+  // Queries
+  const { data: resumen, isLoading: loadingResumen } = useQuery({
+    queryKey: ['tesoreria-resumen'],
+    queryFn: () => tesoreriaService.resumen.getResumen(),
+  });
+
+  const { data: cheques, isLoading: loadingCheques } = useQuery({
+    queryKey: ['tesoreria-cheques', chequeFiltroEstado, chequeFiltroTipo, chequeFiltroBuscar],
+    queryFn: () =>
+      tesoreriaService.cheques.getCheques({
+        estado: chequeFiltroEstado || undefined,
+        tipo: chequeFiltroTipo || undefined,
+        buscar: chequeFiltroBuscar || undefined,
+        limit: 100,
+      }),
+  });
+
+  const { data: movimientos, isLoading: loadingMovimientos } = useQuery({
+    queryKey: ['tesoreria-movimientos', movFiltroTipo, movFiltroBuscar],
+    queryFn: () =>
+      tesoreriaService.movimientos.getMovimientos({
+        tipo: movFiltroTipo || undefined,
+        buscar: movFiltroBuscar || undefined,
+        limit: 100,
+      }),
+  });
+
+  const { data: clientes } = useQuery({
+    queryKey: ['clientes-lista'],
+    queryFn: () => clienteService.getClientes({ limit: 500, activo: true }),
+  });
+
+  const { data: proveedores } = useQuery({
+    queryKey: ['proveedores-lista'],
+    queryFn: () => proveedorService.getProveedores({ limit: 500, activo: true }),
+  });
+
+  // Mutations
+  const crearChequeMutation = useMutation({
+    mutationFn: (data: ChequeCreate) => tesoreriaService.cheques.crearCheque(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Cheque registrado correctamente' });
+      setShowChequeModal(false);
+      resetChequeForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo registrar el cheque',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const crearMovimientoMutation = useMutation({
+    mutationFn: (data: MovimientoTesoreriaCreate) =>
+      tesoreriaService.movimientos.crearMovimiento(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Movimiento registrado correctamente' });
+      setShowMovimientoModal(false);
+      resetMovimientoForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo registrar el movimiento',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const depositarChequeMutation = useMutation({
+    mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
+      tesoreriaService.cheques.depositarCheque(chequeId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Cheque depositado correctamente' });
+      cerrarAccionModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo depositar el cheque',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const cobrarChequeMutation = useMutation({
+    mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
+      tesoreriaService.cheques.cobrarCheque(chequeId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Cheque cobrado correctamente' });
+      cerrarAccionModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo marcar como cobrado',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const rechazarChequeMutation = useMutation({
+    mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
+      tesoreriaService.cheques.rechazarCheque(chequeId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Cheque rechazado' });
+      cerrarAccionModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo rechazar el cheque',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const entregarChequeMutation = useMutation({
+    mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
+      tesoreriaService.cheques.entregarCheque(chequeId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Cheque entregado correctamente' });
+      cerrarAccionModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo entregar el cheque',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const anularMovimientoMutation = useMutation({
+    mutationFn: ({ movimientoId, motivo }: { movimientoId: string; motivo: string }) =>
+      tesoreriaService.movimientos.anularMovimiento(movimientoId, { motivo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Movimiento anulado' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo anular el movimiento',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Helpers
+  const resetChequeForm = () => {
+    setChequeForm({
+      numero: '',
+      tipo: 'fisico',
+      origen: 'recibido_cliente',
+      monto: 0,
+      fecha_vencimiento: new Date().toISOString().split('T')[0],
+      banco_origen: '',
+      cliente_id: null,
+      proveedor_id: null,
+      librador: '',
+      cuit_librador: '',
+      notas: '',
+    });
+  };
+
+  const resetMovimientoForm = () => {
+    setMovimientoForm({
+      tipo: 'ingreso_efectivo',
+      concepto: '',
+      monto: 0,
+      es_ingreso: true,
+      fecha_movimiento: new Date().toISOString().split('T')[0],
+      metodo_pago: 'efectivo',
+      cliente_id: null,
+      proveedor_id: null,
+    });
+  };
+
+  const abrirAccionCheque = (cheque: ChequeList, accion: 'depositar' | 'cobrar' | 'rechazar' | 'entregar') => {
+    setChequeSeleccionado(cheque);
+    setAccionCheque(accion);
+    setAccionForm({
+      cuenta_destino_id: '',
+      fecha: new Date().toISOString().split('T')[0],
+      motivo_rechazo: '',
+      concepto: '',
+      proveedor_id: '',
+      notas: '',
+    });
+    setShowAccionChequeModal(true);
+  };
+
+  const cerrarAccionModal = () => {
+    setShowAccionChequeModal(false);
+    setChequeSeleccionado(null);
+    setAccionCheque(null);
+  };
+
+  const ejecutarAccionCheque = () => {
+    if (!chequeSeleccionado || !accionCheque) return;
+
+    switch (accionCheque) {
+      case 'depositar':
+        depositarChequeMutation.mutate({
+          chequeId: chequeSeleccionado.id,
+          data: {
+            cuenta_destino_id: accionForm.cuenta_destino_id,
+            fecha_deposito: accionForm.fecha,
+            notas: accionForm.notas || undefined,
+          },
+        });
+        break;
+      case 'cobrar':
+        cobrarChequeMutation.mutate({
+          chequeId: chequeSeleccionado.id,
+          data: {
+            fecha_cobro: accionForm.fecha,
+            notas: accionForm.notas || undefined,
+          },
+        });
+        break;
+      case 'rechazar':
+        rechazarChequeMutation.mutate({
+          chequeId: chequeSeleccionado.id,
+          data: {
+            motivo_rechazo: accionForm.motivo_rechazo,
+            fecha_rechazo: accionForm.fecha,
+          },
+        });
+        break;
+      case 'entregar':
+        entregarChequeMutation.mutate({
+          chequeId: chequeSeleccionado.id,
+          data: {
+            proveedor_id: accionForm.proveedor_id || undefined,
+            concepto: accionForm.concepto,
+            fecha_entrega: accionForm.fecha,
+            notas: accionForm.notas || undefined,
+          },
+        });
+        break;
+    }
+  };
+
+  const getEstadoBadge = (estado: EstadoCheque) => {
+    const config = ESTADOS_CHEQUE.find((e) => e.value === estado);
+    const colors: Record<string, string> = {
+      blue: 'bg-blue-100 text-blue-700',
+      yellow: 'bg-yellow-100 text-yellow-700',
+      green: 'bg-green-100 text-green-700',
+      purple: 'bg-purple-100 text-purple-700',
+      red: 'bg-red-100 text-red-700',
+      gray: 'bg-gray-100 text-gray-700',
+    };
+    return (
+      <Badge className={colors[config?.color || 'gray']}>
+        {config?.label || estado}
+      </Badge>
+    );
+  };
+
+  const formatearFecha = (fecha: string) => {
+    return new Date(fecha).toLocaleDateString('es-AR');
+  };
+
+  if (loadingResumen) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Tesorería</h1>
+          <p className="text-gray-500">Gestión de cheques y movimientos de fondos</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowChequeModal(true)}>
+            <FileCheck className="h-4 w-4 mr-2" />
+            Nuevo Cheque
+          </Button>
+          <Button onClick={() => setShowMovimientoModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Movimiento
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="resumen">Resumen</TabsTrigger>
+          <TabsTrigger value="cheques">Cheques</TabsTrigger>
+          <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
+        </TabsList>
+
+        {/* Tab Resumen */}
+        <TabsContent value="resumen" className="space-y-6">
+          {/* Resumen Cheques */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-600">Cheques en Cartera</p>
+                    <p className="text-2xl font-bold text-blue-700">
+                      {resumen?.cheques_en_cartera || 0}
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      ${formatNumber(resumen?.total_cheques_cartera || 0, 2)}
+                    </p>
+                  </div>
+                  <Wallet className="h-10 w-10 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-yellow-200 bg-yellow-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-yellow-600">Próximos a Vencer (7 días)</p>
+                    <p className="text-2xl font-bold text-yellow-700">
+                      {resumen?.cheques_proximos_vencer || 0}
+                    </p>
+                    <p className="text-sm text-yellow-600">
+                      ${formatNumber(resumen?.total_proximos_vencer || 0, 2)}
+                    </p>
+                  </div>
+                  <Clock className="h-10 w-10 text-yellow-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-red-600">Cheques Vencidos</p>
+                    <p className="text-2xl font-bold text-red-700">
+                      {resumen?.cheques_vencidos || 0}
+                    </p>
+                    <p className="text-sm text-red-600">
+                      ${formatNumber(resumen?.total_vencidos || 0, 2)}
+                    </p>
+                  </div>
+                  <AlertTriangle className="h-10 w-10 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Resumen Movimientos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-600">
+                  <ArrowUpCircle className="h-5 w-5" />
+                  Ingresos del Período
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <Banknote className="h-4 w-4" /> Efectivo
+                    </span>
+                    <span className="font-semibold text-green-600">
+                      ${formatNumber(resumen?.total_ingresos_efectivo || 0, 2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <CreditCard className="h-4 w-4" /> Transferencia
+                    </span>
+                    <span className="font-semibold text-green-600">
+                      ${formatNumber(resumen?.total_ingresos_transferencia || 0, 2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <FileCheck className="h-4 w-4" /> Cheques
+                    </span>
+                    <span className="font-semibold text-green-600">
+                      ${formatNumber(resumen?.total_ingresos_cheque || 0, 2)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-600">
+                  <ArrowDownCircle className="h-5 w-5" />
+                  Egresos del Período
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <Banknote className="h-4 w-4" /> Efectivo
+                    </span>
+                    <span className="font-semibold text-red-600">
+                      ${formatNumber(resumen?.total_egresos_efectivo || 0, 2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <CreditCard className="h-4 w-4" /> Transferencia
+                    </span>
+                    <span className="font-semibold text-red-600">
+                      ${formatNumber(resumen?.total_egresos_transferencia || 0, 2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <FileCheck className="h-4 w-4" /> Cheques
+                    </span>
+                    <span className="font-semibold text-red-600">
+                      ${formatNumber(resumen?.total_egresos_cheque || 0, 2)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Saldo */}
+          <Card className="border-primary bg-primary/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-primary">Saldo del Período</p>
+                  <p className="text-3xl font-bold text-primary">
+                    ${formatNumber(resumen?.saldo_periodo || 0, 2)}
+                  </p>
+                </div>
+                <Wallet className="h-12 w-12 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Cheques */}
+        <TabsContent value="cheques" className="space-y-4">
+          {/* Filtros */}
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Buscar por número, librador..."
+                      value={chequeFiltroBuscar}
+                      onChange={(e) => setChequeFiltroBuscar(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={chequeFiltroEstado} onValueChange={setChequeFiltroEstado}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los estados</SelectItem>
+                    {ESTADOS_CHEQUE.map((e) => (
+                      <SelectItem key={e.value} value={e.value}>
+                        {e.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={chequeFiltroTipo} onValueChange={setChequeFiltroTipo}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los tipos</SelectItem>
+                    {TIPOS_CHEQUE.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lista de Cheques */}
+          <Card>
+            <CardContent className="pt-4">
+              {loadingCheques ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : cheques?.items && cheques.items.length > 0 ? (
+                <div className="space-y-2">
+                  {cheques.items.map((cheque) => (
+                    <div
+                      key={cheque.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-gray-100 rounded-lg">
+                          <FileCheck className="h-6 w-6 text-gray-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">#{cheque.numero}</span>
+                            <Badge variant="outline">
+                              {TIPOS_CHEQUE.find((t) => t.value === cheque.tipo)?.label}
+                            </Badge>
+                            {getEstadoBadge(cheque.estado)}
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center gap-3">
+                            {cheque.banco_origen && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="h-3 w-3" /> {cheque.banco_origen}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" /> Vence: {formatearFecha(cheque.fecha_vencimiento)}
+                            </span>
+                            {cheque.cliente_nombre && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" /> {cheque.cliente_nombre}
+                              </span>
+                            )}
+                            {cheque.proveedor_nombre && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" /> {cheque.proveedor_nombre}
+                              </span>
+                            )}
+                          </div>
+                          {cheque.dias_para_vencimiento !== null && cheque.dias_para_vencimiento <= 7 && cheque.estado === 'en_cartera' && (
+                            <span className={`text-xs ${cheque.dias_para_vencimiento < 0 ? 'text-red-600' : 'text-yellow-600'}`}>
+                              {cheque.dias_para_vencimiento < 0
+                                ? `Vencido hace ${Math.abs(cheque.dias_para_vencimiento)} días`
+                                : cheque.dias_para_vencimiento === 0
+                                ? 'Vence hoy'
+                                : `Vence en ${cheque.dias_para_vencimiento} días`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-lg font-bold">
+                          ${formatNumber(cheque.monto, 2)}
+                        </span>
+                        {cheque.estado === 'en_cartera' && (
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => abrirAccionCheque(cheque, 'depositar')}
+                              title="Depositar"
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => abrirAccionCheque(cheque, 'cobrar')}
+                              title="Marcar cobrado"
+                            >
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => abrirAccionCheque(cheque, 'entregar')}
+                              title="Entregar a tercero"
+                            >
+                              <ArrowDownCircle className="h-4 w-4 text-purple-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => abrirAccionCheque(cheque, 'rechazar')}
+                              title="Rechazar"
+                            >
+                              <XCircle className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </div>
+                        )}
+                        {cheque.estado === 'depositado' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => abrirAccionCheque(cheque, 'cobrar')}
+                            title="Marcar cobrado"
+                          >
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No hay cheques registrados</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Movimientos */}
+        <TabsContent value="movimientos" className="space-y-4">
+          {/* Filtros */}
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Buscar por concepto..."
+                      value={movFiltroBuscar}
+                      onChange={(e) => setMovFiltroBuscar(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={movFiltroTipo} onValueChange={setMovFiltroTipo}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Método de pago" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    {METODOS_PAGO_TESORERIA.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lista de Movimientos */}
+          <Card>
+            <CardContent className="pt-4">
+              {loadingMovimientos ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : movimientos?.items && movimientos.items.length > 0 ? (
+                <div className="space-y-2">
+                  {movimientos.items.map((mov) => (
+                    <div
+                      key={mov.id}
+                      className={`flex items-center justify-between p-4 rounded-lg ${
+                        mov.anulado
+                          ? 'bg-gray-100 opacity-60'
+                          : mov.es_ingreso
+                          ? 'bg-green-50'
+                          : 'bg-red-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        {mov.es_ingreso ? (
+                          <ArrowUpCircle className="h-6 w-6 text-green-600" />
+                        ) : (
+                          <ArrowDownCircle className="h-6 w-6 text-red-600" />
+                        )}
+                        <div>
+                          <p className="font-medium">{mov.concepto}</p>
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Badge variant="outline">
+                              {METODOS_PAGO_TESORERIA.find((m) => m.value === mov.metodo_pago)?.label}
+                            </Badge>
+                            <span>{formatearFecha(mov.fecha_movimiento)}</span>
+                            {mov.cliente_nombre && <span>- {mov.cliente_nombre}</span>}
+                            {mov.proveedor_nombre && <span>- {mov.proveedor_nombre}</span>}
+                            {mov.cheque_numero && <span>- Cheque #{mov.cheque_numero}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span
+                          className={`text-lg font-bold ${
+                            mov.anulado
+                              ? 'text-gray-400 line-through'
+                              : mov.es_ingreso
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          }`}
+                        >
+                          {mov.es_ingreso ? '+' : '-'}${formatNumber(mov.monto, 2)}
+                        </span>
+                        {mov.anulado ? (
+                          <Badge variant="destructive">Anulado</Badge>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm('¿Está seguro de anular este movimiento?')) {
+                                anularMovimientoMutation.mutate({
+                                  movimientoId: mov.id,
+                                  motivo: 'Anulado por el usuario',
+                                });
+                              }
+                            }}
+                          >
+                            <Ban className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No hay movimientos registrados</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Modal Nuevo Cheque */}
+      {showChequeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Registrar Cheque</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Número de Cheque *</Label>
+                  <Input
+                    value={chequeForm.numero}
+                    onChange={(e) => setChequeForm({ ...chequeForm, numero: e.target.value })}
+                    placeholder="00000000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={chequeForm.monto || ''}
+                    onChange={(e) => setChequeForm({ ...chequeForm, monto: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={chequeForm.tipo}
+                    onValueChange={(v) => setChequeForm({ ...chequeForm, tipo: v as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_CHEQUE.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Origen</Label>
+                  <Select
+                    value={chequeForm.origen}
+                    onValueChange={(v) => setChequeForm({ ...chequeForm, origen: v as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ORIGENES_CHEQUE.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Fecha de Emisión</Label>
+                  <Input
+                    type="date"
+                    value={chequeForm.fecha_emision || ''}
+                    onChange={(e) => setChequeForm({ ...chequeForm, fecha_emision: e.target.value || null })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha de Vencimiento *</Label>
+                  <Input
+                    type="date"
+                    value={chequeForm.fecha_vencimiento}
+                    onChange={(e) => setChequeForm({ ...chequeForm, fecha_vencimiento: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Banco de Origen</Label>
+                <Select
+                  value={chequeForm.banco_origen || ''}
+                  onValueChange={(v) => setChequeForm({ ...chequeForm, banco_origen: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar banco" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BANCOS_ARGENTINA.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(chequeForm.origen === 'recibido_cliente') && (
+                <div className="space-y-2">
+                  <Label>Cliente</Label>
+                  <Select
+                    value={chequeForm.cliente_id || ''}
+                    onValueChange={(v) => setChequeForm({ ...chequeForm, cliente_id: v || null })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes?.items.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.razon_social}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {(chequeForm.origen === 'recibido_proveedor') && (
+                <div className="space-y-2">
+                  <Label>Proveedor</Label>
+                  <Select
+                    value={chequeForm.proveedor_id || ''}
+                    onValueChange={(v) => setChequeForm({ ...chequeForm, proveedor_id: v || null })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {proveedores?.items.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.razon_social}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Librador</Label>
+                  <Input
+                    value={chequeForm.librador || ''}
+                    onChange={(e) => setChequeForm({ ...chequeForm, librador: e.target.value })}
+                    placeholder="Nombre del librador"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>CUIT Librador</Label>
+                  <Input
+                    value={chequeForm.cuit_librador || ''}
+                    onChange={(e) => setChequeForm({ ...chequeForm, cuit_librador: e.target.value })}
+                    placeholder="XX-XXXXXXXX-X"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={chequeForm.notas || ''}
+                  onChange={(e) => setChequeForm({ ...chequeForm, notas: e.target.value })}
+                  placeholder="Observaciones..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="ghost" onClick={() => setShowChequeModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => crearChequeMutation.mutate(chequeForm)}
+                  disabled={!chequeForm.numero || !chequeForm.monto || !chequeForm.fecha_vencimiento || crearChequeMutation.isPending}
+                >
+                  Registrar Cheque
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Nuevo Movimiento */}
+      {showMovimientoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Registrar Movimiento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-4">
+                <Button
+                  variant={movimientoForm.es_ingreso ? 'default' : 'outline'}
+                  className={movimientoForm.es_ingreso ? 'bg-green-600 hover:bg-green-700' : ''}
+                  onClick={() => setMovimientoForm({ ...movimientoForm, es_ingreso: true })}
+                >
+                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                  Ingreso
+                </Button>
+                <Button
+                  variant={!movimientoForm.es_ingreso ? 'default' : 'outline'}
+                  className={!movimientoForm.es_ingreso ? 'bg-red-600 hover:bg-red-700' : ''}
+                  onClick={() => setMovimientoForm({ ...movimientoForm, es_ingreso: false })}
+                >
+                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  Egreso
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Concepto *</Label>
+                <Input
+                  value={movimientoForm.concepto}
+                  onChange={(e) => setMovimientoForm({ ...movimientoForm, concepto: e.target.value })}
+                  placeholder="Descripción del movimiento"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={movimientoForm.monto || ''}
+                    onChange={(e) => setMovimientoForm({ ...movimientoForm, monto: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha *</Label>
+                  <Input
+                    type="date"
+                    value={movimientoForm.fecha_movimiento}
+                    onChange={(e) => setMovimientoForm({ ...movimientoForm, fecha_movimiento: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Método de Pago *</Label>
+                <Select
+                  value={movimientoForm.metodo_pago}
+                  onValueChange={(v) => setMovimientoForm({ ...movimientoForm, metodo_pago: v as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {METODOS_PAGO_TESORERIA.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {movimientoForm.metodo_pago === 'transferencia' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Banco Origen</Label>
+                    <Select
+                      value={movimientoForm.banco_origen || ''}
+                      onValueChange={(v) => setMovimientoForm({ ...movimientoForm, banco_origen: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BANCOS_ARGENTINA.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Banco Destino</Label>
+                    <Select
+                      value={movimientoForm.banco_destino || ''}
+                      onValueChange={(v) => setMovimientoForm({ ...movimientoForm, banco_destino: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BANCOS_ARGENTINA.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {movimientoForm.es_ingreso ? (
+                <div className="space-y-2">
+                  <Label>Cliente (opcional)</Label>
+                  <Select
+                    value={movimientoForm.cliente_id || ''}
+                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, cliente_id: v || null })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin cliente</SelectItem>
+                      {clientes?.items.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.razon_social}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Proveedor (opcional)</Label>
+                  <Select
+                    value={movimientoForm.proveedor_id || ''}
+                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v || null })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin proveedor</SelectItem>
+                      {proveedores?.items.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.razon_social}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={movimientoForm.notas || ''}
+                  onChange={(e) => setMovimientoForm({ ...movimientoForm, notas: e.target.value })}
+                  placeholder="Observaciones..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="ghost" onClick={() => setShowMovimientoModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => crearMovimientoMutation.mutate({
+                    ...movimientoForm,
+                    tipo: movimientoForm.es_ingreso
+                      ? `ingreso_${movimientoForm.metodo_pago}`
+                      : `egreso_${movimientoForm.metodo_pago}`,
+                  })}
+                  disabled={!movimientoForm.concepto || !movimientoForm.monto || crearMovimientoMutation.isPending}
+                  className={movimientoForm.es_ingreso ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+                >
+                  Registrar {movimientoForm.es_ingreso ? 'Ingreso' : 'Egreso'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Acción Cheque */}
+      {showAccionChequeModal && chequeSeleccionado && accionCheque && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle>
+                {accionCheque === 'depositar' && 'Depositar Cheque'}
+                {accionCheque === 'cobrar' && 'Marcar Cheque como Cobrado'}
+                {accionCheque === 'rechazar' && 'Rechazar Cheque'}
+                {accionCheque === 'entregar' && 'Entregar Cheque a Tercero'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-500">Cheque</p>
+                <p className="font-semibold">#{chequeSeleccionado.numero}</p>
+                <p className="text-lg font-bold">${formatNumber(chequeSeleccionado.monto, 2)}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha</Label>
+                <Input
+                  type="date"
+                  value={accionForm.fecha}
+                  onChange={(e) => setAccionForm({ ...accionForm, fecha: e.target.value })}
+                />
+              </div>
+
+              {accionCheque === 'rechazar' && (
+                <div className="space-y-2">
+                  <Label>Motivo del Rechazo *</Label>
+                  <Textarea
+                    value={accionForm.motivo_rechazo}
+                    onChange={(e) => setAccionForm({ ...accionForm, motivo_rechazo: e.target.value })}
+                    placeholder="Indique el motivo del rechazo..."
+                  />
+                </div>
+              )}
+
+              {accionCheque === 'entregar' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Concepto *</Label>
+                    <Input
+                      value={accionForm.concepto}
+                      onChange={(e) => setAccionForm({ ...accionForm, concepto: e.target.value })}
+                      placeholder="Pago a proveedor, etc."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Proveedor (opcional)</Label>
+                    <Select
+                      value={accionForm.proveedor_id}
+                      onValueChange={(v) => setAccionForm({ ...accionForm, proveedor_id: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar proveedor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Sin proveedor</SelectItem>
+                        {proveedores?.items.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.razon_social}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={accionForm.notas}
+                  onChange={(e) => setAccionForm({ ...accionForm, notas: e.target.value })}
+                  placeholder="Observaciones..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="ghost" onClick={cerrarAccionModal}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={ejecutarAccionCheque}
+                  disabled={
+                    (accionCheque === 'rechazar' && !accionForm.motivo_rechazo) ||
+                    (accionCheque === 'entregar' && !accionForm.concepto)
+                  }
+                  className={accionCheque === 'rechazar' ? 'bg-red-600 hover:bg-red-700' : ''}
+                >
+                  {accionCheque === 'depositar' && 'Depositar'}
+                  {accionCheque === 'cobrar' && 'Marcar Cobrado'}
+                  {accionCheque === 'rechazar' && 'Rechazar'}
+                  {accionCheque === 'entregar' && 'Entregar'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}

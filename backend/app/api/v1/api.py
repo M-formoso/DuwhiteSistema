@@ -28,6 +28,7 @@ from app.api.v1.endpoints import (
     ordenes_pago,
     cruces_consolidados,
     conciliacion_bancaria,
+    tesoreria,
 )
 
 api_router = APIRouter()
@@ -184,6 +185,13 @@ api_router.include_router(
     conciliacion_bancaria.router,
     prefix="/conciliacion-bancaria",
     tags=["Conciliación Bancaria"],
+)
+
+# Tesorería
+api_router.include_router(
+    tesoreria.router,
+    prefix="/tesoreria",
+    tags=["Tesorería"],
 )
 
 # Los siguientes routers se agregarán a medida que se implementen los módulos:

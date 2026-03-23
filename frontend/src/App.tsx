@@ -45,6 +45,9 @@ import OrdenPagoFormPage from '@/pages/finanzas/OrdenPagoFormPage';
 import CrucesConsolidadosPage from '@/pages/finanzas/CrucesConsolidadosPage';
 import ConciliacionBancariaPage from '@/pages/finanzas/ConciliacionBancariaPage';
 
+// Tesorería
+import TesoreriaPage from '@/pages/tesoreria/TesoreriaPage';
+
 // Empleados
 import { EmpleadosListPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage, NominaPage, LiquidacionesPage } from '@/pages/empleados';
 
@@ -168,6 +171,9 @@ function App() {
         <Route path="/finanzas/cruces/:cuit" element={<CrucesConsolidadosPage />} />
         <Route path="/finanzas/conciliacion" element={<ConciliacionBancariaPage />} />
         <Route path="/finanzas/conciliacion/:conciliacionId" element={<ConciliacionBancariaPage />} />
+
+        {/* Tesorería */}
+        <Route path="/tesoreria" element={<TesoreriaPage />} />
 
         {/* Servicios y Listas de Precios */}
         <Route path="/servicios" element={<ServiciosPage />} />
