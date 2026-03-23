@@ -25,6 +25,10 @@ import {
   XCircle,
   Plus,
   Banknote,
+  ChevronDown,
+  ChevronUp,
+  History,
+  UserCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -74,6 +78,7 @@ export default function EmpleadoDetailPage() {
   const [showMovimientoModal, setShowMovimientoModal] = useState(false);
   const [showPagoModal, setShowPagoModal] = useState(false);
   const [selectedMovimiento, setSelectedMovimiento] = useState<string | null>(null);
+  const [showHistorialCompleto, setShowHistorialCompleto] = useState(false);
 
   // Form para nuevo movimiento
   const [movimientoForm, setMovimientoForm] = useState({
@@ -107,7 +112,7 @@ export default function EmpleadoDetailPage() {
 
   const { data: movimientosData } = useQuery({
     queryKey: ['movimientos-nomina', id],
-    queryFn: () => getMovimientosNomina({ empleado_id: id!, limit: 10 }),
+    queryFn: () => getMovimientosNomina({ empleado_id: id!, limit: 100 }),
     enabled: !!id,
   });
 
@@ -584,6 +589,19 @@ export default function EmpleadoDetailPage() {
               const adelantos = movimientosData.items.filter(m => m.tipo === 'adelanto');
               const adelantosPendientes = adelantos.filter(m => !m.pagado);
               const totalPendiente = adelantosPendientes.reduce((sum, m) => sum + m.monto, 0);
+              const movimientosPendientes = movimientosData.items.filter(m => !m.pagado);
+              const movimientosPagados = movimientosData.items.filter(m => m.pagado);
+
+              const formatDateTime = (dateStr: string) => {
+                const date = new Date(dateStr);
+                return date.toLocaleString('es-AR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+              };
 
               return (
                 <div className="space-y-4">
@@ -598,41 +616,61 @@ export default function EmpleadoDetailPage() {
                   )}
 
                   {/* Lista de movimientos pendientes */}
-                  {movimientosData.items.filter(m => !m.pagado).length > 0 ? (
+                  {movimientosPendientes.length > 0 ? (
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-muted-foreground">Pendientes de pago:</p>
-                      {movimientosData.items.filter(m => !m.pagado).slice(0, 5).map((mov) => (
+                      {movimientosPendientes.map((mov) => (
                         <div
                           key={mov.id}
-                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                          className="p-3 bg-muted/30 rounded-lg border border-border"
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                mov.tipo === 'adelanto' ? 'bg-amber-100 text-amber-700' :
-                                mov.tipo === 'bono' ? 'bg-emerald-100 text-emerald-700' :
-                                mov.tipo === 'descuento' ? 'bg-red-100 text-red-700' :
-                                'bg-blue-100 text-blue-700'
-                              }`}>
-                                {TIPOS_MOVIMIENTO_NOMINA.find(t => t.value === mov.tipo)?.label}
-                              </span>
-                              <p className="text-sm text-text-primary font-medium">{mov.concepto}</p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  mov.tipo === 'adelanto' ? 'bg-amber-100 text-amber-700' :
+                                  mov.tipo === 'bono' ? 'bg-emerald-100 text-emerald-700' :
+                                  mov.tipo === 'descuento' ? 'bg-red-100 text-red-700' :
+                                  'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {TIPOS_MOVIMIENTO_NOMINA.find(t => t.value === mov.tipo)?.label}
+                                </span>
+                                <p className="text-sm text-text-primary font-medium">{mov.concepto}</p>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {MESES.find(m => m.value === mov.periodo_mes)?.label} {mov.periodo_anio}
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {MESES.find(m => m.value === mov.periodo_mes)?.label} {mov.periodo_anio}
-                            </p>
+                            <div className="flex items-center gap-3">
+                              <span className={`font-bold ${mov.es_debito ? 'text-red-600' : 'text-emerald-600'}`}>
+                                {mov.es_debito ? '-' : '+'}{formatCurrency(mov.monto)}
+                              </span>
+                              <button
+                                onClick={() => openPagoModal(mov.id)}
+                                className="px-2 py-1 text-xs bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 transition-colors"
+                              >
+                                Pagar
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className={`font-bold ${mov.es_debito ? 'text-red-600' : 'text-emerald-600'}`}>
-                              {mov.es_debito ? '-' : '+'}{formatCurrency(mov.monto)}
+                          {/* Info de registro */}
+                          <div className="mt-2 pt-2 border-t border-border/50 flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDateTime(mov.created_at)}
                             </span>
-                            <button
-                              onClick={() => openPagoModal(mov.id)}
-                              className="px-2 py-1 text-xs bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 transition-colors"
-                            >
-                              Pagar
-                            </button>
+                            {mov.registrado_por_nombre && (
+                              <span className="flex items-center gap-1">
+                                <UserCheck className="w-3 h-3" />
+                                {mov.registrado_por_nombre}
+                              </span>
+                            )}
                           </div>
+                          {mov.descripcion && (
+                            <p className="mt-1 text-xs text-muted-foreground italic">
+                              {mov.descripcion}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -643,26 +681,95 @@ export default function EmpleadoDetailPage() {
                     </p>
                   )}
 
-                  {/* Últimos pagados */}
-                  {movimientosData.items.filter(m => m.pagado).length > 0 && (
+                  {/* Historial de movimientos pagados - Expandible */}
+                  {movimientosPagados.length > 0 && (
                     <div className="pt-3 border-t border-border">
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Últimos pagados:</p>
-                      {movimientosData.items.filter(m => m.pagado).slice(0, 3).map((mov) => (
-                        <div
-                          key={mov.id}
-                          className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                        >
-                          <div>
-                            <p className="text-sm text-text-primary">{mov.concepto}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Pagado: {formatDate(mov.fecha_pago)}
-                            </p>
-                          </div>
-                          <span className={`font-medium ${mov.es_debito ? 'text-red-500' : 'text-emerald-500'}`}>
-                            {mov.es_debito ? '-' : '+'}{formatCurrency(mov.monto)}
-                          </span>
+                      <button
+                        onClick={() => setShowHistorialCompleto(!showHistorialCompleto)}
+                        className="w-full flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                      >
+                        <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          <History className="w-4 h-4" />
+                          Historial de movimientos ({movimientosPagados.length})
+                        </span>
+                        {showHistorialCompleto ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </button>
+
+                      {showHistorialCompleto && (
+                        <div className="mt-2 space-y-2 max-h-[400px] overflow-y-auto">
+                          {movimientosPagados.map((mov) => (
+                            <div
+                              key={mov.id}
+                              className="p-3 bg-muted/20 rounded-lg border border-border/50"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                      mov.tipo === 'adelanto' ? 'bg-amber-100 text-amber-700' :
+                                      mov.tipo === 'bono' ? 'bg-emerald-100 text-emerald-700' :
+                                      mov.tipo === 'descuento' ? 'bg-red-100 text-red-700' :
+                                      'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {TIPOS_MOVIMIENTO_NOMINA.find(t => t.value === mov.tipo)?.label}
+                                    </span>
+                                    <p className="text-sm text-text-primary font-medium">{mov.concepto}</p>
+                                    <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
+                                      Pagado
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {MESES.find(m => m.value === mov.periodo_mes)?.label} {mov.periodo_anio}
+                                  </p>
+                                </div>
+                                <span className={`font-bold ${mov.es_debito ? 'text-red-500' : 'text-emerald-500'}`}>
+                                  {mov.es_debito ? '-' : '+'}{formatCurrency(mov.monto)}
+                                </span>
+                              </div>
+
+                              {/* Info detallada */}
+                              <div className="mt-2 pt-2 border-t border-border/30 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                                <div>
+                                  <span className="font-medium">Registrado:</span>
+                                  <p>{formatDateTime(mov.created_at)}</p>
+                                  {mov.registrado_por_nombre && (
+                                    <p className="flex items-center gap-1">
+                                      <UserCheck className="w-3 h-3" />
+                                      {mov.registrado_por_nombre}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Pagado:</span>
+                                  <p>{formatDate(mov.fecha_pago)}</p>
+                                  {mov.medio_pago && (
+                                    <p className="capitalize">{mov.medio_pago}</p>
+                                  )}
+                                  {mov.comprobante && (
+                                    <p>Comp: {mov.comprobante}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {mov.descripcion && (
+                                <p className="mt-2 text-xs text-muted-foreground italic border-t border-border/30 pt-2">
+                                  {mov.descripcion}
+                                </p>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
+
+                      {!showHistorialCompleto && movimientosPagados.length > 0 && (
+                        <p className="text-xs text-muted-foreground text-center mt-2">
+                          Click para ver historial completo
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -702,40 +809,7 @@ export default function EmpleadoDetailPage() {
             )}
           </div>
 
-          {/* Últimos Movimientos Nómina */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-text-primary mb-4">
-              Movimientos Nómina
-            </h3>
-            {movimientosData?.items && movimientosData.items.length > 0 ? (
-              <div className="space-y-3">
-                {movimientosData.items.slice(0, 5).map((mov) => (
-                  <div
-                    key={mov.id}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                  >
-                    <div>
-                      <p className="text-sm text-text-primary">{mov.concepto}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {mov.periodo_mes}/{mov.periodo_anio}
-                      </p>
-                    </div>
-                    <span
-                      className={`font-medium ${
-                        mov.es_debito ? 'text-red-500' : 'text-emerald-500'
-                      }`}
-                    >
-                      {mov.es_debito ? '-' : '+'}
-                      {formatCurrency(mov.monto)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin movimientos de nómina</p>
-            )}
-          </div>
-
+          
           {/* Notas */}
           {empleado.notas && (
             <div className="bg-card border border-border rounded-lg p-6">

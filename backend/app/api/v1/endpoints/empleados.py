@@ -406,6 +406,8 @@ def list_movimientos_nomina(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Lista movimientos de nómina"""
+    from app.models.usuario import Usuario as UsuarioModel
+
     service = EmpleadoService(db)
     movimientos, total = service.get_movimientos_nomina(
         empleado_id=empleado_id,
@@ -417,7 +419,19 @@ def list_movimientos_nomina(
         limit=limit
     )
 
-    items = [MovimientoNominaResponse(**m.__dict__) for m in movimientos]
+    # Obtener nombres de usuarios que registraron
+    usuario_ids = list(set(m.registrado_por_id for m in movimientos if m.registrado_por_id))
+    usuarios_dict = {}
+    if usuario_ids:
+        usuarios = db.query(UsuarioModel).filter(UsuarioModel.id.in_(usuario_ids)).all()
+        usuarios_dict = {str(u.id): f"{u.nombre} {u.apellido}" for u in usuarios}
+
+    items = []
+    for m in movimientos:
+        item = MovimientoNominaResponse(**m.__dict__)
+        if m.registrado_por_id:
+            item.registrado_por_nombre = usuarios_dict.get(str(m.registrado_por_id))
+        items.append(item)
 
     return PaginatedResponse(
         items=items,

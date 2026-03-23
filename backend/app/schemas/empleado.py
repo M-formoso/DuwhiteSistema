@@ -397,6 +397,7 @@ class MovimientoNominaResponse(BaseModel):
 
     # Campos calculados
     empleado_nombre: Optional[str] = None
+    registrado_por_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True

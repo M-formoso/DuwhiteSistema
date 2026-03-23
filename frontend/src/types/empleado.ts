@@ -250,6 +250,7 @@ export interface MovimientoNomina {
   registrado_por_id: string;
   created_at: string;
   empleado_nombre?: string | null;
+  registrado_por_nombre?: string | null;
 }
 
 export interface MovimientoNominaCreate {
