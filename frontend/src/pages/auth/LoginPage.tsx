@@ -158,7 +158,7 @@ export default function LoginPage() {
             <div className="mt-3 p-3 bg-gray-100 rounded-md text-left">
               <p className="font-semibold text-gray-700 mb-1">Credenciales de prueba:</p>
               <p className="text-gray-600">Email: admin@duwhite.com</p>
-              <p className="text-gray-600">Password: Admin123!</p>
+              <p className="text-gray-600">Password: admin123</p>
             </div>
           </div>
         </CardContent>
