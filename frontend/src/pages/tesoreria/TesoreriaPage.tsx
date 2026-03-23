@@ -154,7 +154,7 @@ export default function TesoreriaPage() {
 
   const { data: proveedores } = useQuery({
     queryKey: ['proveedores-lista'],
-    queryFn: () => proveedorService.getProveedores({ limit: 500, activo: true }),
+    queryFn: () => proveedorService.getProveedores({ limit: 500, solo_activos: true }),
   });
 
   // Mutations
