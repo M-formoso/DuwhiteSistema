@@ -41,6 +41,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
 
 import { tesoreriaService } from '@/services/tesoreriaService';
@@ -57,7 +58,6 @@ import {
 import type {
   ChequeList,
   ChequeCreate,
-  MovimientoTesoreriaList,
   MovimientoTesoreriaCreate,
   EstadoCheque,
 } from '@/types/tesoreria';
@@ -976,42 +976,36 @@ export default function TesoreriaPage() {
               {(chequeForm.origen === 'recibido_cliente') && (
                 <div className="space-y-2">
                   <Label>Cliente</Label>
-                  <Select
-                    value={chequeForm.cliente_id || ''}
-                    onValueChange={(v) => setChequeForm({ ...chequeForm, cliente_id: v || null })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientes?.items.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.razon_social}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={clientes?.items.map((c) => ({
+                      value: c.id,
+                      label: c.razon_social,
+                      sublabel: c.cuit || undefined,
+                    })) || []}
+                    value={chequeForm.cliente_id ?? null}
+                    onChange={(v) => setChequeForm({ ...chequeForm, cliente_id: v })}
+                    placeholder="Buscar cliente..."
+                    searchPlaceholder="Escribí para buscar..."
+                    emptyText="No se encontró el cliente"
+                  />
                 </div>
               )}
 
               {(chequeForm.origen === 'recibido_proveedor') && (
                 <div className="space-y-2">
                   <Label>Proveedor</Label>
-                  <Select
-                    value={chequeForm.proveedor_id || ''}
-                    onValueChange={(v) => setChequeForm({ ...chequeForm, proveedor_id: v || null })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar proveedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {proveedores?.items.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.razon_social}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={proveedores?.items.map((p) => ({
+                      value: p.id,
+                      label: p.razon_social,
+                      sublabel: p.cuit || undefined,
+                    })) || []}
+                    value={chequeForm.proveedor_id ?? null}
+                    onChange={(v) => setChequeForm({ ...chequeForm, proveedor_id: v })}
+                    placeholder="Buscar proveedor..."
+                    searchPlaceholder="Escribí para buscar..."
+                    emptyText="No se encontró el proveedor"
+                  />
                 </div>
               )}
 
@@ -1180,42 +1174,34 @@ export default function TesoreriaPage() {
               {movimientoForm.es_ingreso ? (
                 <div className="space-y-2">
                   <Label>Cliente (opcional)</Label>
-                  <Select
-                    value={movimientoForm.cliente_id || '_none'}
-                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, cliente_id: v === '_none' ? null : v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">Sin cliente</SelectItem>
-                      {clientes?.items.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.razon_social}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={clientes?.items.map((c) => ({
+                      value: c.id,
+                      label: c.razon_social,
+                      sublabel: c.cuit || undefined,
+                    })) || []}
+                    value={movimientoForm.cliente_id ?? null}
+                    onChange={(v) => setMovimientoForm({ ...movimientoForm, cliente_id: v })}
+                    placeholder="Buscar cliente..."
+                    searchPlaceholder="Escribí para buscar..."
+                    emptyText="No se encontró el cliente"
+                  />
                 </div>
               ) : (
                 <div className="space-y-2">
                   <Label>Proveedor (opcional)</Label>
-                  <Select
-                    value={movimientoForm.proveedor_id || '_none'}
-                    onValueChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v === '_none' ? null : v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar proveedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">Sin proveedor</SelectItem>
-                      {proveedores?.items.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.razon_social}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={proveedores?.items.map((p) => ({
+                      value: p.id,
+                      label: p.razon_social,
+                      sublabel: p.cuit || undefined,
+                    })) || []}
+                    value={movimientoForm.proveedor_id ?? null}
+                    onChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v })}
+                    placeholder="Buscar proveedor..."
+                    searchPlaceholder="Escribí para buscar..."
+                    emptyText="No se encontró el proveedor"
+                  />
                 </div>
               )}
 
@@ -1301,22 +1287,18 @@ export default function TesoreriaPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Proveedor (opcional)</Label>
-                    <Select
-                      value={accionForm.proveedor_id || '_none'}
-                      onValueChange={(v) => setAccionForm({ ...accionForm, proveedor_id: v === '_none' ? '' : v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar proveedor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_none">Sin proveedor</SelectItem>
-                        {proveedores?.items.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.razon_social}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Combobox
+                      options={proveedores?.items.map((p) => ({
+                        value: p.id,
+                        label: p.razon_social,
+                        sublabel: p.cuit || undefined,
+                      })) || []}
+                      value={accionForm.proveedor_id || null}
+                      onChange={(v) => setAccionForm({ ...accionForm, proveedor_id: v || '' })}
+                      placeholder="Buscar proveedor..."
+                      searchPlaceholder="Escribí para buscar..."
+                      emptyText="No se encontró el proveedor"
+                    />
                   </div>
                 </>
               )}
