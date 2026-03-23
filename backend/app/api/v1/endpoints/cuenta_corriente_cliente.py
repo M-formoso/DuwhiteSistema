@@ -38,7 +38,7 @@ def listar_clientes_con_deuda(
     current_user: Usuario = Depends(get_current_user),
 ):
     """Lista todos los clientes con deuda pendiente."""
-    from sqlalchemy import or_, desc, asc
+    from sqlalchemy import or_, desc, asc, func
     from app.models.cliente import Cliente
     from app.models.cuenta_corriente import MovimientoCuentaCorriente, TipoMovimientoCC
 
@@ -71,7 +71,7 @@ def listar_clientes_con_deuda(
 
     # Calcular totales
     total_deuda = db.query(
-        db.func.sum(Cliente.saldo_cuenta_corriente)
+        func.sum(Cliente.saldo_cuenta_corriente)
     ).filter(
         Cliente.activo == True,
         Cliente.saldo_cuenta_corriente > 0
@@ -117,6 +117,7 @@ def obtener_resumen_cuentas_corrientes(
     current_user: Usuario = Depends(get_current_user),
 ):
     """Obtiene resumen general de cuentas corrientes de clientes."""
+    from sqlalchemy import func
     from app.models.cliente import Cliente
     from app.models.cuenta_corriente import MovimientoCuentaCorriente, TipoMovimientoCC
 
@@ -131,7 +132,7 @@ def obtener_resumen_cuentas_corrientes(
 
     # Total deuda
     total_deuda = db.query(
-        db.func.sum(Cliente.saldo_cuenta_corriente)
+        func.sum(Cliente.saldo_cuenta_corriente)
     ).filter(
         Cliente.activo == True,
         Cliente.saldo_cuenta_corriente > 0
@@ -139,7 +140,7 @@ def obtener_resumen_cuentas_corrientes(
 
     # Total facturado este mes
     total_facturado_mes = db.query(
-        db.func.sum(MovimientoCuentaCorriente.monto)
+        func.sum(MovimientoCuentaCorriente.monto)
     ).filter(
         MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
         MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
@@ -147,7 +148,7 @@ def obtener_resumen_cuentas_corrientes(
 
     # Total cobrado este mes
     total_cobrado_mes = db.query(
-        db.func.sum(MovimientoCuentaCorriente.monto)
+        func.sum(MovimientoCuentaCorriente.monto)
     ).filter(
         MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
         MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
