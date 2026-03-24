@@ -569,6 +569,98 @@ export default function EmpleadoDetailPage() {
             </div>
           </div>
 
+          {/* Liquidación del Mes Actual */}
+          {movimientosData?.items && (() => {
+            const mesActual = currentDate.getMonth() + 1;
+            const anioActual = currentDate.getFullYear();
+
+            // Filtrar movimientos del período actual (mes actual) que no estén pagados
+            const movimientosMesActual = movimientosData.items.filter(
+              m => m.periodo_mes === mesActual && m.periodo_anio === anioActual && !m.pagado
+            );
+
+            // Calcular totales por tipo
+            const totalAdelantos = movimientosMesActual
+              .filter(m => m.tipo === 'adelanto')
+              .reduce((sum, m) => sum + m.monto, 0);
+
+            const totalBonos = movimientosMesActual
+              .filter(m => m.tipo === 'bono' || m.tipo === 'hora_extra')
+              .reduce((sum, m) => sum + m.monto, 0);
+
+            const totalDescuentos = movimientosMesActual
+              .filter(m => m.tipo === 'descuento' || m.es_debito)
+              .reduce((sum, m) => sum + m.monto, 0);
+
+            // Saldo a pagar = Salario Base - Adelantos + Bonos - Descuentos
+            const saldoAPagar = empleado.salario_base - totalAdelantos + totalBonos - totalDescuentos;
+
+            const mesNombre = MESES.find(m => m.value === mesActual)?.label || '';
+
+            return (
+              <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  Liquidación {mesNombre} {anioActual}
+                </h3>
+                <div className="space-y-3">
+                  {/* Salario Base */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Salario Base</span>
+                    <span className="font-semibold text-text-primary">
+                      {formatCurrency(empleado.salario_base)}
+                    </span>
+                  </div>
+
+                  {/* Adelantos */}
+                  {totalAdelantos > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-amber-600">(-) Adelantos</span>
+                      <span className="font-semibold text-amber-600">
+                        - {formatCurrency(totalAdelantos)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Bonos */}
+                  {totalBonos > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-emerald-600">(+) Bonos / Horas Extra</span>
+                      <span className="font-semibold text-emerald-600">
+                        + {formatCurrency(totalBonos)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Descuentos */}
+                  {totalDescuentos > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-red-600">(-) Descuentos</span>
+                      <span className="font-semibold text-red-600">
+                        - {formatCurrency(totalDescuentos)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Línea divisora */}
+                  <div className="border-t-2 border-primary/30 pt-3 mt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-base font-semibold text-primary">
+                        Saldo a Pagar
+                      </span>
+                      <span className={`text-2xl font-bold ${saldoAPagar >= 0 ? 'text-primary' : 'text-red-600'}`}>
+                        {formatCurrency(saldoAPagar)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A pagar el día {empleado.dia_pago || 5} de {MESES.find(m => m.value === (mesActual === 12 ? 1 : mesActual + 1))?.label}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Adelantos y Movimientos */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
