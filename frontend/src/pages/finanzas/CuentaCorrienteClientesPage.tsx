@@ -531,12 +531,12 @@ export default function CuentaCorrienteClientesPage() {
                       <FileText className="h-4 w-4" />
                       Pedido
                     </Label>
-                    <Select value={cobranzaPedidoId} onValueChange={setCobranzaPedidoId}>
+                    <Select value={cobranzaPedidoId || "_none"} onValueChange={(v) => setCobranzaPedidoId(v === "_none" ? "" : v)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sin asociar a pedido" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sin asociar a pedido</SelectItem>
+                        <SelectItem value="_none">Sin asociar a pedido</SelectItem>
                         {pedidosPendientes?.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             {p.numero} - ${formatNumber(p.saldo_pendiente, 2)} pendiente
@@ -554,12 +554,12 @@ export default function CuentaCorrienteClientesPage() {
                       <Package className="h-4 w-4" />
                       Lote de Producción
                     </Label>
-                    <Select value={cobranzaLoteId} onValueChange={setCobranzaLoteId}>
+                    <Select value={cobranzaLoteId || "_none"} onValueChange={(v) => setCobranzaLoteId(v === "_none" ? "" : v)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sin asociar a lote" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sin asociar a lote</SelectItem>
+                        <SelectItem value="_none">Sin asociar a lote</SelectItem>
                         {lotesCliente?.map((l) => (
                           <SelectItem key={l.id} value={l.id}>
                             {l.numero} - {l.descripcion || l.estado}

@@ -149,12 +149,12 @@ export default function TesoreriaPage() {
 
   const { data: clientes, isLoading: loadingClientes } = useQuery({
     queryKey: ['clientes-lista'],
-    queryFn: () => clienteService.getClientes({ limit: 500, activo: true }),
+    queryFn: () => clienteService.getClientes({ limit: 100, activo: true }),
   });
 
   const { data: proveedores, isLoading: loadingProveedores } = useQuery({
     queryKey: ['proveedores-lista'],
-    queryFn: () => proveedorService.getProveedores({ limit: 500, solo_activos: true }),
+    queryFn: () => proveedorService.getProveedores({ limit: 100, solo_activos: true }),
   });
 
   // Mutations
