@@ -35,6 +35,7 @@ def listar_clientes(
     activo: Optional[bool] = None,
     con_deuda: Optional[bool] = None,
     buscar: Optional[str] = None,
+    orden: Optional[str] = Query(None, description="Ordenar por: nombre, codigo, saldo_desc, saldo_asc"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -47,6 +48,7 @@ def listar_clientes(
         activo=activo,
         con_deuda=con_deuda,
         buscar=buscar,
+        orden=orden,
     )
 
     return {

@@ -28,6 +28,7 @@ export async function getClientes(params?: {
   activo?: boolean;
   con_deuda?: boolean;
   buscar?: string;
+  orden?: 'saldo_desc' | 'saldo_asc' | 'nombre' | 'codigo';
 }): Promise<PaginatedResponse<ClienteList>> {
   const response = await api.get('/clientes', { params });
   return response.data;

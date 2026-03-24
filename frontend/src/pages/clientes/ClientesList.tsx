@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   Eye,
   Edit,
+  ArrowUpDown,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -78,12 +79,13 @@ export default function ClientesListPage() {
   const tipo = searchParams.get('tipo') as TipoCliente | null;
   const conDeuda = searchParams.get('deuda') === 'true';
   const activo = searchParams.get('activo') !== 'false';
+  const orden = (searchParams.get('orden') || 'nombre') as 'saldo_desc' | 'saldo_asc' | 'nombre' | 'codigo';
   const page = parseInt(searchParams.get('page') || '1');
   const limit = 20;
 
   // Query de clientes
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['clientes', tipo, conDeuda, activo, busqueda, page],
+    queryKey: ['clientes', tipo, conDeuda, activo, busqueda, orden, page],
     queryFn: () =>
       clienteService.getClientes({
         skip: (page - 1) * limit,
@@ -92,6 +94,7 @@ export default function ClientesListPage() {
         con_deuda: conDeuda || undefined,
         activo,
         buscar: busqueda || undefined,
+        orden,
       }),
   });
 
@@ -191,6 +194,22 @@ export default function ClientesListPage() {
                     {t.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={orden}
+              onValueChange={(v) => updateFilter('orden', v)}
+            >
+              <SelectTrigger className="w-48">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nombre">Nombre A-Z</SelectItem>
+                <SelectItem value="codigo">Código</SelectItem>
+                <SelectItem value="saldo_desc">Mayor deuda primero</SelectItem>
+                <SelectItem value="saldo_asc">Menor deuda primero</SelectItem>
               </SelectContent>
             </Select>
 

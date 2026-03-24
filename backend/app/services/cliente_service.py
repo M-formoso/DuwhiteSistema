@@ -39,6 +39,7 @@ class ClienteService:
         activo: Optional[bool] = None,
         con_deuda: Optional[bool] = None,
         buscar: Optional[str] = None,
+        orden: Optional[str] = None,
     ) -> Tuple[List[Cliente], int]:
         """Obtiene lista de clientes con filtros."""
         query = self.db.query(Cliente)
@@ -67,7 +68,18 @@ class ClienteService:
             )
 
         total = query.count()
-        clientes = query.order_by(Cliente.razon_social).offset(skip).limit(limit).all()
+
+        # Aplicar ordenamiento
+        if orden == "saldo_desc":
+            query = query.order_by(Cliente.saldo_cuenta_corriente.desc())
+        elif orden == "saldo_asc":
+            query = query.order_by(Cliente.saldo_cuenta_corriente.asc())
+        elif orden == "codigo":
+            query = query.order_by(Cliente.codigo)
+        else:  # "nombre" o default
+            query = query.order_by(Cliente.razon_social)
+
+        clientes = query.offset(skip).limit(limit).all()
 
         return clientes, total
 
