@@ -147,12 +147,12 @@ export default function TesoreriaPage() {
       }),
   });
 
-  const { data: clientes } = useQuery({
+  const { data: clientes, isLoading: loadingClientes } = useQuery({
     queryKey: ['clientes-lista'],
     queryFn: () => clienteService.getClientes({ limit: 500, activo: true }),
   });
 
-  const { data: proveedores } = useQuery({
+  const { data: proveedores, isLoading: loadingProveedores } = useQuery({
     queryKey: ['proveedores-lista'],
     queryFn: () => proveedorService.getProveedores({ limit: 500, solo_activos: true }),
   });
@@ -977,7 +977,7 @@ export default function TesoreriaPage() {
                 <div className="space-y-2">
                   <Label>Cliente</Label>
                   <Combobox
-                    options={clientes?.items.map((c) => ({
+                    options={clientes?.items?.map((c) => ({
                       value: c.id,
                       label: c.razon_social,
                       sublabel: c.cuit || undefined,
@@ -987,6 +987,7 @@ export default function TesoreriaPage() {
                     placeholder="Buscar cliente..."
                     searchPlaceholder="Escribí para buscar..."
                     emptyText="No se encontró el cliente"
+                    isLoading={loadingClientes}
                   />
                 </div>
               )}
@@ -995,7 +996,7 @@ export default function TesoreriaPage() {
                 <div className="space-y-2">
                   <Label>Proveedor</Label>
                   <Combobox
-                    options={proveedores?.items.map((p) => ({
+                    options={proveedores?.items?.map((p) => ({
                       value: p.id,
                       label: p.razon_social,
                       sublabel: p.cuit || undefined,
@@ -1005,6 +1006,7 @@ export default function TesoreriaPage() {
                     placeholder="Buscar proveedor..."
                     searchPlaceholder="Escribí para buscar..."
                     emptyText="No se encontró el proveedor"
+                    isLoading={loadingProveedores}
                   />
                 </div>
               )}
@@ -1175,7 +1177,7 @@ export default function TesoreriaPage() {
                 <div className="space-y-2">
                   <Label>Cliente (opcional)</Label>
                   <Combobox
-                    options={clientes?.items.map((c) => ({
+                    options={clientes?.items?.map((c) => ({
                       value: c.id,
                       label: c.razon_social,
                       sublabel: c.cuit || undefined,
@@ -1185,13 +1187,14 @@ export default function TesoreriaPage() {
                     placeholder="Buscar cliente..."
                     searchPlaceholder="Escribí para buscar..."
                     emptyText="No se encontró el cliente"
+                    isLoading={loadingClientes}
                   />
                 </div>
               ) : (
                 <div className="space-y-2">
                   <Label>Proveedor (opcional)</Label>
                   <Combobox
-                    options={proveedores?.items.map((p) => ({
+                    options={proveedores?.items?.map((p) => ({
                       value: p.id,
                       label: p.razon_social,
                       sublabel: p.cuit || undefined,
@@ -1201,6 +1204,7 @@ export default function TesoreriaPage() {
                     placeholder="Buscar proveedor..."
                     searchPlaceholder="Escribí para buscar..."
                     emptyText="No se encontró el proveedor"
+                    isLoading={loadingProveedores}
                   />
                 </div>
               )}
@@ -1288,7 +1292,7 @@ export default function TesoreriaPage() {
                   <div className="space-y-2">
                     <Label>Proveedor (opcional)</Label>
                     <Combobox
-                      options={proveedores?.items.map((p) => ({
+                      options={proveedores?.items?.map((p) => ({
                         value: p.id,
                         label: p.razon_social,
                         sublabel: p.cuit || undefined,
@@ -1298,6 +1302,7 @@ export default function TesoreriaPage() {
                       placeholder="Buscar proveedor..."
                       searchPlaceholder="Escribí para buscar..."
                       emptyText="No se encontró el proveedor"
+                      isLoading={loadingProveedores}
                     />
                   </div>
                 </>

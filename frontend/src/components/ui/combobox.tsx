@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import { Check, ChevronsUpDown, X, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -32,9 +32,11 @@ interface ComboboxProps {
   placeholder?: string
   searchPlaceholder?: string
   emptyText?: string
+  loadingText?: string
   disabled?: boolean
   className?: string
   allowClear?: boolean
+  isLoading?: boolean
 }
 
 export function Combobox({
@@ -44,9 +46,11 @@ export function Combobox({
   placeholder = "Seleccionar...",
   searchPlaceholder = "Buscar...",
   emptyText = "No se encontraron resultados.",
+  loadingText = "Cargando...",
   disabled = false,
   className,
   allowClear = true,
+  isLoading = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -59,7 +63,7 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          disabled={disabled}
+          disabled={disabled || isLoading}
           className={cn(
             "w-full justify-between font-normal",
             !value && "text-muted-foreground",
@@ -67,32 +71,48 @@ export function Combobox({
           )}
         >
           <span className="truncate">
-            {selectedOption ? selectedOption.label : placeholder}
+            {isLoading ? loadingText : selectedOption ? selectedOption.label : placeholder}
           </span>
           <div className="flex items-center gap-1 ml-2 shrink-0">
-            {allowClear && value && (
-              <X
-                className="h-4 w-4 opacity-50 hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onChange(null)
-                }}
-              />
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin opacity-50" />
+            ) : (
+              <>
+                {allowClear && value && (
+                  <X
+                    className="h-4 w-4 opacity-50 hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onChange(null)
+                    }}
+                  />
+                )}
+                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+              </>
             )}
-            <ChevronsUpDown className="h-4 w-4 opacity-50" />
           </div>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
+        <Command
+          filter={(value, search) => {
+            // Búsqueda case-insensitive que incluye label y sublabel
+            const normalizedValue = value.toLowerCase()
+            const normalizedSearch = search.toLowerCase()
+            if (normalizedValue.includes(normalizedSearch)) return 1
+            return 0
+          }}
+        >
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandEmpty>
+              {options.length === 0 ? "No hay opciones disponibles" : emptyText}
+            </CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={`${option.label} ${option.sublabel || ''}`}
+                  value={`${option.label} ${option.sublabel || ''}`.trim()}
                   onSelect={() => {
                     onChange(option.value === value ? null : option.value)
                     setOpen(false)
