@@ -47,6 +47,7 @@ import { useToast } from '@/hooks/use-toast';
 import { tesoreriaService } from '@/services/tesoreriaService';
 import { clienteService } from '@/services/clienteService';
 import { proveedorService } from '@/services/proveedorService';
+import { finanzasService } from '@/services/finanzasService';
 import { formatNumber } from '@/utils/formatters';
 import {
   TIPOS_CHEQUE,
@@ -156,6 +157,22 @@ export default function TesoreriaPage() {
     queryKey: ['proveedores-lista'],
     queryFn: () => proveedorService.getProveedores({ limit: 100, solo_activos: true }),
   });
+
+  // Query Caja actual
+  const { data: cajaActual } = useQuery({
+    queryKey: ['caja-actual'],
+    queryFn: () => finanzasService.getCajaActual(),
+  });
+
+  // Query Cuentas Bancarias
+  const { data: cuentasBancarias, isLoading: loadingCuentas } = useQuery({
+    queryKey: ['cuentas-bancarias'],
+    queryFn: () => finanzasService.getCuentasBancarias(true),
+  });
+
+  // Calcular totales
+  const totalBancos = cuentasBancarias?.reduce((acc, c) => acc + (c.saldo_actual || 0), 0) || 0;
+  const saldoCaja = cajaActual?.saldo_calculado || 0;
 
   // Mutations
   const crearChequeMutation = useMutation({
@@ -431,14 +448,121 @@ export default function TesoreriaPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="resumen">Resumen</TabsTrigger>
+          <TabsTrigger value="caja">Caja</TabsTrigger>
+          <TabsTrigger value="bancos">Bancos</TabsTrigger>
           <TabsTrigger value="cheques">Cheques</TabsTrigger>
           <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
         </TabsList>
 
         {/* Tab Resumen */}
         <TabsContent value="resumen" className="space-y-6">
+          {/* Saldos Principales */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-green-600">Efectivo en Caja</p>
+                    <p className="text-2xl font-bold text-green-700">
+                      ${formatNumber(saldoCaja, 2)}
+                    </p>
+                    <p className="text-xs text-green-600">
+                      {cajaActual ? 'Caja abierta' : 'Sin caja abierta'}
+                    </p>
+                  </div>
+                  <Banknote className="h-10 w-10 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-purple-600">Saldo en Bancos</p>
+                    <p className="text-2xl font-bold text-purple-700">
+                      ${formatNumber(totalBancos, 2)}
+                    </p>
+                    <p className="text-xs text-purple-600">
+                      {cuentasBancarias?.length || 0} cuenta(s)
+                    </p>
+                  </div>
+                  <Building2 className="h-10 w-10 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-600">Cheques en Cartera</p>
+                    <p className="text-2xl font-bold text-blue-700">
+                      ${formatNumber(resumen?.total_cheques_cartera || 0, 2)}
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      {resumen?.cheques_en_cartera || 0} cheque(s)
+                    </p>
+                  </div>
+                  <FileCheck className="h-10 w-10 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary bg-primary/10">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-primary">Total Disponible</p>
+                    <p className="text-2xl font-bold text-primary">
+                      ${formatNumber(saldoCaja + totalBancos + (resumen?.total_cheques_cartera || 0), 2)}
+                    </p>
+                    <p className="text-xs text-primary">
+                      Efectivo + Bancos + Cheques
+                    </p>
+                  </div>
+                  <Wallet className="h-10 w-10 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Detalle Cuentas Bancarias */}
+          {cuentasBancarias && cuentasBancarias.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Cuentas Bancarias
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {cuentasBancarias.map((cuenta) => (
+                    <div key={cuenta.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                          <CreditCard className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{cuenta.banco}</p>
+                          <p className="text-sm text-gray-500">
+                            {cuenta.tipo_cuenta === 'cuenta_corriente' ? 'Cta. Cte.' : cuenta.tipo_cuenta} - {cuenta.alias || cuenta.numero_cuenta}
+                          </p>
+                        </div>
+                      </div>
+                      <p className={`text-lg font-bold ${(cuenta.saldo_actual || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${formatNumber(cuenta.saldo_actual || 0, 2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Resumen Cheques */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="border-blue-200 bg-blue-50">
@@ -582,6 +706,112 @@ export default function TesoreriaPage() {
                 </div>
                 <Wallet className="h-12 w-12 text-primary" />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Caja */}
+        <TabsContent value="caja" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Banknote className="h-5 w-5 text-green-600" />
+                Caja de Efectivo
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {cajaActual ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Saldo Inicial</p>
+                      <p className="text-xl font-bold">${formatNumber(cajaActual.saldo_inicial || 0, 2)}</p>
+                    </div>
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <p className="text-sm text-green-600">Total Ingresos</p>
+                      <p className="text-xl font-bold text-green-600">${formatNumber(cajaActual.total_ingresos || 0, 2)}</p>
+                    </div>
+                    <div className="p-4 bg-red-50 rounded-lg">
+                      <p className="text-sm text-red-600">Total Egresos</p>
+                      <p className="text-xl font-bold text-red-600">${formatNumber(cajaActual.total_egresos || 0, 2)}</p>
+                    </div>
+                    <div className="p-4 bg-primary/10 rounded-lg">
+                      <p className="text-sm text-primary">Saldo Actual</p>
+                      <p className="text-xl font-bold text-primary">${formatNumber(cajaActual.saldo_calculado || 0, 2)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Calendar className="h-4 w-4" />
+                    Caja abierta: {formatearFecha(cajaActual.fecha_apertura)}
+                    {cajaActual.abierta_por_nombre && ` por ${cajaActual.abierta_por_nombre}`}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Banknote className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No hay caja abierta actualmente</p>
+                  <p className="text-sm text-gray-400">Abrí una caja desde el módulo de Finanzas para registrar movimientos de efectivo</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Bancos */}
+        <TabsContent value="bancos" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-purple-600" />
+                  Cuentas Bancarias
+                </CardTitle>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Saldo Total</p>
+                  <p className="text-2xl font-bold text-purple-600">${formatNumber(totalBancos, 2)}</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingCuentas ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : cuentasBancarias && cuentasBancarias.length > 0 ? (
+                <div className="space-y-3">
+                  {cuentasBancarias.map((cuenta) => (
+                    <div key={cuenta.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-purple-100 rounded-lg">
+                          <CreditCard className="h-6 w-6 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">{cuenta.banco}</p>
+                          <p className="text-sm text-gray-500">
+                            {cuenta.tipo_cuenta === 'cuenta_corriente' ? 'Cuenta Corriente' :
+                             cuenta.tipo_cuenta === 'caja_ahorro' ? 'Caja de Ahorro' : cuenta.tipo_cuenta}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {cuenta.alias && `${cuenta.alias} - `}{cuenta.numero_cuenta}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-xl font-bold ${(cuenta.saldo_actual || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ${formatNumber(cuenta.saldo_actual || 0, 2)}
+                        </p>
+                        <p className="text-xs text-gray-400">{cuenta.moneda || 'ARS'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Building2 className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No hay cuentas bancarias registradas</p>
+                  <p className="text-sm text-gray-400">Agregá cuentas desde Finanzas → Cuentas Bancarias</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
