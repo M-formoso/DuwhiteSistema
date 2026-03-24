@@ -182,6 +182,12 @@ const navSectionsInternal: NavSection[] = [
         icon: Users,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'contador', 'solo_lectura'],
       },
+      {
+        title: 'Jornales',
+        href: '/empleados/jornales',
+        icon: Clock,
+        roles: ['superadmin', 'administrador', 'contador'],
+      },
     ],
   },
   {

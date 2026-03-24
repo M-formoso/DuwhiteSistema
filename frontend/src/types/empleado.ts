@@ -61,6 +61,7 @@ export interface Empleado {
   // Salario y pago
   salario_base: number;
   salario_hora: number | null;
+  valor_hora_extra: number | null;
   tipo_contratacion: TipoContratacion;
   dia_pago: number | null;
   jornada_horas: number;
@@ -249,6 +250,12 @@ export interface MovimientoNomina {
   movimiento_caja_id: string | null;
   registrado_por_id: string;
   created_at: string;
+  // Campos de jornales
+  fecha: string | null;
+  semana: number | null;
+  cantidad_horas: number | null;
+  valor_hora: number | null;
+  // Campos calculados
   empleado_nombre?: string | null;
   registrado_por_nombre?: string | null;
 }
@@ -409,3 +416,49 @@ export const getTipoContratacionLabel = (tipo: TipoContratacion): string => {
   };
   return labels[tipo] || tipo;
 };
+
+// ==================== JORNALES ====================
+
+export interface RegistroJornalCreate {
+  empleado_id: string;
+  fecha: string;
+  tipo: 'adelanto' | 'hora_extra';
+  monto?: number;
+  cantidad_horas?: number;
+  notas?: string;
+}
+
+export interface ResumenSemanalEmpleado {
+  empleado_id: string;
+  empleado_nombre: string;
+  semana: number;
+  periodo_mes: number;
+  periodo_anio: number;
+  total_adelantos: number;
+  total_horas_extras: number;
+  total_monto_extras: number;
+  dias_con_movimiento: number;
+}
+
+export interface ResumenMensualEmpleado {
+  empleado_id: string;
+  empleado_nombre: string;
+  valor_hora_extra: number | null;
+  periodo_mes: number;
+  periodo_anio: number;
+  semanas: ResumenSemanalEmpleado[];
+  total_adelantos: number;
+  total_horas_extras: number;
+  total_monto_extras: number;
+  total_general: number;
+}
+
+export interface ResumenMensualGeneral {
+  periodo_mes: number;
+  periodo_anio: number;
+  empleados: ResumenMensualEmpleado[];
+  total_adelantos: number;
+  total_horas_extras: number;
+  total_monto_extras: number;
+  total_general: number;
+}

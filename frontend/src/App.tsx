@@ -49,6 +49,7 @@ import TesoreriaPage from '@/pages/tesoreria/TesoreriaPage';
 
 // Empleados
 import { EmpleadosListPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage, NominaPage, LiquidacionesPage } from '@/pages/empleados';
+import JornalesPage from '@/pages/empleados/JornalesPage';
 
 // Órdenes de Compra
 import { OrdenesCompraListPage, OrdenCompraFormPage, OrdenCompraDetailPage } from '@/pages/ordenes-compra';
@@ -188,6 +189,7 @@ function App() {
         <Route path="/empleados/asistencia" element={<AsistenciaPage />} />
         <Route path="/empleados/nomina" element={<NominaPage />} />
         <Route path="/empleados/liquidaciones" element={<LiquidacionesPage />} />
+        <Route path="/empleados/jornales" element={<JornalesPage />} />
 
         {/* Reportes */}
         <Route path="/reportes" element={<ReportesPage />} />

@@ -177,6 +177,7 @@ class EmpleadoUpdate(BaseModel):
     # Salario y pago
     salario_base: Optional[Decimal] = Field(None, ge=0)
     salario_hora: Optional[Decimal] = Field(None, ge=0)
+    valor_hora_extra: Optional[Decimal] = Field(None, ge=0)
     tipo_contratacion: Optional[str] = None  # blanco, negro, monotributo
     dia_pago: Optional[int] = Field(None, ge=1, le=31)
     jornada_horas: Optional[Decimal] = Field(None, ge=1, le=12)
@@ -242,6 +243,7 @@ class EmpleadoResponse(BaseModel):
     # Salario y pago
     salario_base: Decimal
     salario_hora: Optional[Decimal]
+    valor_hora_extra: Optional[Decimal]
     tipo_contratacion: str
     dia_pago: Optional[int]
     jornada_horas: Decimal
@@ -367,6 +369,11 @@ class MovimientoNominaCreate(BaseModel):
     periodo_anio: int = Field(..., ge=2020)
     monto: Decimal = Field(..., gt=0)
     es_debito: bool = False
+    # Nuevos campos para jornales
+    fecha: Optional[date] = None  # Fecha específica del movimiento
+    semana: Optional[int] = Field(None, ge=1, le=5)  # Semana del mes
+    cantidad_horas: Optional[Decimal] = Field(None, ge=0)  # Para horas extras
+    valor_hora: Optional[Decimal] = Field(None, ge=0)  # Valor hora al momento
 
 
 class MovimientoNominaUpdate(BaseModel):
@@ -394,6 +401,11 @@ class MovimientoNominaResponse(BaseModel):
     movimiento_caja_id: Optional[UUID]
     registrado_por_id: UUID
     created_at: datetime
+    # Campos de jornales
+    fecha: Optional[date] = None
+    semana: Optional[int] = None
+    cantidad_horas: Optional[Decimal] = None
+    valor_hora: Optional[Decimal] = None
 
     # Campos calculados
     empleado_nombre: Optional[str] = None
@@ -498,3 +510,61 @@ class ResumenNomina(BaseModel):
     total_neto: Decimal
     liquidaciones_pagadas: int
     liquidaciones_pendientes: int
+
+
+# ==================== JORNALES ====================
+
+class RegistroJornalCreate(BaseModel):
+    """Schema para registrar adelanto o horas extras diarias"""
+    empleado_id: UUID
+    fecha: date
+    tipo: str  # 'adelanto' o 'hora_extra'
+    monto: Optional[Decimal] = Field(None, ge=0)  # Para adelantos
+    cantidad_horas: Optional[Decimal] = Field(None, ge=0)  # Para HS extras
+    notas: Optional[str] = None
+
+
+class RegistroJornalBulkCreate(BaseModel):
+    """Schema para registrar múltiples jornales de una vez"""
+    registros: List['RegistroJornalCreate']
+
+
+class ResumenSemanalEmpleado(BaseModel):
+    """Resumen semanal de un empleado"""
+    empleado_id: UUID
+    empleado_nombre: str
+    semana: int
+    periodo_mes: int
+    periodo_anio: int
+    total_adelantos: Decimal
+    total_horas_extras: Decimal
+    total_monto_extras: Decimal
+    dias_con_movimiento: int
+
+
+class ResumenMensualEmpleado(BaseModel):
+    """Resumen mensual de un empleado"""
+    empleado_id: UUID
+    empleado_nombre: str
+    valor_hora_extra: Optional[Decimal]
+    periodo_mes: int
+    periodo_anio: int
+    # Por semana
+    semanas: List[ResumenSemanalEmpleado]
+    # Totales
+    total_adelantos: Decimal
+    total_horas_extras: Decimal
+    total_monto_extras: Decimal
+    total_general: Decimal
+
+
+class ResumenMensualGeneral(BaseModel):
+    """Resumen mensual de todos los empleados"""
+    periodo_mes: int
+    periodo_anio: int
+    empleados: List[ResumenMensualEmpleado]
+    # Totales globales
+    total_adelantos: Decimal
+    total_horas_extras: Decimal
+    total_monto_extras: Decimal
+    total_general: Decimal

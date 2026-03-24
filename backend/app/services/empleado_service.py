@@ -688,6 +688,203 @@ class EmpleadoService:
         self.db.refresh(liquidacion)
         return liquidacion
 
+    # ==================== JORNALES (Adelantos + HS Extras) ====================
+
+    def _get_semana_del_mes(self, fecha: date) -> int:
+        """Calcula el número de semana del mes (1-5)"""
+        primer_dia = fecha.replace(day=1)
+        dia_semana_inicio = primer_dia.weekday()  # 0=Lunes
+        # Semana 1: días 1-7, etc.
+        return ((fecha.day + dia_semana_inicio - 1) // 7) + 1
+
+    def registrar_jornal(
+        self,
+        data,  # RegistroJornalCreate
+        registrado_por_id: UUID
+    ) -> MovimientoNomina:
+        """
+        Registra un adelanto o horas extras para un empleado en una fecha específica.
+        """
+        empleado = self.get_empleado(data.empleado_id)
+        if not empleado:
+            raise ValueError("Empleado no encontrado")
+
+        semana = self._get_semana_del_mes(data.fecha)
+
+        if data.tipo == "adelanto":
+            if not data.monto or data.monto <= 0:
+                raise ValueError("Monto de adelanto debe ser mayor a 0")
+
+            movimiento = MovimientoNomina(
+                empleado_id=data.empleado_id,
+                tipo=TipoMovimientoNomina.ADELANTO.value,
+                concepto=f"Adelanto {data.fecha.strftime('%d/%m/%Y')}",
+                descripcion=data.notas,
+                periodo_mes=data.fecha.month,
+                periodo_anio=data.fecha.year,
+                fecha=data.fecha,
+                semana=semana,
+                monto=data.monto,
+                es_debito=True,  # Adelanto se descuenta del sueldo
+                registrado_por_id=registrado_por_id
+            )
+
+        elif data.tipo == "hora_extra":
+            if not data.cantidad_horas or data.cantidad_horas <= 0:
+                raise ValueError("Cantidad de horas debe ser mayor a 0")
+
+            # Usar valor hora extra del empleado
+            valor_hora = empleado.valor_hora_extra or empleado.salario_hora or Decimal("0")
+            if valor_hora <= 0:
+                raise ValueError("El empleado no tiene configurado un valor de hora extra")
+
+            monto = data.cantidad_horas * valor_hora
+
+            movimiento = MovimientoNomina(
+                empleado_id=data.empleado_id,
+                tipo=TipoMovimientoNomina.HORA_EXTRA.value,
+                concepto=f"HS Extras {data.fecha.strftime('%d/%m/%Y')} ({data.cantidad_horas}hs)",
+                descripcion=data.notas,
+                periodo_mes=data.fecha.month,
+                periodo_anio=data.fecha.year,
+                fecha=data.fecha,
+                semana=semana,
+                cantidad_horas=data.cantidad_horas,
+                valor_hora=valor_hora,
+                monto=monto,
+                es_debito=False,  # Horas extras se suman
+                registrado_por_id=registrado_por_id
+            )
+        else:
+            raise ValueError(f"Tipo de jornal inválido: {data.tipo}")
+
+        self.db.add(movimiento)
+        self.db.commit()
+        self.db.refresh(movimiento)
+        return movimiento
+
+    def get_resumen_mensual_jornales(self, mes: int, anio: int) -> dict:
+        """
+        Obtiene resumen mensual de adelantos y horas extras de todos los empleados.
+        Estructura similar al Excel de ADELANTO + HS. EXTRAS.
+        """
+        # Obtener empleados activos
+        empleados_result = self.db.execute(
+            select(Empleado)
+            .where(Empleado.activo == True)
+            .order_by(Empleado.nombre, Empleado.apellido)
+        )
+        empleados = empleados_result.scalars().all()
+
+        resumen_empleados = []
+        total_adelantos_global = Decimal("0")
+        total_horas_global = Decimal("0")
+        total_monto_extras_global = Decimal("0")
+
+        for empleado in empleados:
+            resumen_emp = self.get_resumen_empleado_jornales(empleado.id, mes, anio)
+            resumen_empleados.append(resumen_emp)
+
+            total_adelantos_global += resumen_emp["total_adelantos"]
+            total_horas_global += resumen_emp["total_horas_extras"]
+            total_monto_extras_global += resumen_emp["total_monto_extras"]
+
+        return {
+            "periodo_mes": mes,
+            "periodo_anio": anio,
+            "empleados": resumen_empleados,
+            "total_adelantos": total_adelantos_global,
+            "total_horas_extras": total_horas_global,
+            "total_monto_extras": total_monto_extras_global,
+            "total_general": total_adelantos_global + total_monto_extras_global
+        }
+
+    def get_resumen_empleado_jornales(self, empleado_id: UUID, mes: int, anio: int) -> dict:
+        """
+        Obtiene resumen mensual de adelantos y horas extras de un empleado.
+        """
+        empleado = self.get_empleado(empleado_id)
+        if not empleado:
+            raise ValueError("Empleado no encontrado")
+
+        # Obtener movimientos del mes (adelantos y horas extras)
+        result = self.db.execute(
+            select(MovimientoNomina)
+            .where(and_(
+                MovimientoNomina.empleado_id == empleado_id,
+                MovimientoNomina.periodo_mes == mes,
+                MovimientoNomina.periodo_anio == anio,
+                MovimientoNomina.tipo.in_([
+                    TipoMovimientoNomina.ADELANTO.value,
+                    TipoMovimientoNomina.HORA_EXTRA.value
+                ]),
+                MovimientoNomina.activo == True
+            ))
+            .order_by(MovimientoNomina.fecha)
+        )
+        movimientos = result.scalars().all()
+
+        # Agrupar por semana
+        semanas_dict = {}
+        for mov in movimientos:
+            semana = mov.semana or 1
+            if semana not in semanas_dict:
+                semanas_dict[semana] = {
+                    "empleado_id": str(empleado_id),
+                    "empleado_nombre": empleado.nombre_completo,
+                    "semana": semana,
+                    "periodo_mes": mes,
+                    "periodo_anio": anio,
+                    "total_adelantos": Decimal("0"),
+                    "total_horas_extras": Decimal("0"),
+                    "total_monto_extras": Decimal("0"),
+                    "dias_con_movimiento": 0
+                }
+
+            if mov.tipo == TipoMovimientoNomina.ADELANTO.value:
+                semanas_dict[semana]["total_adelantos"] += mov.monto
+            elif mov.tipo == TipoMovimientoNomina.HORA_EXTRA.value:
+                semanas_dict[semana]["total_horas_extras"] += mov.cantidad_horas or Decimal("0")
+                semanas_dict[semana]["total_monto_extras"] += mov.monto
+
+            semanas_dict[semana]["dias_con_movimiento"] += 1
+
+        # Crear lista de semanas (1-5)
+        semanas = []
+        for i in range(1, 6):
+            if i in semanas_dict:
+                semanas.append(semanas_dict[i])
+            else:
+                semanas.append({
+                    "empleado_id": str(empleado_id),
+                    "empleado_nombre": empleado.nombre_completo,
+                    "semana": i,
+                    "periodo_mes": mes,
+                    "periodo_anio": anio,
+                    "total_adelantos": Decimal("0"),
+                    "total_horas_extras": Decimal("0"),
+                    "total_monto_extras": Decimal("0"),
+                    "dias_con_movimiento": 0
+                })
+
+        # Calcular totales
+        total_adelantos = sum(s["total_adelantos"] for s in semanas)
+        total_horas = sum(s["total_horas_extras"] for s in semanas)
+        total_monto = sum(s["total_monto_extras"] for s in semanas)
+
+        return {
+            "empleado_id": str(empleado_id),
+            "empleado_nombre": empleado.nombre_completo,
+            "valor_hora_extra": empleado.valor_hora_extra,
+            "periodo_mes": mes,
+            "periodo_anio": anio,
+            "semanas": semanas,
+            "total_adelantos": total_adelantos,
+            "total_horas_extras": total_horas,
+            "total_monto_extras": total_monto,
+            "total_general": total_adelantos + total_monto
+        }
+
     # ==================== DEPARTAMENTOS ====================
 
     def get_departamentos(self) -> List[str]:

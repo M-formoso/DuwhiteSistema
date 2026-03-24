@@ -173,6 +173,62 @@ export async function pagarLiquidacion(
   return response.data;
 }
 
+// ==================== JORNALES (Adelantos + HS Extras) ====================
+
+import type {
+  RegistroJornalCreate,
+  ResumenMensualEmpleado,
+  ResumenMensualGeneral,
+} from '@/types/empleado';
+
+export async function registrarJornal(data: RegistroJornalCreate): Promise<MovimientoNomina> {
+  const response = await api.post('/empleados/jornales/registrar', data);
+  return response.data;
+}
+
+export async function registrarJornalesMultiple(
+  registros: RegistroJornalCreate[]
+): Promise<{
+  registrados: number;
+  errores: number;
+  resultados: Array<{ empleado_id: string; fecha: string; tipo: string; monto: number; success: boolean }>;
+  detalles_errores: Array<{ index: number; empleado_id: string; fecha: string; error: string }>;
+}> {
+  const response = await api.post('/empleados/jornales/registrar-multiple', registros);
+  return response.data;
+}
+
+export async function getResumenMensualJornales(
+  mes: number,
+  anio: number
+): Promise<ResumenMensualGeneral> {
+  const response = await api.get('/empleados/jornales/resumen-mensual', {
+    params: { mes, anio },
+  });
+  return response.data;
+}
+
+export async function getResumenEmpleadoJornales(
+  empleadoId: string,
+  mes: number,
+  anio: number
+): Promise<ResumenMensualEmpleado> {
+  const response = await api.get(`/empleados/jornales/resumen-empleado/${empleadoId}`, {
+    params: { mes, anio },
+  });
+  return response.data;
+}
+
+export async function actualizarValorHoraExtra(
+  empleadoId: string,
+  valorHoraExtra: number
+): Promise<{ message: string; valor_hora_extra: number }> {
+  const response = await api.put(`/empleados/${empleadoId}/valor-hora-extra`, null, {
+    params: { valor_hora_extra: valorHoraExtra },
+  });
+  return response.data;
+}
+
 // ==================== EXPORTS ====================
 
 export const empleadoService = {
@@ -193,6 +249,12 @@ export const empleadoService = {
   createLiquidacion,
   getLiquidaciones,
   pagarLiquidacion,
+  // Jornales
+  registrarJornal,
+  registrarJornalesMultiple,
+  getResumenMensualJornales,
+  getResumenEmpleadoJornales,
+  actualizarValorHoraExtra,
 };
 
 export default empleadoService;

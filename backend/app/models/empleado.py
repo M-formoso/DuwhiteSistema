@@ -112,6 +112,7 @@ class Empleado(Base, BaseModelMixin):
     # Salario y pago
     salario_base = Column(Numeric(12, 2), nullable=False, default=0)
     salario_hora = Column(Numeric(10, 2), nullable=True)
+    valor_hora_extra = Column(Numeric(10, 2), nullable=True)  # Valor de hora extra (del Excel)
     tipo_contratacion = Column(String(20), nullable=False, default="blanco")  # blanco, negro, monotributo
     dia_pago = Column(Integer, nullable=True, default=5)  # Día del mes en que se paga (1-31)
     jornada_horas = Column(Numeric(4, 2), nullable=False, default=8)  # Horas de jornada laboral diaria
@@ -209,7 +210,7 @@ class JornadaLaboral(Base, BaseModelMixin):
 
 class MovimientoNomina(Base, BaseModelMixin):
     """
-    Modelo de Movimientos de Nómina (pagos, descuentos, adelantos)
+    Modelo de Movimientos de Nómina (pagos, descuentos, adelantos, horas extras)
     """
     __tablename__ = "movimientos_nomina"
 
@@ -222,6 +223,14 @@ class MovimientoNomina(Base, BaseModelMixin):
     # Período
     periodo_mes = Column(Integer, nullable=False)  # 1-12
     periodo_anio = Column(Integer, nullable=False)
+
+    # Fecha específica (para adelantos y HS extras diarios)
+    fecha = Column(Date, nullable=True, index=True)  # Día específico del movimiento
+    semana = Column(Integer, nullable=True)  # Número de semana del mes (1-5)
+
+    # Horas extras específicas
+    cantidad_horas = Column(Numeric(5, 2), nullable=True)  # Cantidad de HS extras
+    valor_hora = Column(Numeric(10, 2), nullable=True)  # Valor de la hora extra al momento
 
     # Montos
     monto = Column(Numeric(12, 2), nullable=False)

@@ -20,7 +20,8 @@ from app.schemas.empleado import (
     AsistenciaCreate, AsistenciaResponse,
     JornadaLaboralResponse, JornadaJustificacion,
     MovimientoNominaCreate, MovimientoNominaResponse, PagarMovimientoRequest,
-    LiquidacionCreate, LiquidacionResponse
+    LiquidacionCreate, LiquidacionResponse,
+    RegistroJornalCreate, ResumenMensualEmpleado, ResumenMensualGeneral,
 )
 from app.schemas.common import PaginatedResponse
 from app.models.empleado import Empleado
@@ -60,6 +61,7 @@ def _empleado_to_response(empleado: Empleado) -> EmpleadoResponse:
         dias_trabajo=empleado.dias_trabajo,
         salario_base=empleado.salario_base,
         salario_hora=empleado.salario_hora,
+        valor_hora_extra=empleado.valor_hora_extra,
         tipo_contratacion=empleado.tipo_contratacion,
         dia_pago=empleado.dia_pago,
         jornada_horas=empleado.jornada_horas,
@@ -591,3 +593,148 @@ def get_tipos_empleado(
             {"value": "otro", "label": "Otro"},
         ],
     }
+
+
+# ==================== JORNALES (Adelantos + HS Extras) ====================
+
+@router.post("/jornales/registrar", response_model=MovimientoNominaResponse, status_code=status.HTTP_201_CREATED)
+def registrar_jornal(
+    data: RegistroJornalCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Registra un adelanto o horas extras para un empleado en una fecha específica.
+    Similar al registro del Excel de ADELANTO + HS. EXTRAS.
+    """
+    service = EmpleadoService(db)
+
+    empleado = service.get_empleado(data.empleado_id)
+    if not empleado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empleado no encontrado"
+        )
+
+    try:
+        movimiento = service.registrar_jornal(
+            data=data,
+            registrado_por_id=current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    return MovimientoNominaResponse(
+        **movimiento.__dict__,
+        empleado_nombre=empleado.nombre_completo
+    )
+
+
+@router.post("/jornales/registrar-multiple", status_code=status.HTTP_201_CREATED)
+def registrar_jornales_multiple(
+    registros: List[RegistroJornalCreate],
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Registra múltiples adelantos/horas extras de una vez.
+    Útil para cargar varios días o empleados simultáneamente.
+    """
+    service = EmpleadoService(db)
+    resultados = []
+    errores = []
+
+    for i, reg in enumerate(registros):
+        try:
+            movimiento = service.registrar_jornal(
+                data=reg,
+                registrado_por_id=current_user.id
+            )
+            resultados.append({
+                "empleado_id": str(reg.empleado_id),
+                "fecha": str(reg.fecha),
+                "tipo": reg.tipo,
+                "monto": float(movimiento.monto),
+                "success": True
+            })
+        except Exception as e:
+            errores.append({
+                "index": i,
+                "empleado_id": str(reg.empleado_id),
+                "fecha": str(reg.fecha),
+                "error": str(e)
+            })
+
+    return {
+        "registrados": len(resultados),
+        "errores": len(errores),
+        "resultados": resultados,
+        "detalles_errores": errores
+    }
+
+
+@router.get("/jornales/resumen-mensual", response_model=ResumenMensualGeneral)
+def get_resumen_mensual_jornales(
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2020),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene resumen mensual de adelantos y horas extras de todos los empleados.
+    Similar a la estructura del Excel de ADELANTO + HS. EXTRAS.
+    """
+    service = EmpleadoService(db)
+    return service.get_resumen_mensual_jornales(mes, anio)
+
+
+@router.get("/jornales/resumen-empleado/{empleado_id}", response_model=ResumenMensualEmpleado)
+def get_resumen_empleado_jornales(
+    empleado_id: UUID,
+    mes: int = Query(..., ge=1, le=12),
+    anio: int = Query(..., ge=2020),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Obtiene resumen mensual de adelantos y horas extras de un empleado específico.
+    """
+    service = EmpleadoService(db)
+
+    empleado = service.get_empleado(empleado_id)
+    if not empleado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empleado no encontrado"
+        )
+
+    return service.get_resumen_empleado_jornales(empleado_id, mes, anio)
+
+
+@router.put("/{empleado_id}/valor-hora-extra")
+def actualizar_valor_hora_extra(
+    empleado_id: UUID,
+    valor_hora_extra: float = Query(..., ge=0),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Actualiza el valor de hora extra de un empleado.
+    """
+    service = EmpleadoService(db)
+
+    empleado = service.get_empleado(empleado_id)
+    if not empleado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empleado no encontrado"
+        )
+
+    empleado.valor_hora_extra = valor_hora_extra
+    db.commit()
+    db.refresh(empleado)
+
+    return {"message": "Valor hora extra actualizado", "valor_hora_extra": float(empleado.valor_hora_extra)}
