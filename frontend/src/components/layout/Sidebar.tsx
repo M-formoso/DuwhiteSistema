@@ -29,7 +29,6 @@ import {
   Building2,
   Tag,
   CreditCard,
-  ArrowRightLeft,
   Landmark,
   Clock,
   Banknote,
@@ -158,12 +157,6 @@ const navSectionsInternal: NavSection[] = [
         href: '/finanzas/analisis-vencimientos',
         icon: Clock,
         roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
-      },
-      {
-        title: 'Cruces',
-        href: '/finanzas/cruces',
-        icon: ArrowRightLeft,
-        roles: ['superadmin', 'administrador', 'contador'],
       },
       {
         title: 'Conciliación',

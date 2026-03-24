@@ -26,7 +26,6 @@ from app.api.v1.endpoints import (
     cuenta_corriente_proveedor,
     cuenta_corriente_cliente,
     ordenes_pago,
-    cruces_consolidados,
     conciliacion_bancaria,
     tesoreria,
 )
@@ -171,13 +170,6 @@ api_router.include_router(
     ordenes_pago.router,
     prefix="/ordenes-pago",
     tags=["Órdenes de Pago"],
-)
-
-# Cruces Consolidados Cliente-Proveedor
-api_router.include_router(
-    cruces_consolidados.router,
-    prefix="/cruces-consolidados",
-    tags=["Cruces Consolidados"],
 )
 
 # Conciliación Bancaria

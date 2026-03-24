@@ -2,7 +2,6 @@
  * Tipos para funcionalidades avanzadas de Finanzas
  * - Cuenta Corriente Proveedor
  * - Órdenes de Pago
- * - Cruces Consolidados
  * - Conciliación Bancaria
  */
 
@@ -211,66 +210,6 @@ export interface ResumenOrdenesPago {
   cantidad_borrador: number;
   cantidad_confirmadas: number;
   cantidad_pagadas: number;
-}
-
-// ==================== CRUCES CONSOLIDADOS ====================
-
-export interface EntidadConsolidada {
-  id: string;
-  cuit: string;
-  razon_social: string;
-  es_cliente: boolean;
-  es_proveedor: boolean;
-  cliente_id: string | null;
-  proveedor_id: string | null;
-  saldo_como_cliente: number;
-  saldo_como_proveedor: number;
-  saldo_neto: number;
-  activo: boolean;
-  created_at: string;
-  updated_at: string | null;
-  tiene_cruce: boolean;
-  cliente_nombre: string | null;
-  proveedor_nombre: string | null;
-}
-
-export interface EntidadConsolidadaList {
-  id: string;
-  cuit: string;
-  razon_social: string;
-  es_cliente: boolean;
-  es_proveedor: boolean;
-  saldo_como_cliente: number;
-  saldo_como_proveedor: number;
-  saldo_neto: number;
-  tiene_cruce: boolean;
-}
-
-export interface SaldoConsolidadoDetalle {
-  entidad_id: string;
-  cuit: string;
-  razon_social: string;
-  saldo_cliente: number;
-  saldo_proveedor: number;
-  saldo_neto: number;
-  cliente_id: string | null;
-  proveedor_id: string | null;
-  cantidad_facturas_cliente: number;
-  cantidad_facturas_proveedor: number;
-}
-
-export interface SincronizarEntidadesResponse {
-  entidades_creadas: number;
-  entidades_actualizadas: number;
-  total_procesadas: number;
-}
-
-export interface ResumenCruces {
-  total_entidades: number;
-  total_cruzadas: number;
-  saldo_total_a_favor: number;
-  saldo_total_en_contra: number;
-  saldo_neto_global: number;
 }
 
 // ==================== CONCILIACIÓN BANCARIA ====================

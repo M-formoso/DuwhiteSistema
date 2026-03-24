@@ -2,7 +2,6 @@
  * Servicios para funcionalidades avanzadas de Finanzas
  * - Cuenta Corriente Proveedor
  * - Órdenes de Pago
- * - Cruces Consolidados
  * - Conciliación Bancaria
  */
 
@@ -19,11 +18,6 @@ import {
   OrdenPagoUpdate,
   PagarOrdenPagoRequest,
   ResumenOrdenesPago,
-  EntidadConsolidada,
-  EntidadConsolidadaList,
-  SaldoConsolidadoDetalle,
-  SincronizarEntidadesResponse,
-  ResumenCruces,
   ConciliacionBancaria,
   ConciliacionBancariaList,
   ConciliacionBancariaCreate,
@@ -413,64 +407,6 @@ export const ordenesPagoService = {
   },
 };
 
-// ==================== CRUCES CONSOLIDADOS ====================
-
-export const crucesConsolidadosService = {
-  // Sincronizar entidades
-  async sincronizar() {
-    const response = await api.post<SincronizarEntidadesResponse>(
-      '/cruces-consolidados/sincronizar'
-    );
-    return response.data;
-  },
-
-  // Listar entidades
-  async getEntidades(params?: {
-    skip?: number;
-    limit?: number;
-    solo_cruzadas?: boolean;
-    con_saldo?: boolean;
-  }) {
-    const response = await api.get<{
-      items: EntidadConsolidadaList[];
-      total: number;
-      skip: number;
-      limit: number;
-    }>('/cruces-consolidados', { params });
-    return response.data;
-  },
-
-  // Obtener por CUIT
-  async getEntidadPorCuit(cuit: string) {
-    const response = await api.get<EntidadConsolidada>(
-      `/cruces-consolidados/por-cuit/${cuit}`
-    );
-    return response.data;
-  },
-
-  // Saldo consolidado
-  async getSaldoConsolidado(cuit: string) {
-    const response = await api.get<SaldoConsolidadoDetalle>(
-      `/cruces-consolidados/saldo/${cuit}`
-    );
-    return response.data;
-  },
-
-  // Actualizar saldos
-  async actualizarSaldos(cuit: string) {
-    const response = await api.post<{ message: string }>(
-      `/cruces-consolidados/actualizar-saldos/${cuit}`
-    );
-    return response.data;
-  },
-
-  // Resumen
-  async getResumen() {
-    const response = await api.get<ResumenCruces>('/cruces-consolidados/resumen');
-    return response.data;
-  },
-};
-
 // ==================== CONCILIACIÓN BANCARIA ====================
 
 export const conciliacionBancariaService = {
@@ -565,6 +501,5 @@ export default {
   cuentaCorrienteCliente: cuentaCorrienteClienteService,
   cuentaCorrienteProveedor: cuentaCorrienteProveedorService,
   ordenesPago: ordenesPagoService,
-  crucesConsolidados: crucesConsolidadosService,
   conciliacionBancaria: conciliacionBancariaService,
 };

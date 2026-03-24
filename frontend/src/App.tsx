@@ -42,7 +42,6 @@ import CuentaCorrienteClientesPage from '@/pages/finanzas/CuentaCorrienteCliente
 import AnalisisVencimientosPage from '@/pages/finanzas/AnalisisVencimientosPage';
 import OrdenesPagoPage from '@/pages/finanzas/OrdenesPagoPage';
 import OrdenPagoFormPage from '@/pages/finanzas/OrdenPagoFormPage';
-import CrucesConsolidadosPage from '@/pages/finanzas/CrucesConsolidadosPage';
 import ConciliacionBancariaPage from '@/pages/finanzas/ConciliacionBancariaPage';
 
 // Tesorería
@@ -167,8 +166,6 @@ function App() {
         <Route path="/finanzas/ordenes-pago/nueva" element={<OrdenPagoFormPage />} />
         <Route path="/finanzas/ordenes-pago/:ordenId" element={<OrdenesPagoPage />} />
         <Route path="/finanzas/ordenes-pago/:ordenId/editar" element={<OrdenPagoFormPage />} />
-        <Route path="/finanzas/cruces" element={<CrucesConsolidadosPage />} />
-        <Route path="/finanzas/cruces/:cuit" element={<CrucesConsolidadosPage />} />
         <Route path="/finanzas/conciliacion" element={<ConciliacionBancariaPage />} />
         <Route path="/finanzas/conciliacion/:conciliacionId" element={<ConciliacionBancariaPage />} />
 

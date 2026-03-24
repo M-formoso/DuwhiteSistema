@@ -6,5 +6,4 @@ export { default as CuentaCorrienteClientesPage } from './CuentaCorrienteCliente
 export { default as AnalisisVencimientosPage } from './AnalisisVencimientosPage';
 export { default as OrdenesPagoPage } from './OrdenesPagoPage';
 export { default as OrdenPagoFormPage } from './OrdenPagoFormPage';
-export { default as CrucesConsolidadosPage } from './CrucesConsolidadosPage';
 export { default as ConciliacionBancariaPage } from './ConciliacionBancariaPage';

@@ -82,7 +82,6 @@ from app.models.cuenta_corriente_proveedor import (
     TipoMovimientoCCProveedor,
     EstadoOrdenPago,
 )
-from app.models.cruce_cliente_proveedor import EntidadConsolidada
 from app.models.conciliacion_bancaria import (
     ConciliacionBancaria,
     ItemConciliacion,
