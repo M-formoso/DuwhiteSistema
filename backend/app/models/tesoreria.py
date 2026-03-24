@@ -4,6 +4,7 @@ Modelos de Tesorería - Gestión de Cheques y Valores.
 
 from enum import Enum
 from sqlalchemy import Column, String, Boolean, Numeric, Text, Date, DateTime, ForeignKey, Integer
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -68,20 +69,20 @@ class Cheque(Base, BaseModelMixin):
     banco_origen = Column(String(100), nullable=True)  # Banco que emite el cheque
 
     # A dónde se deposita/entrega
-    cuenta_destino_id = Column(String(36), ForeignKey("cuentas_bancarias.id"), nullable=True)
+    cuenta_destino_id = Column(UUID(as_uuid=True), ForeignKey("cuentas_bancarias.id"), nullable=True)
     banco_destino = Column(String(100), nullable=True)  # Texto libre si no hay cuenta
 
     # Relaciones con entidades
-    cliente_id = Column(String(36), ForeignKey("clientes.id"), nullable=True)
-    proveedor_id = Column(String(36), ForeignKey("proveedores.id"), nullable=True)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True)
+    proveedor_id = Column(UUID(as_uuid=True), ForeignKey("proveedores.id"), nullable=True)
 
     # Información adicional
     librador = Column(String(200), nullable=True)  # Quién firma/emite el cheque
     cuit_librador = Column(String(15), nullable=True)
 
     # Auditoría
-    registrado_por_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False)
-    cobrado_por_id = Column(String(36), ForeignKey("usuarios.id"), nullable=True)
+    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    cobrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     fecha_registro = Column(DateTime, nullable=True)
 
     # Notas
@@ -129,18 +130,18 @@ class MovimientoTesoreria(Base, BaseModelMixin):
     # Si es transferencia
     banco_origen = Column(String(100), nullable=True)
     banco_destino = Column(String(100), nullable=True)
-    cuenta_destino_id = Column(String(36), ForeignKey("cuentas_bancarias.id"), nullable=True)
+    cuenta_destino_id = Column(UUID(as_uuid=True), ForeignKey("cuentas_bancarias.id"), nullable=True)
     numero_transferencia = Column(String(100), nullable=True)
 
     # Si es cheque - referencia
-    cheque_id = Column(String(36), ForeignKey("cheques.id"), nullable=True)
+    cheque_id = Column(UUID(as_uuid=True), ForeignKey("cheques.id"), nullable=True)
 
     # Relaciones con entidades
-    cliente_id = Column(String(36), ForeignKey("clientes.id"), nullable=True)
-    proveedor_id = Column(String(36), ForeignKey("proveedores.id"), nullable=True)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True)
+    proveedor_id = Column(UUID(as_uuid=True), ForeignKey("proveedores.id"), nullable=True)
 
     # Auditoría
-    registrado_por_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False)
+    registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
 
     # Notas
     notas = Column(Text, nullable=True)
@@ -149,7 +150,7 @@ class MovimientoTesoreria(Base, BaseModelMixin):
     # Control
     anulado = Column(Boolean, default=False)
     motivo_anulacion = Column(Text, nullable=True)
-    anulado_por_id = Column(String(36), ForeignKey("usuarios.id"), nullable=True)
+    anulado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     fecha_anulacion = Column(DateTime, nullable=True)
     activo = Column(Boolean, default=True)
 
