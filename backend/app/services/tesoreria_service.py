@@ -15,11 +15,17 @@ from app.models.tesoreria import (
     MovimientoTesoreria,
     EstadoCheque,
     TipoMovimientoTesoreria,
+    OrigenCheque,
 )
 from app.models.cliente import Cliente
 from app.models.proveedor import Proveedor
 from app.models.usuario import Usuario
 from app.models.cuenta_bancaria import CuentaBancaria
+from app.models.cuenta_corriente import (
+    MovimientoCuentaCorriente,
+    Recibo,
+    TipoMovimientoCC,
+)
 from app.schemas.tesoreria import (
     ChequeCreate,
     ChequeUpdate,
@@ -121,7 +127,16 @@ class TesoreriaService:
         ).first()
 
     def create_cheque(self, data: ChequeCreate, registrado_por_id: UUID) -> Cheque:
-        """Crea un nuevo cheque."""
+        """
+        Crea un nuevo cheque.
+
+        Si el cheque es de origen 'recibido_cliente', se registra automáticamente
+        como PAGO en la cuenta corriente del cliente (disminuye su deuda).
+        """
+        # Validar que si es cheque recibido de cliente, tenga cliente_id
+        if data.origen == OrigenCheque.RECIBIDO_CLIENTE.value and not data.cliente_id:
+            raise ValueError("Los cheques recibidos de cliente deben tener un cliente asociado obligatoriamente")
+
         cheque = Cheque(
             id=str(uuid4()),
             numero=data.numero,
@@ -144,6 +159,17 @@ class TesoreriaService:
         )
 
         self.db.add(cheque)
+        self.db.flush()  # Para obtener el ID del cheque
+
+        # Si es cheque recibido de cliente, imputar automáticamente a cuenta corriente
+        if data.origen == OrigenCheque.RECIBIDO_CLIENTE.value and data.cliente_id:
+            self._imputar_cheque_cliente(
+                cheque=cheque,
+                cliente_id=str(data.cliente_id),
+                usuario_id=str(registrado_por_id),
+                es_pago=True  # El cliente paga con cheque
+            )
+
         self.db.commit()
         self.db.refresh(cheque)
 
@@ -221,13 +247,32 @@ class TesoreriaService:
         data: RechazarChequeRequest,
         usuario_id: UUID
     ) -> Cheque:
-        """Marca un cheque como rechazado."""
+        """
+        Marca un cheque como rechazado.
+
+        Si el cheque era de un cliente, se REVIERTE el pago en su cuenta corriente
+        (se genera un cargo por el monto del cheque rechazado).
+        """
         cheque = self.get_cheque(cheque_id)
         if not cheque:
             raise ValueError("Cheque no encontrado")
 
+        # Guardar estado anterior para verificar si era de cliente
+        origen_anterior = cheque.origen
+        cliente_id = cheque.cliente_id
+
         cheque.estado = EstadoCheque.RECHAZADO.value
         cheque.motivo_rechazo = data.motivo_rechazo
+
+        # Si era un cheque de cliente, revertir el pago en cuenta corriente
+        if origen_anterior == OrigenCheque.RECIBIDO_CLIENTE.value and cliente_id:
+            self._imputar_cheque_cliente(
+                cheque=cheque,
+                cliente_id=cliente_id,
+                usuario_id=str(usuario_id),
+                es_pago=False,  # Es un cargo (reversión del pago)
+                motivo=f"Cheque rechazado: {data.motivo_rechazo}"
+            )
 
         self.db.commit()
         self.db.refresh(cheque)
@@ -537,6 +582,108 @@ class TesoreriaService:
             total_egresos_cheque=egresos_cheque,
             saldo_periodo=total_ingresos - total_egresos,
         )
+
+    # ==================== CUENTA CORRIENTE ====================
+
+    def _imputar_cheque_cliente(
+        self,
+        cheque: Cheque,
+        cliente_id: str,
+        usuario_id: str,
+        es_pago: bool = True,
+        motivo: Optional[str] = None
+    ) -> MovimientoCuentaCorriente:
+        """
+        Imputa un cheque a la cuenta corriente del cliente.
+
+        Args:
+            cheque: El cheque a imputar
+            cliente_id: ID del cliente
+            usuario_id: ID del usuario que registra
+            es_pago: True = pago (disminuye deuda), False = cargo (aumenta deuda, ej: rechazo)
+            motivo: Motivo opcional (usado en rechazos)
+
+        Returns:
+            MovimientoCuentaCorriente creado
+        """
+        cliente = self.db.query(Cliente).filter(Cliente.id == cliente_id).first()
+        if not cliente:
+            raise ValueError(f"Cliente no encontrado: {cliente_id}")
+
+        saldo_anterior = cliente.saldo_cuenta_corriente or Decimal("0")
+
+        if es_pago:
+            # Pago: disminuye la deuda del cliente
+            tipo = TipoMovimientoCC.PAGO.value
+            saldo_posterior = saldo_anterior - cheque.monto
+            concepto = f"Pago con cheque #{cheque.numero}"
+            if cheque.banco_origen:
+                concepto += f" - {cheque.banco_origen}"
+
+            # Generar número de recibo
+            numero_recibo = self._generar_numero_recibo()
+
+            # Crear recibo
+            recibo = Recibo(
+                id=str(uuid4()),
+                numero=numero_recibo,
+                cliente_id=cliente_id,
+                fecha=date.today(),
+                monto_total=cheque.monto,
+                medio_pago="cheque",
+                referencia_pago=f"CH-{cheque.numero}",
+                emitido_por_id=usuario_id,
+                notas=f"Cheque {cheque.numero} - Vto: {cheque.fecha_vencimiento}",
+            )
+            self.db.add(recibo)
+        else:
+            # Cargo (reversión por rechazo): aumenta la deuda del cliente
+            tipo = TipoMovimientoCC.CARGO.value
+            saldo_posterior = saldo_anterior + cheque.monto
+            concepto = motivo or f"Reversión cheque rechazado #{cheque.numero}"
+            numero_recibo = None
+
+        movimiento = MovimientoCuentaCorriente(
+            id=str(uuid4()),
+            cliente_id=cliente_id,
+            tipo=tipo,
+            concepto=concepto,
+            monto=cheque.monto,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            medio_pago="cheque",
+            referencia_pago=f"CH-{cheque.numero}",
+            fecha_movimiento=date.today(),
+            registrado_por_id=usuario_id,
+            recibo_numero=numero_recibo if es_pago else None,
+            notas=f"Cheque #{cheque.numero} - Banco: {cheque.banco_origen or 'N/A'} - Vto: {cheque.fecha_vencimiento}",
+        )
+
+        self.db.add(movimiento)
+
+        # Actualizar saldo del cliente
+        cliente.saldo_cuenta_corriente = saldo_posterior
+
+        return movimiento
+
+    def _generar_numero_recibo(self) -> str:
+        """Genera número único de recibo."""
+        hoy = date.today()
+        prefijo = f"REC-{hoy.strftime('%y%m%d')}"
+
+        ultimo = (
+            self.db.query(Recibo)
+            .filter(Recibo.numero.like(f"{prefijo}-%"))
+            .order_by(Recibo.numero.desc())
+            .first()
+        )
+
+        if ultimo:
+            numero = int(ultimo.numero.split("-")[-1]) + 1
+        else:
+            numero = 1
+
+        return f"{prefijo}-{numero:04d}"
 
     # ==================== HELPERS ====================
 

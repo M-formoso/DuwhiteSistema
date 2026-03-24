@@ -180,7 +180,15 @@ export default function TesoreriaPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
       queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      toast({ title: 'Cheque registrado correctamente' });
+      // Invalidar cuenta corriente del cliente (se imputa automáticamente)
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+      toast({
+        title: 'Cheque registrado correctamente',
+        description: chequeForm.origen === 'recibido_cliente'
+          ? 'El pago fue imputado automáticamente a la cuenta corriente del cliente'
+          : undefined,
+      });
       setShowChequeModal(false);
       resetChequeForm();
     },
@@ -254,7 +262,15 @@ export default function TesoreriaPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
       queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      toast({ title: 'Cheque rechazado' });
+      // Invalidar cuenta corriente (se revierte el pago automáticamente)
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+      toast({
+        title: 'Cheque rechazado',
+        description: chequeSeleccionado?.cliente_nombre
+          ? 'Se revirtió el pago en la cuenta corriente del cliente'
+          : undefined,
+      });
       cerrarAccionModal();
     },
     onError: (error: any) => {
@@ -1205,7 +1221,7 @@ export default function TesoreriaPage() {
 
               {(chequeForm.origen === 'recibido_cliente') && (
                 <div className="space-y-2">
-                  <Label>Cliente</Label>
+                  <Label>Cliente *</Label>
                   <Combobox
                     options={clientes?.items?.map((c) => ({
                       value: c.id,
@@ -1219,6 +1235,10 @@ export default function TesoreriaPage() {
                     emptyText="No se encontró el cliente"
                     isLoading={loadingClientes}
                   />
+                  <p className="text-xs text-blue-600 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    El cheque se imputará automáticamente como PAGO en la cuenta corriente del cliente
+                  </p>
                 </div>
               )}
 
@@ -1275,7 +1295,13 @@ export default function TesoreriaPage() {
                 </Button>
                 <Button
                   onClick={() => crearChequeMutation.mutate(chequeForm)}
-                  disabled={!chequeForm.numero || !chequeForm.monto || !chequeForm.fecha_vencimiento || crearChequeMutation.isPending}
+                  disabled={
+                    !chequeForm.numero ||
+                    !chequeForm.monto ||
+                    !chequeForm.fecha_vencimiento ||
+                    (chequeForm.origen === 'recibido_cliente' && !chequeForm.cliente_id) ||
+                    crearChequeMutation.isPending
+                  }
                 >
                   Registrar Cheque
                 </Button>
