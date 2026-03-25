@@ -389,16 +389,19 @@ export default function JornalesPage() {
                       </TableCell>
                       {emp.semanas.map((sem) => (
                         <TableCell key={sem.semana} className="text-center">
-                          {sem.total_adelantos > 0 || sem.total_horas_extras > 0 ? (
+                          {Number(sem.total_adelantos || 0) > 0 || Number(sem.total_horas_extras || 0) > 0 ? (
                             <div className="text-xs space-y-1">
-                              {sem.total_adelantos > 0 && (
-                                <div className="text-red-600">
-                                  A: ${formatNumber(sem.total_adelantos, 0)}
+                              {Number(sem.total_adelantos || 0) > 0 && (
+                                <div className="text-red-600 font-medium">
+                                  Adel: ${formatNumber(sem.total_adelantos, 0)}
                                 </div>
                               )}
-                              {sem.total_horas_extras > 0 && (
+                              {Number(sem.total_horas_extras || 0) > 0 && (
                                 <div className="text-blue-600">
-                                  {sem.total_horas_extras}hs
+                                  <span className="font-medium">{Number(sem.total_horas_extras || 0)} hs</span>
+                                  <span className="text-blue-400 block">
+                                    (${formatNumber(Number(sem.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)})
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -413,7 +416,14 @@ export default function JornalesPage() {
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium text-blue-600">
-                        {emp.total_horas_extras > 0 ? `${emp.total_horas_extras}hs` : '-'}
+                        {Number(emp.total_horas_extras || 0) > 0 ? (
+                          <div>
+                            <div>{Number(emp.total_horas_extras || 0)} hs</div>
+                            <div className="text-xs text-blue-400">
+                              ${formatNumber(Number(emp.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)}
+                            </div>
+                          </div>
+                        ) : '-'}
                       </TableCell>
                       <TableCell className="text-right font-bold">
                         {formatNumber(emp.total_general, 'currency')}
@@ -441,7 +451,10 @@ export default function JornalesPage() {
                       {formatNumber(resumen.total_adelantos, 'currency')}
                     </TableCell>
                     <TableCell className="text-right text-blue-600">
-                      {Number(resumen.total_horas_extras || 0)}hs
+                      <div>{Number(resumen.total_horas_extras || 0)} hs</div>
+                      <div className="text-xs text-blue-400">
+                        {formatNumber(resumen.total_monto_extras, 'currency')}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right text-lg">
                       {formatNumber(resumen.total_general, 'currency')}
