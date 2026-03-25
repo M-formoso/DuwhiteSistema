@@ -355,21 +355,21 @@ export default function JornalesPage() {
               No hay registros para este período
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[600px]">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                   <TableRow>
-                    <TableHead className="sticky left-0 bg-background">Empleado</TableHead>
-                    <TableHead className="text-right">$/Hora</TableHead>
-                    <TableHead className="text-center">Sem 1</TableHead>
-                    <TableHead className="text-center">Sem 2</TableHead>
-                    <TableHead className="text-center">Sem 3</TableHead>
-                    <TableHead className="text-center">Sem 4</TableHead>
-                    <TableHead className="text-center">Sem 5</TableHead>
-                    <TableHead className="text-right">Total Adel.</TableHead>
-                    <TableHead className="text-right">Total HS</TableHead>
-                    <TableHead className="text-right">Total $</TableHead>
-                    <TableHead className="w-12"></TableHead>
+                    <TableHead className="sticky left-0 z-20 bg-background">Empleado</TableHead>
+                    <TableHead className="text-right bg-background">$/Hora</TableHead>
+                    <TableHead className="text-center bg-background">Sem 1</TableHead>
+                    <TableHead className="text-center bg-background">Sem 2</TableHead>
+                    <TableHead className="text-center bg-background">Sem 3</TableHead>
+                    <TableHead className="text-center bg-background">Sem 4</TableHead>
+                    <TableHead className="text-center bg-background">Sem 5</TableHead>
+                    <TableHead className="text-right bg-background">Total Adel.</TableHead>
+                    <TableHead className="text-right bg-background">Total HS</TableHead>
+                    <TableHead className="text-right bg-background">Total $</TableHead>
+                    <TableHead className="w-12 bg-background"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
