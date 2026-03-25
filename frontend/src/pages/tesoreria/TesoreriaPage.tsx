@@ -25,6 +25,7 @@ import {
   Building2,
   Calendar,
   User,
+  Pencil,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ import {
 import type {
   ChequeList,
   ChequeCreate,
+  ChequeUpdate,
   MovimientoTesoreriaCreate,
   EstadoCheque,
 } from '@/types/tesoreria';
@@ -74,6 +76,7 @@ export default function TesoreriaPage() {
   const [showAccionChequeModal, setShowAccionChequeModal] = useState(false);
   const [accionCheque, setAccionCheque] = useState<'depositar' | 'cobrar' | 'rechazar' | 'entregar' | null>(null);
   const [chequeSeleccionado, setChequeSeleccionado] = useState<ChequeList | null>(null);
+  const [editingCheque, setEditingCheque] = useState<ChequeList | null>(null);
 
   // Filtros cheques
   const [chequeFiltroEstado, setChequeFiltroEstado] = useState<string>('');
@@ -317,6 +320,26 @@ export default function TesoreriaPage() {
     },
   });
 
+  const actualizarChequeMutation = useMutation({
+    mutationFn: ({ chequeId, data }: { chequeId: string; data: ChequeUpdate }) =>
+      tesoreriaService.cheques.actualizarCheque(chequeId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Cheque actualizado correctamente' });
+      setShowChequeModal(false);
+      setEditingCheque(null);
+      resetChequeForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo actualizar el cheque',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Helpers
   const resetChequeForm = () => {
     setChequeForm({
@@ -359,6 +382,24 @@ export default function TesoreriaPage() {
       notas: '',
     });
     setShowAccionChequeModal(true);
+  };
+
+  const abrirEditarCheque = (cheque: ChequeList) => {
+    setEditingCheque(cheque);
+    setChequeForm({
+      numero: cheque.numero,
+      tipo: cheque.tipo,
+      origen: cheque.origen,
+      monto: cheque.monto,
+      fecha_vencimiento: cheque.fecha_vencimiento,
+      banco_origen: cheque.banco_origen || '',
+      cliente_id: null,
+      proveedor_id: null,
+      librador: '',
+      cuit_librador: '',
+      notas: '',
+    });
+    setShowChequeModal(true);
   };
 
   const cerrarAccionModal = () => {
@@ -940,6 +981,17 @@ export default function TesoreriaPage() {
                         <span className="text-lg font-bold">
                           ${formatNumber(cheque.monto, 2)}
                         </span>
+                        {/* Botón de editar siempre visible para cheques en cartera o depositados */}
+                        {(cheque.estado === 'en_cartera' || cheque.estado === 'depositado') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => abrirEditarCheque(cheque)}
+                            title="Editar cheque"
+                          >
+                            <Pencil className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        )}
                         {cheque.estado === 'en_cartera' && (
                           <div className="flex gap-1">
                             <Button
@@ -1112,12 +1164,12 @@ export default function TesoreriaPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Modal Nuevo Cheque */}
+      {/* Modal Nuevo/Editar Cheque */}
       {showChequeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
             <CardHeader>
-              <CardTitle>Registrar Cheque</CardTitle>
+              <CardTitle>{editingCheque ? 'Editar Cheque' : 'Registrar Cheque'}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1290,20 +1342,44 @@ export default function TesoreriaPage() {
               </div>
 
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="ghost" onClick={() => setShowChequeModal(false)}>
+                <Button variant="ghost" onClick={() => {
+                  setShowChequeModal(false);
+                  setEditingCheque(null);
+                  resetChequeForm();
+                }}>
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => crearChequeMutation.mutate(chequeForm)}
+                  onClick={() => {
+                    if (editingCheque) {
+                      actualizarChequeMutation.mutate({
+                        chequeId: editingCheque.id,
+                        data: {
+                          numero: chequeForm.numero,
+                          tipo: chequeForm.tipo,
+                          monto: chequeForm.monto,
+                          fecha_emision: chequeForm.fecha_emision,
+                          fecha_vencimiento: chequeForm.fecha_vencimiento,
+                          banco_origen: chequeForm.banco_origen || undefined,
+                          librador: chequeForm.librador || undefined,
+                          cuit_librador: chequeForm.cuit_librador || undefined,
+                          notas: chequeForm.notas || undefined,
+                        },
+                      });
+                    } else {
+                      crearChequeMutation.mutate(chequeForm);
+                    }
+                  }}
                   disabled={
                     !chequeForm.numero ||
                     !chequeForm.monto ||
                     !chequeForm.fecha_vencimiento ||
-                    (chequeForm.origen === 'recibido_cliente' && !chequeForm.cliente_id) ||
-                    crearChequeMutation.isPending
+                    (!editingCheque && chequeForm.origen === 'recibido_cliente' && !chequeForm.cliente_id) ||
+                    crearChequeMutation.isPending ||
+                    actualizarChequeMutation.isPending
                   }
                 >
-                  Registrar Cheque
+                  {editingCheque ? 'Guardar Cambios' : 'Registrar Cheque'}
                 </Button>
               </div>
             </CardContent>
