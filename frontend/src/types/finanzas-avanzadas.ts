@@ -91,7 +91,11 @@ export interface ComprobanteVencimiento {
 
 export interface AnalisisVencimientos {
   total_pendiente: number;
+  monto_vencido: number;
+  cantidad_vencidos: number;
+  cantidad_proximos: number;
   por_vencer: ComprobanteVencimiento[];
+  vencidos: ComprobanteVencimiento[];
   vencido_0_30: ComprobanteVencimiento[];
   vencido_30_60: ComprobanteVencimiento[];
   vencido_60_90: ComprobanteVencimiento[];
@@ -153,9 +157,11 @@ export interface OrdenPagoList {
   fecha_emision: string;
   fecha_pago_programada: string | null;
   fecha_pago_real: string | null;
+  fecha_pago: string | null;
   estado: EstadoOrdenPago;
   monto_total: number;
   monto_pagado: number | null;
+  medio_pago: MedioPago | null;
   cantidad_comprobantes: number;
   anulado: boolean;
   created_at: string;

@@ -32,6 +32,7 @@ export interface Proveedor {
   cuit_formateado: string | null;
   cantidad_productos: number | null;
   cantidad_ordenes: number | null;
+  saldo_cuenta_corriente: number | null;
 }
 
 export interface ProveedorCreate {
