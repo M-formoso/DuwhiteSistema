@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Optional, List, Tuple
 from uuid import uuid4
 
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_, and_, case
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
@@ -70,14 +70,17 @@ class ClienteService:
         total = query.count()
 
         # Aplicar ordenamiento
+        # Para nombre usamos COALESCE para ordenar por nombre_fantasia si existe, sino por razon_social
+        nombre_display = func.coalesce(Cliente.nombre_fantasia, Cliente.razon_social)
+
         if orden == "saldo_desc":
-            query = query.order_by(Cliente.saldo_cuenta_corriente.desc())
+            query = query.order_by(Cliente.saldo_cuenta_corriente.desc(), nombre_display)
         elif orden == "saldo_asc":
-            query = query.order_by(Cliente.saldo_cuenta_corriente.asc())
+            query = query.order_by(Cliente.saldo_cuenta_corriente.asc(), nombre_display)
         elif orden == "codigo":
             query = query.order_by(Cliente.codigo)
         else:  # "nombre" o default
-            query = query.order_by(Cliente.razon_social)
+            query = query.order_by(nombre_display)
 
         clientes = query.offset(skip).limit(limit).all()
 
