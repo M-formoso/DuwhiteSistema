@@ -306,7 +306,7 @@ export default function JornalesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {resumen.total_horas_extras.toFixed(1)} hs
+                {Number(resumen.total_horas_extras || 0).toFixed(1)} hs
               </div>
             </CardContent>
           </Card>
@@ -441,7 +441,7 @@ export default function JornalesPage() {
                       {formatNumber(resumen.total_adelantos, 'currency')}
                     </TableCell>
                     <TableCell className="text-right text-blue-600">
-                      {resumen.total_horas_extras}hs
+                      {Number(resumen.total_horas_extras || 0)}hs
                     </TableCell>
                     <TableCell className="text-right text-lg">
                       {formatNumber(resumen.total_general, 'currency')}
