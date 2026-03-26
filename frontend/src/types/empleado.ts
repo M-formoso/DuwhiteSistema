@@ -444,6 +444,7 @@ export interface ResumenMensualEmpleado {
   empleado_id: string;
   empleado_nombre: string;
   valor_hora_extra: number | null;
+  salario_base: number;
   periodo_mes: number;
   periodo_anio: number;
   semanas: ResumenSemanalEmpleado[];
@@ -451,6 +452,7 @@ export interface ResumenMensualEmpleado {
   total_horas_extras: number;
   total_monto_extras: number;
   total_general: number;
+  sueldo_final: number;
 }
 
 export interface ResumenMensualGeneral {
