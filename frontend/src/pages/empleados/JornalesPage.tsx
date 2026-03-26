@@ -31,14 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+// No usar shadcn Table para poder hacer sticky header correctamente
 import {
   Select,
   SelectContent,
@@ -453,29 +446,29 @@ export default function JornalesPage() {
               No hay registros para este período
             </div>
           ) : (
-            <div className="overflow-auto max-h-[600px] relative">
-              <Table className="jornales-table">
-                <TableHeader className="bg-card" style={{ position: 'sticky', top: 0, zIndex: 30 }}>
-                  <TableRow className="bg-card" style={{ background: 'hsl(var(--card))' }}>
-                    <TableHead className="sticky left-0 z-40 bg-card min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
-                    <TableHead className="sticky left-[180px] z-40 bg-card text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
-                    <TableHead className="bg-card text-center min-w-[100px]">Sem 1</TableHead>
-                    <TableHead className="bg-card text-center min-w-[100px]">Sem 2</TableHead>
-                    <TableHead className="bg-card text-center min-w-[100px]">Sem 3</TableHead>
-                    <TableHead className="bg-card text-center min-w-[100px]">Sem 4</TableHead>
-                    <TableHead className="bg-card text-center min-w-[100px]">Sem 5</TableHead>
-                    <TableHead className="bg-card text-right min-w-[100px]">Total Adel.</TableHead>
-                    <TableHead className="bg-card text-right min-w-[90px]">Total HS</TableHead>
-                    <TableHead className="bg-card text-right min-w-[100px]">Total $</TableHead>
-                    <TableHead className="bg-card text-right min-w-[120px]">Sueldo Final</TableHead>
-                    <TableHead className="bg-card w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="overflow-auto max-h-[600px]">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 z-20 bg-card">
+                  <tr className="bg-card border-b-2 border-border">
+                    <th className="sticky left-0 z-30 bg-card px-4 py-3 text-left text-sm font-medium text-muted-foreground min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</th>
+                    <th className="sticky left-[180px] z-30 bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</th>
+                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 1</th>
+                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 2</th>
+                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 3</th>
+                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 4</th>
+                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 5</th>
+                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[100px]">Total Adel.</th>
+                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[90px]">Total HS</th>
+                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[100px]">Total $</th>
+                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[120px]">Sueldo Final</th>
+                    <th className="bg-card px-4 py-3 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody>
                   {resumen.empleados.map((emp) => (
                     <>
-                      <TableRow key={emp.empleado_id} className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpandEmpleado(emp.empleado_id)}>
-                        <TableCell className="sticky left-0 z-10 bg-background font-medium min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                      <tr key={emp.empleado_id} className="cursor-pointer hover:bg-muted/50 border-b border-border" onClick={() => toggleExpandEmpleado(emp.empleado_id)}>
+                        <td className="sticky left-0 z-10 bg-background px-4 py-3 font-medium min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                           <div className="flex items-center gap-2">
                             {expandedEmpleado === emp.empleado_id ? (
                               <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -484,8 +477,8 @@ export default function JornalesPage() {
                             )}
                             {emp.empleado_nombre}
                           </div>
-                        </TableCell>
-                        <TableCell className="sticky left-[180px] z-10 bg-background text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        </td>
+                        <td className="sticky left-[180px] z-10 bg-background px-4 py-3 text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                           {emp.valor_hora_extra ? (
                             <Badge variant="outline">${formatNumber(emp.valor_hora_extra, 0)}</Badge>
                           ) : (
@@ -493,9 +486,9 @@ export default function JornalesPage() {
                               Sin config
                             </Badge>
                           )}
-                        </TableCell>
+                        </td>
                         {emp.semanas.map((sem) => (
-                          <TableCell key={sem.semana} className="text-center">
+                          <td key={sem.semana} className="px-4 py-3 text-center">
                             {Number(sem.total_adelantos || 0) > 0 || Number(sem.total_horas_extras || 0) > 0 ? (
                               <div className="text-xs space-y-1">
                                 {Number(sem.total_adelantos || 0) > 0 && (
@@ -515,14 +508,14 @@ export default function JornalesPage() {
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
-                          </TableCell>
+                          </td>
                         ))}
-                        <TableCell className="text-right font-medium text-red-600">
+                        <td className="px-4 py-3 text-right font-medium text-red-600">
                           {emp.total_adelantos > 0
                             ? formatNumber(emp.total_adelantos, 'currency')
                             : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-blue-600">
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-blue-600">
                           {Number(emp.total_horas_extras || 0) > 0 ? (
                             <div>
                               <div>{Number(emp.total_horas_extras || 0)} hs</div>
@@ -531,11 +524,11 @@ export default function JornalesPage() {
                               </div>
                             </div>
                           ) : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold">
                           {formatNumber(emp.total_general, 'currency')}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold">
                           {emp.salario_base > 0 ? (
                             <div className={emp.sueldo_final >= 0 ? 'text-green-600' : 'text-red-600'}>
                               {formatNumber(emp.sueldo_final, 'currency')}
@@ -543,8 +536,8 @@ export default function JornalesPage() {
                           ) : (
                             <span className="text-muted-foreground text-xs">Sin salario</span>
                           )}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        </td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -555,12 +548,12 @@ export default function JornalesPage() {
                           >
                             <Settings className="h-4 w-4" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                       {/* Fila expandible con detalle de jornales */}
                       {expandedEmpleado === emp.empleado_id && (
-                        <TableRow>
-                          <TableCell colSpan={12} className="bg-muted/30 p-0">
+                        <tr>
+                          <td colSpan={12} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-medium mb-3 flex items-center gap-2">
                                 <Calendar className="h-4 w-4" />
@@ -568,27 +561,27 @@ export default function JornalesPage() {
                               </h4>
                               {movimientosData?.items && movimientosData.items.length > 0 ? (
                                 <div className="overflow-auto max-h-[300px]">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead className="w-24">Fecha</TableHead>
-                                        <TableHead className="w-20">Semana</TableHead>
-                                        <TableHead className="w-28">Tipo</TableHead>
-                                        <TableHead className="text-right w-24">Monto</TableHead>
-                                        <TableHead className="text-right w-20">Horas</TableHead>
-                                        <TableHead className="w-32">Acciones</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
+                                  <table className="w-full">
+                                    <thead>
+                                      <tr className="border-b border-border">
+                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-24">Fecha</th>
+                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-20">Semana</th>
+                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-28">Tipo</th>
+                                        <th className="px-3 py-2 text-right text-sm font-medium text-muted-foreground w-24">Monto</th>
+                                        <th className="px-3 py-2 text-right text-sm font-medium text-muted-foreground w-20">Horas</th>
+                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-32">Acciones</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
                                       {movimientosData.items.map((mov) => (
-                                        <TableRow key={mov.id}>
-                                          <TableCell>
+                                        <tr key={mov.id} className="border-b border-border">
+                                          <td className="px-3 py-2 text-sm">
                                             {mov.fecha
                                               ? new Date(mov.fecha).toLocaleDateString('es-AR')
                                               : '-'}
-                                          </TableCell>
-                                          <TableCell>Sem {mov.semana || '-'}</TableCell>
-                                          <TableCell>
+                                          </td>
+                                          <td className="px-3 py-2 text-sm">Sem {mov.semana || '-'}</td>
+                                          <td className="px-3 py-2">
                                             {mov.tipo === 'adelanto' ? (
                                               <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
                                                 <Banknote className="h-3 w-3 mr-1" />
@@ -600,14 +593,14 @@ export default function JornalesPage() {
                                                 HS Extra
                                               </Badge>
                                             )}
-                                          </TableCell>
-                                          <TableCell className="text-right font-medium">
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-medium text-sm">
                                             {formatNumber(mov.monto, 'currency')}
-                                          </TableCell>
-                                          <TableCell className="text-right">
+                                          </td>
+                                          <td className="px-3 py-2 text-right text-sm">
                                             {mov.tipo === 'hora_extra' ? `${mov.cantidad_horas} hs` : '-'}
-                                          </TableCell>
-                                          <TableCell>
+                                          </td>
+                                          <td className="px-3 py-2">
                                             <div className="flex gap-1">
                                               <Button
                                                 variant="ghost"
@@ -633,11 +626,11 @@ export default function JornalesPage() {
                                                 <Trash2 className="h-4 w-4" />
                                               </Button>
                                             </div>
-                                          </TableCell>
-                                        </TableRow>
+                                          </td>
+                                        </tr>
                                       ))}
-                                    </TableBody>
-                                  </Table>
+                                    </tbody>
+                                  </table>
                                 </div>
                               ) : (
                                 <p className="text-sm text-muted-foreground">
@@ -645,75 +638,37 @@ export default function JornalesPage() {
                                 </p>
                               )}
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       )}
                     </>
                   ))}
                   {/* Fila de totales */}
-                  <TableRow className="bg-muted/50 font-bold">
-                    <TableCell className="sticky left-0 z-10 bg-muted/50 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">TOTAL</TableCell>
-                    <TableCell className="sticky left-[180px] z-10 bg-muted/50 min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></TableCell>
-                    <TableCell colSpan={5}></TableCell>
-                    <TableCell className="text-right text-red-600">
+                  <tr className="bg-muted/50 font-bold">
+                    <td className="sticky left-0 z-10 bg-muted/50 px-4 py-3 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">TOTAL</td>
+                    <td className="sticky left-[180px] z-10 bg-muted/50 px-4 py-3 min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></td>
+                    <td colSpan={5}></td>
+                    <td className="px-4 py-3 text-right text-red-600">
                       {formatNumber(resumen.total_adelantos, 'currency')}
-                    </TableCell>
-                    <TableCell className="text-right text-blue-600">
+                    </td>
+                    <td className="px-4 py-3 text-right text-blue-600">
                       <div>{Number(resumen.total_horas_extras || 0)} hs</div>
                       <div className="text-xs text-blue-400">
                         {formatNumber(resumen.total_monto_extras, 'currency')}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right text-lg">
+                    </td>
+                    <td className="px-4 py-3 text-right text-lg">
                       {formatNumber(resumen.total_general, 'currency')}
-                    </TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                    </td>
+                    <td></td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Estilos para sticky header - IMPORTANTE: el thead debe ser sticky dentro del contenedor con overflow */}
-      <style>{`
-        .jornales-table {
-          border-collapse: separate;
-          border-spacing: 0;
-        }
-        .jornales-table thead {
-          position: sticky;
-          top: 0;
-          z-index: 30;
-        }
-        .jornales-table thead tr {
-          background: hsl(var(--card));
-        }
-        .jornales-table thead th {
-          background: hsl(var(--card));
-          border-bottom: 2px solid hsl(var(--border));
-          box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-        }
-        /* Para las celdas sticky horizontales en el header */
-        .jornales-table thead th[class*="sticky"] {
-          z-index: 40 !important;
-        }
-        /* Asegurar que las celdas del body con sticky tengan el z-index correcto */
-        .jornales-table tbody td[class*="sticky"] {
-          z-index: 10;
-        }
-        /* Override cualquier estilo que pueda interferir */
-        .jornales-table thead,
-        .jornales-table thead tr,
-        .jornales-table thead th {
-          position: sticky !important;
-        }
-        .jornales-table thead {
-          top: 0 !important;
-        }
-      `}</style>
 
       {/* Modal Nuevo Registro */}
       <Dialog open={showRegistroModal} onOpenChange={setShowRegistroModal}>
