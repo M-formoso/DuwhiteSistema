@@ -359,26 +359,26 @@ export default function JornalesPage() {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                   <TableRow>
-                    <TableHead className="sticky left-0 z-20 bg-background">Empleado</TableHead>
-                    <TableHead className="text-right bg-background">$/Hora</TableHead>
-                    <TableHead className="text-center bg-background">Sem 1</TableHead>
-                    <TableHead className="text-center bg-background">Sem 2</TableHead>
-                    <TableHead className="text-center bg-background">Sem 3</TableHead>
-                    <TableHead className="text-center bg-background">Sem 4</TableHead>
-                    <TableHead className="text-center bg-background">Sem 5</TableHead>
-                    <TableHead className="text-right bg-background">Total Adel.</TableHead>
-                    <TableHead className="text-right bg-background">Total HS</TableHead>
-                    <TableHead className="text-right bg-background">Total $</TableHead>
+                    <TableHead className="sticky left-0 z-20 bg-background min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
+                    <TableHead className="sticky left-[180px] z-20 bg-background text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
+                    <TableHead className="text-center bg-background min-w-[100px]">Sem 1</TableHead>
+                    <TableHead className="text-center bg-background min-w-[100px]">Sem 2</TableHead>
+                    <TableHead className="text-center bg-background min-w-[100px]">Sem 3</TableHead>
+                    <TableHead className="text-center bg-background min-w-[100px]">Sem 4</TableHead>
+                    <TableHead className="text-center bg-background min-w-[100px]">Sem 5</TableHead>
+                    <TableHead className="text-right bg-background min-w-[100px]">Total Adel.</TableHead>
+                    <TableHead className="text-right bg-background min-w-[90px]">Total HS</TableHead>
+                    <TableHead className="text-right bg-background min-w-[100px]">Total $</TableHead>
                     <TableHead className="w-12 bg-background"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {resumen.empleados.map((emp) => (
                     <TableRow key={emp.empleado_id}>
-                      <TableCell className="sticky left-0 bg-background font-medium">
+                      <TableCell className="sticky left-0 z-10 bg-background font-medium min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         {emp.empleado_nombre}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="sticky left-[180px] z-10 bg-background text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         {emp.valor_hora_extra ? (
                           <Badge variant="outline">${formatNumber(emp.valor_hora_extra, 0)}</Badge>
                         ) : (
@@ -444,8 +444,8 @@ export default function JornalesPage() {
                   ))}
                   {/* Fila de totales */}
                   <TableRow className="bg-muted/50 font-bold">
-                    <TableCell className="sticky left-0 bg-muted/50">TOTAL</TableCell>
-                    <TableCell></TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-muted/50 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">TOTAL</TableCell>
+                    <TableCell className="sticky left-[180px] z-10 bg-muted/50 min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></TableCell>
                     <TableCell colSpan={5}></TableCell>
                     <TableCell className="text-right text-red-600">
                       {formatNumber(resumen.total_adelantos, 'currency')}
