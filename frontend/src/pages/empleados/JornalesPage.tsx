@@ -457,8 +457,8 @@ export default function JornalesPage() {
               <Table className="jornales-table">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="sticky left-0 z-20 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
-                    <TableHead className="sticky left-[180px] z-20 text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
+                    <TableHead className="sticky left-0 z-40 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
+                    <TableHead className="sticky left-[180px] z-40 text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
                     <TableHead className="text-center min-w-[100px]">Sem 1</TableHead>
                     <TableHead className="text-center min-w-[100px]">Sem 2</TableHead>
                     <TableHead className="text-center min-w-[100px]">Sem 3</TableHead>
@@ -679,14 +679,18 @@ export default function JornalesPage() {
 
       {/* Estilos para sticky header */}
       <style>{`
-        .jornales-table thead {
+        .jornales-table thead tr {
           position: sticky;
           top: 0;
-          z-index: 10;
-          background: hsl(var(--background));
+          z-index: 30;
         }
         .jornales-table thead th {
-          background: hsl(var(--background));
+          background: hsl(var(--card));
+          border-bottom: 2px solid hsl(var(--border));
+          box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        }
+        .jornales-table thead th.sticky {
+          z-index: 40;
         }
       `}</style>
 
