@@ -78,6 +78,9 @@ import { MisPedidosPage, MiCuentaCorrientePage } from '@/pages/cliente-portal';
 // Servicios y Listas de Precios
 import { ServiciosPage, ListaPreciosDetail } from '@/pages/servicios';
 
+// Liquidaciones de Pedidos
+import { LiquidacionesPedidosPage, LiquidacionDetail } from '@/pages/liquidaciones';
+
 // Componente para redirección inteligente según rol
 function HomeRedirect() {
   const user = useAuthStore((state) => state.user);
@@ -176,6 +179,10 @@ function App() {
         {/* Servicios y Listas de Precios */}
         <Route path="/servicios" element={<ServiciosPage />} />
         <Route path="/servicios/listas/:id" element={<ListaPreciosDetail />} />
+
+        {/* Liquidaciones de Pedidos */}
+        <Route path="/liquidaciones" element={<LiquidacionesPedidosPage />} />
+        <Route path="/liquidaciones/:id" element={<LiquidacionDetail />} />
 
         {/* Costos */}
         <Route path="/costos" element={<CostosPage />} />
