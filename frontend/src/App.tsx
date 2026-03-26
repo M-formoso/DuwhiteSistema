@@ -30,7 +30,7 @@ import ProductosProveedorPage from '@/pages/proveedores/ProductosProveedorPage';
 import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage, PanelOperariosPage } from '@/pages/produccion';
 
 // Clientes
-import { ClientesListPage, ClienteFormPage, ClienteDetailPage } from '@/pages/clientes';
+import { ClientesListPage, ClienteFormPage, ClienteDetailPage, ClienteCuentaCorrientePage } from '@/pages/clientes';
 
 // Pedidos
 import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedidos';
@@ -151,6 +151,7 @@ function App() {
         <Route path="/clientes/nuevo" element={<ClienteFormPage />} />
         <Route path="/clientes/:id" element={<ClienteDetailPage />} />
         <Route path="/clientes/:id/editar" element={<ClienteFormPage />} />
+        <Route path="/clientes/:id/cuenta-corriente" element={<ClienteCuentaCorrientePage />} />
 
         {/* Pedidos */}
         <Route path="/pedidos" element={<PedidosListPage />} />

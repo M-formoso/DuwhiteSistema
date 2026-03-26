@@ -506,14 +506,23 @@ export default function ClienteDetailPage() {
                 </div>
               )}
 
-              <Button
-                className="w-full"
-                onClick={() => setShowPagoModal(true)}
-                disabled={!cliente.tiene_deuda}
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                Registrar Pago
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => navigate(`/clientes/${id}/cuenta-corriente`)}
+                >
+                  Ver cuenta
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => setShowPagoModal(true)}
+                  disabled={!cliente.tiene_deuda}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Pagar
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -711,8 +720,16 @@ export default function ClienteDetailPage() {
           {/* Movimientos Recientes */}
           {movimientos?.items && movimientos.items.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Últimos Movimientos</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(`/clientes/${id}/cuenta-corriente`)}
+                >
+                  Ver todos
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
