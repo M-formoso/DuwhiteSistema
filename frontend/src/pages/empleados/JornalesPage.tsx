@@ -453,21 +453,22 @@ export default function JornalesPage() {
               No hay registros para este período
             </div>
           ) : (
-            <div className="overflow-auto max-h-[600px]">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
+            <div className="overflow-auto max-h-[600px] relative">
+              <Table className="jornales-table">
+                <TableHeader>
                   <TableRow>
-                    <TableHead className="sticky left-0 z-20 bg-background min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
-                    <TableHead className="sticky left-[180px] z-20 bg-background text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
-                    <TableHead className="text-center bg-background min-w-[100px]">Sem 1</TableHead>
-                    <TableHead className="text-center bg-background min-w-[100px]">Sem 2</TableHead>
-                    <TableHead className="text-center bg-background min-w-[100px]">Sem 3</TableHead>
-                    <TableHead className="text-center bg-background min-w-[100px]">Sem 4</TableHead>
-                    <TableHead className="text-center bg-background min-w-[100px]">Sem 5</TableHead>
-                    <TableHead className="text-right bg-background min-w-[100px]">Total Adel.</TableHead>
-                    <TableHead className="text-right bg-background min-w-[90px]">Total HS</TableHead>
-                    <TableHead className="text-right bg-background min-w-[100px]">Total $</TableHead>
-                    <TableHead className="w-12 bg-background"></TableHead>
+                    <TableHead className="sticky left-0 z-20 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
+                    <TableHead className="sticky left-[180px] z-20 text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
+                    <TableHead className="text-center min-w-[100px]">Sem 1</TableHead>
+                    <TableHead className="text-center min-w-[100px]">Sem 2</TableHead>
+                    <TableHead className="text-center min-w-[100px]">Sem 3</TableHead>
+                    <TableHead className="text-center min-w-[100px]">Sem 4</TableHead>
+                    <TableHead className="text-center min-w-[100px]">Sem 5</TableHead>
+                    <TableHead className="text-right min-w-[100px]">Total Adel.</TableHead>
+                    <TableHead className="text-right min-w-[90px]">Total HS</TableHead>
+                    <TableHead className="text-right min-w-[100px]">Total $</TableHead>
+                    <TableHead className="text-right min-w-[120px]">Sueldo Final</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -534,6 +535,15 @@ export default function JornalesPage() {
                         <TableCell className="text-right font-bold">
                           {formatNumber(emp.total_general, 'currency')}
                         </TableCell>
+                        <TableCell className="text-right font-bold">
+                          {emp.salario_base > 0 ? (
+                            <div className={emp.sueldo_final >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {formatNumber(emp.sueldo_final, 'currency')}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Sin salario</span>
+                          )}
+                        </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
@@ -550,7 +560,7 @@ export default function JornalesPage() {
                       {/* Fila expandible con detalle de jornales */}
                       {expandedEmpleado === emp.empleado_id && (
                         <TableRow>
-                          <TableCell colSpan={11} className="bg-muted/30 p-0">
+                          <TableCell colSpan={12} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-medium mb-3 flex items-center gap-2">
                                 <Calendar className="h-4 w-4" />
@@ -658,6 +668,7 @@ export default function JornalesPage() {
                       {formatNumber(resumen.total_general, 'currency')}
                     </TableCell>
                     <TableCell></TableCell>
+                    <TableCell></TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -665,6 +676,19 @@ export default function JornalesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Estilos para sticky header */}
+      <style>{`
+        .jornales-table thead {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: hsl(var(--background));
+        }
+        .jornales-table thead th {
+          background: hsl(var(--background));
+        }
+      `}</style>
 
       {/* Modal Nuevo Registro */}
       <Dialog open={showRegistroModal} onOpenChange={setShowRegistroModal}>
