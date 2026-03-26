@@ -35,14 +35,8 @@ import { ClientesListPage, ClienteFormPage, ClienteDetailPage, ClienteCuentaCorr
 // Pedidos
 import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedidos';
 
-// Finanzas
-import { CajaPage, CuentasBancariasPage, ResumenFinancieroPage } from '@/pages/finanzas';
-import CuentaCorrienteProveedorPage from '@/pages/finanzas/CuentaCorrienteProveedorPage';
+// Finanzas - Solo CuentaCorrienteClientesPage (el resto migrado a Tesorería)
 import CuentaCorrienteClientesPage from '@/pages/finanzas/CuentaCorrienteClientesPage';
-import AnalisisVencimientosPage from '@/pages/finanzas/AnalisisVencimientosPage';
-import OrdenesPagoPage from '@/pages/finanzas/OrdenesPagoPage';
-import OrdenPagoFormPage from '@/pages/finanzas/OrdenPagoFormPage';
-import ConciliacionBancariaPage from '@/pages/finanzas/ConciliacionBancariaPage';
 
 // Tesorería
 import TesoreriaPage from '@/pages/tesoreria/TesoreriaPage';
@@ -159,23 +153,13 @@ function App() {
         <Route path="/pedidos/:id" element={<PedidoDetailPage />} />
         <Route path="/pedidos/:id/editar" element={<PedidoFormPage />} />
 
-        {/* Finanzas */}
-        <Route path="/finanzas" element={<Navigate to="/finanzas/caja" replace />} />
-        <Route path="/finanzas/caja" element={<CajaPage />} />
-        <Route path="/finanzas/bancos" element={<CuentasBancariasPage />} />
-        <Route path="/finanzas/resumen" element={<ResumenFinancieroPage />} />
-        <Route path="/finanzas/cuentas-corrientes-clientes" element={<CuentaCorrienteClientesPage />} />
-        <Route path="/finanzas/cuenta-corriente-proveedor/:proveedorId" element={<CuentaCorrienteProveedorPage />} />
-        <Route path="/finanzas/analisis-vencimientos" element={<AnalisisVencimientosPage />} />
-        <Route path="/finanzas/ordenes-pago" element={<OrdenesPagoPage />} />
-        <Route path="/finanzas/ordenes-pago/nueva" element={<OrdenPagoFormPage />} />
-        <Route path="/finanzas/ordenes-pago/:ordenId" element={<OrdenesPagoPage />} />
-        <Route path="/finanzas/ordenes-pago/:ordenId/editar" element={<OrdenPagoFormPage />} />
-        <Route path="/finanzas/conciliacion" element={<ConciliacionBancariaPage />} />
-        <Route path="/finanzas/conciliacion/:conciliacionId" element={<ConciliacionBancariaPage />} />
-
-        {/* Tesorería */}
+        {/* Tesorería (antes Finanzas - todo centralizado aquí) */}
         <Route path="/tesoreria" element={<TesoreriaPage />} />
+        <Route path="/tesoreria/cuentas-corrientes" element={<CuentaCorrienteClientesPage />} />
+
+        {/* Redirects de Finanzas antiguo a Tesorería */}
+        <Route path="/finanzas" element={<Navigate to="/tesoreria" replace />} />
+        <Route path="/finanzas/*" element={<Navigate to="/tesoreria" replace />} />
 
         {/* Servicios y Listas de Precios */}
         <Route path="/servicios" element={<ServiciosPage />} />

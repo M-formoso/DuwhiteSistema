@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Plus,
   FileCheck,
+  FileText,
   ArrowUpCircle,
   ArrowDownCircle,
   Wallet,
@@ -92,6 +93,9 @@ export default function TesoreriaPage() {
   // Filtros movimientos
   const [movFiltroTipo, setMovFiltroTipo] = useState<string>('');
   const [movFiltroBuscar, setMovFiltroBuscar] = useState('');
+  const [movFiltroFechaDesde, setMovFiltroFechaDesde] = useState<string>('');
+  const [movFiltroFechaHasta, setMovFiltroFechaHasta] = useState<string>('');
+  const [movFiltroIngresosEgresos, setMovFiltroIngresosEgresos] = useState<'todos' | 'ingresos' | 'egresos'>('todos');
 
   // Form cheque
   const [chequeForm, setChequeForm] = useState<ChequeCreate>({
@@ -173,14 +177,27 @@ export default function TesoreriaPage() {
   });
 
   const { data: movimientos, isLoading: loadingMovimientos } = useQuery({
-    queryKey: ['tesoreria-movimientos', movFiltroTipo, movFiltroBuscar],
+    queryKey: ['tesoreria-movimientos', movFiltroTipo, movFiltroBuscar, movFiltroFechaDesde, movFiltroFechaHasta, movFiltroIngresosEgresos],
     queryFn: () =>
       tesoreriaService.movimientos.getMovimientos({
         tipo: movFiltroTipo || undefined,
         buscar: movFiltroBuscar || undefined,
-        limit: 100,
+        fecha_desde: movFiltroFechaDesde || undefined,
+        fecha_hasta: movFiltroFechaHasta || undefined,
+        es_ingreso: movFiltroIngresosEgresos === 'todos' ? undefined : movFiltroIngresosEgresos === 'ingresos',
+        limit: 500,
       }),
   });
+
+  // Calcular totales de movimientos filtrados
+  const movimientosFiltrados = movimientos?.items || [];
+  const totalIngresosFiltered = movimientosFiltrados
+    .filter(m => m.es_ingreso && !m.anulado)
+    .reduce((acc, m) => acc + m.monto, 0);
+  const totalEgresosFiltered = movimientosFiltrados
+    .filter(m => !m.es_ingreso && !m.anulado)
+    .reduce((acc, m) => acc + m.monto, 0);
+  const saldoFiltered = totalIngresosFiltered - totalEgresosFiltered;
 
   const { data: clientes, isLoading: loadingClientes } = useQuery({
     queryKey: ['clientes-lista'],
@@ -1122,8 +1139,9 @@ export default function TesoreriaPage() {
           {/* Filtros */}
           <Card>
             <CardContent className="pt-4">
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-4 items-end">
                 <div className="flex-1 min-w-[200px]">
+                  <Label className="text-xs text-gray-500 mb-1 block">Buscar</Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
@@ -1134,22 +1152,121 @@ export default function TesoreriaPage() {
                     />
                   </div>
                 </div>
-                <Select value={movFiltroTipo || "_all"} onValueChange={(v) => setMovFiltroTipo(v === "_all" ? "" : v)}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Método de pago" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_all">Todos</SelectItem>
-                    {METODOS_PAGO_TESORERIA.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Desde</Label>
+                  <Input
+                    type="date"
+                    value={movFiltroFechaDesde}
+                    onChange={(e) => setMovFiltroFechaDesde(e.target.value)}
+                    className="w-[150px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Hasta</Label>
+                  <Input
+                    type="date"
+                    value={movFiltroFechaHasta}
+                    onChange={(e) => setMovFiltroFechaHasta(e.target.value)}
+                    className="w-[150px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Tipo</Label>
+                  <Select value={movFiltroIngresosEgresos} onValueChange={(v) => setMovFiltroIngresosEgresos(v as 'todos' | 'ingresos' | 'egresos')}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="ingresos">Ingresos</SelectItem>
+                      <SelectItem value="egresos">Egresos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1 block">Método</Label>
+                  <Select value={movFiltroTipo || "_all"} onValueChange={(v) => setMovFiltroTipo(v === "_all" ? "" : v)}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Método de pago" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">Todos</SelectItem>
+                      {METODOS_PAGO_TESORERIA.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(movFiltroFechaDesde || movFiltroFechaHasta || movFiltroBuscar || movFiltroTipo || movFiltroIngresosEgresos !== 'todos') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMovFiltroFechaDesde('');
+                      setMovFiltroFechaHasta('');
+                      setMovFiltroBuscar('');
+                      setMovFiltroTipo('');
+                      setMovFiltroIngresosEgresos('todos');
+                    }}
+                  >
+                    Limpiar
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
+
+          {/* Totales del período filtrado */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="border-gray-200">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Movimientos</p>
+                    <p className="text-xl font-bold">{movimientosFiltrados.filter(m => !m.anulado).length}</p>
+                  </div>
+                  <FileText className="h-8 w-8 text-gray-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-green-600">Total Ingresos</p>
+                    <p className="text-xl font-bold text-green-700">${formatNumber(totalIngresosFiltered, 2)}</p>
+                  </div>
+                  <ArrowUpCircle className="h-8 w-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-red-600">Total Egresos</p>
+                    <p className="text-xl font-bold text-red-700">${formatNumber(totalEgresosFiltered, 2)}</p>
+                  </div>
+                  <ArrowDownCircle className="h-8 w-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={`border-2 ${saldoFiltered >= 0 ? 'border-green-300 bg-green-100' : 'border-red-300 bg-red-100'}`}>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm ${saldoFiltered >= 0 ? 'text-green-600' : 'text-red-600'}`}>Saldo</p>
+                    <p className={`text-xl font-bold ${saldoFiltered >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      ${formatNumber(saldoFiltered, 2)}
+                    </p>
+                  </div>
+                  <Wallet className={`h-8 w-8 ${saldoFiltered >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Lista de Movimientos */}
           <Card>

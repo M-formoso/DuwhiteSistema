@@ -135,40 +135,16 @@ const navSectionsInternal: NavSection[] = [
     defaultOpen: true,
     items: [
       {
-        title: 'Finanzas',
-        href: '/finanzas',
-        icon: Wallet,
-        roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
-      },
-      {
-        title: 'Cuentas Corrientes',
-        href: '/finanzas/cuentas-corrientes-clientes',
-        icon: Users,
-        roles: ['superadmin', 'administrador', 'contador', 'comercial'],
-      },
-      {
-        title: 'Órdenes de Pago',
-        href: '/finanzas/ordenes-pago',
-        icon: CreditCard,
-        roles: ['superadmin', 'administrador', 'contador'],
-      },
-      {
-        title: 'Vencimientos',
-        href: '/finanzas/analisis-vencimientos',
-        icon: Clock,
-        roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
-      },
-      {
-        title: 'Conciliación',
-        href: '/finanzas/conciliacion',
-        icon: Landmark,
-        roles: ['superadmin', 'administrador', 'contador'],
-      },
-      {
         title: 'Tesorería',
         href: '/tesoreria',
         icon: Banknote,
         roles: ['superadmin', 'administrador', 'contador'],
+      },
+      {
+        title: 'Cuentas Corrientes',
+        href: '/tesoreria/cuentas-corrientes',
+        icon: Users,
+        roles: ['superadmin', 'administrador', 'contador', 'comercial'],
       },
       {
         title: 'Costos',
