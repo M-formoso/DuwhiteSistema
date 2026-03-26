@@ -50,7 +50,7 @@ import { tesoreriaService } from '@/services/tesoreriaService';
 import { clienteService } from '@/services/clienteService';
 import { proveedorService } from '@/services/proveedorService';
 import { finanzasService } from '@/services/finanzasService';
-import { formatNumber } from '@/utils/formatters';
+import { formatNumber, getLocalDateString } from '@/utils/formatters';
 import {
   TIPOS_CHEQUE,
   ORIGENES_CHEQUE,
@@ -96,7 +96,7 @@ export default function TesoreriaPage() {
     tipo: 'fisico',
     origen: 'recibido_cliente',
     monto: 0,
-    fecha_vencimiento: new Date().toISOString().split('T')[0],
+    fecha_vencimiento: getLocalDateString(),
     banco_origen: '',
     cliente_id: null,
     proveedor_id: null,
@@ -111,7 +111,7 @@ export default function TesoreriaPage() {
     concepto: '',
     monto: 0,
     es_ingreso: true,
-    fecha_movimiento: new Date().toISOString().split('T')[0],
+    fecha_movimiento: getLocalDateString(),
     metodo_pago: 'efectivo',
     cliente_id: null,
     proveedor_id: null,
@@ -120,7 +120,7 @@ export default function TesoreriaPage() {
   // Form acción cheque
   const [accionForm, setAccionForm] = useState({
     cuenta_destino_id: '',
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: getLocalDateString(),
     motivo_rechazo: '',
     concepto: '',
     proveedor_id: '',
@@ -376,7 +376,7 @@ export default function TesoreriaPage() {
       tipo: 'fisico',
       origen: 'recibido_cliente',
       monto: 0,
-      fecha_vencimiento: new Date().toISOString().split('T')[0],
+      fecha_vencimiento: getLocalDateString(),
       banco_origen: '',
       cliente_id: null,
       proveedor_id: null,
@@ -392,7 +392,7 @@ export default function TesoreriaPage() {
       concepto: '',
       monto: 0,
       es_ingreso: true,
-      fecha_movimiento: new Date().toISOString().split('T')[0],
+      fecha_movimiento: getLocalDateString(),
       metodo_pago: 'efectivo',
       cliente_id: null,
       proveedor_id: null,
@@ -404,7 +404,7 @@ export default function TesoreriaPage() {
     setAccionCheque(accion);
     setAccionForm({
       cuenta_destino_id: '',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: getLocalDateString(),
       motivo_rechazo: '',
       concepto: '',
       proveedor_id: '',

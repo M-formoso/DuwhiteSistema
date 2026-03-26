@@ -133,3 +133,16 @@ export function getInitials(nombre: string): string {
 export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
+
+/**
+ * Obtiene la fecha actual en formato YYYY-MM-DD usando la hora local
+ * Evita problemas de timezone que ocurren con toISOString()
+ * @param date Fecha a convertir (default: fecha actual)
+ * @returns String en formato "YYYY-MM-DD"
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
