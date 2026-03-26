@@ -2,7 +2,8 @@
  * Página de Tesorería - Gestión de cheques y movimientos
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   RefreshCw,
@@ -69,6 +70,8 @@ import type {
 export default function TesoreriaPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Estados
   const [activeTab, setActiveTab] = useState('resumen');
@@ -82,7 +85,7 @@ export default function TesoreriaPage() {
   const [chequeAEliminar, setChequeAEliminar] = useState<ChequeList | null>(null);
 
   // Filtros cheques
-  const [chequeFiltroEstado, setChequeFiltroEstado] = useState<string>('');
+  const [chequeFiltroEstado, setChequeFiltroEstado] = useState<string>('en_cartera');
   const [chequeFiltroBuscar, setChequeFiltroBuscar] = useState('');
   const [chequeFiltroTipo, setChequeFiltroTipo] = useState<string>('');
 
@@ -126,6 +129,31 @@ export default function TesoreriaPage() {
     proveedor_id: '',
     notas: '',
   });
+
+  // Detectar parámetros de URL para abrir modal de movimiento con cliente pre-seleccionado
+  useEffect(() => {
+    const tipo = searchParams.get('tipo');
+    const clienteId = searchParams.get('cliente_id');
+    const clienteNombre = searchParams.get('cliente_nombre');
+
+    if (tipo === 'ingreso' && clienteId) {
+      // Abrir modal de nuevo movimiento con cliente pre-seleccionado
+      setMovimientoForm({
+        tipo: 'ingreso_efectivo',
+        concepto: clienteNombre ? `Pago de ${clienteNombre}` : 'Pago de cliente',
+        monto: 0,
+        es_ingreso: true,
+        fecha_movimiento: getLocalDateString(),
+        metodo_pago: 'efectivo',
+        cliente_id: clienteId,
+        proveedor_id: null,
+      });
+      setShowMovimientoModal(true);
+      setActiveTab('movimientos');
+      // Limpiar los parámetros de URL
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
 
   // Queries
   const { data: resumen, isLoading: loadingResumen } = useQuery({

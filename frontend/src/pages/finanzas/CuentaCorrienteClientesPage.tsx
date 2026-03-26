@@ -284,7 +284,7 @@ export default function CuentaCorrienteClientesPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/clientes/${cliente.id}/cuenta-corriente`);
+                          navigate(`/tesoreria?tipo=ingreso&cliente_id=${cliente.id}&cliente_nombre=${encodeURIComponent(cliente.nombre_fantasia || cliente.razon_social)}`);
                         }}
                       >
                         <CreditCard className="h-4 w-4 mr-1" />
