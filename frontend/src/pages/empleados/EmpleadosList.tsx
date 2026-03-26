@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, Users, Filter, Phone, Mail, Building2 } from 'lucide-react';
 
 import { formatDateAR } from '@/lib/utils';
@@ -20,6 +20,7 @@ import {
 } from '@/types/empleado';
 
 export default function EmpleadosListPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [tipoFilter, setTipoFilter] = useState<TipoEmpleado | ''>('');
   const [estadoFilter, setEstadoFilter] = useState<EstadoEmpleado | ''>('');
@@ -241,7 +242,8 @@ export default function EmpleadosListPage() {
                 empleados.map((empleado: EmpleadoList) => (
                   <tr
                     key={empleado.id}
-                    className="border-b border-border hover:bg-muted/30 transition-colors"
+                    className="border-b border-border hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/empleados/${empleado.id}`)}
                   >
                     <td className="px-4 py-3">
                       <Link

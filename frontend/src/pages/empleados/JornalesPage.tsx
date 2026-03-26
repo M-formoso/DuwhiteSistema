@@ -455,20 +455,20 @@ export default function JornalesPage() {
           ) : (
             <div className="overflow-auto max-h-[600px] relative">
               <Table className="jornales-table">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 z-40 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
-                    <TableHead className="sticky left-[180px] z-40 text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
-                    <TableHead className="text-center min-w-[100px]">Sem 1</TableHead>
-                    <TableHead className="text-center min-w-[100px]">Sem 2</TableHead>
-                    <TableHead className="text-center min-w-[100px]">Sem 3</TableHead>
-                    <TableHead className="text-center min-w-[100px]">Sem 4</TableHead>
-                    <TableHead className="text-center min-w-[100px]">Sem 5</TableHead>
-                    <TableHead className="text-right min-w-[100px]">Total Adel.</TableHead>
-                    <TableHead className="text-right min-w-[90px]">Total HS</TableHead>
-                    <TableHead className="text-right min-w-[100px]">Total $</TableHead>
-                    <TableHead className="text-right min-w-[120px]">Sueldo Final</TableHead>
-                    <TableHead className="w-12"></TableHead>
+                <TableHeader className="bg-card" style={{ position: 'sticky', top: 0, zIndex: 30 }}>
+                  <TableRow className="bg-card" style={{ background: 'hsl(var(--card))' }}>
+                    <TableHead className="sticky left-0 z-40 bg-card min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</TableHead>
+                    <TableHead className="sticky left-[180px] z-40 bg-card text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</TableHead>
+                    <TableHead className="bg-card text-center min-w-[100px]">Sem 1</TableHead>
+                    <TableHead className="bg-card text-center min-w-[100px]">Sem 2</TableHead>
+                    <TableHead className="bg-card text-center min-w-[100px]">Sem 3</TableHead>
+                    <TableHead className="bg-card text-center min-w-[100px]">Sem 4</TableHead>
+                    <TableHead className="bg-card text-center min-w-[100px]">Sem 5</TableHead>
+                    <TableHead className="bg-card text-right min-w-[100px]">Total Adel.</TableHead>
+                    <TableHead className="bg-card text-right min-w-[90px]">Total HS</TableHead>
+                    <TableHead className="bg-card text-right min-w-[100px]">Total $</TableHead>
+                    <TableHead className="bg-card text-right min-w-[120px]">Sueldo Final</TableHead>
+                    <TableHead className="bg-card w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -677,20 +677,41 @@ export default function JornalesPage() {
         </CardContent>
       </Card>
 
-      {/* Estilos para sticky header */}
+      {/* Estilos para sticky header - IMPORTANTE: el thead debe ser sticky dentro del contenedor con overflow */}
       <style>{`
-        .jornales-table thead tr {
+        .jornales-table {
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .jornales-table thead {
           position: sticky;
           top: 0;
           z-index: 30;
+        }
+        .jornales-table thead tr {
+          background: hsl(var(--card));
         }
         .jornales-table thead th {
           background: hsl(var(--card));
           border-bottom: 2px solid hsl(var(--border));
           box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
         }
-        .jornales-table thead th.sticky {
-          z-index: 40;
+        /* Para las celdas sticky horizontales en el header */
+        .jornales-table thead th[class*="sticky"] {
+          z-index: 40 !important;
+        }
+        /* Asegurar que las celdas del body con sticky tengan el z-index correcto */
+        .jornales-table tbody td[class*="sticky"] {
+          z-index: 10;
+        }
+        /* Override cualquier estilo que pueda interferir */
+        .jornales-table thead,
+        .jornales-table thead tr,
+        .jornales-table thead th {
+          position: sticky !important;
+        }
+        .jornales-table thead {
+          top: 0 !important;
         }
       `}</style>
 

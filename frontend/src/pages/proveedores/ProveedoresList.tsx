@@ -202,7 +202,7 @@ export default function ProveedoresList() {
                   </tr>
                 ) : (
                   data?.items.map((proveedor) => (
-                    <tr key={proveedor.id} className="hover:bg-gray-50">
+                    <tr key={proveedor.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/proveedores/${proveedor.id}`)}>
                       <td className="px-4 py-3">
                         <div>
                           <p className="font-medium">{proveedor.razon_social}</p>

@@ -283,7 +283,7 @@ export default function InsumosList() {
                   </tr>
                 ) : (
                   data?.items.map((insumo) => (
-                    <tr key={insumo.id} className="hover:bg-gray-50">
+                    <tr key={insumo.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/stock/insumos/${insumo.id}`)}>
                       <td className="px-4 py-3">
                         <span className="font-mono text-sm">{insumo.codigo}</span>
                       </td>
