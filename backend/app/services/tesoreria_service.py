@@ -305,6 +305,66 @@ class TesoreriaService:
 
         return cheque
 
+    def delete_cheque(self, cheque_id: UUID, usuario_id: UUID) -> bool:
+        """
+        Elimina un cheque (soft delete).
+
+        Solo se pueden eliminar cheques que estén en cartera y no tengan
+        movimientos de cuenta corriente asociados.
+        """
+        cheque = self.get_cheque(cheque_id)
+        if not cheque:
+            raise ValueError("Cheque no encontrado")
+
+        # Solo permitir eliminar cheques en_cartera
+        if cheque.estado != EstadoCheque.EN_CARTERA.value:
+            raise ValueError(
+                f"Solo se pueden eliminar cheques en cartera. Estado actual: {cheque.estado}"
+            )
+
+        # Verificar si tiene movimientos de cuenta corriente asociados
+        if cheque.origen == OrigenCheque.RECIBIDO_CLIENTE.value and cheque.cliente_id:
+            # Buscar si hay movimientos de CC con referencia a este cheque
+            movimiento_cc = self.db.query(MovimientoCuentaCorriente).filter(
+                MovimientoCuentaCorriente.referencia_pago == f"CH-{cheque.numero}",
+                MovimientoCuentaCorriente.cliente_id == cheque.cliente_id,
+            ).first()
+
+            if movimiento_cc:
+                # Revertir el pago en la cuenta corriente
+                cliente = self.db.query(Cliente).filter(
+                    Cliente.id == cheque.cliente_id
+                ).first()
+                if cliente:
+                    saldo_anterior = cliente.saldo_cuenta_corriente or Decimal("0")
+                    # El cheque había restado de la deuda, ahora la sumamos de vuelta
+                    cliente.saldo_cuenta_corriente = saldo_anterior + cheque.monto
+
+                    # Crear movimiento de reversión
+                    from uuid import uuid4
+                    movimiento_reversion = MovimientoCuentaCorriente(
+                        id=str(uuid4()),
+                        cliente_id=cheque.cliente_id,
+                        tipo=TipoMovimientoCC.CARGO.value,
+                        concepto=f"Reversión por eliminación de cheque #{cheque.numero}",
+                        monto=cheque.monto,
+                        saldo_anterior=saldo_anterior,
+                        saldo_posterior=cliente.saldo_cuenta_corriente,
+                        medio_pago="cheque",
+                        referencia_pago=f"REV-CH-{cheque.numero}",
+                        fecha_movimiento=date.today(),
+                        registrado_por_id=str(usuario_id),
+                        notas=f"Cheque #{cheque.numero} eliminado del sistema",
+                    )
+                    self.db.add(movimiento_reversion)
+
+        # Soft delete
+        cheque.activo = False
+        cheque.estado = EstadoCheque.ANULADO.value
+
+        self.db.commit()
+        return True
+
     def get_cheques_en_cartera_total(self) -> Tuple[int, Decimal]:
         """Obtiene total de cheques en cartera."""
         result = self.db.query(

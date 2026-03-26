@@ -20,6 +20,10 @@ import {
   X,
   Save,
   Settings,
+  Pencil,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,9 +60,22 @@ import {
   registrarJornal,
   getEmpleados,
   actualizarValorHoraExtra,
+  getMovimientosNomina,
+  updateJornal,
+  deleteJornal,
 } from '@/services/empleadoService';
 import { formatNumber } from '@/utils/formatters';
-import type { RegistroJornalCreate, ResumenMensualGeneral, EmpleadoList } from '@/types/empleado';
+import type { RegistroJornalCreate, ResumenMensualGeneral, EmpleadoList, MovimientoNomina } from '@/types/empleado';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const MESES = [
   { value: 1, label: 'Enero' },
@@ -84,7 +101,12 @@ export default function JornalesPage() {
   const [anio, setAnio] = useState(currentDate.getFullYear());
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedEmpleado, setSelectedEmpleado] = useState<EmpleadoList | null>(null);
+  const [expandedEmpleado, setExpandedEmpleado] = useState<string | null>(null);
+  const [selectedJornal, setSelectedJornal] = useState<MovimientoNomina | null>(null);
+  const [editForm, setEditForm] = useState({ monto: '', cantidad_horas: '' });
 
   // Form para nuevo registro
   const [registroForm, setRegistroForm] = useState<{
@@ -122,6 +144,19 @@ export default function JornalesPage() {
 
   const empleados = empleadosData?.items || [];
 
+  // Query movimientos del empleado expandido
+  const { data: movimientosData } = useQuery({
+    queryKey: ['movimientos-empleado', expandedEmpleado, mes, anio],
+    queryFn: () =>
+      getMovimientosNomina({
+        empleado_id: expandedEmpleado!,
+        periodo_mes: mes,
+        periodo_anio: anio,
+        limit: 200,
+      }),
+    enabled: !!expandedEmpleado,
+  });
+
   // Mutation registrar jornal
   const registrarMutation = useMutation({
     mutationFn: (data: RegistroJornalCreate) => registrarJornal(data),
@@ -155,6 +190,45 @@ export default function JornalesPage() {
       toast({
         title: 'Error',
         description: error.response?.data?.detail || 'No se pudo actualizar',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation editar jornal
+  const editarJornalMutation = useMutation({
+    mutationFn: ({ id, params }: { id: string; params: { monto?: number; cantidad_horas?: number } }) =>
+      updateJornal(id, params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jornales-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['movimientos-empleado'] });
+      toast({ title: 'Jornal actualizado correctamente' });
+      setShowEditModal(false);
+      setSelectedJornal(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo actualizar el jornal',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation eliminar jornal
+  const eliminarJornalMutation = useMutation({
+    mutationFn: (id: string) => deleteJornal(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jornales-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['movimientos-empleado'] });
+      toast({ title: 'Jornal eliminado correctamente' });
+      setShowDeleteDialog(false);
+      setSelectedJornal(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo eliminar el jornal',
         variant: 'destructive',
       });
     },
@@ -217,6 +291,30 @@ export default function JornalesPage() {
       valor_hora_extra: empResumen?.valor_hora_extra?.toString() || '',
     });
     setShowConfigModal(true);
+  };
+
+  const openEditModal = (jornal: MovimientoNomina) => {
+    setSelectedJornal(jornal);
+    setEditForm({
+      monto: jornal.tipo === 'adelanto' ? jornal.monto?.toString() || '' : '',
+      cantidad_horas: jornal.tipo === 'hora_extra' ? jornal.cantidad_horas?.toString() || '' : '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditar = () => {
+    if (!selectedJornal) return;
+    const params: { monto?: number; cantidad_horas?: number } = {};
+    if (selectedJornal.tipo === 'adelanto' && editForm.monto) {
+      params.monto = parseFloat(editForm.monto);
+    } else if (selectedJornal.tipo === 'hora_extra' && editForm.cantidad_horas) {
+      params.cantidad_horas = parseFloat(editForm.cantidad_horas);
+    }
+    editarJornalMutation.mutate({ id: selectedJornal.id, params });
+  };
+
+  const toggleExpandEmpleado = (empleadoId: string) => {
+    setExpandedEmpleado(expandedEmpleado === empleadoId ? null : empleadoId);
   };
 
   return (
@@ -374,73 +472,173 @@ export default function JornalesPage() {
                 </TableHeader>
                 <TableBody>
                   {resumen.empleados.map((emp) => (
-                    <TableRow key={emp.empleado_id}>
-                      <TableCell className="sticky left-0 z-10 bg-background font-medium min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        {emp.empleado_nombre}
-                      </TableCell>
-                      <TableCell className="sticky left-[180px] z-10 bg-background text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                        {emp.valor_hora_extra ? (
-                          <Badge variant="outline">${formatNumber(emp.valor_hora_extra, 0)}</Badge>
-                        ) : (
-                          <Badge variant="destructive" className="text-xs">
-                            Sin config
-                          </Badge>
-                        )}
-                      </TableCell>
-                      {emp.semanas.map((sem) => (
-                        <TableCell key={sem.semana} className="text-center">
-                          {Number(sem.total_adelantos || 0) > 0 || Number(sem.total_horas_extras || 0) > 0 ? (
-                            <div className="text-xs space-y-1">
-                              {Number(sem.total_adelantos || 0) > 0 && (
-                                <div className="text-red-600 font-medium">
-                                  Adel: ${formatNumber(sem.total_adelantos, 0)}
-                                </div>
-                              )}
-                              {Number(sem.total_horas_extras || 0) > 0 && (
-                                <div className="text-blue-600">
-                                  <span className="font-medium">{Number(sem.total_horas_extras || 0)} hs</span>
-                                  <span className="text-blue-400 block">
-                                    (${formatNumber(Number(sem.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)})
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                    <>
+                      <TableRow key={emp.empleado_id} className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpandEmpleado(emp.empleado_id)}>
+                        <TableCell className="sticky left-0 z-10 bg-background font-medium min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          <div className="flex items-center gap-2">
+                            {expandedEmpleado === emp.empleado_id ? (
+                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            {emp.empleado_nombre}
+                          </div>
+                        </TableCell>
+                        <TableCell className="sticky left-[180px] z-10 bg-background text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          {emp.valor_hora_extra ? (
+                            <Badge variant="outline">${formatNumber(emp.valor_hora_extra, 0)}</Badge>
                           ) : (
-                            <span className="text-muted-foreground">-</span>
+                            <Badge variant="destructive" className="text-xs">
+                              Sin config
+                            </Badge>
                           )}
                         </TableCell>
-                      ))}
-                      <TableCell className="text-right font-medium text-red-600">
-                        {emp.total_adelantos > 0
-                          ? formatNumber(emp.total_adelantos, 'currency')
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-blue-600">
-                        {Number(emp.total_horas_extras || 0) > 0 ? (
-                          <div>
-                            <div>{Number(emp.total_horas_extras || 0)} hs</div>
-                            <div className="text-xs text-blue-400">
-                              ${formatNumber(Number(emp.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)}
+                        {emp.semanas.map((sem) => (
+                          <TableCell key={sem.semana} className="text-center">
+                            {Number(sem.total_adelantos || 0) > 0 || Number(sem.total_horas_extras || 0) > 0 ? (
+                              <div className="text-xs space-y-1">
+                                {Number(sem.total_adelantos || 0) > 0 && (
+                                  <div className="text-red-600 font-medium">
+                                    Adel: ${formatNumber(sem.total_adelantos, 0)}
+                                  </div>
+                                )}
+                                {Number(sem.total_horas_extras || 0) > 0 && (
+                                  <div className="text-blue-600">
+                                    <span className="font-medium">{Number(sem.total_horas_extras || 0)} hs</span>
+                                    <span className="text-blue-400 block">
+                                      (${formatNumber(Number(sem.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)})
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right font-medium text-red-600">
+                          {emp.total_adelantos > 0
+                            ? formatNumber(emp.total_adelantos, 'currency')
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-blue-600">
+                          {Number(emp.total_horas_extras || 0) > 0 ? (
+                            <div>
+                              <div>{Number(emp.total_horas_extras || 0)} hs</div>
+                              <div className="text-xs text-blue-400">
+                                ${formatNumber(Number(emp.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)}
+                              </div>
                             </div>
-                          </div>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {formatNumber(emp.total_general, 'currency')}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            const empData = empleados.find((e) => e.id === emp.empleado_id);
-                            if (empData) openConfigModal(empData);
-                          }}
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-bold">
+                          {formatNumber(emp.total_general, 'currency')}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const empData = empleados.find((e) => e.id === emp.empleado_id);
+                              if (empData) openConfigModal(empData);
+                            }}
+                          >
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {/* Fila expandible con detalle de jornales */}
+                      {expandedEmpleado === emp.empleado_id && (
+                        <TableRow>
+                          <TableCell colSpan={11} className="bg-muted/30 p-0">
+                            <div className="p-4">
+                              <h4 className="font-medium mb-3 flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                Detalle de registros - {emp.empleado_nombre}
+                              </h4>
+                              {movimientosData?.items && movimientosData.items.length > 0 ? (
+                                <div className="overflow-auto max-h-[300px]">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead className="w-24">Fecha</TableHead>
+                                        <TableHead className="w-20">Semana</TableHead>
+                                        <TableHead className="w-28">Tipo</TableHead>
+                                        <TableHead className="text-right w-24">Monto</TableHead>
+                                        <TableHead className="text-right w-20">Horas</TableHead>
+                                        <TableHead className="w-32">Acciones</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {movimientosData.items.map((mov) => (
+                                        <TableRow key={mov.id}>
+                                          <TableCell>
+                                            {mov.fecha
+                                              ? new Date(mov.fecha).toLocaleDateString('es-AR')
+                                              : '-'}
+                                          </TableCell>
+                                          <TableCell>Sem {mov.semana || '-'}</TableCell>
+                                          <TableCell>
+                                            {mov.tipo === 'adelanto' ? (
+                                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                                <Banknote className="h-3 w-3 mr-1" />
+                                                Adelanto
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                <Timer className="h-3 w-3 mr-1" />
+                                                HS Extra
+                                              </Badge>
+                                            )}
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium">
+                                            {formatNumber(mov.monto, 'currency')}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {mov.tipo === 'hora_extra' ? `${mov.cantidad_horas} hs` : '-'}
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex gap-1">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                onClick={() => openEditModal(mov)}
+                                                disabled={mov.pagado}
+                                                title={mov.pagado ? 'No se puede editar un movimiento pagado' : 'Editar'}
+                                              >
+                                                <Pencil className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                onClick={() => {
+                                                  setSelectedJornal(mov);
+                                                  setShowDeleteDialog(true);
+                                                }}
+                                                disabled={mov.pagado}
+                                                title={mov.pagado ? 'No se puede eliminar un movimiento pagado' : 'Eliminar'}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  Cargando registros...
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   ))}
                   {/* Fila de totales */}
                   <TableRow className="bg-muted/50 font-bold">
@@ -648,6 +846,115 @@ export default function JornalesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal Editar Jornal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Editar {selectedJornal?.tipo === 'adelanto' ? 'Adelanto' : 'Horas Extras'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedJornal && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Fecha: {selectedJornal.fecha ? new Date(selectedJornal.fecha).toLocaleDateString('es-AR') : '-'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Tipo: {selectedJornal.tipo === 'adelanto' ? 'Adelanto' : 'Horas Extras'}
+                </p>
+              </div>
+
+              {selectedJornal.tipo === 'adelanto' ? (
+                <div>
+                  <Label>Monto ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={editForm.monto}
+                    onChange={(e) => setEditForm({ ...editForm, monto: e.target.value })}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <Label>Cantidad de Horas</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    placeholder="0"
+                    value={editForm.cantidad_horas}
+                    onChange={(e) => setEditForm({ ...editForm, cantidad_horas: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    El monto se recalcula automáticamente según el valor hora
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="ghost" onClick={() => setShowEditModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleEditar}
+                  disabled={
+                    (selectedJornal.tipo === 'adelanto' && !editForm.monto) ||
+                    (selectedJornal.tipo === 'hora_extra' && !editForm.cantidad_horas) ||
+                    editarJornalMutation.isPending
+                  }
+                >
+                  {editarJornalMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Guardar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo Confirmar Eliminación */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Eliminación</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar este{' '}
+              {selectedJornal?.tipo === 'adelanto' ? 'adelanto' : 'registro de horas extras'}?
+              {selectedJornal && (
+                <div className="mt-2 p-3 bg-muted rounded-lg text-sm">
+                  <p>Fecha: {selectedJornal.fecha ? new Date(selectedJornal.fecha).toLocaleDateString('es-AR') : '-'}</p>
+                  <p>Monto: {formatNumber(selectedJornal.monto, 'currency')}</p>
+                  {selectedJornal.tipo === 'hora_extra' && (
+                    <p>Horas: {selectedJornal.cantidad_horas}</p>
+                  )}
+                </div>
+              )}
+              <p className="mt-2 text-destructive font-medium">Esta acción no se puede deshacer.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => selectedJornal && eliminarJornalMutation.mutate(selectedJornal.id)}
+              disabled={eliminarJornalMutation.isPending}
+            >
+              {eliminarJornalMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -229,6 +229,18 @@ export async function actualizarValorHoraExtra(
   return response.data;
 }
 
+export async function updateJornal(
+  movimientoId: string,
+  params: { monto?: number; cantidad_horas?: number }
+): Promise<MovimientoNomina> {
+  const response = await api.put(`/empleados/jornales/${movimientoId}`, null, { params });
+  return response.data;
+}
+
+export async function deleteJornal(movimientoId: string): Promise<void> {
+  await api.delete(`/empleados/jornales/${movimientoId}`);
+}
+
 // ==================== EXPORTS ====================
 
 export const empleadoService = {
@@ -255,6 +267,8 @@ export const empleadoService = {
   getResumenMensualJornales,
   getResumenEmpleadoJornales,
   actualizarValorHoraExtra,
+  updateJornal,
+  deleteJornal,
 };
 
 export default empleadoService;

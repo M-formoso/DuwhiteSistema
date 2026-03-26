@@ -738,3 +738,76 @@ def actualizar_valor_hora_extra(
     db.refresh(empleado)
 
     return {"message": "Valor hora extra actualizado", "valor_hora_extra": float(empleado.valor_hora_extra)}
+
+
+# ==================== EDITAR/ELIMINAR JORNALES ====================
+
+@router.put("/jornales/{movimiento_id}", response_model=MovimientoNominaResponse)
+def update_jornal(
+    movimiento_id: UUID,
+    monto: Optional[float] = Query(None, ge=0, description="Nuevo monto (para adelantos)"),
+    cantidad_horas: Optional[float] = Query(None, ge=0, description="Nueva cantidad de horas (para horas extras)"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Actualiza un jornal (adelanto o horas extra).
+    - Para adelantos: actualiza el monto
+    - Para horas extras: actualiza la cantidad de horas y recalcula el monto
+    """
+    from decimal import Decimal
+
+    service = EmpleadoService(db)
+
+    try:
+        movimiento = service.update_movimiento_nomina(
+            movimiento_id=movimiento_id,
+            monto=Decimal(str(monto)) if monto is not None else None,
+            cantidad_horas=Decimal(str(cantidad_horas)) if cantidad_horas is not None else None
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    if not movimiento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movimiento no encontrado"
+        )
+
+    # Obtener nombre del empleado
+    empleado = service.get_empleado(movimiento.empleado_id)
+
+    return MovimientoNominaResponse(
+        **movimiento.__dict__,
+        empleado_nombre=empleado.nombre_completo if empleado else None
+    )
+
+
+@router.delete("/jornales/{movimiento_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_jornal(
+    movimiento_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Elimina un jornal (adelanto o horas extra).
+    No se pueden eliminar movimientos ya pagados.
+    """
+    service = EmpleadoService(db)
+
+    try:
+        success = service.delete_movimiento_nomina(movimiento_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movimiento no encontrado"
+        )

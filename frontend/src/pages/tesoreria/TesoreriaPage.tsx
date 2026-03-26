@@ -26,6 +26,7 @@ import {
   Calendar,
   User,
   Pencil,
+  Trash2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,8 @@ export default function TesoreriaPage() {
   const [accionCheque, setAccionCheque] = useState<'depositar' | 'cobrar' | 'rechazar' | 'entregar' | null>(null);
   const [chequeSeleccionado, setChequeSeleccionado] = useState<ChequeList | null>(null);
   const [editingCheque, setEditingCheque] = useState<ChequeList | null>(null);
+  const [showDeleteChequeDialog, setShowDeleteChequeDialog] = useState(false);
+  const [chequeAEliminar, setChequeAEliminar] = useState<ChequeList | null>(null);
 
   // Filtros cheques
   const [chequeFiltroEstado, setChequeFiltroEstado] = useState<string>('');
@@ -335,6 +338,32 @@ export default function TesoreriaPage() {
       toast({
         title: 'Error',
         description: error.response?.data?.detail || 'No se pudo actualizar el cheque',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const eliminarChequeMutation = useMutation({
+    mutationFn: (chequeId: string) => tesoreriaService.cheques.eliminarCheque(chequeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      // Invalidar cuenta corriente (se revierte el pago si era de cliente)
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+      toast({
+        title: 'Cheque eliminado',
+        description: chequeAEliminar?.cliente_nombre
+          ? 'Se revirtió el pago en la cuenta corriente del cliente'
+          : undefined,
+      });
+      setShowDeleteChequeDialog(false);
+      setChequeAEliminar(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo eliminar el cheque',
         variant: 'destructive',
       });
     },
@@ -1026,6 +1055,17 @@ export default function TesoreriaPage() {
                             >
                               <XCircle className="h-4 w-4 text-red-600" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setChequeAEliminar(cheque);
+                                setShowDeleteChequeDialog(true);
+                              }}
+                              title="Eliminar cheque"
+                            >
+                              <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-600" />
+                            </Button>
                           </div>
                         )}
                         {cheque.estado === 'depositado' && (
@@ -1665,6 +1705,64 @@ export default function TesoreriaPage() {
                   {accionCheque === 'cobrar' && 'Marcar Cobrado'}
                   {accionCheque === 'rechazar' && 'Rechazar'}
                   {accionCheque === 'entregar' && 'Entregar'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminación de Cheque */}
+      {showDeleteChequeDialog && chequeAEliminar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="text-red-600 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Eliminar Cheque
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-500">Cheque a eliminar</p>
+                <p className="font-semibold">#{chequeAEliminar.numero}</p>
+                <p className="text-lg font-bold">${formatNumber(chequeAEliminar.monto, 2)}</p>
+                {chequeAEliminar.cliente_nombre && (
+                  <p className="text-sm text-gray-500">Cliente: {chequeAEliminar.cliente_nombre}</p>
+                )}
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  <strong>Atención:</strong> Esta acción no se puede deshacer.
+                  {chequeAEliminar.cliente_nombre && (
+                    <span className="block mt-1">
+                      Se revertirá el pago en la cuenta corriente del cliente.
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <p className="text-gray-600">
+                ¿Está seguro que desea eliminar este cheque?
+              </p>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowDeleteChequeDialog(false);
+                    setChequeAEliminar(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => eliminarChequeMutation.mutate(chequeAEliminar.id)}
+                  disabled={eliminarChequeMutation.isPending}
+                >
+                  {eliminarChequeMutation.isPending ? 'Eliminando...' : 'Eliminar Cheque'}
                 </Button>
               </div>
             </CardContent>

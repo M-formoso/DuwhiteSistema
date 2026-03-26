@@ -126,6 +126,10 @@ export const chequesService = {
     const response = await api.post<Cheque>(`/tesoreria/cheques/${chequeId}/entregar`, data);
     return response.data;
   },
+
+  async eliminarCheque(chequeId: string) {
+    await api.delete(`/tesoreria/cheques/${chequeId}`);
+  },
 };
 
 // ==================== MOVIMIENTOS ====================

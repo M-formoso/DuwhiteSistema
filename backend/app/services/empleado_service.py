@@ -520,6 +520,73 @@ class EmpleadoService:
         self.db.refresh(movimiento)
         return movimiento
 
+    def get_movimiento_nomina(self, movimiento_id: UUID) -> Optional[MovimientoNomina]:
+        """Obtiene un movimiento de nómina por ID"""
+        result = self.db.execute(
+            select(MovimientoNomina).where(
+                and_(
+                    MovimientoNomina.id == movimiento_id,
+                    MovimientoNomina.activo == True
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
+    def update_movimiento_nomina(
+        self,
+        movimiento_id: UUID,
+        monto: Optional[Decimal] = None,
+        cantidad_horas: Optional[Decimal] = None,
+        concepto: Optional[str] = None,
+        descripcion: Optional[str] = None
+    ) -> Optional[MovimientoNomina]:
+        """Actualiza un movimiento de nómina (adelanto o hora extra)"""
+        movimiento = self.get_movimiento_nomina(movimiento_id)
+        if not movimiento:
+            return None
+
+        # No permitir editar si ya está pagado
+        if movimiento.pagado:
+            raise ValueError("No se puede editar un movimiento ya pagado")
+
+        if concepto is not None:
+            movimiento.concepto = concepto
+        if descripcion is not None:
+            movimiento.descripcion = descripcion
+
+        # Para adelantos, actualizar el monto directamente
+        if movimiento.tipo == TipoMovimientoNomina.ADELANTO.value:
+            if monto is not None:
+                movimiento.monto = monto
+
+        # Para horas extras, actualizar cantidad y recalcular monto
+        elif movimiento.tipo == TipoMovimientoNomina.HORA_EXTRA.value:
+            if cantidad_horas is not None:
+                movimiento.cantidad_horas = cantidad_horas
+                # Recalcular monto basado en valor_hora
+                if movimiento.valor_hora:
+                    movimiento.monto = cantidad_horas * movimiento.valor_hora
+
+        movimiento.updated_at = func.now()
+        self.db.commit()
+        self.db.refresh(movimiento)
+        return movimiento
+
+    def delete_movimiento_nomina(self, movimiento_id: UUID) -> bool:
+        """Elimina un movimiento de nómina (soft delete)"""
+        movimiento = self.get_movimiento_nomina(movimiento_id)
+        if not movimiento:
+            return False
+
+        # No permitir eliminar si ya está pagado
+        if movimiento.pagado:
+            raise ValueError("No se puede eliminar un movimiento ya pagado")
+
+        movimiento.activo = False
+        movimiento.updated_at = func.now()
+        self.db.commit()
+        return True
+
     # ==================== LIQUIDACIONES ====================
 
     def _get_next_numero_liquidacion(self) -> int:

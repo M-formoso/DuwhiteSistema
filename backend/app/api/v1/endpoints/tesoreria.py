@@ -182,6 +182,26 @@ def update_cheque(
     return ChequeResponse(**service.enrich_cheque(cheque))
 
 
+@router.delete("/cheques/{cheque_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cheque(
+    cheque_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """Elimina un cheque (soft delete). Solo cheques en cartera."""
+    service = TesoreriaService(db)
+
+    try:
+        service.delete_cheque(cheque_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    return None
+
+
 @router.post("/cheques/{cheque_id}/depositar", response_model=ChequeResponse)
 def depositar_cheque(
     cheque_id: UUID,

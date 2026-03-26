@@ -317,7 +317,7 @@ export default function LiquidacionDetail() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">{formatNumber(detalle.cantidad, 'decimal')}</TableCell>
+                      <TableCell className="text-right">{formatNumber(detalle.cantidad, 2)}</TableCell>
                       <TableCell>{detalle.unidad}</TableCell>
                       <TableCell className="text-right">{formatNumber(detalle.precio_unitario, 'currency')}</TableCell>
                       <TableCell className="text-right font-medium">{formatNumber(detalle.subtotal, 'currency')}</TableCell>
