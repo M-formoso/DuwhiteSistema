@@ -747,6 +747,7 @@ def update_jornal(
     movimiento_id: UUID,
     monto: Optional[float] = Query(None, ge=0, description="Nuevo monto (para adelantos)"),
     cantidad_horas: Optional[float] = Query(None, ge=0, description="Nueva cantidad de horas (para horas extras)"),
+    fecha: Optional[date] = Query(None, description="Nueva fecha del jornal"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -754,6 +755,7 @@ def update_jornal(
     Actualiza un jornal (adelanto o horas extra).
     - Para adelantos: actualiza el monto
     - Para horas extras: actualiza la cantidad de horas y recalcula el monto
+    - Si se cambia la fecha, se recalcula automáticamente la semana
     """
     from decimal import Decimal
 
@@ -763,7 +765,8 @@ def update_jornal(
         movimiento = service.update_movimiento_nomina(
             movimiento_id=movimiento_id,
             monto=Decimal(str(monto)) if monto is not None else None,
-            cantidad_horas=Decimal(str(cantidad_horas)) if cantidad_horas is not None else None
+            cantidad_horas=Decimal(str(cantidad_horas)) if cantidad_horas is not None else None,
+            fecha=fecha
         )
     except ValueError as e:
         raise HTTPException(

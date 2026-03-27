@@ -538,7 +538,8 @@ class EmpleadoService:
         monto: Optional[Decimal] = None,
         cantidad_horas: Optional[Decimal] = None,
         concepto: Optional[str] = None,
-        descripcion: Optional[str] = None
+        descripcion: Optional[str] = None,
+        fecha: Optional[date] = None
     ) -> Optional[MovimientoNomina]:
         """Actualiza un movimiento de nómina (adelanto o hora extra)"""
         movimiento = self.get_movimiento_nomina(movimiento_id)
@@ -553,6 +554,14 @@ class EmpleadoService:
             movimiento.concepto = concepto
         if descripcion is not None:
             movimiento.descripcion = descripcion
+
+        # Si se cambia la fecha, actualizar fecha, semana, periodo_mes y periodo_anio
+        if fecha is not None:
+            movimiento.fecha = fecha
+            # Calcular la semana del mes (día 1-7 = semana 1, 8-14 = semana 2, etc.)
+            movimiento.semana = (fecha.day - 1) // 7 + 1
+            movimiento.periodo_mes = fecha.month
+            movimiento.periodo_anio = fecha.year
 
         # Para adelantos, actualizar el monto directamente
         if movimiento.tipo == TipoMovimientoNomina.ADELANTO.value:
@@ -758,11 +767,22 @@ class EmpleadoService:
     # ==================== JORNALES (Adelantos + HS Extras) ====================
 
     def _get_semana_del_mes(self, fecha: date) -> int:
-        """Calcula el número de semana del mes (1-5)"""
-        primer_dia = fecha.replace(day=1)
-        dia_semana_inicio = primer_dia.weekday()  # 0=Lunes
-        # Semana 1: días 1-7, etc.
-        return ((fecha.day + dia_semana_inicio - 1) // 7) + 1
+        """Calcula el número de semana del mes (1-4) basado en rangos fijos de días.
+
+        - Días 1-7: Semana 1
+        - Días 8-14: Semana 2
+        - Días 15-21: Semana 3
+        - Días 22-31: Semana 4
+        """
+        dia = fecha.day
+        if dia <= 7:
+            return 1
+        elif dia <= 14:
+            return 2
+        elif dia <= 21:
+            return 3
+        else:
+            return 4
 
     def registrar_jornal(
         self,
@@ -939,17 +959,22 @@ class EmpleadoService:
         total_horas = sum(s["total_horas_extras"] for s in semanas)
         total_monto = sum(s["total_monto_extras"] for s in semanas)
 
+        salario_base = empleado.salario_base or Decimal("0")
+        sueldo_final = salario_base - total_adelantos
+
         return {
             "empleado_id": str(empleado_id),
             "empleado_nombre": empleado.nombre_completo,
             "valor_hora_extra": empleado.valor_hora_extra,
+            "salario_base": salario_base,
             "periodo_mes": mes,
             "periodo_anio": anio,
             "semanas": semanas,
             "total_adelantos": total_adelantos,
             "total_horas_extras": total_horas,
             "total_monto_extras": total_monto,
-            "total_general": total_adelantos + total_monto
+            "total_general": total_adelantos + total_monto,
+            "sueldo_final": sueldo_final,
         }
 
     # ==================== DEPARTAMENTOS ====================

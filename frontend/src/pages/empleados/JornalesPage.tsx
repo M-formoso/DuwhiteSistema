@@ -99,7 +99,7 @@ export default function JornalesPage() {
   const [selectedEmpleado, setSelectedEmpleado] = useState<EmpleadoList | null>(null);
   const [expandedEmpleado, setExpandedEmpleado] = useState<string | null>(null);
   const [selectedJornal, setSelectedJornal] = useState<MovimientoNomina | null>(null);
-  const [editForm, setEditForm] = useState({ monto: '', cantidad_horas: '' });
+  const [editForm, setEditForm] = useState({ monto: '', cantidad_horas: '', fecha: '' });
 
   // Form para nuevo registro
   const [registroForm, setRegistroForm] = useState<{
@@ -190,7 +190,7 @@ export default function JornalesPage() {
 
   // Mutation editar jornal
   const editarJornalMutation = useMutation({
-    mutationFn: ({ id, params }: { id: string; params: { monto?: number; cantidad_horas?: number } }) =>
+    mutationFn: ({ id, params }: { id: string; params: { monto?: number; cantidad_horas?: number; fecha?: string } }) =>
       updateJornal(id, params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jornales-resumen'] });
@@ -291,17 +291,22 @@ export default function JornalesPage() {
     setEditForm({
       monto: jornal.tipo === 'adelanto' ? jornal.monto?.toString() || '' : '',
       cantidad_horas: jornal.tipo === 'hora_extra' ? jornal.cantidad_horas?.toString() || '' : '',
+      fecha: jornal.fecha || '',
     });
     setShowEditModal(true);
   };
 
   const handleEditar = () => {
     if (!selectedJornal) return;
-    const params: { monto?: number; cantidad_horas?: number } = {};
+    const params: { monto?: number; cantidad_horas?: number; fecha?: string } = {};
     if (selectedJornal.tipo === 'adelanto' && editForm.monto) {
       params.monto = parseFloat(editForm.monto);
     } else if (selectedJornal.tipo === 'hora_extra' && editForm.cantidad_horas) {
       params.cantidad_horas = parseFloat(editForm.cantidad_horas);
+    }
+    // Si la fecha cambió, incluirla en params
+    if (editForm.fecha && editForm.fecha !== selectedJornal.fecha) {
+      params.fecha = editForm.fecha;
     }
     editarJornalMutation.mutate({ id: selectedJornal.id, params });
   };
@@ -864,10 +869,19 @@ export default function JornalesPage() {
             <div className="space-y-4">
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  Fecha: {selectedJornal.fecha ? new Date(selectedJornal.fecha).toLocaleDateString('es-AR') : '-'}
-                </p>
-                <p className="text-sm text-muted-foreground">
                   Tipo: {selectedJornal.tipo === 'adelanto' ? 'Adelanto' : 'Horas Extras'}
+                </p>
+              </div>
+
+              <div>
+                <Label>Fecha</Label>
+                <Input
+                  type="date"
+                  value={editForm.fecha}
+                  onChange={(e) => setEditForm({ ...editForm, fecha: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  La semana se actualiza automáticamente según la fecha
                 </p>
               </div>
 

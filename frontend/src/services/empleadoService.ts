@@ -231,7 +231,7 @@ export async function actualizarValorHoraExtra(
 
 export async function updateJornal(
   movimientoId: string,
-  params: { monto?: number; cantidad_horas?: number }
+  params: { monto?: number; cantidad_horas?: number; fecha?: string }
 ): Promise<MovimientoNomina> {
   const response = await api.put(`/empleados/jornales/${movimientoId}`, null, { params });
   return response.data;

@@ -547,6 +547,7 @@ class ResumenMensualEmpleado(BaseModel):
     empleado_id: UUID
     empleado_nombre: str
     valor_hora_extra: Optional[Decimal]
+    salario_base: Decimal
     periodo_mes: int
     periodo_anio: int
     # Por semana
@@ -556,6 +557,7 @@ class ResumenMensualEmpleado(BaseModel):
     total_horas_extras: Decimal
     total_monto_extras: Decimal
     total_general: Decimal
+    sueldo_final: Decimal  # salario_base - total_adelantos
 
 
 class ResumenMensualGeneral(BaseModel):
