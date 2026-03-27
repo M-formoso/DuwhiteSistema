@@ -819,10 +819,9 @@ class TesoreriaService:
         """
         movimientos = []
 
-        # 1. CHEQUES - Incluir los que tienen acción ejecutada (cobrado, pagado, depositado)
+        # 1. CHEQUES - Incluir TODOS los cheques activos
         cheques_query = self.db.query(Cheque).filter(
-            Cheque.activo == True,
-            Cheque.estado.in_(['cobrado', 'pagado', 'depositado', 'entregado'])
+            Cheque.activo == True
         )
 
         if fecha_desde:
