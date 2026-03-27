@@ -67,6 +67,8 @@ import type {
   MovimientoTesoreriaCreate,
   EstadoCheque,
 } from '@/types/tesoreria';
+import type { CuentaBancaria } from '@/types/finanzas';
+import { TIPOS_CUENTA_BANCARIA } from '@/types/finanzas';
 
 export default function TesoreriaPage() {
   const queryClient = useQueryClient();
@@ -84,6 +86,22 @@ export default function TesoreriaPage() {
   const [editingCheque, setEditingCheque] = useState<ChequeList | null>(null);
   const [showDeleteChequeDialog, setShowDeleteChequeDialog] = useState(false);
   const [chequeAEliminar, setChequeAEliminar] = useState<ChequeList | null>(null);
+  const [showCuentaBancariaModal, setShowCuentaBancariaModal] = useState(false);
+
+  // Form cuenta bancaria
+  const [cuentaBancariaForm, setCuentaBancariaForm] = useState({
+    nombre: '',
+    banco: '',
+    tipo_cuenta: 'cuenta_corriente' as string,
+    numero_cuenta: '',
+    cbu: '',
+    alias: '',
+    titular: '',
+    cuit_titular: '',
+    saldo_actual: 0,
+    es_principal: false,
+    notas: '',
+  });
 
   // Filtros cheques
   const [chequeFiltroEstado, setChequeFiltroEstado] = useState<string>('en_cartera');
@@ -221,9 +239,9 @@ export default function TesoreriaPage() {
     queryFn: () => finanzasService.getCuentasBancarias(true),
   });
 
-  // Calcular totales
-  const totalBancos = cuentasBancarias?.reduce((acc, c) => acc + (c.saldo_actual || 0), 0) || 0;
-  const saldoCaja = cajaActual?.saldo_calculado || 0;
+  // Calcular totales - usar Number() para asegurar que los valores sean numéricos
+  const totalBancos = cuentasBancarias?.reduce((acc, c) => acc + Number(c.saldo_actual || 0), 0) || 0;
+  const saldoCaja = Number(cajaActual?.saldo_calculado || 0);
 
   // Mutations
   const crearChequeMutation = useMutation({
@@ -414,6 +432,23 @@ export default function TesoreriaPage() {
     },
   });
 
+  const crearCuentaBancariaMutation = useMutation({
+    mutationFn: (data: Partial<CuentaBancaria>) => finanzasService.createCuentaBancaria(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+      toast({ title: 'Cuenta bancaria creada correctamente' });
+      setShowCuentaBancariaModal(false);
+      resetCuentaBancariaForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo crear la cuenta bancaria',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Helpers
   const resetChequeForm = () => {
     setChequeForm({
@@ -441,6 +476,22 @@ export default function TesoreriaPage() {
       metodo_pago: 'efectivo',
       cliente_id: null,
       proveedor_id: null,
+    });
+  };
+
+  const resetCuentaBancariaForm = () => {
+    setCuentaBancariaForm({
+      nombre: '',
+      banco: '',
+      tipo_cuenta: 'cuenta_corriente',
+      numero_cuenta: '',
+      cbu: '',
+      alias: '',
+      titular: '',
+      cuit_titular: '',
+      saldo_actual: 0,
+      es_principal: false,
+      notas: '',
     });
   };
 
@@ -648,7 +699,7 @@ export default function TesoreriaPage() {
                   <div>
                     <p className="text-sm text-primary">Total Disponible</p>
                     <p className="text-2xl font-bold text-primary">
-                      ${formatNumber(saldoCaja + totalBancos + (resumen?.total_cheques_cartera || 0), 2)}
+                      ${formatNumber(saldoCaja + totalBancos + Number(resumen?.total_cheques_cartera || 0), 2)}
                     </p>
                     <p className="text-xs text-primary">
                       Efectivo + Bancos + Cheques
@@ -897,9 +948,15 @@ export default function TesoreriaPage() {
                   <Building2 className="h-5 w-5 text-purple-600" />
                   Cuentas Bancarias
                 </CardTitle>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Saldo Total</p>
-                  <p className="text-2xl font-bold text-purple-600">${formatNumber(totalBancos, 2)}</p>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">Saldo Total</p>
+                    <p className="text-2xl font-bold text-purple-600">${formatNumber(totalBancos, 2)}</p>
+                  </div>
+                  <Button onClick={() => setShowCuentaBancariaModal(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nueva Cuenta
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -940,7 +997,11 @@ export default function TesoreriaPage() {
                 <div className="text-center py-8">
                   <Building2 className="h-12 w-12 mx-auto text-gray-300 mb-4" />
                   <p className="text-gray-500">No hay cuentas bancarias registradas</p>
-                  <p className="text-sm text-gray-400">Agregá cuentas desde Finanzas → Cuentas Bancarias</p>
+                  <p className="text-sm text-gray-400 mb-4">Agregá tus cuentas bancarias para hacer seguimiento de los saldos</p>
+                  <Button onClick={() => setShowCuentaBancariaModal(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar Cuenta Bancaria
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -1908,6 +1969,169 @@ export default function TesoreriaPage() {
                   disabled={eliminarChequeMutation.isPending}
                 >
                   {eliminarChequeMutation.isPending ? 'Eliminando...' : 'Eliminar Cheque'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Nueva Cuenta Bancaria */}
+      {showCuentaBancariaModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-purple-600" />
+                Nueva Cuenta Bancaria
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nombre / Identificador *</Label>
+                  <Input
+                    value={cuentaBancariaForm.nombre}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, nombre: e.target.value })}
+                    placeholder="Ej: Cuenta Principal"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Banco *</Label>
+                  <Select
+                    value={cuentaBancariaForm.banco}
+                    onValueChange={(v) => setCuentaBancariaForm({ ...cuentaBancariaForm, banco: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar banco" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BANCOS_ARGENTINA.map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Cuenta *</Label>
+                  <Select
+                    value={cuentaBancariaForm.tipo_cuenta}
+                    onValueChange={(v) => setCuentaBancariaForm({ ...cuentaBancariaForm, tipo_cuenta: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_CUENTA_BANCARIA.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Número de Cuenta</Label>
+                  <Input
+                    value={cuentaBancariaForm.numero_cuenta}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, numero_cuenta: e.target.value })}
+                    placeholder="Ej: 123456789"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>CBU</Label>
+                  <Input
+                    value={cuentaBancariaForm.cbu}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, cbu: e.target.value })}
+                    placeholder="22 dígitos"
+                    maxLength={22}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Alias</Label>
+                  <Input
+                    value={cuentaBancariaForm.alias}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, alias: e.target.value })}
+                    placeholder="Ej: MI.ALIAS.CBU"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Titular</Label>
+                  <Input
+                    value={cuentaBancariaForm.titular}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, titular: e.target.value })}
+                    placeholder="Nombre del titular"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>CUIT del Titular</Label>
+                  <Input
+                    value={cuentaBancariaForm.cuit_titular}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, cuit_titular: e.target.value })}
+                    placeholder="XX-XXXXXXXX-X"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Saldo Inicial</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={cuentaBancariaForm.saldo_actual || ''}
+                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, saldo_actual: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2 flex items-end">
+                  <label className="flex items-center gap-2 cursor-pointer pb-2">
+                    <input
+                      type="checkbox"
+                      checked={cuentaBancariaForm.es_principal}
+                      onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, es_principal: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm font-medium">Cuenta principal</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={cuentaBancariaForm.notas}
+                  onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, notas: e.target.value })}
+                  placeholder="Observaciones adicionales..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowCuentaBancariaModal(false);
+                    resetCuentaBancariaForm();
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => crearCuentaBancariaMutation.mutate(cuentaBancariaForm)}
+                  disabled={!cuentaBancariaForm.nombre || !cuentaBancariaForm.banco || crearCuentaBancariaMutation.isPending}
+                >
+                  {crearCuentaBancariaMutation.isPending ? 'Guardando...' : 'Crear Cuenta'}
                 </Button>
               </div>
             </CardContent>
