@@ -246,3 +246,8 @@ export const TIPOS_CUENTA_BANCARIA = [
   { value: 'caja_ahorro', label: 'Caja de Ahorro' },
   { value: 'cuenta_corriente', label: 'Cuenta Corriente' },
 ];
+
+export const MONEDAS = [
+  { value: 'ARS', label: 'Pesos (ARS)' },
+  { value: 'USD', label: 'Dólares (USD)' },
+];

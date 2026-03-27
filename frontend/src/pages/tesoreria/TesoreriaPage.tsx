@@ -68,7 +68,7 @@ import type {
   EstadoCheque,
 } from '@/types/tesoreria';
 import type { CuentaBancaria } from '@/types/finanzas';
-import { TIPOS_CUENTA_BANCARIA } from '@/types/finanzas';
+import { TIPOS_CUENTA_BANCARIA, MONEDAS } from '@/types/finanzas';
 
 export default function TesoreriaPage() {
   const queryClient = useQueryClient();
@@ -101,6 +101,7 @@ export default function TesoreriaPage() {
     saldo_actual: 0,
     es_principal: false,
     notas: '',
+    moneda: 'ARS' as string,
   });
 
   // Filtros cheques
@@ -492,6 +493,7 @@ export default function TesoreriaPage() {
       saldo_actual: 0,
       es_principal: false,
       notas: '',
+      moneda: 'ARS',
     });
   };
 
@@ -732,11 +734,14 @@ export default function TesoreriaPage() {
                           <p className="font-medium">{cuenta.banco}</p>
                           <p className="text-sm text-gray-500">
                             {cuenta.tipo_cuenta === 'cuenta_corriente' ? 'Cta. Cte.' : cuenta.tipo_cuenta} - {cuenta.alias || cuenta.numero_cuenta}
+                            {cuenta.moneda && cuenta.moneda !== 'ARS' && (
+                              <span className="ml-1 text-xs font-medium text-blue-600">({cuenta.moneda})</span>
+                            )}
                           </p>
                         </div>
                       </div>
                       <p className={`text-lg font-bold ${(cuenta.saldo_actual || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${formatNumber(cuenta.saldo_actual || 0, 2)}
+                        {cuenta.moneda === 'USD' ? 'US$' : '$'}{formatNumber(cuenta.saldo_actual || 0, 2)}
                       </p>
                     </div>
                   ))}
@@ -986,9 +991,9 @@ export default function TesoreriaPage() {
                       </div>
                       <div className="text-right">
                         <p className={`text-xl font-bold ${(cuenta.saldo_actual || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ${formatNumber(cuenta.saldo_actual || 0, 2)}
+                          {cuenta.moneda === 'USD' ? 'US$' : '$'}{formatNumber(cuenta.saldo_actual || 0, 2)}
                         </p>
-                        <p className="text-xs text-gray-400">{cuenta.moneda || 'ARS'}</p>
+                        <p className="text-xs text-gray-400">{cuenta.moneda === 'USD' ? 'Dólares' : 'Pesos'}</p>
                       </div>
                     </div>
                   ))}
@@ -2016,7 +2021,7 @@ export default function TesoreriaPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Tipo de Cuenta *</Label>
                   <Select
@@ -2030,6 +2035,24 @@ export default function TesoreriaPage() {
                       {TIPOS_CUENTA_BANCARIA.map((t) => (
                         <SelectItem key={t.value} value={t.value}>
                           {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Moneda *</Label>
+                  <Select
+                    value={cuentaBancariaForm.moneda}
+                    onValueChange={(v) => setCuentaBancariaForm({ ...cuentaBancariaForm, moneda: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONEDAS.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

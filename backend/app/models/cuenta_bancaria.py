@@ -18,6 +18,12 @@ class TipoCuenta(str, Enum):
     CUENTA_CORRIENTE = "cuenta_corriente"
 
 
+class Moneda(str, Enum):
+    """Tipos de moneda."""
+    ARS = "ARS"
+    USD = "USD"
+
+
 class TipoMovimientoBanco(str, Enum):
     """Tipos de movimiento bancario."""
     DEPOSITO = "deposito"
@@ -49,6 +55,9 @@ class CuentaBancaria(Base, BaseModelMixin):
     # Titular
     titular = Column(String(200), nullable=False)
     cuit_titular = Column(String(13), nullable=True)
+
+    # Moneda
+    moneda = Column(String(3), nullable=False, default="ARS")  # ARS, USD
 
     # Saldo
     saldo_actual = Column(Numeric(14, 2), nullable=False, default=0)

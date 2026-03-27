@@ -132,6 +132,7 @@ class CuentaBancariaBase(BaseModel):
     alias: Optional[str] = None
     titular: str = Field(..., min_length=1, max_length=200)
     cuit_titular: Optional[str] = None
+    moneda: str = Field(default="ARS")  # ARS, USD
     notas: Optional[str] = None
 
 
@@ -157,6 +158,7 @@ class CuentaBancariaResponse(CuentaBancariaBase):
     saldo_disponible: Optional[Decimal] = None
     activa: bool
     es_principal: bool
+    moneda: str = "ARS"
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -277,4 +279,9 @@ TIPOS_MOVIMIENTO_BANCO = [
     {"value": "comision", "label": "Comisión Bancaria"},
     {"value": "cheque_emitido", "label": "Cheque Emitido"},
     {"value": "cheque_depositado", "label": "Cheque Depositado"},
+]
+
+MONEDAS = [
+    {"value": "ARS", "label": "Pesos Argentinos (ARS)"},
+    {"value": "USD", "label": "Dólares (USD)"},
 ]
