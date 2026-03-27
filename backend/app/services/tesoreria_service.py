@@ -949,63 +949,67 @@ class TesoreriaService:
             })
 
         # 3. MOVIMIENTOS BANCARIOS
-        from app.models.cuenta_bancaria import MovimientoBancario
+        try:
+            from app.models.cuenta_bancaria import MovimientoBancario, CuentaBancaria
 
-        mov_banco_query = self.db.query(MovimientoBancario)
+            mov_banco_query = self.db.query(MovimientoBancario)
 
-        if fecha_desde:
-            mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento >= fecha_desde)
-        if fecha_hasta:
-            mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento <= fecha_hasta)
-        if buscar:
-            mov_banco_query = mov_banco_query.filter(
-                or_(
-                    MovimientoBancario.concepto.ilike(f"%{buscar}%"),
-                    MovimientoBancario.descripcion.ilike(f"%{buscar}%"),
+            if fecha_desde:
+                mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento >= fecha_desde)
+            if fecha_hasta:
+                mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento <= fecha_hasta)
+            if buscar:
+                mov_banco_query = mov_banco_query.filter(
+                    or_(
+                        MovimientoBancario.concepto.ilike(f"%{buscar}%"),
+                        MovimientoBancario.descripcion.ilike(f"%{buscar}%"),
+                    )
                 )
-            )
 
-        # Tipos que son ingresos
-        tipos_ingreso = ['deposito', 'transferencia_entrada', 'credito', 'interes', 'cheque_depositado']
+            # Tipos que son ingresos
+            tipos_ingreso = ['deposito', 'transferencia_entrada', 'credito', 'interes', 'cheque_depositado']
 
-        for mov in mov_banco_query.all():
-            es_ing = mov.tipo in tipos_ingreso
+            for mov in mov_banco_query.all():
+                es_ing = mov.tipo in tipos_ingreso
 
-            if es_ingreso is not None and es_ing != es_ingreso:
-                continue
+                if es_ingreso is not None and es_ing != es_ingreso:
+                    continue
 
-            cliente_nombre = None
-            proveedor_nombre = None
-            if mov.cliente_id:
-                cliente = self.db.query(Cliente).filter(Cliente.id == mov.cliente_id).first()
-                cliente_nombre = cliente.razon_social if cliente else None
-            if mov.proveedor_id:
-                proveedor = self.db.query(Proveedor).filter(Proveedor.id == mov.proveedor_id).first()
-                proveedor_nombre = proveedor.razon_social if proveedor else None
+                cliente_nombre = None
+                proveedor_nombre = None
+                if mov.cliente_id:
+                    cliente = self.db.query(Cliente).filter(Cliente.id == mov.cliente_id).first()
+                    cliente_nombre = cliente.razon_social if cliente else None
+                if mov.proveedor_id:
+                    proveedor = self.db.query(Proveedor).filter(Proveedor.id == mov.proveedor_id).first()
+                    proveedor_nombre = proveedor.razon_social if proveedor else None
 
-            # Obtener nombre de cuenta
-            from app.models.cuenta_bancaria import CuentaBancaria
-            cuenta = self.db.query(CuentaBancaria).filter(CuentaBancaria.id == mov.cuenta_id).first()
-            banco_nombre = cuenta.banco if cuenta else None
+                # Obtener nombre de cuenta
+                cuenta = self.db.query(CuentaBancaria).filter(CuentaBancaria.id == mov.cuenta_id).first()
+                banco_nombre = cuenta.banco if cuenta else None
 
-            movimientos.append({
-                'id': str(mov.id),
-                'fecha': mov.fecha_movimiento,
-                'tipo': mov.tipo,
-                'origen': 'movimiento_bancario',
-                'concepto': mov.concepto,
-                'monto': mov.monto,
-                'es_ingreso': es_ing,
-                'metodo_pago': 'transferencia' if 'transferencia' in mov.tipo else 'banco',
-                'cliente_id': str(mov.cliente_id) if mov.cliente_id else None,
-                'cliente_nombre': cliente_nombre,
-                'proveedor_id': str(mov.proveedor_id) if mov.proveedor_id else None,
-                'proveedor_nombre': proveedor_nombre,
-                'numero_referencia': mov.numero_comprobante,
-                'banco': banco_nombre,
-                'estado': None,
-                'created_at': mov.created_at,
-            })
+                movimientos.append({
+                    'id': str(mov.id),
+                    'fecha': mov.fecha_movimiento,
+                    'tipo': mov.tipo,
+                    'origen': 'movimiento_bancario',
+                    'concepto': mov.concepto,
+                    'monto': mov.monto,
+                    'es_ingreso': es_ing,
+                    'metodo_pago': 'transferencia' if 'transferencia' in mov.tipo else 'banco',
+                    'cliente_id': str(mov.cliente_id) if mov.cliente_id else None,
+                    'cliente_nombre': cliente_nombre,
+                    'proveedor_id': str(mov.proveedor_id) if mov.proveedor_id else None,
+                    'proveedor_nombre': proveedor_nombre,
+                    'numero_referencia': mov.numero_comprobante,
+                    'banco': banco_nombre,
+                    'estado': None,
+                    'created_at': mov.created_at,
+                })
+        except Exception as e:
+            # Si falla la consulta de movimientos bancarios, continuar sin ellos
+            import logging
+            logging.warning(f"Error al obtener movimientos bancarios: {e}")
 
         # Ordenar por fecha descendente
         movimientos.sort(key=lambda x: (x['fecha'], x['created_at']), reverse=True)
