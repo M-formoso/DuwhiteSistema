@@ -17,6 +17,7 @@ import type {
   MovimientoTesoreriaCreate,
   AnularMovimientoRequest,
   ResumenTesoreria,
+  MovimientosConsolidadosResponse,
 } from '@/types/tesoreria';
 
 // ==================== CONSTANTES ====================
@@ -154,6 +155,22 @@ export const movimientosTesoreriaService = {
       skip: number;
       limit: number;
     }>('/tesoreria/movimientos', { params });
+    return response.data;
+  },
+
+  async getMovimientosConsolidados(params?: {
+    skip?: number;
+    limit?: number;
+    tipo?: string;
+    es_ingreso?: boolean;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+    buscar?: string;
+  }) {
+    const response = await api.get<MovimientosConsolidadosResponse>(
+      '/tesoreria/movimientos-consolidados',
+      { params }
+    );
     return response.data;
   },
 

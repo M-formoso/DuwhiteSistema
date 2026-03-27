@@ -798,3 +798,231 @@ class TesoreriaService:
             data['cheque_numero'] = cheque.numero if cheque else None
 
         return data
+
+    # ==================== MOVIMIENTOS CONSOLIDADOS ====================
+
+    def get_movimientos_consolidados(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        fecha_desde: Optional[date] = None,
+        fecha_hasta: Optional[date] = None,
+        tipo: Optional[str] = None,  # cheque, transferencia, efectivo, etc.
+        es_ingreso: Optional[bool] = None,
+        buscar: Optional[str] = None,
+    ) -> dict:
+        """
+        Obtiene todos los movimientos financieros consolidados:
+        - Cheques (cobrados/pagados/depositados)
+        - Movimientos de tesorería
+        - Movimientos bancarios
+        """
+        movimientos = []
+
+        # 1. CHEQUES - Incluir los que tienen acción ejecutada (cobrado, pagado, depositado)
+        cheques_query = self.db.query(Cheque).filter(
+            Cheque.activo == True,
+            Cheque.estado.in_(['cobrado', 'pagado', 'depositado', 'entregado'])
+        )
+
+        if fecha_desde:
+            cheques_query = cheques_query.filter(
+                or_(
+                    Cheque.fecha_cobro >= fecha_desde,
+                    Cheque.created_at >= datetime.combine(fecha_desde, datetime.min.time())
+                )
+            )
+        if fecha_hasta:
+            cheques_query = cheques_query.filter(
+                or_(
+                    Cheque.fecha_cobro <= fecha_hasta,
+                    Cheque.created_at <= datetime.combine(fecha_hasta, datetime.max.time())
+                )
+            )
+
+        if buscar:
+            cheques_query = cheques_query.filter(
+                or_(
+                    Cheque.numero.ilike(f"%{buscar}%"),
+                    Cheque.banco_origen.ilike(f"%{buscar}%"),
+                    Cheque.librador.ilike(f"%{buscar}%"),
+                )
+            )
+
+        for cheque in cheques_query.all():
+            # Determinar si es ingreso o egreso
+            if cheque.origen == 'recibido_cliente':
+                es_ing = True
+                tipo_mov = 'cheque_recibido'
+                concepto = f"Cheque recibido #{cheque.numero}"
+            elif cheque.origen == 'emitido':
+                es_ing = False
+                tipo_mov = 'cheque_emitido'
+                concepto = f"Cheque emitido #{cheque.numero}"
+            else:
+                es_ing = cheque.origen != 'emitido'
+                tipo_mov = 'cheque'
+                concepto = f"Cheque #{cheque.numero}"
+
+            # Filtrar por tipo de ingreso/egreso
+            if es_ingreso is not None and es_ing != es_ingreso:
+                continue
+
+            # Obtener nombres
+            cliente_nombre = None
+            proveedor_nombre = None
+            if cheque.cliente_id:
+                cliente = self.db.query(Cliente).filter(Cliente.id == cheque.cliente_id).first()
+                cliente_nombre = cliente.razon_social if cliente else None
+            if cheque.proveedor_id:
+                proveedor = self.db.query(Proveedor).filter(Proveedor.id == cheque.proveedor_id).first()
+                proveedor_nombre = proveedor.razon_social if proveedor else None
+
+            fecha_mov = cheque.fecha_cobro or cheque.created_at.date()
+
+            movimientos.append({
+                'id': str(cheque.id),
+                'fecha': fecha_mov,
+                'tipo': tipo_mov,
+                'origen': 'cheque',
+                'concepto': concepto,
+                'monto': cheque.monto,
+                'es_ingreso': es_ing,
+                'metodo_pago': 'cheque',
+                'cliente_id': str(cheque.cliente_id) if cheque.cliente_id else None,
+                'cliente_nombre': cliente_nombre,
+                'proveedor_id': str(cheque.proveedor_id) if cheque.proveedor_id else None,
+                'proveedor_nombre': proveedor_nombre,
+                'numero_referencia': cheque.numero,
+                'banco': cheque.banco_origen,
+                'estado': cheque.estado,
+                'created_at': cheque.created_at,
+            })
+
+        # 2. MOVIMIENTOS DE TESORERÍA
+        mov_teso_query = self.db.query(MovimientoTesoreria).filter(
+            MovimientoTesoreria.activo == True,
+            MovimientoTesoreria.anulado == False
+        )
+
+        if fecha_desde:
+            mov_teso_query = mov_teso_query.filter(MovimientoTesoreria.fecha_movimiento >= fecha_desde)
+        if fecha_hasta:
+            mov_teso_query = mov_teso_query.filter(MovimientoTesoreria.fecha_movimiento <= fecha_hasta)
+        if es_ingreso is not None:
+            mov_teso_query = mov_teso_query.filter(MovimientoTesoreria.es_ingreso == es_ingreso)
+        if buscar:
+            mov_teso_query = mov_teso_query.filter(
+                or_(
+                    MovimientoTesoreria.concepto.ilike(f"%{buscar}%"),
+                    MovimientoTesoreria.descripcion.ilike(f"%{buscar}%"),
+                )
+            )
+
+        for mov in mov_teso_query.all():
+            cliente_nombre = None
+            proveedor_nombre = None
+            if mov.cliente_id:
+                cliente = self.db.query(Cliente).filter(Cliente.id == mov.cliente_id).first()
+                cliente_nombre = cliente.razon_social if cliente else None
+            if mov.proveedor_id:
+                proveedor = self.db.query(Proveedor).filter(Proveedor.id == mov.proveedor_id).first()
+                proveedor_nombre = proveedor.razon_social if proveedor else None
+
+            movimientos.append({
+                'id': str(mov.id),
+                'fecha': mov.fecha_movimiento,
+                'tipo': mov.tipo,
+                'origen': 'movimiento_tesoreria',
+                'concepto': mov.concepto,
+                'monto': mov.monto,
+                'es_ingreso': mov.es_ingreso,
+                'metodo_pago': mov.metodo_pago,
+                'cliente_id': str(mov.cliente_id) if mov.cliente_id else None,
+                'cliente_nombre': cliente_nombre,
+                'proveedor_id': str(mov.proveedor_id) if mov.proveedor_id else None,
+                'proveedor_nombre': proveedor_nombre,
+                'numero_referencia': mov.numero_transferencia,
+                'banco': mov.banco_origen or mov.banco_destino,
+                'estado': None,
+                'created_at': mov.created_at,
+            })
+
+        # 3. MOVIMIENTOS BANCARIOS
+        from app.models.cuenta_bancaria import MovimientoBancario
+
+        mov_banco_query = self.db.query(MovimientoBancario)
+
+        if fecha_desde:
+            mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento >= fecha_desde)
+        if fecha_hasta:
+            mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento <= fecha_hasta)
+        if buscar:
+            mov_banco_query = mov_banco_query.filter(
+                or_(
+                    MovimientoBancario.concepto.ilike(f"%{buscar}%"),
+                    MovimientoBancario.descripcion.ilike(f"%{buscar}%"),
+                )
+            )
+
+        # Tipos que son ingresos
+        tipos_ingreso = ['deposito', 'transferencia_entrada', 'credito', 'interes', 'cheque_depositado']
+
+        for mov in mov_banco_query.all():
+            es_ing = mov.tipo in tipos_ingreso
+
+            if es_ingreso is not None and es_ing != es_ingreso:
+                continue
+
+            cliente_nombre = None
+            proveedor_nombre = None
+            if mov.cliente_id:
+                cliente = self.db.query(Cliente).filter(Cliente.id == mov.cliente_id).first()
+                cliente_nombre = cliente.razon_social if cliente else None
+            if mov.proveedor_id:
+                proveedor = self.db.query(Proveedor).filter(Proveedor.id == mov.proveedor_id).first()
+                proveedor_nombre = proveedor.razon_social if proveedor else None
+
+            # Obtener nombre de cuenta
+            from app.models.cuenta_bancaria import CuentaBancaria
+            cuenta = self.db.query(CuentaBancaria).filter(CuentaBancaria.id == mov.cuenta_id).first()
+            banco_nombre = cuenta.banco if cuenta else None
+
+            movimientos.append({
+                'id': str(mov.id),
+                'fecha': mov.fecha_movimiento,
+                'tipo': mov.tipo,
+                'origen': 'movimiento_bancario',
+                'concepto': mov.concepto,
+                'monto': mov.monto,
+                'es_ingreso': es_ing,
+                'metodo_pago': 'transferencia' if 'transferencia' in mov.tipo else 'banco',
+                'cliente_id': str(mov.cliente_id) if mov.cliente_id else None,
+                'cliente_nombre': cliente_nombre,
+                'proveedor_id': str(mov.proveedor_id) if mov.proveedor_id else None,
+                'proveedor_nombre': proveedor_nombre,
+                'numero_referencia': mov.numero_comprobante,
+                'banco': banco_nombre,
+                'estado': None,
+                'created_at': mov.created_at,
+            })
+
+        # Ordenar por fecha descendente
+        movimientos.sort(key=lambda x: (x['fecha'], x['created_at']), reverse=True)
+
+        # Calcular totales
+        total = len(movimientos)
+        total_ingresos = sum(m['monto'] for m in movimientos if m['es_ingreso'])
+        total_egresos = sum(m['monto'] for m in movimientos if not m['es_ingreso'])
+
+        # Aplicar paginación
+        movimientos_paginados = movimientos[skip:skip + limit]
+
+        return {
+            'items': movimientos_paginados,
+            'total': total,
+            'total_ingresos': total_ingresos,
+            'total_egresos': total_egresos,
+            'skip': skip,
+            'limit': limit,
+        }

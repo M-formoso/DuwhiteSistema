@@ -198,7 +198,7 @@ export default function TesoreriaPage() {
   const { data: movimientos, isLoading: loadingMovimientos } = useQuery({
     queryKey: ['tesoreria-movimientos', movFiltroTipo, movFiltroBuscar, movFiltroFechaDesde, movFiltroFechaHasta, movFiltroIngresosEgresos],
     queryFn: () =>
-      tesoreriaService.movimientos.getMovimientos({
+      tesoreriaService.movimientos.getMovimientosConsolidados({
         tipo: movFiltroTipo || undefined,
         buscar: movFiltroBuscar || undefined,
         fecha_desde: movFiltroFechaDesde || undefined,
@@ -208,14 +208,10 @@ export default function TesoreriaPage() {
       }),
   });
 
-  // Calcular totales de movimientos filtrados
+  // Usar totales del backend (ya calculados en el endpoint consolidado)
   const movimientosFiltrados = movimientos?.items || [];
-  const totalIngresosFiltered = movimientosFiltrados
-    .filter(m => m.es_ingreso && !m.anulado)
-    .reduce((acc, m) => acc + m.monto, 0);
-  const totalEgresosFiltered = movimientosFiltrados
-    .filter(m => !m.es_ingreso && !m.anulado)
-    .reduce((acc, m) => acc + m.monto, 0);
+  const totalIngresosFiltered = movimientos?.total_ingresos || 0;
+  const totalEgresosFiltered = movimientos?.total_egresos || 0;
   const saldoFiltered = totalIngresosFiltered - totalEgresosFiltered;
 
   const { data: clientes, isLoading: loadingClientes } = useQuery({
@@ -1291,7 +1287,7 @@ export default function TesoreriaPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">Movimientos</p>
-                    <p className="text-xl font-bold">{movimientosFiltrados.filter(m => !m.anulado).length}</p>
+                    <p className="text-xl font-bold">{movimientos?.total || 0}</p>
                   </div>
                   <FileText className="h-8 w-8 text-gray-400" />
                 </div>
@@ -1347,9 +1343,7 @@ export default function TesoreriaPage() {
                     <div
                       key={mov.id}
                       className={`flex items-center justify-between p-4 rounded-lg ${
-                        mov.anulado
-                          ? 'bg-gray-100 opacity-60'
-                          : mov.es_ingreso
+                        mov.es_ingreso
                           ? 'bg-green-50'
                           : 'bg-red-50'
                       }`}
@@ -1362,32 +1356,39 @@ export default function TesoreriaPage() {
                         )}
                         <div>
                           <p className="font-medium">{mov.concepto}</p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Badge variant="outline">
-                              {METODOS_PAGO_TESORERIA.find((m) => m.value === mov.metodo_pago)?.label}
-                            </Badge>
-                            <span>{formatearFecha(mov.fecha_movimiento)}</span>
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                            {mov.metodo_pago && (
+                              <Badge variant="outline">
+                                {METODOS_PAGO_TESORERIA.find((m) => m.value === mov.metodo_pago)?.label || mov.metodo_pago}
+                              </Badge>
+                            )}
+                            {mov.origen === 'cheque' && (
+                              <Badge variant="secondary">Cheque</Badge>
+                            )}
+                            {mov.estado && mov.origen === 'cheque' && (
+                              <Badge variant="outline" className="text-xs">
+                                {ESTADOS_CHEQUE.find((e) => e.value === mov.estado)?.label || mov.estado}
+                              </Badge>
+                            )}
+                            <span>{formatearFecha(mov.fecha)}</span>
                             {mov.cliente_nombre && <span>- {mov.cliente_nombre}</span>}
                             {mov.proveedor_nombre && <span>- {mov.proveedor_nombre}</span>}
-                            {mov.cheque_numero && <span>- Cheque #{mov.cheque_numero}</span>}
+                            {mov.numero_referencia && <span>- #{mov.numero_referencia}</span>}
+                            {mov.banco && <span>- {mov.banco}</span>}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
                         <span
                           className={`text-lg font-bold ${
-                            mov.anulado
-                              ? 'text-gray-400 line-through'
-                              : mov.es_ingreso
+                            mov.es_ingreso
                               ? 'text-green-600'
                               : 'text-red-600'
                           }`}
                         >
                           {mov.es_ingreso ? '+' : '-'}${formatNumber(mov.monto, 2)}
                         </span>
-                        {mov.anulado ? (
-                          <Badge variant="destructive">Anulado</Badge>
-                        ) : (
+                        {mov.origen === 'movimiento_tesoreria' && (
                           <Button
                             variant="ghost"
                             size="icon"

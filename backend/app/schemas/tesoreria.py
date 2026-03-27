@@ -246,6 +246,36 @@ class AnularMovimientoRequest(BaseModel):
     motivo: str = Field(..., min_length=5)
 
 
+# ==================== MOVIMIENTO CONSOLIDADO ====================
+
+class MovimientoConsolidado(BaseModel):
+    """Schema para movimientos consolidados (todos los tipos)."""
+    id: UUID
+    fecha: date
+    tipo: str  # cheque_recibido, cheque_emitido, transferencia, efectivo, etc.
+    origen: str  # cheque, movimiento_tesoreria, movimiento_bancario
+    concepto: str
+    monto: Decimal
+    es_ingreso: bool
+    metodo_pago: Optional[str] = None
+
+    # Referencias
+    cliente_id: Optional[UUID] = None
+    cliente_nombre: Optional[str] = None
+    proveedor_id: Optional[UUID] = None
+    proveedor_nombre: Optional[str] = None
+
+    # Info adicional según tipo
+    numero_referencia: Optional[str] = None  # número de cheque, transferencia, etc.
+    banco: Optional[str] = None
+    estado: Optional[str] = None  # para cheques
+
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== RESUMEN ====================
 
 class ResumenTesoreria(BaseModel):

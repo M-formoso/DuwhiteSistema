@@ -24,6 +24,7 @@ from app.schemas.tesoreria import (
     MovimientoTesoreriaCreate,
     MovimientoTesoreriaResponse,
     MovimientoTesoreriaList,
+    MovimientoConsolidado,
     AnularMovimientoRequest,
     ResumenTesoreria,
     TIPOS_CHEQUE,
@@ -284,6 +285,38 @@ def entregar_cheque(
         )
 
     return ChequeResponse(**service.enrich_cheque(cheque))
+
+
+# ==================== MOVIMIENTOS CONSOLIDADOS ====================
+
+@router.get("/movimientos-consolidados")
+def list_movimientos_consolidados(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    tipo: Optional[str] = None,
+    es_ingreso: Optional[bool] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Lista todos los movimientos financieros consolidados.
+    Incluye: cheques, movimientos de tesorería, movimientos bancarios.
+    """
+    service = TesoreriaService(db)
+    resultado = service.get_movimientos_consolidados(
+        skip=skip,
+        limit=limit,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        tipo=tipo,
+        es_ingreso=es_ingreso,
+        buscar=buscar,
+    )
+
+    return resultado
 
 
 # ==================== MOVIMIENTOS ====================

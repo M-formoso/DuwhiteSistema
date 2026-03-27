@@ -196,6 +196,36 @@ export interface AnularMovimientoRequest {
   motivo: string;
 }
 
+// ==================== MOVIMIENTO CONSOLIDADO ====================
+
+export interface MovimientoConsolidado {
+  id: string;
+  fecha: string;
+  tipo: string;
+  origen: 'cheque' | 'movimiento_tesoreria' | 'movimiento_bancario';
+  concepto: string;
+  monto: number;
+  es_ingreso: boolean;
+  metodo_pago: string | null;
+  cliente_id: string | null;
+  cliente_nombre: string | null;
+  proveedor_id: string | null;
+  proveedor_nombre: string | null;
+  numero_referencia: string | null;
+  banco: string | null;
+  estado: string | null;
+  created_at: string;
+}
+
+export interface MovimientosConsolidadosResponse {
+  items: MovimientoConsolidado[];
+  total: number;
+  total_ingresos: number;
+  total_egresos: number;
+  skip: number;
+  limit: number;
+}
+
 // ==================== RESUMEN ====================
 
 export interface ResumenTesoreria {
