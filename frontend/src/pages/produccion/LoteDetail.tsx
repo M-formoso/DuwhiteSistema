@@ -41,7 +41,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
-import { formatNumber } from '@/utils/formatters';
+import { formatNumber, formatDate, formatDateTime } from '@/utils/formatters';
 import type { EstadoLote, PrioridadLote, LoteEtapa } from '@/types/produccion';
 import { TIPOS_SERVICIO, ESTADOS_LOTE, PRIORIDADES } from '@/types/produccion';
 
@@ -576,10 +576,7 @@ export default function LoteDetailPage() {
                               {etapa.fecha_inicio && (
                                 <span>
                                   Inicio:{' '}
-                                  {new Date(etapa.fecha_inicio).toLocaleString('es-AR', {
-                                    dateStyle: 'short',
-                                    timeStyle: 'short',
-                                  })}
+                                  {formatDateTime(etapa.fecha_inicio)}
                                 </span>
                               )}
                               {etapa.estado === 'en_proceso' && etapa.fecha_inicio && (
@@ -739,7 +736,7 @@ export default function LoteDetailPage() {
               <div>
                 <p className="text-sm text-gray-500">Fecha de Ingreso</p>
                 <p className="font-medium">
-                  {new Date(lote.fecha_ingreso).toLocaleDateString('es-AR')}
+                  {formatDate(lote.fecha_ingreso)}
                 </p>
               </div>
               {lote.fecha_compromiso && (
@@ -748,7 +745,7 @@ export default function LoteDetailPage() {
                   <p
                     className={`font-medium ${lote.esta_atrasado ? 'text-red-600' : ''}`}
                   >
-                    {new Date(lote.fecha_compromiso).toLocaleDateString('es-AR')}
+                    {formatDate(lote.fecha_compromiso)}
                   </p>
                 </div>
               )}
@@ -756,7 +753,7 @@ export default function LoteDetailPage() {
                 <div>
                   <p className="text-sm text-gray-500">Inicio de Proceso</p>
                   <p className="font-medium">
-                    {new Date(lote.fecha_inicio_proceso).toLocaleDateString('es-AR')}
+                    {formatDate(lote.fecha_inicio_proceso)}
                   </p>
                 </div>
               )}
@@ -764,7 +761,7 @@ export default function LoteDetailPage() {
                 <div>
                   <p className="text-sm text-gray-500">Fin de Proceso</p>
                   <p className="font-medium">
-                    {new Date(lote.fecha_fin_proceso).toLocaleDateString('es-AR')}
+                    {formatDate(lote.fecha_fin_proceso)}
                   </p>
                 </div>
               )}
@@ -822,7 +819,7 @@ export default function LoteDetailPage() {
               <div>
                 <p className="text-gray-500">Fecha de Creación</p>
                 <p className="font-medium">
-                  {new Date(lote.created_at).toLocaleString('es-AR')}
+                  {formatDateTime(lote.created_at)}
                 </p>
               </div>
             </CardContent>

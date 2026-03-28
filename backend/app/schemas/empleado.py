@@ -523,6 +523,23 @@ class RegistroJornalCreate(BaseModel):
     cantidad_horas: Optional[Decimal] = Field(None, ge=0)  # Para HS extras
     notas: Optional[str] = None
 
+    @field_validator('fecha', mode='before')
+    @classmethod
+    def parse_date_without_timezone(cls, v):
+        """Parsea fecha asegurando que no haya conversión de timezone"""
+        if v is None:
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            # Si viene como YYYY-MM-DD, parsearlo directamente
+            if len(v) == 10 and v[4] == '-' and v[7] == '-':
+                return date.fromisoformat(v)
+            # Si viene con tiempo (ISO format con T), tomar solo la parte de fecha
+            if 'T' in v:
+                return date.fromisoformat(v.split('T')[0])
+        return v
+
 
 class RegistroJornalBulkCreate(BaseModel):
     """Schema para registrar múltiples jornales de una vez"""

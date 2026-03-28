@@ -34,15 +34,15 @@ import {
 } from '@/components/ui/table';
 
 import { finanzasService } from '@/services/finanzasService';
-import { formatCurrency, formatDate } from '@/utils/formatters';
+import { formatCurrency, formatDate, getLocalDateString } from '@/utils/formatters';
 import type { ResumenFinanciero, CuentaBancaria } from '@/types/finanzas';
 
 export default function ResumenFinancieroPage() {
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-  const [fechaDesde, setFechaDesde] = useState(firstDayOfMonth.toISOString().split('T')[0]);
-  const [fechaHasta, setFechaHasta] = useState(today.toISOString().split('T')[0]);
+  const [fechaDesde, setFechaDesde] = useState(getLocalDateString(firstDayOfMonth));
+  const [fechaHasta, setFechaHasta] = useState(getLocalDateString(today));
 
   // Cargar resumen financiero
   const {
@@ -125,8 +125,8 @@ export default function ResumenFinancieroPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setFechaDesde(firstDayOfMonth.toISOString().split('T')[0]);
-                setFechaHasta(today.toISOString().split('T')[0]);
+                setFechaDesde(getLocalDateString(firstDayOfMonth));
+                setFechaHasta(getLocalDateString(today));
               }}
             >
               Este Mes

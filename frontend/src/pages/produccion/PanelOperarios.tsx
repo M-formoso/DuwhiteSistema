@@ -35,6 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
+import { formatDate } from '@/utils/formatters';
 import type { KanbanLote, KanbanColumna, PrioridadLote } from '@/types/produccion';
 
 // Tipo local para máquinas disponibles
@@ -197,7 +198,7 @@ function LoteCard({
         {/* Fecha compromiso */}
         {lote.fecha_compromiso && (
           <div className={`text-sm mb-4 ${lote.esta_atrasado ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-            Compromiso: {new Date(lote.fecha_compromiso).toLocaleDateString('es-AR')}
+            Compromiso: {formatDate(lote.fecha_compromiso)}
           </div>
         )}
 

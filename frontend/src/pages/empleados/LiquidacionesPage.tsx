@@ -50,7 +50,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 
 import { empleadoService } from '@/services/empleadoService';
-import { formatCurrency, formatDate } from '@/utils/formatters';
+import { formatCurrency, formatDate, getLocalDateString } from '@/utils/formatters';
 import type { Liquidacion, LiquidacionCreate, EmpleadoList, Empleado } from '@/types/empleado';
 
 const MESES = [
@@ -96,14 +96,14 @@ export default function LiquidacionesPage() {
   const [isPagoDialogOpen, setIsPagoDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedLiquidacion, setSelectedLiquidacion] = useState<Liquidacion | null>(null);
-  const [fechaPago, setFechaPago] = useState(currentDate.toISOString().split('T')[0]);
+  const [fechaPago, setFechaPago] = useState(getLocalDateString(currentDate));
 
   // Form state
   const [formData, setFormData] = useState<LiquidacionFormData>({
     empleado_id: '',
     periodo_mes: currentDate.getMonth() + 1,
     periodo_anio: currentDate.getFullYear(),
-    fecha_liquidacion: currentDate.toISOString().split('T')[0],
+    fecha_liquidacion: getLocalDateString(currentDate),
     bonificaciones: '0',
     otros_haberes: '0',
     otras_deducciones: '0',
@@ -176,7 +176,7 @@ export default function LiquidacionesPage() {
       empleado_id: '',
       periodo_mes: currentDate.getMonth() + 1,
       periodo_anio: currentDate.getFullYear(),
-      fecha_liquidacion: currentDate.toISOString().split('T')[0],
+      fecha_liquidacion: getLocalDateString(currentDate),
       bonificaciones: '0',
       otros_haberes: '0',
       otras_deducciones: '0',
@@ -214,7 +214,7 @@ export default function LiquidacionesPage() {
 
   const handleOpenPagoDialog = (liquidacion: Liquidacion) => {
     setSelectedLiquidacion(liquidacion);
-    setFechaPago(currentDate.toISOString().split('T')[0]);
+    setFechaPago(getLocalDateString(currentDate));
     setIsPagoDialogOpen(true);
   };
 

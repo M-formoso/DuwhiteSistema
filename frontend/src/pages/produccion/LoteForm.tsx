@@ -26,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
+import { getLocalDateString } from '@/utils/formatters';
 import { TIPOS_SERVICIO, PRIORIDADES } from '@/types/produccion';
 import type { LoteProduccionCreate } from '@/types/produccion';
 
@@ -87,7 +88,7 @@ export default function LoteFormPage() {
         peso_entrada_kg: lote.peso_entrada_kg,
         cantidad_prendas: lote.cantidad_prendas,
         fecha_compromiso: lote.fecha_compromiso
-          ? new Date(lote.fecha_compromiso).toISOString().split('T')[0]
+          ? getLocalDateString(new Date(lote.fecha_compromiso))
           : null,
         descripcion: lote.descripcion,
         notas_internas: lote.notas_internas,

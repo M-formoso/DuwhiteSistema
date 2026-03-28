@@ -80,6 +80,29 @@ export function formatDateTime(date: string | Date): string {
 }
 
 /**
+ * Formatea solo la hora en zona horaria Argentina
+ * @param date Fecha/hora a formatear
+ * @returns String formateado (ej: "14:30")
+ */
+export function formatTime(date: string | Date): string {
+  let d: Date;
+  if (typeof date === 'string') {
+    // Si el string no tiene indicador de timezone, agregar Z para interpretarlo como UTC
+    const dateStr = date.includes('Z') || date.includes('+') || date.includes('-', 10)
+      ? date
+      : date + 'Z';
+    d = new Date(dateStr);
+  } else {
+    d = date;
+  }
+  return new Intl.DateTimeFormat('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  }).format(d);
+}
+
+/**
  * Formatea un CUIT argentino
  * @param cuit CUIT sin formato (ej: "20123456789")
  * @returns CUIT formateado (ej: "20-12345678-9")

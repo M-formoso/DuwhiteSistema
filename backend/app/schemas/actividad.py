@@ -6,7 +6,9 @@ from datetime import date, datetime
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas import parse_date_without_timezone
 
 
 # Enums como strings
@@ -44,6 +46,11 @@ class ActividadBase(BaseModel):
     etiquetas: Optional[List[str]] = []
     notas: Optional[str] = None
 
+    @field_validator('fecha_limite', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
 
 class ActividadCreate(ActividadBase):
     """Schema para crear actividad."""
@@ -61,6 +68,11 @@ class ActividadUpdate(BaseModel):
     asignado_a_id: Optional[UUID] = None
     etiquetas: Optional[List[str]] = None
     notas: Optional[str] = None
+
+    @field_validator('fecha_limite', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
 
 
 class ActividadCambiarEstado(BaseModel):

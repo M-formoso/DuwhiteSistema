@@ -33,7 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 import { finanzasService } from '@/services/finanzasService';
-import { formatNumber } from '@/utils/formatters';
+import { formatNumber, formatDate, formatTime } from '@/utils/formatters';
 import {
   CATEGORIAS_INGRESO,
   CATEGORIAS_EGRESO,
@@ -196,7 +196,7 @@ export default function CajaPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Caja</h1>
           <p className="text-gray-500">
-            {caja ? `Caja #${caja.numero} - ${new Date(caja.fecha).toLocaleDateString('es-AR')}` : 'Sin caja abierta'}
+            {caja ? `Caja #${caja.numero} - ${formatDate(caja.fecha)}` : 'Sin caja abierta'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -321,12 +321,7 @@ export default function CajaPage() {
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <Badge variant="outline">{mov.categoria}</Badge>
                           <span>{mov.medio_pago}</span>
-                          <span>
-                            {new Date(mov.created_at).toLocaleTimeString('es-AR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
+                          <span>{formatTime(mov.created_at)}</span>
                         </div>
                       </div>
                     </div>

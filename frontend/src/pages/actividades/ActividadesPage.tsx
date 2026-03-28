@@ -61,6 +61,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatDate, getLocalDateString } from '@/utils/formatters';
 
 import {
   actividadService,
@@ -100,9 +101,9 @@ const getPrioridadBadge = (prioridad: PrioridadActividad) => {
   return config || PRIORIDADES[0];
 };
 
-const formatDate = (dateString?: string) => {
+const formatDateOrDash = (dateString?: string) => {
   if (!dateString) return '-';
-  return new Date(dateString).toLocaleDateString('es-AR');
+  return formatDate(dateString);
 };
 
 const isVencida = (fechaLimite?: string) => {
@@ -459,7 +460,7 @@ export default function ActividadesPage() {
     }
 
     const getActividadesDelDia = (fecha: Date) => {
-      const fechaStr = fecha.toISOString().split('T')[0];
+      const fechaStr = getLocalDateString(fecha);
       return actividadesFiltradas.filter((a) => a.fecha_limite === fechaStr);
     };
 

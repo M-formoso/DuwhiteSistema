@@ -7,7 +7,9 @@ from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas import parse_date_without_timezone
 
 
 # ==================== CHEQUE ====================
@@ -34,6 +36,11 @@ class ChequeCreate(BaseModel):
 
     notas: Optional[str] = None
 
+    @field_validator('fecha_emision', 'fecha_vencimiento', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
 
 class ChequeUpdate(BaseModel):
     """Schema para actualizar un cheque."""
@@ -58,6 +65,11 @@ class ChequeUpdate(BaseModel):
 
     notas: Optional[str] = None
     motivo_rechazo: Optional[str] = None
+
+    @field_validator('fecha_emision', 'fecha_vencimiento', 'fecha_cobro', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
 
 
 class ChequeResponse(BaseModel):
@@ -128,17 +140,32 @@ class DepositarChequeRequest(BaseModel):
     fecha_deposito: date = Field(default_factory=date.today)
     notas: Optional[str] = None
 
+    @field_validator('fecha_deposito', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
 
 class CobrarChequeRequest(BaseModel):
     """Schema para marcar cheque como cobrado."""
     fecha_cobro: date = Field(default_factory=date.today)
     notas: Optional[str] = None
 
+    @field_validator('fecha_cobro', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
 
 class RechazarChequeRequest(BaseModel):
     """Schema para rechazar un cheque."""
     motivo_rechazo: str = Field(..., min_length=3)
     fecha_rechazo: date = Field(default_factory=date.today)
+
+    @field_validator('fecha_rechazo', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
 
 
 class EntregarChequeRequest(BaseModel):
@@ -147,6 +174,11 @@ class EntregarChequeRequest(BaseModel):
     concepto: str = Field(..., min_length=3)
     fecha_entrega: date = Field(default_factory=date.today)
     notas: Optional[str] = None
+
+    @field_validator('fecha_entrega', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
 
 
 # ==================== MOVIMIENTO TESORERIA ====================
@@ -179,6 +211,11 @@ class MovimientoTesoreriaCreate(BaseModel):
 
     notas: Optional[str] = None
     comprobante: Optional[str] = None
+
+    @field_validator('fecha_movimiento', 'fecha_valor', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
 
 
 class MovimientoTesoreriaResponse(BaseModel):

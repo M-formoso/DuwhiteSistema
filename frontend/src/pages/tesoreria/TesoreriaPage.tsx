@@ -52,7 +52,7 @@ import { tesoreriaService } from '@/services/tesoreriaService';
 import { clienteService } from '@/services/clienteService';
 import { proveedorService } from '@/services/proveedorService';
 import { finanzasService } from '@/services/finanzasService';
-import { formatNumber, getLocalDateString } from '@/utils/formatters';
+import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import {
   TIPOS_CHEQUE,
   ORIGENES_CHEQUE,
@@ -595,7 +595,7 @@ export default function TesoreriaPage() {
   };
 
   const formatearFecha = (fecha: string) => {
-    return new Date(fecha).toLocaleDateString('es-AR');
+    return formatDate(fecha);
   };
 
   if (loadingResumen) {

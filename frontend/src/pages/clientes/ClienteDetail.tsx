@@ -47,7 +47,7 @@ import { useToast } from '@/hooks/use-toast';
 
 import { clienteService } from '@/services/clienteService';
 import { usuarioService, type Usuario } from '@/services/usuarioService';
-import { formatNumber } from '@/utils/formatters';
+import { formatNumber, formatDate } from '@/utils/formatters';
 import { TIPOS_CLIENTE, CONDICIONES_IVA, MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
 
@@ -438,7 +438,7 @@ export default function ClienteDetailPage() {
                       <div>
                         <p className="font-mono font-medium">{pedido.numero}</p>
                         <p className="text-sm text-gray-500">
-                          {new Date(pedido.fecha_pedido).toLocaleDateString('es-AR')}
+                          {formatDate(pedido.fecha_pedido)}
                         </p>
                       </div>
                       <div className="text-right">
@@ -705,13 +705,13 @@ export default function ClienteDetailPage() {
               {cliente.fecha_alta && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">Fecha de alta:</span>
-                  <span>{new Date(cliente.fecha_alta).toLocaleDateString('es-AR')}</span>
+                  <span>{formatDate(cliente.fecha_alta)}</span>
                 </div>
               )}
               {cliente.fecha_ultima_compra && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">Última compra:</span>
-                  <span>{new Date(cliente.fecha_ultima_compra).toLocaleDateString('es-AR')}</span>
+                  <span>{formatDate(cliente.fecha_ultima_compra)}</span>
                 </div>
               )}
             </CardContent>
@@ -738,7 +738,7 @@ export default function ClienteDetailPage() {
                       <div>
                         <p className="font-medium">{mov.concepto}</p>
                         <p className="text-xs text-gray-500">
-                          {new Date(mov.fecha_movimiento).toLocaleDateString('es-AR')}
+                          {formatDate(mov.fecha_movimiento)}
                         </p>
                       </div>
                       <span

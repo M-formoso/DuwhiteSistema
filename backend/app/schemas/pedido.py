@@ -5,7 +5,9 @@ Schemas de Pedido.
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas import parse_date_without_timezone
 
 
 # ==================== DETALLE PEDIDO ====================
@@ -51,6 +53,11 @@ class PedidoBase(BaseModel):
     notas_internas: Optional[str] = None
     observaciones_entrega: Optional[str] = None
 
+    @field_validator('fecha_pedido', 'fecha_retiro', 'fecha_entrega_estimada', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
 
 class PedidoCreate(PedidoBase):
     """Schema para crear pedido."""
@@ -68,6 +75,11 @@ class PedidoUpdate(BaseModel):
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
     observaciones_entrega: Optional[str] = None
+
+    @field_validator('fecha_retiro', 'fecha_entrega_estimada', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
 
 
 class PedidoResponse(PedidoBase):

@@ -50,7 +50,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 
 import { empleadoService } from '@/services/empleadoService';
-import { formatCurrency, formatDate } from '@/utils/formatters';
+import { formatCurrency, formatDate, getLocalDateString } from '@/utils/formatters';
 import type { MovimientoNomina, MovimientoNominaCreate, EmpleadoList } from '@/types/empleado';
 import { TIPOS_MOVIMIENTO_NOMINA } from '@/types/empleado';
 
@@ -123,7 +123,7 @@ export default function NominaPage() {
   });
 
   const [pagoData, setPagoData] = useState<PagoFormData>({
-    fecha_pago: currentDate.toISOString().split('T')[0],
+    fecha_pago: getLocalDateString(currentDate),
     medio_pago: 'efectivo',
     comprobante: '',
     registrar_en_caja: true,
@@ -244,7 +244,7 @@ export default function NominaPage() {
   const handleOpenPagoDialog = (movimiento: MovimientoNomina) => {
     setSelectedMovimiento(movimiento);
     setPagoData({
-      fecha_pago: currentDate.toISOString().split('T')[0],
+      fecha_pago: getLocalDateString(currentDate),
       medio_pago: 'efectivo',
       comprobante: '',
       registrar_en_caja: true,

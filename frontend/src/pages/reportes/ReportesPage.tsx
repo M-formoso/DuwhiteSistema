@@ -55,6 +55,7 @@ import {
 } from 'recharts';
 
 import { reporteService, type Agrupacion } from '@/services/reporteService';
+import { getLocalDateString } from '@/utils/formatters';
 
 const COLORS = ['#00BCD4', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -76,8 +77,8 @@ function getDefaultDates() {
   const hoy = new Date();
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
   return {
-    desde: inicioMes.toISOString().split('T')[0],
-    hasta: hoy.toISOString().split('T')[0],
+    desde: getLocalDateString(inicioMes),
+    hasta: getLocalDateString(hoy),
   };
 }
 
@@ -346,8 +347,8 @@ export default function ReportesPage() {
                   const hoy = new Date();
                   const inicioSemana = new Date(hoy);
                   inicioSemana.setDate(hoy.getDate() - hoy.getDay());
-                  setFechaDesde(inicioSemana.toISOString().split('T')[0]);
-                  setFechaHasta(hoy.toISOString().split('T')[0]);
+                  setFechaDesde(getLocalDateString(inicioSemana));
+                  setFechaHasta(getLocalDateString(hoy));
                 }}
               >
                 Esta semana
@@ -358,8 +359,8 @@ export default function ReportesPage() {
                 onClick={() => {
                   const hoy = new Date();
                   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-                  setFechaDesde(inicioMes.toISOString().split('T')[0]);
-                  setFechaHasta(hoy.toISOString().split('T')[0]);
+                  setFechaDesde(getLocalDateString(inicioMes));
+                  setFechaHasta(getLocalDateString(hoy));
                 }}
               >
                 Este mes
@@ -371,8 +372,8 @@ export default function ReportesPage() {
                   const hoy = new Date();
                   const hace30 = new Date(hoy);
                   hace30.setDate(hoy.getDate() - 30);
-                  setFechaDesde(hace30.toISOString().split('T')[0]);
-                  setFechaHasta(hoy.toISOString().split('T')[0]);
+                  setFechaDesde(getLocalDateString(hace30));
+                  setFechaHasta(getLocalDateString(hoy));
                 }}
               >
                 Últimos 30 días

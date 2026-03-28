@@ -57,7 +57,7 @@ import {
   updateJornal,
   deleteJornal,
 } from '@/services/empleadoService';
-import { formatNumber } from '@/utils/formatters';
+import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import type { RegistroJornalCreate, ResumenMensualGeneral, EmpleadoList, MovimientoNomina } from '@/types/empleado';
 import {
   AlertDialog,
@@ -111,7 +111,7 @@ export default function JornalesPage() {
     notas: string;
   }>({
     empleado_id: '',
-    fecha: currentDate.toISOString().split('T')[0],
+    fecha: getLocalDateString(currentDate),
     tipo: 'adelanto',
     monto: '',
     cantidad_horas: '',
@@ -230,7 +230,7 @@ export default function JornalesPage() {
   const resetRegistroForm = () => {
     setRegistroForm({
       empleado_id: '',
-      fecha: currentDate.toISOString().split('T')[0],
+      fecha: getLocalDateString(currentDate),
       tipo: 'adelanto',
       monto: '',
       cantidad_horas: '',
@@ -581,9 +581,7 @@ export default function JornalesPage() {
                                       {movimientosData.items.map((mov) => (
                                         <tr key={mov.id} className="border-b border-border">
                                           <td className="px-3 py-2 text-sm">
-                                            {mov.fecha
-                                              ? new Date(mov.fecha).toLocaleDateString('es-AR')
-                                              : '-'}
+                                            {mov.fecha ? formatDate(mov.fecha) : '-'}
                                           </td>
                                           <td className="px-3 py-2 text-sm">Sem {mov.semana || '-'}</td>
                                           <td className="px-3 py-2">
@@ -946,7 +944,7 @@ export default function JornalesPage() {
               {selectedJornal?.tipo === 'adelanto' ? 'adelanto' : 'registro de horas extras'}?
               {selectedJornal && (
                 <div className="mt-2 p-3 bg-muted rounded-lg text-sm">
-                  <p>Fecha: {selectedJornal.fecha ? new Date(selectedJornal.fecha).toLocaleDateString('es-AR') : '-'}</p>
+                  <p>Fecha: {selectedJornal.fecha ? formatDate(selectedJornal.fecha) : '-'}</p>
                   <p>Monto: {formatNumber(selectedJornal.monto, 'currency')}</p>
                   {selectedJornal.tipo === 'hora_extra' && (
                     <p>Horas: {selectedJornal.cantidad_horas}</p>

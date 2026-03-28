@@ -52,6 +52,7 @@ import {
   getTipoContratacionLabel,
 } from '@/types/empleado';
 import type { MovimientoNominaCreate, TipoMovimientoNomina } from '@/types/empleado';
+import { formatDate, getLocalDateString } from '@/utils/formatters';
 
 const currentDate = new Date();
 
@@ -93,7 +94,7 @@ export default function EmpleadoDetailPage() {
 
   // Form para pago
   const [pagoForm, setPagoForm] = useState({
-    fecha_pago: currentDate.toISOString().split('T')[0],
+    fecha_pago: getLocalDateString(currentDate),
     medio_pago: 'efectivo',
     comprobante: '',
   });
@@ -210,7 +211,7 @@ export default function EmpleadoDetailPage() {
   const openPagoModal = (movId: string) => {
     setSelectedMovimiento(movId);
     setPagoForm({
-      fecha_pago: currentDate.toISOString().split('T')[0],
+      fecha_pago: getLocalDateString(currentDate),
       medio_pago: 'efectivo',
       comprobante: '',
     });
@@ -233,11 +234,9 @@ export default function EmpleadoDetailPage() {
     );
   }
 
-  const formatDate = (dateStr: string | null) => {
+  const formatDateLocal = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    // Parsear como fecha local para evitar problemas de timezone
-    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString('es-AR');
+    return formatDate(dateStr);
   };
 
   const formatTime = (timeStr: string | null) => {
@@ -335,7 +334,7 @@ export default function EmpleadoDetailPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Fecha de Nacimiento</p>
                 <p className="text-text-primary font-medium">
-                  {formatDate(empleado.fecha_nacimiento)}
+                  {formatDateLocal(empleado.fecha_nacimiento)}
                 </p>
               </div>
               <div>
@@ -415,7 +414,7 @@ export default function EmpleadoDetailPage() {
                 <p className="text-sm text-muted-foreground">Fecha de Ingreso</p>
                 <p className="text-text-primary font-medium flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
-                  {formatDate(empleado.fecha_ingreso)}
+                  {formatDateLocal(empleado.fecha_ingreso)}
                 </p>
               </div>
               <div>
@@ -837,7 +836,7 @@ export default function EmpleadoDetailPage() {
                                 </div>
                                 <div>
                                   <span className="font-medium">Pagado:</span>
-                                  <p>{formatDate(mov.fecha_pago)}</p>
+                                  <p>{formatDateLocal(mov.fecha_pago)}</p>
                                   {mov.medio_pago && (
                                     <p className="capitalize">{mov.medio_pago}</p>
                                   )}
@@ -891,7 +890,7 @@ export default function EmpleadoDetailPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-text-primary">{formatTime(asist.hora)}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(asist.fecha)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateLocal(asist.fecha)}</p>
                     </div>
                   </div>
                 ))}
