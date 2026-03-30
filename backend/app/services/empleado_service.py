@@ -488,8 +488,8 @@ class EmpleadoService:
         total_result = self.db.execute(count_query)
         total = total_result.scalar() or 0
 
-        # Paginar
-        query = query.order_by(MovimientoNomina.created_at.desc())
+        # Ordenar por fecha del movimiento (más reciente primero), luego por created_at
+        query = query.order_by(MovimientoNomina.fecha.desc(), MovimientoNomina.created_at.desc())
         query = query.offset(skip).limit(limit)
 
         result = self.db.execute(query)
