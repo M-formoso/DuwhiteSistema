@@ -43,12 +43,23 @@ export function formatNumber(num: number, formatOrDecimals: number | 'currency' 
  * @returns String formateado (ej: "15/01/2026")
  */
 export function formatDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  let d: Date;
+  if (typeof date === 'string') {
+    // Si es solo fecha (YYYY-MM-DD), parsear como fecha local para evitar problemas de timezone
+    if (date.length === 10 && date[4] === '-' && date[7] === '-') {
+      const [year, month, day] = date.split('-').map(Number);
+      d = new Date(year, month - 1, day);
+    } else {
+      // Si tiene tiempo, parsear normalmente
+      d = new Date(date);
+    }
+  } else {
+    d = date;
+  }
   return new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-    timeZone: 'America/Argentina/Buenos_Aires',
   }).format(d);
 }
 
