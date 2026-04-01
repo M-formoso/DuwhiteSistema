@@ -379,7 +379,7 @@ export default function KanbanBoardPage() {
                         <div className="flex items-start justify-between mb-2">
                           <span className="font-mono font-medium text-sm">#{pedido.numero}</span>
                           <Badge className="bg-amber-100 text-amber-700 border-amber-300">
-                            Levantado
+                            Confirmado
                           </Badge>
                         </div>
 
@@ -397,9 +397,9 @@ export default function KanbanBoardPage() {
                           </span>
                         </div>
 
-                        {pedido.fecha_retiro && (
+                        {pedido.fecha_pedido && (
                           <div className="text-xs text-gray-400 mt-2">
-                            Retirado: {formatDateAR(pedido.fecha_retiro)}
+                            Pedido: {formatDateAR(pedido.fecha_pedido)}
                           </div>
                         )}
 

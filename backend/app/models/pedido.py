@@ -44,8 +44,8 @@ class Pedido(Base, BaseModelMixin):
     # Cliente
     cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False)
 
-    # Estado
-    estado = Column(String(20), nullable=False, default=EstadoPedido.BORRADOR.value)
+    # Estado - Por defecto "confirmado" para que aparezca en producción inmediatamente
+    estado = Column(String(20), nullable=False, default=EstadoPedido.CONFIRMADO.value)
 
     # Fechas
     fecha_pedido = Column(Date, nullable=False)

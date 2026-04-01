@@ -822,7 +822,7 @@ class ProduccionService:
     def get_pedidos_en_camino(self) -> List[dict]:
         """
         Obtiene los pedidos que están 'en camino' a producción.
-        Son pedidos confirmados con fecha de retiro pero sin lote de producción asociado.
+        Son pedidos confirmados (con o sin fecha de retiro) que no tienen lote de producción asociado.
         """
         from app.models.pedido import Pedido
         from sqlalchemy.orm import aliased
@@ -837,17 +837,16 @@ class ProduccionService:
             .subquery()
         )
 
-        # Pedidos confirmados con fecha_retiro pero sin lote
+        # Pedidos confirmados sin lote de producción
         pedidos = (
             self.db.query(Pedido)
             .filter(
                 Pedido.estado == "confirmado",
-                Pedido.fecha_retiro.isnot(None),
                 Pedido.activo == True,
                 ~Pedido.id.in_(self.db.query(pedidos_con_lote.c.pedido_id)),
             )
             .options(joinedload(Pedido.cliente))
-            .order_by(Pedido.fecha_retiro.desc())
+            .order_by(Pedido.fecha_pedido.desc())
             .all()
         )
 
