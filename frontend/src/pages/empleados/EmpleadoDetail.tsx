@@ -313,7 +313,7 @@ export default function EmpleadoDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
         {/* Main Info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Datos Personales */}
@@ -495,7 +495,7 @@ export default function EmpleadoDetailPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2">
           {/* Tipo de Contratación */}
           <div className={`border rounded-lg p-6 ${
             empleado.tipo_contratacion === 'blanco'
@@ -581,18 +581,18 @@ export default function EmpleadoDetailPage() {
             // Calcular totales por tipo
             const totalAdelantos = movimientosMesActual
               .filter(m => m.tipo === 'adelanto')
-              .reduce((sum, m) => sum + m.monto, 0);
+              .reduce((sum, m) => sum + (Number(m.monto) || 0), 0);
 
             const totalBonos = movimientosMesActual
               .filter(m => m.tipo === 'bono' || m.tipo === 'hora_extra')
-              .reduce((sum, m) => sum + m.monto, 0);
+              .reduce((sum, m) => sum + (Number(m.monto) || 0), 0);
 
             const totalDescuentos = movimientosMesActual
               .filter(m => m.tipo === 'descuento' || m.es_debito)
-              .reduce((sum, m) => sum + m.monto, 0);
+              .reduce((sum, m) => sum + (Number(m.monto) || 0), 0);
 
             // Saldo a pagar = Salario Base - Adelantos + Bonos - Descuentos
-            const saldoAPagar = empleado.salario_base - totalAdelantos + totalBonos - totalDescuentos;
+            const saldoAPagar = (Number(empleado.salario_base) || 0) - totalAdelantos + totalBonos - totalDescuentos;
 
             const mesNombre = MESES.find(m => m.value === mesActual)?.label || '';
 
@@ -661,8 +661,8 @@ export default function EmpleadoDetailPage() {
           })()}
 
           {/* Adelantos y Movimientos */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-card border border-border rounded-lg p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
                 <Banknote className="w-5 h-5 text-primary" />
                 Movimientos de Nómina
@@ -679,7 +679,7 @@ export default function EmpleadoDetailPage() {
             {movimientosData?.items && (() => {
               const adelantos = movimientosData.items.filter(m => m.tipo === 'adelanto');
               const adelantosPendientes = adelantos.filter(m => !m.pagado);
-              const totalPendiente = adelantosPendientes.reduce((sum, m) => sum + m.monto, 0);
+              const totalPendiente = adelantosPendientes.reduce((sum, m) => sum + (Number(m.monto) || 0), 0);
               const movimientosPendientes = movimientosData.items.filter(m => !m.pagado);
               const movimientosPagados = movimientosData.items.filter(m => m.pagado);
 
@@ -710,6 +710,7 @@ export default function EmpleadoDetailPage() {
                   {movimientosPendientes.length > 0 ? (
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-muted-foreground">Pendientes de pago:</p>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                       {movimientosPendientes.map((mov) => (
                         <div
                           key={mov.id}
@@ -764,6 +765,7 @@ export default function EmpleadoDetailPage() {
                           )}
                         </div>
                       ))}
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground flex items-center gap-2">
