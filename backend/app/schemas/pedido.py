@@ -119,6 +119,7 @@ class PedidoList(BaseModel):
     cliente_nombre: Optional[str] = None
     estado: str
     fecha_pedido: date
+    fecha_retiro: Optional[date] = None
     fecha_entrega_estimada: Optional[date] = None
     total: Decimal
     saldo_pendiente: Decimal

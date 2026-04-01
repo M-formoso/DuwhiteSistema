@@ -143,6 +143,7 @@ export interface PedidoList {
   cliente_nombre: string | null;
   estado: EstadoPedido;
   fecha_pedido: string;
+  fecha_retiro: string | null;
   fecha_entrega_estimada: string | null;
   total: number;
   saldo_pendiente: number;

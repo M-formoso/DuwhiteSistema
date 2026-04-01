@@ -102,6 +102,19 @@ def obtener_kanban(
     return service.get_kanban_board()
 
 
+@router.get("/pedidos-en-camino", response_model=List[Dict[str, Any]])
+def obtener_pedidos_en_camino(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Obtiene los pedidos que están 'en camino' a producción.
+    Son pedidos confirmados con fecha de retiro pero sin lote de producción asociado.
+    """
+    service = ProduccionService(db)
+    return service.get_pedidos_en_camino()
+
+
 # ==================== ETAPAS ====================
 
 @router.get("/etapas", response_model=List[EtapaProduccionResponse])

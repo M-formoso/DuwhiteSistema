@@ -53,6 +53,23 @@ export async function getKanbanBoard(): Promise<KanbanBoard> {
   return response.data;
 }
 
+export interface PedidoEnCamino {
+  id: string;
+  numero: string;
+  cliente_id: string;
+  cliente_nombre: string | null;
+  fecha_pedido: string | null;
+  fecha_retiro: string | null;
+  fecha_entrega_estimada: string | null;
+  total: number;
+  notas: string | null;
+}
+
+export async function getPedidosEnCamino(): Promise<PedidoEnCamino[]> {
+  const response = await api.get('/produccion/pedidos-en-camino');
+  return response.data;
+}
+
 // ==================== ETAPAS ====================
 
 export async function getEtapas(soloActivas: boolean = true): Promise<EtapaProduccion[]> {
@@ -263,6 +280,7 @@ export const produccionService = {
   validarPin,
   // Kanban
   getKanbanBoard,
+  getPedidosEnCamino,
   // Etapas
   getEtapas,
   getEtapasLista,

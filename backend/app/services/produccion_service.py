@@ -819,6 +819,54 @@ class ProduccionService:
             lotes_atrasados=lotes_atrasados,
         )
 
+    def get_pedidos_en_camino(self) -> List[dict]:
+        """
+        Obtiene los pedidos que están 'en camino' a producción.
+        Son pedidos confirmados con fecha de retiro pero sin lote de producción asociado.
+        """
+        from app.models.pedido import Pedido
+        from sqlalchemy.orm import aliased
+
+        # Subquery para encontrar pedidos que ya tienen lote
+        pedidos_con_lote = (
+            self.db.query(LoteProduccion.pedido_id)
+            .filter(
+                LoteProduccion.pedido_id.isnot(None),
+                LoteProduccion.activo == True,
+            )
+            .subquery()
+        )
+
+        # Pedidos confirmados con fecha_retiro pero sin lote
+        pedidos = (
+            self.db.query(Pedido)
+            .filter(
+                Pedido.estado == "confirmado",
+                Pedido.fecha_retiro.isnot(None),
+                Pedido.activo == True,
+                ~Pedido.id.in_(self.db.query(pedidos_con_lote.c.pedido_id)),
+            )
+            .options(joinedload(Pedido.cliente))
+            .order_by(Pedido.fecha_retiro.desc())
+            .all()
+        )
+
+        result = []
+        for p in pedidos:
+            result.append({
+                "id": str(p.id),
+                "numero": p.numero,
+                "cliente_id": str(p.cliente_id),
+                "cliente_nombre": p.cliente.razon_social if p.cliente else None,
+                "fecha_pedido": p.fecha_pedido.isoformat() if p.fecha_pedido else None,
+                "fecha_retiro": p.fecha_retiro.isoformat() if p.fecha_retiro else None,
+                "fecha_entrega_estimada": p.fecha_entrega_estimada.isoformat() if p.fecha_entrega_estimada else None,
+                "total": float(p.total) if p.total else 0,
+                "notas": p.notas,
+            })
+
+        return result
+
     # ==================== HELPERS ====================
 
     def _generar_numero_lote(self) -> str:

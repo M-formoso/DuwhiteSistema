@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
+import { clienteService } from '@/services/clienteService';
 import { getLocalDateString } from '@/utils/formatters';
 import { TIPOS_SERVICIO, PRIORIDADES } from '@/types/produccion';
 import type { LoteProduccionCreate } from '@/types/produccion';
@@ -49,10 +50,14 @@ type LoteFormData = z.infer<typeof loteSchema>;
 
 export default function LoteFormPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isEditing = Boolean(id);
+
+  // Leer pedido_id de query params (para crear lote desde pedido en camino)
+  const pedidoIdFromUrl = searchParams.get('pedido_id');
 
   const {
     register,
@@ -78,6 +83,13 @@ export default function LoteFormPage() {
     enabled: isEditing,
   });
 
+  // Cargar pedido si viene de la URL (para crear lote desde pedido en camino)
+  const { data: pedidoFromUrl } = useQuery({
+    queryKey: ['pedido', pedidoIdFromUrl],
+    queryFn: () => clienteService.getPedido(pedidoIdFromUrl!),
+    enabled: Boolean(pedidoIdFromUrl) && !isEditing,
+  });
+
   useEffect(() => {
     if (lote) {
       reset({
@@ -99,12 +111,29 @@ export default function LoteFormPage() {
     }
   }, [lote, reset]);
 
+  // Auto-completar datos del pedido si viene de la URL
+  useEffect(() => {
+    if (pedidoFromUrl && !isEditing) {
+      setValue('pedido_id', pedidoFromUrl.id);
+      setValue('cliente_id', pedidoFromUrl.cliente_id);
+      if (pedidoFromUrl.fecha_entrega_estimada) {
+        setValue('fecha_compromiso', getLocalDateString(new Date(pedidoFromUrl.fecha_entrega_estimada)));
+      }
+      if (pedidoFromUrl.notas) {
+        setValue('descripcion', `Pedido #${pedidoFromUrl.numero} - ${pedidoFromUrl.notas}`);
+      } else {
+        setValue('descripcion', `Pedido #${pedidoFromUrl.numero}`);
+      }
+    }
+  }, [pedidoFromUrl, isEditing, setValue]);
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: (data: LoteProduccionCreate) => produccionService.createLote(data),
     onSuccess: (newLote) => {
       queryClient.invalidateQueries({ queryKey: ['lotes'] });
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos-en-camino'] });
       toast({
         title: 'Lote creado',
         description: `El lote ${newLote.numero} ha sido creado exitosamente.`,
