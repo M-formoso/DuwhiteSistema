@@ -11,6 +11,8 @@ export type TipoAsistencia = 'entrada' | 'salida' | 'inicio_break' | 'fin_break'
 export type TipoMovimientoNomina =
   | 'salario'
   | 'hora_extra'
+  | 'franco'
+  | 'feriado'
   | 'bono'
   | 'comision'
   | 'aguinaldo'
@@ -355,6 +357,8 @@ export const ESTADOS_EMPLEADO = [
 export const TIPOS_MOVIMIENTO_NOMINA = [
   { value: 'salario', label: 'Salario' },
   { value: 'hora_extra', label: 'Hora Extra' },
+  { value: 'franco', label: 'Franco Trabajado' },
+  { value: 'feriado', label: 'Feriado Trabajado' },
   { value: 'bono', label: 'Bono' },
   { value: 'comision', label: 'Comisión' },
   { value: 'aguinaldo', label: 'Aguinaldo' },
@@ -422,7 +426,7 @@ export const getTipoContratacionLabel = (tipo: TipoContratacion): string => {
 export interface RegistroJornalCreate {
   empleado_id: string;
   fecha: string;
-  tipo: 'adelanto' | 'hora_extra';
+  tipo: 'adelanto' | 'hora_extra' | 'franco' | 'feriado';
   monto?: number;
   cantidad_horas?: number;
   notas?: string;
@@ -437,6 +441,10 @@ export interface ResumenSemanalEmpleado {
   total_adelantos: number;
   total_horas_extras: number;
   total_monto_extras: number;
+  total_francos: number;
+  total_monto_francos: number;
+  total_feriados: number;
+  total_monto_feriados: number;
   dias_con_movimiento: number;
 }
 
@@ -451,6 +459,10 @@ export interface ResumenMensualEmpleado {
   total_adelantos: number;
   total_horas_extras: number;
   total_monto_extras: number;
+  total_francos: number;
+  total_monto_francos: number;
+  total_feriados: number;
+  total_monto_feriados: number;
   total_general: number;
   sueldo_final: number;
 }
@@ -462,5 +474,9 @@ export interface ResumenMensualGeneral {
   total_adelantos: number;
   total_horas_extras: number;
   total_monto_extras: number;
+  total_francos: number;
+  total_monto_francos: number;
+  total_feriados: number;
+  total_monto_feriados: number;
   total_general: number;
 }

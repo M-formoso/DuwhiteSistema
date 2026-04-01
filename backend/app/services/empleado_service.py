@@ -790,7 +790,7 @@ class EmpleadoService:
         registrado_por_id: UUID
     ) -> MovimientoNomina:
         """
-        Registra un adelanto o horas extras para un empleado en una fecha específica.
+        Registra un adelanto, horas extras, franco o feriado para un empleado en una fecha específica.
         """
         empleado = self.get_empleado(data.empleado_id)
         if not empleado:
@@ -842,6 +842,61 @@ class EmpleadoService:
                 es_debito=False,  # Horas extras se suman
                 registrado_por_id=registrado_por_id
             )
+
+        elif data.tipo == "franco":
+            if not data.cantidad_horas or data.cantidad_horas <= 0:
+                raise ValueError("Cantidad de horas debe ser mayor a 0")
+
+            # Franco trabajado usa el mismo valor hora
+            valor_hora = empleado.valor_hora_extra or empleado.salario_hora or Decimal("0")
+            if valor_hora <= 0:
+                raise ValueError("El empleado no tiene configurado un valor de hora")
+
+            monto = data.cantidad_horas * valor_hora
+
+            movimiento = MovimientoNomina(
+                empleado_id=data.empleado_id,
+                tipo=TipoMovimientoNomina.FRANCO.value,
+                concepto=f"Franco trabajado {data.fecha.strftime('%d/%m/%Y')} ({data.cantidad_horas}hs)",
+                descripcion=data.notas,
+                periodo_mes=data.fecha.month,
+                periodo_anio=data.fecha.year,
+                fecha=data.fecha,
+                semana=semana,
+                cantidad_horas=data.cantidad_horas,
+                valor_hora=valor_hora,
+                monto=monto,
+                es_debito=False,  # Franco se suma al sueldo
+                registrado_por_id=registrado_por_id
+            )
+
+        elif data.tipo == "feriado":
+            if not data.cantidad_horas or data.cantidad_horas <= 0:
+                raise ValueError("Cantidad de horas debe ser mayor a 0")
+
+            # Feriado trabajado generalmente paga doble
+            valor_hora = empleado.valor_hora_extra or empleado.salario_hora or Decimal("0")
+            if valor_hora <= 0:
+                raise ValueError("El empleado no tiene configurado un valor de hora")
+
+            # Feriado paga x2
+            monto = data.cantidad_horas * valor_hora * Decimal("2")
+
+            movimiento = MovimientoNomina(
+                empleado_id=data.empleado_id,
+                tipo=TipoMovimientoNomina.FERIADO.value,
+                concepto=f"Feriado trabajado {data.fecha.strftime('%d/%m/%Y')} ({data.cantidad_horas}hs x2)",
+                descripcion=data.notas,
+                periodo_mes=data.fecha.month,
+                periodo_anio=data.fecha.year,
+                fecha=data.fecha,
+                semana=semana,
+                cantidad_horas=data.cantidad_horas,
+                valor_hora=valor_hora * Decimal("2"),  # Guardamos el valor con el multiplicador
+                monto=monto,
+                es_debito=False,  # Feriado se suma al sueldo
+                registrado_por_id=registrado_por_id
+            )
         else:
             raise ValueError(f"Tipo de jornal inválido: {data.tipo}")
 
@@ -852,7 +907,7 @@ class EmpleadoService:
 
     def get_resumen_mensual_jornales(self, mes: int, anio: int) -> dict:
         """
-        Obtiene resumen mensual de adelantos y horas extras de todos los empleados.
+        Obtiene resumen mensual de adelantos, horas extras, francos y feriados de todos los empleados.
         Estructura similar al Excel de ADELANTO + HS. EXTRAS.
         """
         # Obtener empleados activos
@@ -867,6 +922,10 @@ class EmpleadoService:
         total_adelantos_global = Decimal("0")
         total_horas_global = Decimal("0")
         total_monto_extras_global = Decimal("0")
+        total_francos_global = Decimal("0")
+        total_monto_francos_global = Decimal("0")
+        total_feriados_global = Decimal("0")
+        total_monto_feriados_global = Decimal("0")
 
         for empleado in empleados:
             resumen_emp = self.get_resumen_empleado_jornales(empleado.id, mes, anio)
@@ -875,6 +934,14 @@ class EmpleadoService:
             total_adelantos_global += resumen_emp["total_adelantos"]
             total_horas_global += resumen_emp["total_horas_extras"]
             total_monto_extras_global += resumen_emp["total_monto_extras"]
+            total_francos_global += resumen_emp.get("total_francos", Decimal("0"))
+            total_monto_francos_global += resumen_emp.get("total_monto_francos", Decimal("0"))
+            total_feriados_global += resumen_emp.get("total_feriados", Decimal("0"))
+            total_monto_feriados_global += resumen_emp.get("total_monto_feriados", Decimal("0"))
+
+        # Total general: extras + francos + feriados - adelantos
+        total_suma = total_monto_extras_global + total_monto_francos_global + total_monto_feriados_global
+        total_general = total_suma - total_adelantos_global
 
         return {
             "periodo_mes": mes,
@@ -883,18 +950,22 @@ class EmpleadoService:
             "total_adelantos": total_adelantos_global,
             "total_horas_extras": total_horas_global,
             "total_monto_extras": total_monto_extras_global,
-            "total_general": total_adelantos_global + total_monto_extras_global
+            "total_francos": total_francos_global,
+            "total_monto_francos": total_monto_francos_global,
+            "total_feriados": total_feriados_global,
+            "total_monto_feriados": total_monto_feriados_global,
+            "total_general": total_general
         }
 
     def get_resumen_empleado_jornales(self, empleado_id: UUID, mes: int, anio: int) -> dict:
         """
-        Obtiene resumen mensual de adelantos y horas extras de un empleado.
+        Obtiene resumen mensual de adelantos, horas extras, francos y feriados de un empleado.
         """
         empleado = self.get_empleado(empleado_id)
         if not empleado:
             raise ValueError("Empleado no encontrado")
 
-        # Obtener movimientos del mes (adelantos y horas extras)
+        # Obtener movimientos del mes (adelantos, horas extras, francos, feriados)
         result = self.db.execute(
             select(MovimientoNomina)
             .where(and_(
@@ -903,7 +974,9 @@ class EmpleadoService:
                 MovimientoNomina.periodo_anio == anio,
                 MovimientoNomina.tipo.in_([
                     TipoMovimientoNomina.ADELANTO.value,
-                    TipoMovimientoNomina.HORA_EXTRA.value
+                    TipoMovimientoNomina.HORA_EXTRA.value,
+                    TipoMovimientoNomina.FRANCO.value,
+                    TipoMovimientoNomina.FERIADO.value
                 ]),
                 MovimientoNomina.activo == True
             ))
@@ -925,6 +998,10 @@ class EmpleadoService:
                     "total_adelantos": Decimal("0"),
                     "total_horas_extras": Decimal("0"),
                     "total_monto_extras": Decimal("0"),
+                    "total_francos": Decimal("0"),
+                    "total_monto_francos": Decimal("0"),
+                    "total_feriados": Decimal("0"),
+                    "total_monto_feriados": Decimal("0"),
                     "dias_con_movimiento": 0
                 }
 
@@ -933,6 +1010,12 @@ class EmpleadoService:
             elif mov.tipo == TipoMovimientoNomina.HORA_EXTRA.value:
                 semanas_dict[semana]["total_horas_extras"] += mov.cantidad_horas or Decimal("0")
                 semanas_dict[semana]["total_monto_extras"] += mov.monto
+            elif mov.tipo == TipoMovimientoNomina.FRANCO.value:
+                semanas_dict[semana]["total_francos"] += mov.cantidad_horas or Decimal("0")
+                semanas_dict[semana]["total_monto_francos"] += mov.monto
+            elif mov.tipo == TipoMovimientoNomina.FERIADO.value:
+                semanas_dict[semana]["total_feriados"] += mov.cantidad_horas or Decimal("0")
+                semanas_dict[semana]["total_monto_feriados"] += mov.monto
 
             semanas_dict[semana]["dias_con_movimiento"] += 1
 
@@ -951,16 +1034,26 @@ class EmpleadoService:
                     "total_adelantos": Decimal("0"),
                     "total_horas_extras": Decimal("0"),
                     "total_monto_extras": Decimal("0"),
+                    "total_francos": Decimal("0"),
+                    "total_monto_francos": Decimal("0"),
+                    "total_feriados": Decimal("0"),
+                    "total_monto_feriados": Decimal("0"),
                     "dias_con_movimiento": 0
                 })
 
         # Calcular totales
         total_adelantos = sum(s["total_adelantos"] for s in semanas)
         total_horas = sum(s["total_horas_extras"] for s in semanas)
-        total_monto = sum(s["total_monto_extras"] for s in semanas)
+        total_monto_extras = sum(s["total_monto_extras"] for s in semanas)
+        total_francos = sum(s["total_francos"] for s in semanas)
+        total_monto_francos = sum(s["total_monto_francos"] for s in semanas)
+        total_feriados = sum(s["total_feriados"] for s in semanas)
+        total_monto_feriados = sum(s["total_monto_feriados"] for s in semanas)
 
         salario_base = empleado.salario_base or Decimal("0")
-        sueldo_final = salario_base - total_adelantos
+        # Sueldo final = base + extras + francos + feriados - adelantos
+        total_extras = total_monto_extras + total_monto_francos + total_monto_feriados
+        sueldo_final = salario_base + total_extras - total_adelantos
 
         return {
             "empleado_id": str(empleado_id),
@@ -972,8 +1065,12 @@ class EmpleadoService:
             "semanas": semanas,
             "total_adelantos": total_adelantos,
             "total_horas_extras": total_horas,
-            "total_monto_extras": total_monto,
-            "total_general": total_adelantos + total_monto,
+            "total_monto_extras": total_monto_extras,
+            "total_francos": total_francos,
+            "total_monto_francos": total_monto_francos,
+            "total_feriados": total_feriados,
+            "total_monto_feriados": total_monto_feriados,
+            "total_general": total_extras - total_adelantos,
             "sueldo_final": sueldo_final,
         }
 

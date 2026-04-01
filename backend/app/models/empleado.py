@@ -58,6 +58,8 @@ class TipoMovimientoNomina(str, enum.Enum):
     """Tipos de movimientos en nómina"""
     SALARIO = "salario"
     HORA_EXTRA = "hora_extra"
+    FRANCO = "franco"  # Franco trabajado
+    FERIADO = "feriado"  # Feriado trabajado
     BONO = "bono"
     COMISION = "comision"
     AGUINALDO = "aguinaldo"

@@ -24,6 +24,8 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Coffee,
+  PartyPopper,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -105,7 +107,7 @@ export default function JornalesPage() {
   const [registroForm, setRegistroForm] = useState<{
     empleado_id: string;
     fecha: string;
-    tipo: 'adelanto' | 'hora_extra';
+    tipo: 'adelanto' | 'hora_extra' | 'franco' | 'feriado';
     monto: string;
     cantidad_horas: string;
     notas: string;
@@ -247,7 +249,7 @@ export default function JornalesPage() {
 
     if (registroForm.tipo === 'adelanto') {
       data.monto = parseFloat(registroForm.monto);
-    } else {
+    } else if (registroForm.tipo === 'hora_extra' || registroForm.tipo === 'franco' || registroForm.tipo === 'feriado') {
       data.cantidad_horas = parseFloat(registroForm.cantidad_horas);
     }
 
@@ -382,52 +384,87 @@ export default function JornalesPage() {
 
       {/* Resumen general */}
       {resumen && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Adelantos</CardTitle>
+              <CardTitle className="text-sm font-medium">Adelantos</CardTitle>
               <Banknote className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-xl font-bold text-red-600">
                 {formatNumber(resumen.total_adelantos, 'currency')}
               </div>
+              <p className="text-xs text-muted-foreground">Descuenta del sueldo</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total HS Extras</CardTitle>
+              <CardTitle className="text-sm font-medium">HS Extras</CardTitle>
               <Timer className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {Number(resumen.total_horas_extras || 0).toFixed(1)} hs
+              <div className="text-xl font-bold text-blue-600">
+                {formatNumber(Number(resumen.total_monto_extras || 0), 'currency')}
               </div>
+              <p className="text-xs text-muted-foreground">{Number(resumen.total_horas_extras || 0).toFixed(1)} horas</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Monto HS Extras</CardTitle>
+              <CardTitle className="text-sm font-medium">Francos</CardTitle>
+              <Coffee className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold text-amber-600">
+                {formatNumber(Number(resumen.total_monto_francos || 0), 'currency')}
+              </div>
+              <p className="text-xs text-muted-foreground">{Number(resumen.total_francos || 0).toFixed(1)} horas</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Feriados</CardTitle>
+              <PartyPopper className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold text-purple-600">
+                {formatNumber(Number(resumen.total_monto_feriados || 0), 'currency')}
+              </div>
+              <p className="text-xs text-muted-foreground">{Number(resumen.total_feriados || 0).toFixed(1)} horas</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Extras</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatNumber(resumen.total_monto_extras, 'currency')}
+              <div className="text-xl font-bold text-green-600">
+                {formatNumber(
+                  Number(resumen.total_monto_extras || 0) +
+                  Number(resumen.total_monto_francos || 0) +
+                  Number(resumen.total_monto_feriados || 0),
+                  'currency'
+                )}
               </div>
+              <p className="text-xs text-muted-foreground">Suma al sueldo</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-muted/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total General</CardTitle>
-              <DollarSign className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-sm font-medium">Balance</CardTitle>
+              <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
+              <div className={`text-xl font-bold ${resumen.total_general >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatNumber(resumen.total_general, 'currency')}
               </div>
+              <p className="text-xs text-muted-foreground">Extras - Adelantos</p>
             </CardContent>
           </Card>
         </div>
@@ -585,15 +622,28 @@ export default function JornalesPage() {
                                           </td>
                                           <td className="px-3 py-2 text-sm">Sem {mov.semana || '-'}</td>
                                           <td className="px-3 py-2">
-                                            {mov.tipo === 'adelanto' ? (
+                                            {mov.tipo === 'adelanto' && (
                                               <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
                                                 <Banknote className="h-3 w-3 mr-1" />
                                                 Adelanto
                                               </Badge>
-                                            ) : (
+                                            )}
+                                            {mov.tipo === 'hora_extra' && (
                                               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                                                 <Timer className="h-3 w-3 mr-1" />
                                                 HS Extra
+                                              </Badge>
+                                            )}
+                                            {mov.tipo === 'franco' && (
+                                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                                <Coffee className="h-3 w-3 mr-1" />
+                                                Franco
+                                              </Badge>
+                                            )}
+                                            {mov.tipo === 'feriado' && (
+                                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                                <PartyPopper className="h-3 w-3 mr-1" />
+                                                Feriado
                                               </Badge>
                                             )}
                                           </td>
@@ -601,7 +651,7 @@ export default function JornalesPage() {
                                             {formatNumber(mov.monto, 'currency')}
                                           </td>
                                           <td className="px-3 py-2 text-right text-sm">
-                                            {mov.tipo === 'hora_extra' ? `${mov.cantidad_horas} hs` : '-'}
+                                            {(mov.tipo === 'hora_extra' || mov.tipo === 'franco' || mov.tipo === 'feriado') ? `${mov.cantidad_horas} hs` : '-'}
                                           </td>
                                           <td className="px-3 py-2">
                                             <div className="flex gap-1">
@@ -716,17 +766,25 @@ export default function JornalesPage() {
               <Tabs
                 value={registroForm.tipo}
                 onValueChange={(v) =>
-                  setRegistroForm({ ...registroForm, tipo: v as 'adelanto' | 'hora_extra' })
+                  setRegistroForm({ ...registroForm, tipo: v as 'adelanto' | 'hora_extra' | 'franco' | 'feriado' })
                 }
               >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="adelanto">
-                    <Banknote className="h-4 w-4 mr-2" />
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="adelanto" className="text-xs px-2">
+                    <Banknote className="h-3 w-3 mr-1" />
                     Adelanto
                   </TabsTrigger>
-                  <TabsTrigger value="hora_extra">
-                    <Timer className="h-4 w-4 mr-2" />
-                    HS Extras
+                  <TabsTrigger value="hora_extra" className="text-xs px-2">
+                    <Timer className="h-3 w-3 mr-1" />
+                    HS Extra
+                  </TabsTrigger>
+                  <TabsTrigger value="franco" className="text-xs px-2">
+                    <Coffee className="h-3 w-3 mr-1" />
+                    Franco
+                  </TabsTrigger>
+                  <TabsTrigger value="feriado" className="text-xs px-2">
+                    <PartyPopper className="h-3 w-3 mr-1" />
+                    Feriado
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -741,6 +799,9 @@ export default function JornalesPage() {
                   value={registroForm.monto}
                   onChange={(e) => setRegistroForm({ ...registroForm, monto: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Este monto se descuenta del sueldo
+                </p>
               </div>
             ) : (
               <div>
@@ -755,7 +816,9 @@ export default function JornalesPage() {
                   }
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  El monto se calcula automáticamente según el valor hora del empleado
+                  {registroForm.tipo === 'hora_extra' && 'El monto se calcula según el valor hora del empleado'}
+                  {registroForm.tipo === 'franco' && 'Franco trabajado - se suma al sueldo'}
+                  {registroForm.tipo === 'feriado' && 'Feriado trabajado - se suma al sueldo (generalmente x2)'}
                 </p>
               </div>
             )}
@@ -779,7 +842,7 @@ export default function JornalesPage() {
                   !registroForm.empleado_id ||
                   !registroForm.fecha ||
                   (registroForm.tipo === 'adelanto' && !registroForm.monto) ||
-                  (registroForm.tipo === 'hora_extra' && !registroForm.cantidad_horas) ||
+                  ((registroForm.tipo === 'hora_extra' || registroForm.tipo === 'franco' || registroForm.tipo === 'feriado') && !registroForm.cantidad_horas) ||
                   registrarMutation.isPending
                 }
               >
