@@ -575,8 +575,13 @@ class ProduccionService:
         etapa_id: UUID,
         data: FinalizarEtapaRequest,
         usuario_id: UUID,
+        monto_cobro: Optional[Decimal] = None,
+        estado_facturacion: Optional[str] = "sin_facturar",
     ) -> Optional[LoteEtapa]:
-        """Finaliza una etapa para un lote."""
+        """
+        Finaliza una etapa para un lote.
+        Si es la última etapa y el lote tiene cliente, se registra cargo automático en cuenta corriente.
+        """
         lote_etapa = (
             self.db.query(LoteEtapa)
             .filter(LoteEtapa.lote_id == lote_id, LoteEtapa.etapa_id == etapa_id)
@@ -614,6 +619,15 @@ class ProduccionService:
                 lote.estado = EstadoLote.COMPLETADO.value
                 lote.fecha_fin_proceso = datetime.utcnow()
                 lote.peso_salida_kg = data.peso_kg
+
+                # Si tiene cliente y monto_cobro, registrar cargo en cuenta corriente
+                if lote.cliente_id and monto_cobro and monto_cobro > 0:
+                    self._registrar_cargo_cc_desde_lote(
+                        lote=lote,
+                        monto=monto_cobro,
+                        usuario_id=usuario_id,
+                        estado_facturacion=estado_facturacion or "sin_facturar",
+                    )
 
         self.db.commit()
         self.db.refresh(lote_etapa)
@@ -1341,3 +1355,171 @@ class ProduccionService:
         self.db.refresh(incidencia)
 
         return incidencia
+
+    # ==================== LOTE DIRECTO CON CARGO A CC ====================
+
+    def _registrar_cargo_cc_desde_lote(
+        self,
+        lote: LoteProduccion,
+        monto: Decimal,
+        usuario_id: UUID,
+        estado_facturacion: str = "sin_facturar",
+        concepto: Optional[str] = None,
+    ) -> None:
+        """
+        Registra un cargo en la cuenta corriente del cliente desde un lote de producción.
+        Este método es interno y NO hace commit (se espera que el llamador lo haga).
+        """
+        from app.models.cliente import Cliente
+        from app.models.cuenta_corriente import MovimientoCuentaCorriente, TipoMovimientoCC
+        from uuid import uuid4
+
+        if not lote.cliente_id:
+            return
+
+        cliente = self.db.query(Cliente).filter(Cliente.id == lote.cliente_id).first()
+        if not cliente:
+            return
+
+        # Generar concepto automático si no se proporciona
+        if not concepto:
+            tipo_servicio_label = {
+                "lavado_normal": "Lavado Normal",
+                "lavado_delicado": "Lavado Delicado",
+                "lavado_industrial": "Lavado Industrial",
+                "tintoreria": "Tintorería",
+                "planchado": "Planchado",
+                "desmanchado": "Desmanchado",
+            }.get(lote.tipo_servicio, lote.tipo_servicio)
+
+            peso_str = f" - {lote.peso_entrada_kg}kg" if lote.peso_entrada_kg else ""
+            concepto = f"{tipo_servicio_label}{peso_str} - Lote {lote.numero}"
+
+        saldo_anterior = cliente.saldo_cuenta_corriente or Decimal("0")
+        saldo_posterior = saldo_anterior + monto
+
+        movimiento = MovimientoCuentaCorriente(
+            id=str(uuid4()),
+            cliente_id=str(lote.cliente_id),
+            tipo=TipoMovimientoCC.CARGO.value,
+            concepto=concepto,
+            monto=monto,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            lote_id=str(lote.id),
+            pedido_id=str(lote.pedido_id) if lote.pedido_id else None,
+            estado_facturacion=estado_facturacion,
+            fecha_movimiento=date.today(),
+            registrado_por_id=str(usuario_id),
+        )
+
+        self.db.add(movimiento)
+        cliente.saldo_cuenta_corriente = saldo_posterior
+
+    def crear_lote_directo(
+        self,
+        cliente_id: UUID,
+        monto_cobro: Decimal,
+        usuario_id: UUID,
+        tipo_servicio: str = "lavado_normal",
+        peso_entrada_kg: Optional[Decimal] = None,
+        cantidad_prendas: Optional[int] = None,
+        descripcion: Optional[str] = None,
+        notas_cliente: Optional[str] = None,
+        estado_facturacion: str = "sin_facturar",
+        concepto: Optional[str] = None,
+    ) -> Tuple[LoteProduccion, str]:
+        """
+        Crea un lote de lavado directo y registra el cargo en cuenta corriente inmediatamente.
+        No pasa por el flujo de etapas de producción.
+
+        Returns:
+            Tuple con (lote creado, id del movimiento de cuenta corriente)
+        """
+        from app.models.cliente import Cliente
+        from app.models.cuenta_corriente import MovimientoCuentaCorriente, TipoMovimientoCC
+        from uuid import uuid4
+
+        # Verificar que el cliente existe
+        cliente = self.db.query(Cliente).filter(Cliente.id == cliente_id).first()
+        if not cliente:
+            raise ValueError("Cliente no encontrado")
+
+        # Crear el lote con estado COMPLETADO directamente
+        numero = self._generar_numero_lote()
+
+        lote = LoteProduccion(
+            numero=numero,
+            cliente_id=cliente_id,
+            tipo_servicio=tipo_servicio,
+            prioridad="normal",
+            peso_entrada_kg=peso_entrada_kg,
+            peso_salida_kg=peso_entrada_kg,  # En lote directo asumimos mismo peso
+            cantidad_prendas=cantidad_prendas,
+            descripcion=descripcion,
+            notas_cliente=notas_cliente,
+            estado=EstadoLote.COMPLETADO.value,
+            fecha_ingreso=datetime.utcnow(),
+            fecha_inicio_proceso=datetime.utcnow(),
+            fecha_fin_proceso=datetime.utcnow(),
+            creado_por_id=usuario_id,
+        )
+
+        self.db.add(lote)
+        self.db.flush()  # Para obtener el ID del lote
+
+        # Generar concepto automático si no se proporciona
+        if not concepto:
+            tipo_servicio_label = {
+                "lavado_normal": "Lavado Normal",
+                "lavado_delicado": "Lavado Delicado",
+                "lavado_industrial": "Lavado Industrial",
+                "tintoreria": "Tintorería",
+                "planchado": "Planchado",
+                "desmanchado": "Desmanchado",
+            }.get(tipo_servicio, tipo_servicio)
+
+            peso_str = f" - {peso_entrada_kg}kg" if peso_entrada_kg else ""
+            concepto = f"{tipo_servicio_label}{peso_str} - Lote {numero}"
+
+        # Registrar cargo en cuenta corriente
+        saldo_anterior = cliente.saldo_cuenta_corriente or Decimal("0")
+        saldo_posterior = saldo_anterior + monto_cobro
+
+        movimiento = MovimientoCuentaCorriente(
+            id=str(uuid4()),
+            cliente_id=str(cliente_id),
+            tipo=TipoMovimientoCC.CARGO.value,
+            concepto=concepto,
+            monto=monto_cobro,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            lote_id=str(lote.id),
+            estado_facturacion=estado_facturacion,
+            fecha_movimiento=date.today(),
+            registrado_por_id=str(usuario_id),
+        )
+
+        self.db.add(movimiento)
+        cliente.saldo_cuenta_corriente = saldo_posterior
+
+        self.db.commit()
+        self.db.refresh(lote)
+
+        # Log
+        self.log_service.registrar(
+            db=self.db,
+            usuario_id=usuario_id,
+            accion="crear",
+            modulo="produccion",
+            entidad_tipo="LoteProduccion",
+            entidad_id=lote.id,
+            datos_nuevos={
+                "tipo": "lote_directo",
+                "numero": numero,
+                "cliente_id": str(cliente_id),
+                "monto_cobro": float(monto_cobro),
+            },
+        )
+
+        return lote, movimiento.id

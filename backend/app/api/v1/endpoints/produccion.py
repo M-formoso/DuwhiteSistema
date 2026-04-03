@@ -40,6 +40,8 @@ from app.schemas.lote_produccion import (
     KanbanBoard,
     ValidarPinRequest,
     ValidarPinResponse,
+    LoteDirectoCreate,
+    LoteDirectoResponse,
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.schemas.orden_produccion import (
@@ -584,6 +586,88 @@ def crear_lote(
     )
 
 
+@router.post("/lotes/directo", response_model=LoteDirectoResponse, status_code=status.HTTP_201_CREATED)
+def crear_lote_directo(
+    data: LoteDirectoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial")),
+):
+    """
+    Crea un lote de lavado directo con cargo automático a cuenta corriente.
+
+    Este endpoint permite registrar un lavado que ya fue realizado (sin pasar por producción),
+    cargando automáticamente el monto en la cuenta corriente del cliente.
+
+    El lote se crea con estado COMPLETADO.
+    """
+    service = ProduccionService(db)
+
+    try:
+        lote, movimiento_cc_id = service.crear_lote_directo(
+            cliente_id=data.cliente_id,
+            monto_cobro=data.monto_cobro,
+            usuario_id=current_user.id,
+            tipo_servicio=data.tipo_servicio.value,
+            peso_entrada_kg=data.peso_entrada_kg,
+            cantidad_prendas=data.cantidad_prendas,
+            descripcion=data.descripcion,
+            notas_cliente=data.notas_cliente,
+            estado_facturacion=data.estado_facturacion,
+            concepto=data.concepto,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Recargar lote con relaciones
+    lote = service.get_lote(lote.id)
+
+    lote_response = LoteProduccionResponse(
+        id=lote.id,
+        numero=lote.numero,
+        cliente_id=lote.cliente_id,
+        pedido_id=lote.pedido_id,
+        tipo_servicio=lote.tipo_servicio,
+        prioridad=lote.prioridad,
+        peso_entrada_kg=lote.peso_entrada_kg,
+        peso_salida_kg=lote.peso_salida_kg,
+        cantidad_prendas=lote.cantidad_prendas,
+        fecha_compromiso=lote.fecha_compromiso,
+        descripcion=lote.descripcion,
+        notas_internas=lote.notas_internas,
+        notas_cliente=lote.notas_cliente,
+        tiene_manchas=lote.tiene_manchas,
+        tiene_roturas=lote.tiene_roturas,
+        estado=lote.estado,
+        etapa_actual_id=lote.etapa_actual_id,
+        fecha_ingreso=lote.fecha_ingreso,
+        fecha_inicio_proceso=lote.fecha_inicio_proceso,
+        fecha_fin_proceso=lote.fecha_fin_proceso,
+        creado_por_id=lote.creado_por_id,
+        observaciones_calidad=lote.observaciones_calidad,
+        created_at=lote.created_at,
+        updated_at=lote.updated_at,
+        is_active=lote.activo,
+        cliente_nombre=lote.cliente.razon_social if lote.cliente else None,
+        pedido_numero=None,
+        etapa_actual_nombre=None,
+        etapa_actual_color=None,
+        creado_por_nombre=current_user.nombre_completo,
+        tiempo_en_proceso=0,
+        esta_atrasado=False,
+        porcentaje_avance=100,
+        etapas=[],
+    )
+
+    return LoteDirectoResponse(
+        lote=lote_response,
+        movimiento_cc_id=movimiento_cc_id,
+        mensaje=f"Lote {lote.numero} creado y cargo de ${data.monto_cobro} registrado en cuenta corriente",
+    )
+
+
 @router.put("/lotes/{lote_id}", response_model=LoteProduccionResponse)
 def actualizar_lote(
     lote_id: UUID,
@@ -709,9 +793,19 @@ def finalizar_etapa_lote(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
 ):
-    """Finaliza una etapa para un lote."""
+    """
+    Finaliza una etapa para un lote.
+    Si es la última etapa y se proporciona monto_cobro, se registra cargo automático en cuenta corriente.
+    """
     service = ProduccionService(db)
-    lote_etapa = service.finalizar_etapa(lote_id, etapa_id, data, current_user.id)
+    lote_etapa = service.finalizar_etapa(
+        lote_id,
+        etapa_id,
+        data,
+        current_user.id,
+        monto_cobro=data.monto_cobro,
+        estado_facturacion=data.estado_facturacion,
+    )
 
     if not lote_etapa:
         raise HTTPException(

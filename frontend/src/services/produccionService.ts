@@ -272,6 +272,30 @@ export async function registrarConsumo(
   return response.data;
 }
 
+// ==================== LOTE DIRECTO ====================
+
+export interface LoteDirectoCreate {
+  cliente_id: string;
+  tipo_servicio: string;
+  peso_entrada_kg?: number;
+  cantidad_prendas?: number;
+  monto_cobro: number;
+  estado_facturacion: string;
+  descripcion?: string;
+  concepto?: string;
+}
+
+export interface LoteDirectoResponse {
+  lote: LoteProduccion;
+  movimiento_cc_id: string;
+  mensaje: string;
+}
+
+export async function crearLoteDirecto(data: LoteDirectoCreate): Promise<LoteDirectoResponse> {
+  const response = await api.post('/produccion/lotes/directo', data);
+  return response.data;
+}
+
 // ==================== EXPORTS ====================
 
 export const produccionService = {
@@ -300,6 +324,7 @@ export const produccionService = {
   updateLote,
   cambiarEstadoLote,
   moverLote,
+  crearLoteDirecto,
   // Etapas de lote
   iniciarEtapa,
   finalizarEtapa,

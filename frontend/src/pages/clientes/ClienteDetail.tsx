@@ -29,6 +29,7 @@ import {
   Shield,
   Trash2,
   AlertTriangle,
+  Shirt,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -43,10 +44,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
 import { clienteService } from '@/services/clienteService';
 import { usuarioService, type Usuario } from '@/services/usuarioService';
+import { produccionService } from '@/services/produccionService';
 import { formatNumber, formatDate } from '@/utils/formatters';
 import { TIPOS_CLIENTE, CONDICIONES_IVA, MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
@@ -73,6 +81,17 @@ export default function ClienteDetailPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showEliminarModal, setShowEliminarModal] = useState(false);
+
+  // Estados para lote directo
+  const [showLoteDirectoModal, setShowLoteDirectoModal] = useState(false);
+  const [loteDirectoForm, setLoteDirectoForm] = useState({
+    tipo_servicio: 'lavado_normal',
+    peso_entrada_kg: '',
+    cantidad_prendas: '',
+    monto_cobro: '',
+    estado_facturacion: 'sin_facturar',
+    descripcion: '',
+  });
 
   // Query del cliente
   const { data: cliente, isLoading } = useQuery({
@@ -224,6 +243,45 @@ export default function ClienteDetailPage() {
         variant: 'destructive',
       });
       setShowEliminarModal(false);
+    },
+  });
+
+  // Mutation para crear lote directo
+  const crearLoteDirectoMutation = useMutation({
+    mutationFn: (data: {
+      cliente_id: string;
+      tipo_servicio: string;
+      peso_entrada_kg?: number;
+      cantidad_prendas?: number;
+      monto_cobro: number;
+      estado_facturacion: string;
+      descripcion?: string;
+    }) => produccionService.crearLoteDirecto(data),
+    onSuccess: (response) => {
+      toast({
+        title: 'Lote creado',
+        description: response.mensaje || 'El lote se creó y el cargo fue registrado en cuenta corriente.',
+      });
+      setShowLoteDirectoModal(false);
+      setLoteDirectoForm({
+        tipo_servicio: 'lavado_normal',
+        peso_entrada_kg: '',
+        cantidad_prendas: '',
+        monto_cobro: '',
+        estado_facturacion: 'sin_facturar',
+        descripcion: '',
+      });
+      // Refrescar datos
+      queryClient.invalidateQueries({ queryKey: ['cliente', id] });
+      queryClient.invalidateQueries({ queryKey: ['estado-cuenta', id] });
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const mensaje = error.response?.data?.detail || 'No se pudo crear el lote.';
+      toast({
+        title: 'Error',
+        description: mensaje,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -506,22 +564,32 @@ export default function ClienteDetailPage() {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="space-y-2">
                 <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => navigate(`/clientes/${id}/cuenta-corriente`)}
+                  variant="default"
+                  className="w-full bg-cyan-600 hover:bg-cyan-700"
+                  onClick={() => setShowLoteDirectoModal(true)}
                 >
-                  Ver cuenta
+                  <Shirt className="h-4 w-4 mr-2" />
+                  Nuevo Lote de Lavado
                 </Button>
-                <Button
-                  className="flex-1"
-                  onClick={() => navigate(`/tesoreria?tipo=ingreso&cliente_id=${id}&cliente_nombre=${encodeURIComponent(cliente.nombre_fantasia || cliente.razon_social)}`)}
-                  disabled={!cliente.tiene_deuda}
-                >
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Pagar
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => navigate(`/clientes/${id}/cuenta-corriente`)}
+                  >
+                    Ver cuenta
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={() => navigate(`/tesoreria?tipo=ingreso&cliente_id=${id}&cliente_nombre=${encodeURIComponent(cliente.nombre_fantasia || cliente.razon_social)}`)}
+                    disabled={!cliente.tiene_deuda}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Pagar
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1036,6 +1104,149 @@ export default function ClienteDetailPage() {
           </Card>
         </div>
       )}
+
+      {/* Modal Lote Directo */}
+      <Dialog open={showLoteDirectoModal} onOpenChange={setShowLoteDirectoModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shirt className="h-5 w-5 text-cyan-600" />
+              Nuevo Lote de Lavado
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Registra un lote de lavado directamente. El monto se cargará automáticamente a la cuenta corriente del cliente.
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Tipo de Servicio</Label>
+                <Select
+                  value={loteDirectoForm.tipo_servicio}
+                  onValueChange={(v) => setLoteDirectoForm({ ...loteDirectoForm, tipo_servicio: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lavado_normal">Lavado Normal</SelectItem>
+                    <SelectItem value="lavado_delicado">Lavado Delicado</SelectItem>
+                    <SelectItem value="lavado_industrial">Lavado Industrial</SelectItem>
+                    <SelectItem value="tintoreria">Tintorería</SelectItem>
+                    <SelectItem value="planchado">Planchado</SelectItem>
+                    <SelectItem value="desmanchado">Desmanchado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Estado Facturación</Label>
+                <Select
+                  value={loteDirectoForm.estado_facturacion}
+                  onValueChange={(v) => setLoteDirectoForm({ ...loteDirectoForm, estado_facturacion: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sin_facturar">Sin Facturar</SelectItem>
+                    <SelectItem value="factura_a">Factura A</SelectItem>
+                    <SelectItem value="factura_b">Factura B</SelectItem>
+                    <SelectItem value="ticket">Ticket</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Peso (kg)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="15.5"
+                  value={loteDirectoForm.peso_entrada_kg}
+                  onChange={(e) => setLoteDirectoForm({ ...loteDirectoForm, peso_entrada_kg: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>Cantidad de Prendas</Label>
+                <Input
+                  type="number"
+                  placeholder="50"
+                  value={loteDirectoForm.cantidad_prendas}
+                  onChange={(e) => setLoteDirectoForm({ ...loteDirectoForm, cantidad_prendas: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Monto a Cobrar *</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="pl-9"
+                  placeholder="0.00"
+                  value={loteDirectoForm.monto_cobro}
+                  onChange={(e) => setLoteDirectoForm({ ...loteDirectoForm, monto_cobro: e.target.value })}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Este monto se agregará a la cuenta corriente del cliente
+              </p>
+            </div>
+
+            <div>
+              <Label>Descripción (opcional)</Label>
+              <Input
+                placeholder="Notas adicionales..."
+                value={loteDirectoForm.descripcion}
+                onChange={(e) => setLoteDirectoForm({ ...loteDirectoForm, descripcion: e.target.value })}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button variant="ghost" onClick={() => setShowLoteDirectoModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!loteDirectoForm.monto_cobro || parseFloat(loteDirectoForm.monto_cobro) <= 0) {
+                    toast({
+                      title: 'Error',
+                      description: 'El monto a cobrar es requerido y debe ser mayor a 0',
+                      variant: 'destructive',
+                    });
+                    return;
+                  }
+                  crearLoteDirectoMutation.mutate({
+                    cliente_id: id!,
+                    tipo_servicio: loteDirectoForm.tipo_servicio,
+                    peso_entrada_kg: loteDirectoForm.peso_entrada_kg ? parseFloat(loteDirectoForm.peso_entrada_kg) : undefined,
+                    cantidad_prendas: loteDirectoForm.cantidad_prendas ? parseInt(loteDirectoForm.cantidad_prendas) : undefined,
+                    monto_cobro: parseFloat(loteDirectoForm.monto_cobro),
+                    estado_facturacion: loteDirectoForm.estado_facturacion,
+                    descripcion: loteDirectoForm.descripcion || undefined,
+                  });
+                }}
+                disabled={crearLoteDirectoMutation.isPending}
+                className="bg-cyan-600 hover:bg-cyan-700"
+              >
+                {crearLoteDirectoMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Crear Lote
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

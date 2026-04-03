@@ -478,7 +478,7 @@ export default function JornalesPage() {
             Detalle por Empleado
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-8 w-8 animate-spin text-primary" />
@@ -488,101 +488,202 @@ export default function JornalesPage() {
               No hay registros para este período
             </div>
           ) : (
-            <div className="overflow-auto max-h-[600px]">
-              <table className="w-full border-collapse">
-                <thead className="sticky top-0 z-20 bg-card">
-                  <tr className="bg-card border-b-2 border-border">
-                    <th className="sticky left-0 z-30 bg-card px-4 py-3 text-left text-sm font-medium text-muted-foreground min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Empleado</th>
-                    <th className="sticky left-[180px] z-30 bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">$/Hora</th>
-                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 1</th>
-                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 2</th>
-                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 3</th>
-                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 4</th>
-                    <th className="bg-card px-4 py-3 text-center text-sm font-medium text-muted-foreground min-w-[100px]">Sem 5</th>
-                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[100px]">Total Adel.</th>
-                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[90px]">Total HS</th>
-                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[100px]">Total $</th>
-                    <th className="bg-card px-4 py-3 text-right text-sm font-medium text-muted-foreground min-w-[120px]">Sueldo Final</th>
-                    <th className="bg-card px-4 py-3 w-12"></th>
+            <div className="overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                {/* Header con 2 filas */}
+                <thead className="sticky top-0 z-20">
+                  {/* Fila 1: Grupos principales */}
+                  <tr className="bg-muted/80">
+                    <th rowSpan={2} className="sticky left-0 z-30 bg-muted/80 px-4 py-3 text-left font-semibold border-b border-r border-border min-w-[200px]">
+                      Empleado
+                    </th>
+                    <th rowSpan={2} className="bg-muted/80 px-3 py-3 text-center font-semibold border-b border-r border-border min-w-[80px]">
+                      $/Hora
+                    </th>
+                    {/* Adelantos - 1 columna */}
+                    <th className="bg-red-100 px-3 py-2 text-center font-semibold text-red-800 border-b border-red-200 min-w-[120px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <Banknote className="h-4 w-4" />
+                        Adelantos
+                      </div>
+                    </th>
+                    {/* HS Extras - 2 columnas */}
+                    <th colSpan={2} className="bg-blue-100 px-3 py-2 text-center font-semibold text-blue-800 border-b border-blue-200 min-w-[180px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <Timer className="h-4 w-4" />
+                        Horas Extras
+                      </div>
+                    </th>
+                    {/* Francos - 2 columnas */}
+                    <th colSpan={2} className="bg-amber-100 px-3 py-2 text-center font-semibold text-amber-800 border-b border-amber-200 min-w-[180px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <Coffee className="h-4 w-4" />
+                        Francos
+                      </div>
+                    </th>
+                    {/* Feriados - 2 columnas */}
+                    <th colSpan={2} className="bg-purple-100 px-3 py-2 text-center font-semibold text-purple-800 border-b border-purple-200 min-w-[180px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <PartyPopper className="h-4 w-4" />
+                        Feriados
+                      </div>
+                    </th>
+                    {/* Totales */}
+                    <th rowSpan={2} className="bg-green-100 px-3 py-3 text-center font-semibold text-green-800 border-b border-l border-green-200 min-w-[120px]">
+                      <div className="flex items-center justify-center gap-1">
+                        <DollarSign className="h-4 w-4" />
+                        Total +
+                      </div>
+                    </th>
+                    <th rowSpan={2} className="bg-slate-200 px-3 py-3 text-center font-semibold border-b border-l border-slate-300 min-w-[130px]">
+                      Sueldo Final
+                    </th>
+                    <th rowSpan={2} className="bg-muted/80 px-2 py-3 border-b border-border w-12"></th>
+                  </tr>
+                  {/* Fila 2: Subcolumnas */}
+                  <tr className="bg-muted/50">
+                    {/* Adelantos - sub */}
+                    <th className="bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 border-b border-red-200">
+                      Monto
+                    </th>
+                    {/* HS Extras - sub */}
+                    <th className="bg-blue-50 px-3 py-2 text-center text-xs font-medium text-blue-700 border-b border-l border-blue-200">
+                      Horas
+                    </th>
+                    <th className="bg-blue-50 px-3 py-2 text-center text-xs font-medium text-blue-700 border-b border-blue-200">
+                      Monto
+                    </th>
+                    {/* Francos - sub */}
+                    <th className="bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-700 border-b border-l border-amber-200">
+                      Horas
+                    </th>
+                    <th className="bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-700 border-b border-amber-200">
+                      Monto
+                    </th>
+                    {/* Feriados - sub */}
+                    <th className="bg-purple-50 px-3 py-2 text-center text-xs font-medium text-purple-700 border-b border-l border-purple-200">
+                      Horas
+                    </th>
+                    <th className="bg-purple-50 px-3 py-2 text-center text-xs font-medium text-purple-700 border-b border-purple-200">
+                      Monto
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resumen.empleados.map((emp) => (
+                  {resumen.empleados.map((emp) => {
+                    const totalSuma = Number(emp.total_monto_extras || 0) + Number(emp.total_monto_francos || 0) + Number(emp.total_monto_feriados || 0);
+                    return (
                     <>
-                      <tr key={emp.empleado_id} className="cursor-pointer hover:bg-muted/50 border-b border-border" onClick={() => toggleExpandEmpleado(emp.empleado_id)}>
-                        <td className="sticky left-0 z-10 bg-background px-4 py-3 font-medium min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                          <div className="flex items-center gap-2">
-                            {expandedEmpleado === emp.empleado_id ? (
-                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            {emp.empleado_nombre}
+                      <tr
+                        key={emp.empleado_id}
+                        className="cursor-pointer hover:bg-muted/30 border-b border-border transition-colors"
+                        onClick={() => toggleExpandEmpleado(emp.empleado_id)}
+                      >
+                        {/* Empleado */}
+                        <td className="sticky left-0 z-10 bg-background px-4 py-4 font-medium border-r border-border">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-1 rounded ${expandedEmpleado === emp.empleado_id ? 'bg-primary/10' : 'bg-muted'}`}>
+                              {expandedEmpleado === emp.empleado_id ? (
+                                <ChevronUp className="h-4 w-4 text-primary" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </div>
+                            <span className="truncate">{emp.empleado_nombre}</span>
                           </div>
                         </td>
-                        <td className="sticky left-[180px] z-10 bg-background px-4 py-3 text-right min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        {/* $/Hora */}
+                        <td className="px-3 py-4 text-center border-r border-border">
                           {emp.valor_hora_extra ? (
-                            <Badge variant="outline">${formatNumber(emp.valor_hora_extra, 0)}</Badge>
+                            <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+                              ${formatNumber(emp.valor_hora_extra, 0)}
+                            </span>
                           ) : (
-                            <Badge variant="destructive" className="text-xs">
-                              Sin config
-                            </Badge>
+                            <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </td>
-                        {emp.semanas.map((sem) => (
-                          <td key={sem.semana} className="px-4 py-3 text-center">
-                            {Number(sem.total_adelantos || 0) > 0 || Number(sem.total_horas_extras || 0) > 0 ? (
-                              <div className="text-xs space-y-1">
-                                {Number(sem.total_adelantos || 0) > 0 && (
-                                  <div className="text-red-600 font-medium">
-                                    Adel: ${formatNumber(sem.total_adelantos, 0)}
-                                  </div>
-                                )}
-                                {Number(sem.total_horas_extras || 0) > 0 && (
-                                  <div className="text-blue-600">
-                                    <span className="font-medium">{Number(sem.total_horas_extras || 0)} hs</span>
-                                    <span className="text-blue-400 block">
-                                      (${formatNumber(Number(sem.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)})
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                        ))}
-                        <td className="px-4 py-3 text-right font-medium text-red-600">
-                          {emp.total_adelantos > 0
-                            ? formatNumber(emp.total_adelantos, 'currency')
-                            : '-'}
+                        {/* Adelantos */}
+                        <td className="bg-red-50/30 px-3 py-4 text-center">
+                          {Number(emp.total_adelantos || 0) > 0 ? (
+                            <span className="font-semibold text-red-600">
+                              -{formatNumber(emp.total_adelantos, 'currency')}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-blue-600">
+                        {/* HS Extras - Horas */}
+                        <td className="bg-blue-50/30 px-3 py-4 text-center border-l border-blue-100">
                           {Number(emp.total_horas_extras || 0) > 0 ? (
-                            <div>
-                              <div>{Number(emp.total_horas_extras || 0)} hs</div>
-                              <div className="text-xs text-blue-400">
-                                ${formatNumber(Number(emp.total_horas_extras || 0) * Number(emp.valor_hora_extra || 0), 0)}
-                              </div>
-                            </div>
-                          ) : '-'}
+                            <span className="font-medium text-blue-700">{Number(emp.total_horas_extras || 0)} hs</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-right font-bold">
-                          {formatNumber(emp.total_general, 'currency')}
+                        {/* HS Extras - Monto */}
+                        <td className="bg-blue-50/30 px-3 py-4 text-center">
+                          {Number(emp.total_monto_extras || 0) > 0 ? (
+                            <span className="font-semibold text-blue-700">{formatNumber(emp.total_monto_extras, 'currency')}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-right font-bold">
+                        {/* Francos - Horas */}
+                        <td className="bg-amber-50/30 px-3 py-4 text-center border-l border-amber-100">
+                          {Number(emp.total_francos || 0) > 0 ? (
+                            <span className="font-medium text-amber-700">{Number(emp.total_francos || 0)} hs</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        {/* Francos - Monto */}
+                        <td className="bg-amber-50/30 px-3 py-4 text-center">
+                          {Number(emp.total_monto_francos || 0) > 0 ? (
+                            <span className="font-semibold text-amber-700">{formatNumber(emp.total_monto_francos, 'currency')}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        {/* Feriados - Horas */}
+                        <td className="bg-purple-50/30 px-3 py-4 text-center border-l border-purple-100">
+                          {Number(emp.total_feriados || 0) > 0 ? (
+                            <span className="font-medium text-purple-700">{Number(emp.total_feriados || 0)} hs</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        {/* Feriados - Monto */}
+                        <td className="bg-purple-50/30 px-3 py-4 text-center">
+                          {Number(emp.total_monto_feriados || 0) > 0 ? (
+                            <span className="font-semibold text-purple-700">{formatNumber(emp.total_monto_feriados, 'currency')}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        {/* Total Suma */}
+                        <td className="bg-green-50/50 px-3 py-4 text-center border-l border-green-200">
+                          {totalSuma > 0 ? (
+                            <span className="font-bold text-green-700">+{formatNumber(totalSuma, 'currency')}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        {/* Sueldo Final */}
+                        <td className="bg-slate-50 px-3 py-4 text-center border-l border-slate-200">
                           {emp.salario_base > 0 ? (
-                            <div className={emp.sueldo_final >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span className={`font-bold text-lg ${emp.sueldo_final >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                               {formatNumber(emp.sueldo_final, 'currency')}
-                            </div>
+                            </span>
                           ) : (
                             <span className="text-muted-foreground text-xs">Sin salario</span>
                           )}
                         </td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        {/* Config */}
+                        <td className="px-2 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8"
                             onClick={() => {
                               const empData = empleados.find((e) => e.id === emp.empleado_id);
                               if (empData) openConfigModal(empData);
@@ -595,66 +696,72 @@ export default function JornalesPage() {
                       {/* Fila expandible con detalle de jornales */}
                       {expandedEmpleado === emp.empleado_id && (
                         <tr>
-                          <td colSpan={12} className="bg-muted/30 p-0">
-                            <div className="p-4">
-                              <h4 className="font-medium mb-3 flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
+                          <td colSpan={13} className="bg-muted/20 p-0 border-b-2 border-primary/20">
+                            <div className="p-5">
+                              <h4 className="font-semibold mb-4 flex items-center gap-2 text-base">
+                                <Calendar className="h-5 w-5 text-primary" />
                                 Detalle de registros - {emp.empleado_nombre}
                               </h4>
                               {movimientosData?.items && movimientosData.items.length > 0 ? (
-                                <div className="overflow-auto max-h-[300px]">
+                                <div className="bg-background rounded-lg border border-border overflow-hidden">
                                   <table className="w-full">
                                     <thead>
-                                      <tr className="border-b border-border">
-                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-24">Fecha</th>
-                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-20">Semana</th>
-                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-28">Tipo</th>
-                                        <th className="px-3 py-2 text-right text-sm font-medium text-muted-foreground w-24">Monto</th>
-                                        <th className="px-3 py-2 text-right text-sm font-medium text-muted-foreground w-20">Horas</th>
-                                        <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground w-32">Acciones</th>
+                                      <tr className="bg-muted/50 border-b border-border">
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Fecha</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Semana</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Tipo</th>
+                                        <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Horas</th>
+                                        <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Monto</th>
+                                        <th className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">Acciones</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {movimientosData.items.map((mov) => (
-                                        <tr key={mov.id} className="border-b border-border">
-                                          <td className="px-3 py-2 text-sm">
+                                        <tr key={mov.id} className="border-b border-border hover:bg-muted/30">
+                                          <td className="px-4 py-3 text-sm font-medium">
                                             {mov.fecha ? formatDate(mov.fecha) : '-'}
                                           </td>
-                                          <td className="px-3 py-2 text-sm">Sem {mov.semana || '-'}</td>
-                                          <td className="px-3 py-2">
+                                          <td className="px-4 py-3 text-sm">
+                                            <Badge variant="outline" className="text-xs">Sem {mov.semana || '-'}</Badge>
+                                          </td>
+                                          <td className="px-4 py-3">
                                             {mov.tipo === 'adelanto' && (
-                                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                              <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
                                                 <Banknote className="h-3 w-3 mr-1" />
                                                 Adelanto
                                               </Badge>
                                             )}
                                             {mov.tipo === 'hora_extra' && (
-                                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
                                                 <Timer className="h-3 w-3 mr-1" />
                                                 HS Extra
                                               </Badge>
                                             )}
                                             {mov.tipo === 'franco' && (
-                                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                              <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
                                                 <Coffee className="h-3 w-3 mr-1" />
                                                 Franco
                                               </Badge>
                                             )}
                                             {mov.tipo === 'feriado' && (
-                                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                              <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
                                                 <PartyPopper className="h-3 w-3 mr-1" />
                                                 Feriado
                                               </Badge>
                                             )}
                                           </td>
-                                          <td className="px-3 py-2 text-right font-medium text-sm">
-                                            {formatNumber(mov.monto, 'currency')}
+                                          <td className="px-4 py-3 text-right text-sm">
+                                            {(mov.tipo === 'hora_extra' || mov.tipo === 'franco' || mov.tipo === 'feriado')
+                                              ? <span className="font-medium">{mov.cantidad_horas} hs</span>
+                                              : <span className="text-muted-foreground">-</span>}
                                           </td>
-                                          <td className="px-3 py-2 text-right text-sm">
-                                            {(mov.tipo === 'hora_extra' || mov.tipo === 'franco' || mov.tipo === 'feriado') ? `${mov.cantidad_horas} hs` : '-'}
+                                          <td className="px-4 py-3 text-right">
+                                            <span className={`font-semibold ${mov.tipo === 'adelanto' ? 'text-red-600' : 'text-green-600'}`}>
+                                              {mov.tipo === 'adelanto' ? '-' : '+'}{formatNumber(mov.monto, 'currency')}
+                                            </span>
                                           </td>
-                                          <td className="px-3 py-2">
-                                            <div className="flex gap-1">
+                                          <td className="px-4 py-3">
+                                            <div className="flex justify-center gap-1">
                                               <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -686,8 +793,8 @@ export default function JornalesPage() {
                                   </table>
                                 </div>
                               ) : (
-                                <p className="text-sm text-muted-foreground">
-                                  Cargando registros...
+                                <p className="text-sm text-muted-foreground py-4 text-center">
+                                  No hay registros para este empleado en este período
                                 </p>
                               )}
                             </div>
@@ -697,24 +804,52 @@ export default function JornalesPage() {
                     </>
                   ))}
                   {/* Fila de totales */}
-                  <tr className="bg-muted/50 font-bold">
-                    <td className="sticky left-0 z-10 bg-muted/50 px-4 py-3 min-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">TOTAL</td>
-                    <td className="sticky left-[180px] z-10 bg-muted/50 px-4 py-3 min-w-[80px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"></td>
-                    <td colSpan={5}></td>
-                    <td className="px-4 py-3 text-right text-red-600">
-                      {formatNumber(resumen.total_adelantos, 'currency')}
+                  <tr className="bg-muted font-bold sticky bottom-0">
+                    <td className="sticky left-0 z-10 bg-muted px-4 py-4 border-r border-border text-base">
+                      TOTALES
                     </td>
-                    <td className="px-4 py-3 text-right text-blue-600">
-                      <div>{Number(resumen.total_horas_extras || 0)} hs</div>
-                      <div className="text-xs text-blue-400">
-                        {formatNumber(resumen.total_monto_extras, 'currency')}
-                      </div>
+                    <td className="bg-muted px-3 py-4 text-center border-r border-border"></td>
+                    {/* Adelantos */}
+                    <td className="bg-red-200/50 px-3 py-4 text-center">
+                      <span className="text-red-800 font-bold">-{formatNumber(resumen.total_adelantos, 'currency')}</span>
                     </td>
-                    <td className="px-4 py-3 text-right text-lg">
-                      {formatNumber(resumen.total_general, 'currency')}
+                    {/* HS Extras */}
+                    <td className="bg-blue-200/50 px-3 py-4 text-center border-l border-blue-200">
+                      <span className="text-blue-800 font-bold">{Number(resumen.total_horas_extras || 0)} hs</span>
                     </td>
-                    <td></td>
-                    <td></td>
+                    <td className="bg-blue-200/50 px-3 py-4 text-center">
+                      <span className="text-blue-800 font-bold">{formatNumber(resumen.total_monto_extras, 'currency')}</span>
+                    </td>
+                    {/* Francos */}
+                    <td className="bg-amber-200/50 px-3 py-4 text-center border-l border-amber-200">
+                      <span className="text-amber-800 font-bold">{Number(resumen.total_francos || 0)} hs</span>
+                    </td>
+                    <td className="bg-amber-200/50 px-3 py-4 text-center">
+                      <span className="text-amber-800 font-bold">{formatNumber(resumen.total_monto_francos, 'currency')}</span>
+                    </td>
+                    {/* Feriados */}
+                    <td className="bg-purple-200/50 px-3 py-4 text-center border-l border-purple-200">
+                      <span className="text-purple-800 font-bold">{Number(resumen.total_feriados || 0)} hs</span>
+                    </td>
+                    <td className="bg-purple-200/50 px-3 py-4 text-center">
+                      <span className="text-purple-800 font-bold">{formatNumber(resumen.total_monto_feriados, 'currency')}</span>
+                    </td>
+                    {/* Total Suma */}
+                    <td className="bg-green-200/50 px-3 py-4 text-center border-l border-green-200">
+                      <span className="text-green-800 font-bold text-lg">
+                        +{formatNumber(
+                          Number(resumen.total_monto_extras || 0) +
+                          Number(resumen.total_monto_francos || 0) +
+                          Number(resumen.total_monto_feriados || 0),
+                          'currency'
+                        )}
+                      </span>
+                    </td>
+                    {/* Sueldo Final */}
+                    <td className="bg-slate-200/50 px-3 py-4 text-center border-l border-slate-300">
+                      <span className="text-muted-foreground">-</span>
+                    </td>
+                    <td className="bg-muted px-2 py-4"></td>
                   </tr>
                 </tbody>
               </table>

@@ -246,6 +246,15 @@ class FinalizarEtapaRequest(BaseModel):
     # Para validación con PIN del operario
     operario_id: Optional[UUID] = None
     pin: Optional[str] = Field(None, min_length=4, max_length=6)
+    # Campos para cargo en cuenta corriente (solo aplican si es la última etapa)
+    monto_cobro: Optional[Decimal] = Field(
+        None, ge=0,
+        description="Monto a cobrar al cliente. Solo aplica si es la última etapa y el lote tiene cliente."
+    )
+    estado_facturacion: Optional[str] = Field(
+        default="sin_facturar",
+        description="Estado de facturación: sin_facturar, factura_a, factura_b, ticket"
+    )
 
 
 class MoverLoteRequest(BaseModel):
@@ -279,3 +288,32 @@ class ValidarPinResponse(BaseModel):
     operario_id: UUID
     operario_nombre: str
     mensaje: Optional[str] = None
+
+
+# ==================== LOTE DIRECTO (con cargo automático a CC) ====================
+
+class LoteDirectoCreate(BaseModel):
+    """Schema para crear un lote directo con cargo automático a cuenta corriente."""
+    cliente_id: UUID
+    tipo_servicio: TipoServicio = TipoServicio.LAVADO_NORMAL
+    peso_entrada_kg: Optional[Decimal] = Field(None, ge=0)
+    cantidad_prendas: Optional[int] = Field(None, ge=0)
+    descripcion: Optional[str] = None
+    notas_cliente: Optional[str] = None
+    # Datos para el cargo en cuenta corriente
+    monto_cobro: Decimal = Field(..., gt=0, description="Monto a cobrar al cliente")
+    estado_facturacion: str = Field(
+        default="sin_facturar",
+        description="Estado de facturación: sin_facturar, factura_a, factura_b, ticket"
+    )
+    concepto: Optional[str] = Field(
+        None,
+        description="Concepto del cargo. Si no se proporciona, se genera automáticamente"
+    )
+
+
+class LoteDirectoResponse(BaseModel):
+    """Schema de respuesta para lote directo creado."""
+    lote: LoteProduccionResponse
+    movimiento_cc_id: UUID
+    mensaje: str

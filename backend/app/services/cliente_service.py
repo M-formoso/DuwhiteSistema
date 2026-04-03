@@ -418,8 +418,10 @@ class ClienteService:
         concepto: str,
         usuario_id: str,
         pedido_id: Optional[str] = None,
+        lote_id: Optional[str] = None,
         factura_numero: Optional[str] = None,
         fecha_vencimiento: Optional[date] = None,
+        estado_facturacion: Optional[str] = "sin_facturar",
     ) -> MovimientoCuentaCorriente:
         """Registra un cargo (aumenta deuda) en cuenta corriente."""
         cliente = self.get_cliente(cliente_id)
@@ -438,7 +440,9 @@ class ClienteService:
             saldo_anterior=saldo_anterior,
             saldo_posterior=saldo_posterior,
             pedido_id=pedido_id,
+            lote_id=lote_id,
             factura_numero=factura_numero,
+            estado_facturacion=estado_facturacion,
             fecha_movimiento=date.today(),
             fecha_vencimiento=fecha_vencimiento,
             registrado_por_id=usuario_id,
