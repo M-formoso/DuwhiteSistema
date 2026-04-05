@@ -3,7 +3,7 @@
  * Similar a la estructura del Excel de ADELANTO + HS. EXTRAS
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar,
@@ -573,9 +573,8 @@ export default function JornalesPage() {
                   {resumen.empleados.map((emp) => {
                     const totalSuma = Number(emp.total_monto_extras || 0) + Number(emp.total_monto_francos || 0) + Number(emp.total_monto_feriados || 0);
                     return (
-                    <>
-                      <tr
-                        key={emp.empleado_id}
+                      <React.Fragment key={emp.empleado_id}>
+                        <tr
                         className="cursor-pointer hover:bg-muted/30 border-b border-border transition-colors"
                         onClick={() => toggleExpandEmpleado(emp.empleado_id)}
                       >
@@ -800,9 +799,10 @@ export default function JornalesPage() {
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </>
-                  ))}
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                   {/* Fila de totales */}
                   <tr className="bg-muted font-bold sticky bottom-0">
                     <td className="sticky left-0 z-10 bg-muted px-4 py-4 border-r border-border text-base">
