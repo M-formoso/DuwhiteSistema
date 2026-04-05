@@ -22,6 +22,7 @@ from app.schemas.tesoreria import (
     RechazarChequeRequest,
     EntregarChequeRequest,
     MovimientoTesoreriaCreate,
+    MovimientoTesoreriaUpdate,
     MovimientoTesoreriaResponse,
     MovimientoTesoreriaList,
     MovimientoConsolidado,
@@ -400,6 +401,47 @@ def create_movimiento(
         )
 
     return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
+
+
+@router.put("/movimientos/{movimiento_id}", response_model=MovimientoTesoreriaResponse)
+def update_movimiento(
+    movimiento_id: UUID,
+    data: MovimientoTesoreriaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """Actualiza un movimiento de tesorería."""
+    service = TesoreriaService(db)
+
+    try:
+        movimiento = service.update_movimiento(movimiento_id, data, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
+
+
+@router.delete("/movimientos/{movimiento_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_movimiento(
+    movimiento_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
+):
+    """Elimina un movimiento de tesorería (soft delete)."""
+    service = TesoreriaService(db)
+
+    try:
+        service.delete_movimiento(movimiento_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    return None
 
 
 @router.post("/movimientos/{movimiento_id}/anular", response_model=MovimientoTesoreriaResponse)

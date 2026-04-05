@@ -23,7 +23,6 @@ import {
   Banknote,
   CreditCard,
   ArrowRight,
-  Ban,
   Building2,
   Calendar,
   User,
@@ -65,6 +64,8 @@ import type {
   ChequeCreate,
   ChequeUpdate,
   MovimientoTesoreriaCreate,
+  MovimientoTesoreriaUpdate,
+  MovimientoConsolidado,
   EstadoCheque,
 } from '@/types/tesoreria';
 import type { CuentaBancaria } from '@/types/finanzas';
@@ -87,6 +88,9 @@ export default function TesoreriaPage() {
   const [showDeleteChequeDialog, setShowDeleteChequeDialog] = useState(false);
   const [chequeAEliminar, setChequeAEliminar] = useState<ChequeList | null>(null);
   const [showCuentaBancariaModal, setShowCuentaBancariaModal] = useState(false);
+  const [showEditMovimientoModal, setShowEditMovimientoModal] = useState(false);
+  const [movimientoAEditar, setMovimientoAEditar] = useState<MovimientoConsolidado | null>(null);
+  const [editMovimientoForm, setEditMovimientoForm] = useState<MovimientoTesoreriaUpdate>({});
 
   // Form cuenta bancaria
   const [cuentaBancariaForm, setCuentaBancariaForm] = useState({
@@ -429,6 +433,42 @@ export default function TesoreriaPage() {
     },
   });
 
+  const actualizarMovimientoMutation = useMutation({
+    mutationFn: ({ movimientoId, data }: { movimientoId: string; data: MovimientoTesoreriaUpdate }) =>
+      tesoreriaService.movimientos.actualizarMovimiento(movimientoId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Movimiento actualizado correctamente' });
+      setShowEditMovimientoModal(false);
+      setMovimientoAEditar(null);
+      setEditMovimientoForm({});
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo actualizar el movimiento',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const eliminarMovimientoMutation = useMutation({
+    mutationFn: (movimientoId: string) => tesoreriaService.movimientos.eliminarMovimiento(movimientoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Movimiento eliminado correctamente' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'No se pudo eliminar el movimiento',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const crearCuentaBancariaMutation = useMutation({
     mutationFn: (data: Partial<CuentaBancaria>) => finanzasService.createCuentaBancaria(data),
     onSuccess: () => {
@@ -529,6 +569,19 @@ export default function TesoreriaPage() {
     setShowAccionChequeModal(false);
     setChequeSeleccionado(null);
     setAccionCheque(null);
+  };
+
+  const abrirEditarMovimiento = (mov: MovimientoConsolidado) => {
+    setMovimientoAEditar(mov);
+    setEditMovimientoForm({
+      concepto: mov.concepto,
+      monto: mov.monto,
+      es_ingreso: mov.es_ingreso,
+      fecha_movimiento: mov.fecha,
+      metodo_pago: mov.metodo_pago as any,
+      notas: '',
+    });
+    setShowEditMovimientoModal(true);
   };
 
   const ejecutarAccionCheque = () => {
@@ -1378,7 +1431,7 @@ export default function TesoreriaPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
                         <span
                           className={`text-lg font-bold ${
                             mov.es_ingreso
@@ -1389,20 +1442,28 @@ export default function TesoreriaPage() {
                           {mov.es_ingreso ? '+' : '-'}${formatNumber(mov.monto, 2)}
                         </span>
                         {mov.origen === 'movimiento_tesoreria' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              if (confirm('¿Está seguro de anular este movimiento?')) {
-                                anularMovimientoMutation.mutate({
-                                  movimientoId: mov.id,
-                                  motivo: 'Anulado por el usuario',
-                                });
-                              }
-                            }}
-                          >
-                            <Ban className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Editar movimiento"
+                              onClick={() => abrirEditarMovimiento(mov)}
+                            >
+                              <Pencil className="h-4 w-4 text-gray-400 hover:text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Eliminar movimiento"
+                              onClick={() => {
+                                if (confirm('¿Está seguro de eliminar este movimiento?')) {
+                                  eliminarMovimientoMutation.mutate(mov.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -2156,6 +2217,123 @@ export default function TesoreriaPage() {
                   disabled={!cuentaBancariaForm.nombre || !cuentaBancariaForm.banco || crearCuentaBancariaMutation.isPending}
                 >
                   {crearCuentaBancariaMutation.isPending ? 'Guardando...' : 'Crear Cuenta'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Editar Movimiento */}
+      {showEditMovimientoModal && movimientoAEditar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Editar Movimiento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-4">
+                <Button
+                  variant={editMovimientoForm.es_ingreso ? 'default' : 'outline'}
+                  className={editMovimientoForm.es_ingreso ? 'bg-green-600 hover:bg-green-700' : ''}
+                  onClick={() => setEditMovimientoForm({ ...editMovimientoForm, es_ingreso: true })}
+                >
+                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                  Ingreso
+                </Button>
+                <Button
+                  variant={!editMovimientoForm.es_ingreso ? 'default' : 'outline'}
+                  className={!editMovimientoForm.es_ingreso ? 'bg-red-600 hover:bg-red-700' : ''}
+                  onClick={() => setEditMovimientoForm({ ...editMovimientoForm, es_ingreso: false })}
+                >
+                  <ArrowDownCircle className="h-4 w-4 mr-2" />
+                  Egreso
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Concepto *</Label>
+                <Input
+                  value={editMovimientoForm.concepto || ''}
+                  onChange={(e) => setEditMovimientoForm({ ...editMovimientoForm, concepto: e.target.value })}
+                  placeholder="Descripción del movimiento"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editMovimientoForm.monto || ''}
+                    onChange={(e) => setEditMovimientoForm({ ...editMovimientoForm, monto: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha *</Label>
+                  <Input
+                    type="date"
+                    value={editMovimientoForm.fecha_movimiento || ''}
+                    onChange={(e) => setEditMovimientoForm({ ...editMovimientoForm, fecha_movimiento: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Método de Pago</Label>
+                <Select
+                  value={editMovimientoForm.metodo_pago || 'efectivo'}
+                  onValueChange={(v) => setEditMovimientoForm({ ...editMovimientoForm, metodo_pago: v as any })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {METODOS_PAGO_TESORERIA.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={editMovimientoForm.notas || ''}
+                  onChange={(e) => setEditMovimientoForm({ ...editMovimientoForm, notas: e.target.value })}
+                  placeholder="Observaciones..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowEditMovimientoModal(false);
+                    setMovimientoAEditar(null);
+                    setEditMovimientoForm({});
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (movimientoAEditar) {
+                      actualizarMovimientoMutation.mutate({
+                        movimientoId: movimientoAEditar.id,
+                        data: editMovimientoForm,
+                      });
+                    }
+                  }}
+                  disabled={!editMovimientoForm.concepto || !editMovimientoForm.monto || actualizarMovimientoMutation.isPending}
+                  className={editMovimientoForm.es_ingreso ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+                >
+                  {actualizarMovimientoMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
                 </Button>
               </div>
             </CardContent>

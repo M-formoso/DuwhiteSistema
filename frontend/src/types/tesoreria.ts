@@ -196,6 +196,25 @@ export interface AnularMovimientoRequest {
   motivo: string;
 }
 
+export interface MovimientoTesoreriaUpdate {
+  tipo?: string;
+  concepto?: string;
+  descripcion?: string | null;
+  monto?: number;
+  es_ingreso?: boolean;
+  fecha_movimiento?: string;
+  fecha_valor?: string | null;
+  metodo_pago?: MetodoPagoTesoreria;
+  banco_origen?: string | null;
+  banco_destino?: string | null;
+  cuenta_destino_id?: string | null;
+  numero_transferencia?: string | null;
+  cliente_id?: string | null;
+  proveedor_id?: string | null;
+  notas?: string | null;
+  comprobante?: string | null;
+}
+
 // ==================== MOVIMIENTO CONSOLIDADO ====================
 
 export interface MovimientoConsolidado {

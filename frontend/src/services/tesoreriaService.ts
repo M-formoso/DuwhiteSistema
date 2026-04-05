@@ -15,6 +15,7 @@ import type {
   MovimientoTesoreria,
   MovimientoTesoreriaList,
   MovimientoTesoreriaCreate,
+  MovimientoTesoreriaUpdate,
   AnularMovimientoRequest,
   ResumenTesoreria,
   MovimientosConsolidadosResponse,
@@ -192,6 +193,18 @@ export const movimientosTesoreriaService = {
       data
     );
     return response.data;
+  },
+
+  async actualizarMovimiento(movimientoId: string, data: MovimientoTesoreriaUpdate) {
+    const response = await api.put<MovimientoTesoreria>(
+      `/tesoreria/movimientos/${movimientoId}`,
+      data
+    );
+    return response.data;
+  },
+
+  async eliminarMovimiento(movimientoId: string) {
+    await api.delete(`/tesoreria/movimientos/${movimientoId}`);
   },
 };
 

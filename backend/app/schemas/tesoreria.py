@@ -283,6 +283,31 @@ class AnularMovimientoRequest(BaseModel):
     motivo: str = Field(..., min_length=5)
 
 
+class MovimientoTesoreriaUpdate(BaseModel):
+    """Schema para actualizar movimiento de tesorería."""
+    tipo: Optional[str] = None
+    concepto: Optional[str] = Field(None, min_length=3, max_length=200)
+    descripcion: Optional[str] = None
+    monto: Optional[Decimal] = Field(None, gt=0)
+    es_ingreso: Optional[bool] = None
+    fecha_movimiento: Optional[date] = None
+    fecha_valor: Optional[date] = None
+    metodo_pago: Optional[str] = None
+    banco_origen: Optional[str] = None
+    banco_destino: Optional[str] = None
+    cuenta_destino_id: Optional[UUID] = None
+    numero_transferencia: Optional[str] = None
+    cliente_id: Optional[UUID] = None
+    proveedor_id: Optional[UUID] = None
+    notas: Optional[str] = None
+    comprobante: Optional[str] = None
+
+    @field_validator('fecha_movimiento', 'fecha_valor', mode='before')
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
+
 # ==================== MOVIMIENTO CONSOLIDADO ====================
 
 class MovimientoConsolidado(BaseModel):

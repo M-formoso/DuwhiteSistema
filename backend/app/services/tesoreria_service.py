@@ -34,6 +34,7 @@ from app.schemas.tesoreria import (
     RechazarChequeRequest,
     EntregarChequeRequest,
     MovimientoTesoreriaCreate,
+    MovimientoTesoreriaUpdate,
     AnularMovimientoRequest,
     ResumenTesoreria,
 )
@@ -510,6 +511,54 @@ class TesoreriaService:
         self.db.refresh(movimiento)
 
         return movimiento
+
+    def update_movimiento(
+        self,
+        movimiento_id: UUID,
+        data: MovimientoTesoreriaUpdate,
+        usuario_id: UUID
+    ) -> MovimientoTesoreria:
+        """Actualiza un movimiento de tesorería."""
+        movimiento = self.get_movimiento(movimiento_id)
+        if not movimiento:
+            raise ValueError("Movimiento no encontrado")
+
+        if movimiento.anulado:
+            raise ValueError("No se puede editar un movimiento anulado")
+
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            if field.endswith('_id') and value is not None:
+                value = str(value)
+            setattr(movimiento, field, value)
+
+        self.db.commit()
+        self.db.refresh(movimiento)
+
+        return movimiento
+
+    def delete_movimiento(
+        self,
+        movimiento_id: UUID,
+        usuario_id: UUID
+    ) -> bool:
+        """Elimina un movimiento de tesorería (soft delete)."""
+        movimiento = self.get_movimiento(movimiento_id)
+        if not movimiento:
+            raise ValueError("Movimiento no encontrado")
+
+        if movimiento.anulado:
+            raise ValueError("El movimiento ya está anulado, no se puede eliminar")
+
+        # Soft delete: marcar como anulado y desactivar
+        movimiento.anulado = True
+        movimiento.motivo_anulacion = "Eliminado por el usuario"
+        movimiento.anulado_por_id = str(usuario_id)
+        movimiento.fecha_anulacion = datetime.now()
+        movimiento.activo = False
+
+        self.db.commit()
+        return True
 
     # ==================== RESUMEN ====================
 
