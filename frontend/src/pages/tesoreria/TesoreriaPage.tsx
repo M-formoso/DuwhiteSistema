@@ -1465,6 +1465,38 @@ export default function TesoreriaPage() {
                             </Button>
                           </>
                         )}
+                        {mov.origen === 'cheque' && mov.estado === 'en_cartera' && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Editar cheque"
+                              onClick={() => {
+                                // Buscar el cheque en la lista y abrir el modal de edición
+                                const cheque = cheques?.items?.find(c => c.id === mov.id);
+                                if (cheque) {
+                                  abrirEditarCheque(cheque);
+                                }
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 text-gray-400 hover:text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Eliminar cheque"
+                              onClick={() => {
+                                const cheque = cheques?.items?.find(c => c.id === mov.id);
+                                if (cheque) {
+                                  setChequeAEliminar(cheque);
+                                  setShowDeleteChequeDialog(true);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
