@@ -137,7 +137,10 @@ export default function JornalesPage() {
     queryFn: () => getEmpleados({ limit: 100, solo_activos: true }),
   });
 
-  const empleados = empleadosData?.items || [];
+  // Ordenar empleados alfabéticamente por nombre_completo (apellido)
+  const empleados = [...(empleadosData?.items || [])].sort((a, b) =>
+    a.nombre_completo.localeCompare(b.nombre_completo, 'es', { sensitivity: 'base' })
+  );
 
   // Query movimientos del empleado expandido
   const { data: movimientosData } = useQuery({
