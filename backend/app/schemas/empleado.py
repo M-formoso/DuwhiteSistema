@@ -178,6 +178,8 @@ class EmpleadoUpdate(BaseModel):
     salario_base: Optional[Decimal] = Field(None, ge=0)
     salario_hora: Optional[Decimal] = Field(None, ge=0)
     valor_hora_extra: Optional[Decimal] = Field(None, ge=0)
+    valor_dia_franco: Optional[Decimal] = Field(None, ge=0)
+    valor_dia_feriado: Optional[Decimal] = Field(None, ge=0)
     tipo_contratacion: Optional[str] = None  # blanco, negro, monotributo
     dia_pago: Optional[int] = Field(None, ge=1, le=31)
     jornada_horas: Optional[Decimal] = Field(None, ge=1, le=12)
@@ -244,6 +246,8 @@ class EmpleadoResponse(BaseModel):
     salario_base: Decimal
     salario_hora: Optional[Decimal]
     valor_hora_extra: Optional[Decimal]
+    valor_dia_franco: Optional[Decimal]
+    valor_dia_feriado: Optional[Decimal]
     tipo_contratacion: str
     dia_pago: Optional[int]
     jornada_horas: Decimal
@@ -405,7 +409,9 @@ class MovimientoNominaResponse(BaseModel):
     fecha: Optional[date] = None
     semana: Optional[int] = None
     cantidad_horas: Optional[Decimal] = None
+    cantidad_dias: Optional[Decimal] = None
     valor_hora: Optional[Decimal] = None
+    valor_dia: Optional[Decimal] = None
 
     # Campos calculados
     empleado_nombre: Optional[str] = None
@@ -515,12 +521,13 @@ class ResumenNomina(BaseModel):
 # ==================== JORNALES ====================
 
 class RegistroJornalCreate(BaseModel):
-    """Schema para registrar adelanto o horas extras diarias"""
+    """Schema para registrar adelanto, horas extras, francos o feriados"""
     empleado_id: UUID
     fecha: date
-    tipo: str  # 'adelanto' o 'hora_extra'
+    tipo: str  # 'adelanto', 'hora_extra', 'franco', 'feriado'
     monto: Optional[Decimal] = Field(None, ge=0)  # Para adelantos
     cantidad_horas: Optional[Decimal] = Field(None, ge=0)  # Para HS extras
+    cantidad_dias: Optional[Decimal] = Field(None, ge=0)  # Para francos/feriados (default 1)
     notas: Optional[str] = None
 
     @field_validator('fecha', mode='before')

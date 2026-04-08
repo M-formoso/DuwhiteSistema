@@ -115,6 +115,8 @@ class Empleado(Base, BaseModelMixin):
     salario_base = Column(Numeric(12, 2), nullable=False, default=0)
     salario_hora = Column(Numeric(10, 2), nullable=True)
     valor_hora_extra = Column(Numeric(10, 2), nullable=True)  # Valor de hora extra (del Excel)
+    valor_dia_franco = Column(Numeric(10, 2), nullable=True)  # Valor fijo por día de franco trabajado
+    valor_dia_feriado = Column(Numeric(10, 2), nullable=True)  # Valor fijo por día de feriado trabajado
     tipo_contratacion = Column(String(20), nullable=False, default="blanco")  # blanco, negro, monotributo
     dia_pago = Column(Integer, nullable=True, default=5)  # Día del mes en que se paga (1-31)
     jornada_horas = Column(Numeric(4, 2), nullable=False, default=8)  # Horas de jornada laboral diaria
@@ -232,7 +234,9 @@ class MovimientoNomina(Base, BaseModelMixin):
 
     # Horas extras específicas
     cantidad_horas = Column(Numeric(5, 2), nullable=True)  # Cantidad de HS extras
+    cantidad_dias = Column(Numeric(3, 1), nullable=True)  # Cantidad de días (para francos/feriados)
     valor_hora = Column(Numeric(10, 2), nullable=True)  # Valor de la hora extra al momento
+    valor_dia = Column(Numeric(10, 2), nullable=True)  # Valor del día al momento (para francos/feriados)
 
     # Montos
     monto = Column(Numeric(12, 2), nullable=False)

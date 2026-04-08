@@ -844,55 +844,56 @@ class EmpleadoService:
             )
 
         elif data.tipo == "franco":
-            if not data.cantidad_horas or data.cantidad_horas <= 0:
-                raise ValueError("Cantidad de horas debe ser mayor a 0")
+            # Franco trabajado se registra por día con valor fijo
+            cantidad_dias = data.cantidad_dias if data.cantidad_dias else Decimal("1")
+            if cantidad_dias <= 0:
+                raise ValueError("Cantidad de días debe ser mayor a 0")
 
-            # Franco trabajado usa el mismo valor hora
-            valor_hora = empleado.valor_hora_extra or empleado.salario_hora or Decimal("0")
-            if valor_hora <= 0:
-                raise ValueError("El empleado no tiene configurado un valor de hora")
+            valor_dia = empleado.valor_dia_franco or Decimal("0")
+            if valor_dia <= 0:
+                raise ValueError("El empleado no tiene configurado un valor de día franco")
 
-            monto = data.cantidad_horas * valor_hora
+            monto = cantidad_dias * valor_dia
 
             movimiento = MovimientoNomina(
                 empleado_id=data.empleado_id,
                 tipo=TipoMovimientoNomina.FRANCO.value,
-                concepto=f"Franco trabajado {data.fecha.strftime('%d/%m/%Y')} ({data.cantidad_horas}hs)",
+                concepto=f"Franco trabajado {data.fecha.strftime('%d/%m/%Y')}",
                 descripcion=data.notas,
                 periodo_mes=data.fecha.month,
                 periodo_anio=data.fecha.year,
                 fecha=data.fecha,
                 semana=semana,
-                cantidad_horas=data.cantidad_horas,
-                valor_hora=valor_hora,
+                cantidad_dias=cantidad_dias,
+                valor_dia=valor_dia,
                 monto=monto,
                 es_debito=False,  # Franco se suma al sueldo
                 registrado_por_id=registrado_por_id
             )
 
         elif data.tipo == "feriado":
-            if not data.cantidad_horas or data.cantidad_horas <= 0:
-                raise ValueError("Cantidad de horas debe ser mayor a 0")
+            # Feriado trabajado se registra por día con valor fijo
+            cantidad_dias = data.cantidad_dias if data.cantidad_dias else Decimal("1")
+            if cantidad_dias <= 0:
+                raise ValueError("Cantidad de días debe ser mayor a 0")
 
-            # Feriado trabajado generalmente paga doble
-            valor_hora = empleado.valor_hora_extra or empleado.salario_hora or Decimal("0")
-            if valor_hora <= 0:
-                raise ValueError("El empleado no tiene configurado un valor de hora")
+            valor_dia = empleado.valor_dia_feriado or Decimal("0")
+            if valor_dia <= 0:
+                raise ValueError("El empleado no tiene configurado un valor de día feriado")
 
-            # Feriado paga x2
-            monto = data.cantidad_horas * valor_hora * Decimal("2")
+            monto = cantidad_dias * valor_dia
 
             movimiento = MovimientoNomina(
                 empleado_id=data.empleado_id,
                 tipo=TipoMovimientoNomina.FERIADO.value,
-                concepto=f"Feriado trabajado {data.fecha.strftime('%d/%m/%Y')} ({data.cantidad_horas}hs x2)",
+                concepto=f"Feriado trabajado {data.fecha.strftime('%d/%m/%Y')}",
                 descripcion=data.notas,
                 periodo_mes=data.fecha.month,
                 periodo_anio=data.fecha.year,
                 fecha=data.fecha,
                 semana=semana,
-                cantidad_horas=data.cantidad_horas,
-                valor_hora=valor_hora * Decimal("2"),  # Guardamos el valor con el multiplicador
+                cantidad_dias=cantidad_dias,
+                valor_dia=valor_dia,
                 monto=monto,
                 es_debito=False,  # Feriado se suma al sueldo
                 registrado_por_id=registrado_por_id
@@ -1011,10 +1012,12 @@ class EmpleadoService:
                 semanas_dict[semana]["total_horas_extras"] += mov.cantidad_horas or Decimal("0")
                 semanas_dict[semana]["total_monto_extras"] += mov.monto
             elif mov.tipo == TipoMovimientoNomina.FRANCO.value:
-                semanas_dict[semana]["total_francos"] += mov.cantidad_horas or Decimal("0")
+                # Francos se cuentan por días
+                semanas_dict[semana]["total_francos"] += mov.cantidad_dias or Decimal("1")
                 semanas_dict[semana]["total_monto_francos"] += mov.monto
             elif mov.tipo == TipoMovimientoNomina.FERIADO.value:
-                semanas_dict[semana]["total_feriados"] += mov.cantidad_horas or Decimal("0")
+                # Feriados se cuentan por días
+                semanas_dict[semana]["total_feriados"] += mov.cantidad_dias or Decimal("1")
                 semanas_dict[semana]["total_monto_feriados"] += mov.monto
 
             semanas_dict[semana]["dias_con_movimiento"] += 1

@@ -64,6 +64,8 @@ export interface Empleado {
   salario_base: number;
   salario_hora: number | null;
   valor_hora_extra: number | null;
+  valor_dia_franco: number | null;
+  valor_dia_feriado: number | null;
   tipo_contratacion: TipoContratacion;
   dia_pago: number | null;
   jornada_horas: number;
@@ -256,7 +258,9 @@ export interface MovimientoNomina {
   fecha: string | null;
   semana: number | null;
   cantidad_horas: number | null;
+  cantidad_dias: number | null;
   valor_hora: number | null;
+  valor_dia: number | null;
   // Campos calculados
   empleado_nombre?: string | null;
   registrado_por_nombre?: string | null;
@@ -429,6 +433,7 @@ export interface RegistroJornalCreate {
   tipo: 'adelanto' | 'hora_extra' | 'franco' | 'feriado';
   monto?: number;
   cantidad_horas?: number;
+  cantidad_dias?: number;
   notas?: string;
 }
 
