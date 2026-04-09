@@ -32,6 +32,7 @@ from app.models.lote_produccion import (
     EstadoLote,
     PrioridadLote,
     TipoServicio as TipoServicioLote,
+    TipoLote,
 )
 from app.models.orden_produccion import (
     OrdenProduccion,
@@ -39,6 +40,22 @@ from app.models.orden_produccion import (
     IncidenciaProduccion,
     EstadoOrdenProduccion,
     PrioridadOrden,
+)
+from app.models.canasto import (
+    Canasto,
+    LoteCanasto,
+    EstadoCanasto,
+)
+from app.models.producto_lavado import (
+    ProductoLavado,
+    PrecioProductoLavado,
+    CategoriaProductoLavado,
+)
+from app.models.remito import (
+    Remito,
+    DetalleRemito,
+    EstadoRemito,
+    TipoRemito,
 )
 
 # Clientes

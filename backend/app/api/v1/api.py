@@ -29,6 +29,9 @@ from app.api.v1.endpoints import (
     conciliacion_bancaria,
     tesoreria,
     liquidaciones,
+    canastos,
+    productos_lavado,
+    remitos,
 )
 
 api_router = APIRouter()
@@ -192,6 +195,27 @@ api_router.include_router(
     liquidaciones.router,
     prefix="/liquidaciones",
     tags=["Liquidaciones"],
+)
+
+# Canastos (Producción v2)
+api_router.include_router(
+    canastos.router,
+    prefix="/produccion/canastos",
+    tags=["Producción - Canastos"],
+)
+
+# Productos de Lavado (Producción v2)
+api_router.include_router(
+    productos_lavado.router,
+    prefix="/produccion/productos-lavado",
+    tags=["Producción - Productos de Lavado"],
+)
+
+# Remitos (Producción v2)
+api_router.include_router(
+    remitos.router,
+    prefix="/remitos",
+    tags=["Remitos"],
 )
 
 # Los siguientes routers se agregarán a medida que se implementen los módulos:

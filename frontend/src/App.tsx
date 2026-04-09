@@ -28,6 +28,9 @@ import ProductosProveedorPage from '@/pages/proveedores/ProductosProveedorPage';
 
 // Producción
 import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage, PanelOperariosPage } from '@/pages/produccion';
+import CanastosPage from '@/pages/produccion/CanastosPage';
+import ProductosLavadoPage from '@/pages/produccion/ProductosLavadoPage';
+import ConteoFinalizacionPage from '@/pages/produccion/ConteoFinalizacionPage';
 
 // Clientes
 import { ClientesListPage, ClienteFormPage, ClienteDetailPage, ClienteCuentaCorrientePage } from '@/pages/clientes';
@@ -139,6 +142,9 @@ function App() {
         <Route path="/produccion/lotes/:id/editar" element={<LoteFormPage />} />
         <Route path="/produccion/etapas" element={<EtapasProduccionPage />} />
         <Route path="/produccion/maquinas" element={<MaquinasPage />} />
+        <Route path="/produccion/canastos" element={<CanastosPage />} />
+        <Route path="/produccion/productos" element={<ProductosLavadoPage />} />
+        <Route path="/produccion/lotes/:id/conteo" element={<ConteoFinalizacionPage />} />
 
         {/* Clientes */}
         <Route path="/clientes" element={<ClientesListPage />} />

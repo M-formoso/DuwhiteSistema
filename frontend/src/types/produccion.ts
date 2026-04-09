@@ -74,6 +74,16 @@ export interface LoteEtapa {
   duracion_minutos: number;
 }
 
+// Tipo de lote
+export type TipoLote = 'normal' | 'relevado';
+
+// Canasto asignado al lote
+export interface LoteCanastoInfo {
+  id: string;
+  numero: number;
+  codigo: string;
+}
+
 // Lote de Producción
 export interface LoteProduccion {
   id: string;
@@ -111,6 +121,11 @@ export interface LoteProduccion {
   esta_atrasado: boolean;
   porcentaje_avance: number;
   etapas: LoteEtapa[];
+  // Campos V2
+  tipo_lote?: TipoLote;
+  lote_padre_id?: string | null;
+  lote_padre_numero?: string | null;
+  canastos?: LoteCanastoInfo[];
 }
 
 export interface LoteProduccionList {
@@ -162,6 +177,13 @@ export interface ConsumoInsumoLote {
   created_at: string;
 }
 
+// Canasto asignado para Kanban
+export interface KanbanCanasto {
+  id: string;
+  numero: number;
+  codigo: string;
+}
+
 // Kanban
 export interface KanbanLote {
   id: string;
@@ -175,6 +197,11 @@ export interface KanbanLote {
   esta_atrasado: boolean;
   tiempo_en_etapa_minutos: number;
   etapa_en_proceso: boolean; // True si la etapa actual está en proceso (tiene fecha_inicio pero no fecha_fin)
+  // Campos nuevos para v2
+  tipo_lote?: 'normal' | 'relevado';
+  lote_padre_numero?: string | null;
+  canastos?: KanbanCanasto[];
+  fecha_inicio_etapa?: string | null; // Para timer en tiempo real
 }
 
 export interface KanbanColumna {
@@ -187,6 +214,9 @@ export interface KanbanColumna {
   requiere_maquina: boolean;
   tipo_maquina: string | null; // lavadora, secadora, planchadora según etapa
   lotes: KanbanLote[];
+  // Campos nuevos para v2
+  total_kg?: number;
+  total_lotes?: number;
 }
 
 export interface KanbanBoard {

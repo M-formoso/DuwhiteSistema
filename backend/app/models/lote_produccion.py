@@ -17,11 +17,19 @@ from app.models.base import BaseModelMixin, TimestampMixin
 
 class EstadoLote(str, Enum):
     """Estados de un lote de producción."""
-    PENDIENTE = "pendiente"
+    EN_CAMINO = "en_camino"  # Transportista recogiendo
+    PENDIENTE = "pendiente"  # Recepcionado, pendiente de procesar
     EN_PROCESO = "en_proceso"
     PAUSADO = "pausado"
+    PARCIALMENTE_COMPLETADO = "parcialmente_completado"  # Entrega parcial, pendiente relevado
     COMPLETADO = "completado"
     CANCELADO = "cancelado"
+
+
+class TipoLote(str, Enum):
+    """Tipo de lote."""
+    NORMAL = "normal"      # Lote normal
+    RELEVADO = "relevado"  # Lote de relevado (prendas que se vuelven a lavar)
 
 
 class PrioridadLote(str, Enum):
@@ -78,8 +86,19 @@ class LoteProduccion(Base, BaseModelMixin):
         index=True,
     )
 
-    # Tipo de servicio
-    tipo_servicio = Column(String(30), nullable=False, default=TipoServicio.LAVADO_NORMAL.value)
+    # Tipo de servicio (deprecado, se mantiene por compatibilidad)
+    tipo_servicio = Column(String(30), nullable=True, default=TipoServicio.LAVADO_NORMAL.value)
+
+    # Tipo de lote (normal o relevado)
+    tipo_lote = Column(String(20), nullable=False, default=TipoLote.NORMAL.value, index=True)
+
+    # Lote padre (si es un lote de relevado)
+    lote_padre_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("lotes_produccion.id"),
+        nullable=True,
+        index=True
+    )
 
     # Estado y prioridad
     estado = Column(String(20), nullable=False, default=EstadoLote.PENDIENTE.value, index=True)
@@ -136,6 +155,29 @@ class LoteProduccion(Base, BaseModelMixin):
     )
     consumos_insumo = relationship("ConsumoInsumoLote", back_populates="lote")
 
+    # Relaciones de canastos
+    canastos = relationship(
+        "LoteCanasto",
+        back_populates="lote",
+        order_by="LoteCanasto.fecha_asignacion"
+    )
+
+    # Relaciones de relevado
+    lote_padre = relationship(
+        "LoteProduccion",
+        remote_side="LoteProduccion.id",
+        back_populates="lotes_relevado",
+        foreign_keys="LoteProduccion.lote_padre_id"
+    )
+    lotes_relevado = relationship(
+        "LoteProduccion",
+        back_populates="lote_padre",
+        foreign_keys="LoteProduccion.lote_padre_id"
+    )
+
+    # Relaciones de remitos
+    remitos = relationship("Remito", back_populates="lote")
+
     def __repr__(self) -> str:
         return f"<LoteProduccion {self.numero}>"
 
@@ -164,6 +206,29 @@ class LoteProduccion(Base, BaseModelMixin):
             return 0
         completadas = sum(1 for e in self.etapas if e.fecha_fin is not None)
         return int((completadas / len(self.etapas)) * 100)
+
+    @property
+    def es_relevado(self) -> bool:
+        """Indica si es un lote de relevado."""
+        return self.tipo_lote == TipoLote.RELEVADO.value
+
+    @property
+    def tiene_relevado_pendiente(self) -> bool:
+        """Indica si tiene lotes de relevado pendientes de completar."""
+        if not self.lotes_relevado:
+            return False
+        return any(
+            lr.estado not in [EstadoLote.COMPLETADO.value, EstadoLote.CANCELADO.value]
+            for lr in self.lotes_relevado
+        )
+
+    @property
+    def canastos_actuales(self) -> list:
+        """Retorna los canastos actualmente asignados."""
+        return [
+            lc.canasto for lc in self.canastos
+            if lc.fecha_liberacion is None and lc.activo
+        ]
 
 
 class LoteEtapa(Base, TimestampMixin):

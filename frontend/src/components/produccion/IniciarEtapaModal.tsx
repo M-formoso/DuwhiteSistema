@@ -1,14 +1,16 @@
 /**
- * Modal para iniciar una etapa con validación de PIN y selección de máquina
+ * Modal para iniciar una etapa con validación de PIN, selección de máquina y canastos
+ * V2: Soporte para múltiples canastos en etapas de lavado/secado
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, User, Loader2, Settings2 } from 'lucide-react';
+import { KeyRound, User, Loader2, Settings2, Box, Check } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +30,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 
 import { produccionService } from '@/services/produccionService';
+import { canastoService } from '@/services/canastoService';
 import { formatNumber } from '@/utils/formatters';
 
 interface Operario {
@@ -45,10 +48,17 @@ interface Maquina {
   capacidad_kg: number | null;
 }
 
+interface Canasto {
+  id: string;
+  numero: number;
+  codigo: string;
+  estado: string;
+}
+
 interface IniciarEtapaModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string) => void;
+  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[]) => void;
   title?: string;
   description?: string;
   showMachineSelection?: boolean;
@@ -56,6 +66,8 @@ interface IniciarEtapaModalProps {
   tipoMaquina?: string | null;  // Filtrar por tipo: lavadora, secadora, planchadora
   etapaNombre?: string;
   loteNumero?: string;
+  showCanastosSelection?: boolean;  // Mostrar selección de canastos
+  etapaCodigo?: string;  // Código de la etapa (LAV, SEC, etc.)
 }
 
 export function IniciarEtapaModal({
@@ -69,13 +81,19 @@ export function IniciarEtapaModal({
   tipoMaquina = null,
   etapaNombre,
   loteNumero,
+  showCanastosSelection = false,
+  etapaCodigo,
 }: IniciarEtapaModalProps) {
   const [operarioId, setOperarioId] = useState<string>('');
   const [pin, setPin] = useState('');
   const [maquinaId, setMaquinaId] = useState<string>('');
+  const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
+
+  // Determinar si esta etapa requiere canastos (LAV o SEC)
+  const requiereCanastos = showCanastosSelection || ['LAV', 'SEC'].includes(etapaCodigo || '');
 
   // Cargar operarios con PIN
   const { data: operarios = [], isLoading: loadingOperarios } = useQuery<Operario[]>({
@@ -91,16 +109,27 @@ export function IniciarEtapaModal({
     enabled: open && (showMachineSelection || requiereMaquina),
   });
 
+  // Cargar canastos disponibles
+  const { data: canastos = [], isLoading: loadingCanastos, refetch: refetchCanastos } = useQuery<Canasto[]>({
+    queryKey: ['canastos-disponibles'],
+    queryFn: () => canastoService.getDisponibles(),
+    enabled: open && requiereCanastos,
+  });
+
   // Reset estado cuando se abre/cierra
   useEffect(() => {
     if (open) {
       setOperarioId('');
       setPin('');
       setMaquinaId('');
+      setSelectedCanastos([]);
       setError(null);
       refetchMaquinas();
+      if (requiereCanastos) {
+        refetchCanastos();
+      }
     }
-  }, [open, refetchMaquinas]);
+  }, [open, refetchMaquinas, refetchCanastos, requiereCanastos]);
 
   // Focus en PIN cuando se selecciona operario
   useEffect(() => {
@@ -121,6 +150,12 @@ export function IniciarEtapaModal({
       return;
     }
 
+    // Validar que se seleccionen canastos si es requerido
+    if (requiereCanastos && selectedCanastos.length === 0) {
+      setError('Debes seleccionar al menos un canasto');
+      return;
+    }
+
     setValidating(true);
     setError(null);
 
@@ -128,7 +163,12 @@ export function IniciarEtapaModal({
       const result = await produccionService.validarPin(operarioId, pin);
 
       if (result.valido) {
-        onConfirm(operarioId, result.operario_nombre, maquinaId || undefined);
+        onConfirm(
+          operarioId,
+          result.operario_nombre,
+          maquinaId || undefined,
+          selectedCanastos.length > 0 ? selectedCanastos : undefined
+        );
         onClose();
       } else {
         setError(result.mensaje || 'PIN incorrecto');
@@ -148,7 +188,16 @@ export function IniciarEtapaModal({
     }
   };
 
-  const isLoading = loadingOperarios || loadingMaquinas;
+  const isLoading = loadingOperarios || loadingMaquinas || loadingCanastos;
+
+  // Manejar selección de canasto
+  const toggleCanasto = (canastoId: string) => {
+    setSelectedCanastos((prev) =>
+      prev.includes(canastoId)
+        ? prev.filter((id) => id !== canastoId)
+        : [...prev, canastoId]
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
@@ -280,6 +329,60 @@ export function IniciarEtapaModal({
             </div>
           )}
 
+          {/* Selector de canastos */}
+          {requiereCanastos && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Box className="h-4 w-4" />
+                Canastos <span className="text-red-500">*</span>
+                {selectedCanastos.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {selectedCanastos.length} seleccionados
+                  </Badge>
+                )}
+              </Label>
+              {loadingCanastos ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando canastos...
+                </div>
+              ) : canastos.length === 0 ? (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    No hay canastos disponibles. Todos están en uso.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2">
+                  <div className="grid grid-cols-5 gap-2">
+                    {canastos.map((canasto) => (
+                      <div
+                        key={canasto.id}
+                        onClick={() => toggleCanasto(canasto.id)}
+                        className={`
+                          flex items-center justify-center p-2 rounded-md cursor-pointer
+                          border-2 transition-all text-sm font-medium
+                          ${selectedCanastos.includes(canasto.id)
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-green-50 border-green-300 hover:border-green-500'
+                          }
+                        `}
+                      >
+                        {selectedCanastos.includes(canasto.id) && (
+                          <Check className="h-3 w-3 mr-1" />
+                        )}
+                        #{canasto.numero}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Selecciona los canastos donde se colocará el lote
+              </p>
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <Alert variant="destructive">
@@ -299,7 +402,8 @@ export function IniciarEtapaModal({
               pin.length < 4 ||
               validating ||
               isLoading ||
-              (requiereMaquina && (!maquinaId || maquinas.length === 0))
+              (requiereMaquina && (!maquinaId || maquinas.length === 0)) ||
+              (requiereCanastos && (selectedCanastos.length === 0 || canastos.length === 0))
             }
           >
             {validating ? (

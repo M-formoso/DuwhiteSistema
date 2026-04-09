@@ -227,6 +227,7 @@ export async function iniciarEtapa(
     responsable_id?: string;
     maquina_id?: string;
     observaciones?: string;
+    canastos_ids?: string[];
   }
 ): Promise<LoteEtapa> {
   const response = await api.post(
