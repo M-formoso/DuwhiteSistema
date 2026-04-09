@@ -64,6 +64,22 @@ class RemitoUpdate(BaseModel):
     notas_entrega: Optional[str] = None
 
 
+class RemitoListResponse(BaseModel):
+    """Schema para lista de remitos."""
+    id: UUID
+    numero: str
+    lote_numero: str
+    cliente_nombre: str
+    tipo: str
+    estado: str
+    fecha_emision: date
+    total: Decimal
+    tiene_complemento: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 class RemitoResponse(BaseModel):
     """Schema de respuesta de remito."""
     id: UUID
@@ -93,23 +109,7 @@ class RemitoResponse(BaseModel):
     detalles: List[DetalleRemitoResponse] = []
     # Remitos complementarios
     tiene_complemento: bool = False
-    remitos_complementarios: List["RemitoListResponse"] = []
-
-    class Config:
-        from_attributes = True
-
-
-class RemitoListResponse(BaseModel):
-    """Schema para lista de remitos."""
-    id: UUID
-    numero: str
-    lote_numero: str
-    cliente_nombre: str
-    tipo: str
-    estado: str
-    fecha_emision: date
-    total: Decimal
-    tiene_complemento: bool = False
+    remitos_complementarios: List[RemitoListResponse] = []
 
     class Config:
         from_attributes = True
