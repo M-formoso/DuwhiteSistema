@@ -62,6 +62,8 @@ def _empleado_to_response(empleado: Empleado) -> EmpleadoResponse:
         salario_base=empleado.salario_base,
         salario_hora=empleado.salario_hora,
         valor_hora_extra=empleado.valor_hora_extra,
+        valor_dia_franco=empleado.valor_dia_franco,
+        valor_dia_feriado=empleado.valor_dia_feriado,
         tipo_contratacion=empleado.tipo_contratacion,
         dia_pago=empleado.dia_pago,
         jornada_horas=empleado.jornada_horas,
