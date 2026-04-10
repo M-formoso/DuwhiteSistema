@@ -11,7 +11,6 @@ import { z } from 'zod';
 import { ArrowLeft, Save, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -26,20 +25,12 @@ import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
 import { clienteService } from '@/services/clienteService';
-import { getLocalDateString } from '@/utils/formatters';
-import { PRIORIDADES } from '@/types/produccion';
 import type { LoteProduccionCreate } from '@/types/produccion';
 
 const loteSchema = z.object({
-  cliente_id: z.string().nullable().optional(),
+  cliente_id: z.string().min(1, 'Debe seleccionar un cliente'),
   pedido_id: z.string().nullable().optional(),
-  prioridad: z.string().default('normal'),
-  peso_entrada_kg: z.coerce.number().positive().nullable().optional(),
-  cantidad_prendas: z.coerce.number().int().positive().nullable().optional(),
-  fecha_compromiso: z.string().nullable().optional(),
   descripcion: z.string().nullable().optional(),
-  notas_internas: z.string().nullable().optional(),
-  notas_cliente: z.string().nullable().optional(),
 });
 
 type LoteFormData = z.infer<typeof loteSchema>;
@@ -65,8 +56,14 @@ export default function LoteFormPage() {
   } = useForm<LoteFormData>({
     resolver: zodResolver(loteSchema),
     defaultValues: {
-      prioridad: 'normal',
+      cliente_id: '',
     },
+  });
+
+  // Cargar lista de clientes
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes-activos'],
+    queryFn: () => clienteService.getAll({ solo_activos: true }),
   });
 
   // Cargar lote existente
@@ -86,17 +83,9 @@ export default function LoteFormPage() {
   useEffect(() => {
     if (lote) {
       reset({
-        cliente_id: lote.cliente_id,
+        cliente_id: lote.cliente_id || '',
         pedido_id: lote.pedido_id,
-        prioridad: lote.prioridad,
-        peso_entrada_kg: lote.peso_entrada_kg,
-        cantidad_prendas: lote.cantidad_prendas,
-        fecha_compromiso: lote.fecha_compromiso
-          ? getLocalDateString(new Date(lote.fecha_compromiso))
-          : null,
         descripcion: lote.descripcion,
-        notas_internas: lote.notas_internas,
-        notas_cliente: lote.notas_cliente,
       });
     }
   }, [lote, reset]);
@@ -106,9 +95,6 @@ export default function LoteFormPage() {
     if (pedidoFromUrl && !isEditing) {
       setValue('pedido_id', pedidoFromUrl.id);
       setValue('cliente_id', pedidoFromUrl.cliente_id);
-      if (pedidoFromUrl.fecha_entrega_estimada) {
-        setValue('fecha_compromiso', getLocalDateString(new Date(pedidoFromUrl.fecha_entrega_estimada)));
-      }
       if (pedidoFromUrl.notas) {
         setValue('descripcion', `Pedido #${pedidoFromUrl.numero} - ${pedidoFromUrl.notas}`);
       } else {
@@ -163,10 +149,9 @@ export default function LoteFormPage() {
 
   const onSubmit = (data: LoteFormData) => {
     const payload = {
-      ...data,
-      peso_entrada_kg: data.peso_entrada_kg || null,
-      cantidad_prendas: data.cantidad_prendas || null,
-      fecha_compromiso: data.fecha_compromiso || null,
+      cliente_id: data.cliente_id,
+      pedido_id: data.pedido_id || null,
+      descripcion: data.descripcion || null,
     } as LoteProduccionCreate;
 
     if (isEditing) {
@@ -202,104 +187,41 @@ export default function LoteFormPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Información Básica */}
+        {/* Información del Lote */}
         <Card>
           <CardHeader>
-            <CardTitle>Información Básica</CardTitle>
+            <CardTitle>Información del Lote</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="prioridad">Prioridad *</Label>
+              <Label htmlFor="cliente_id">Cliente *</Label>
               <Select
-                value={watch('prioridad')}
-                onValueChange={(v) => setValue('prioridad', v)}
+                value={watch('cliente_id') || ''}
+                onValueChange={(v) => setValue('cliente_id', v)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccionar cliente..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {PRIORIDADES.map((pri) => (
-                    <SelectItem key={pri.value} value={pri.value}>
-                      {pri.label}
+                  {clientes.map((cliente: { id: string; nombre_fantasia?: string; razon_social: string }) => (
+                    <SelectItem key={cliente.id} value={cliente.id}>
+                      {cliente.nombre_fantasia || cliente.razon_social}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="peso_entrada_kg">Peso de Entrada (kg)</Label>
-                <Input
-                  id="peso_entrada_kg"
-                  type="number"
-                  step="0.1"
-                  placeholder="0.0"
-                  {...register('peso_entrada_kg')}
-                />
-                {errors.peso_entrada_kg && (
-                  <p className="text-sm text-red-500">{errors.peso_entrada_kg.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cantidad_prendas">Cantidad de Prendas</Label>
-                <Input
-                  id="cantidad_prendas"
-                  type="number"
-                  placeholder="0"
-                  {...register('cantidad_prendas')}
-                />
-                {errors.cantidad_prendas && (
-                  <p className="text-sm text-red-500">{errors.cantidad_prendas.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="fecha_compromiso">Fecha de Compromiso</Label>
-                <Input
-                  id="fecha_compromiso"
-                  type="date"
-                  {...register('fecha_compromiso')}
-                />
-              </div>
+              {errors.cliente_id && (
+                <p className="text-sm text-red-500">{errors.cliente_id.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="descripcion">Descripción</Label>
+              <Label htmlFor="descripcion">Descripción (opcional)</Label>
               <Textarea
                 id="descripcion"
-                placeholder="Descripción general del lote..."
-                rows={2}
+                placeholder="Descripción o notas del lote..."
+                rows={3}
                 {...register('descripcion')}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Notas */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Notas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="notas_internas">Notas Internas</Label>
-              <Textarea
-                id="notas_internas"
-                placeholder="Notas para uso interno del equipo..."
-                rows={2}
-                {...register('notas_internas')}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notas_cliente">Notas del Cliente</Label>
-              <Textarea
-                id="notas_cliente"
-                placeholder="Observaciones o instrucciones del cliente..."
-                rows={2}
-                {...register('notas_cliente')}
               />
             </div>
           </CardContent>
