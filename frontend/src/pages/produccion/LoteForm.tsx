@@ -22,19 +22,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
 import { clienteService } from '@/services/clienteService';
 import { getLocalDateString } from '@/utils/formatters';
-import { TIPOS_SERVICIO, PRIORIDADES } from '@/types/produccion';
+import { PRIORIDADES } from '@/types/produccion';
 import type { LoteProduccionCreate } from '@/types/produccion';
 
 const loteSchema = z.object({
   cliente_id: z.string().nullable().optional(),
   pedido_id: z.string().nullable().optional(),
-  tipo_servicio: z.string().default('lavado_normal'),
   prioridad: z.string().default('normal'),
   peso_entrada_kg: z.coerce.number().positive().nullable().optional(),
   cantidad_prendas: z.coerce.number().int().positive().nullable().optional(),
@@ -42,8 +40,6 @@ const loteSchema = z.object({
   descripcion: z.string().nullable().optional(),
   notas_internas: z.string().nullable().optional(),
   notas_cliente: z.string().nullable().optional(),
-  tiene_manchas: z.boolean().default(false),
-  tiene_roturas: z.boolean().default(false),
 });
 
 type LoteFormData = z.infer<typeof loteSchema>;
@@ -69,10 +65,7 @@ export default function LoteFormPage() {
   } = useForm<LoteFormData>({
     resolver: zodResolver(loteSchema),
     defaultValues: {
-      tipo_servicio: 'lavado_normal',
       prioridad: 'normal',
-      tiene_manchas: false,
-      tiene_roturas: false,
     },
   });
 
@@ -95,7 +88,6 @@ export default function LoteFormPage() {
       reset({
         cliente_id: lote.cliente_id,
         pedido_id: lote.pedido_id,
-        tipo_servicio: lote.tipo_servicio,
         prioridad: lote.prioridad,
         peso_entrada_kg: lote.peso_entrada_kg,
         cantidad_prendas: lote.cantidad_prendas,
@@ -105,8 +97,6 @@ export default function LoteFormPage() {
         descripcion: lote.descripcion,
         notas_internas: lote.notas_internas,
         notas_cliente: lote.notas_cliente,
-        tiene_manchas: lote.tiene_manchas,
-        tiene_roturas: lote.tiene_roturas,
       });
     }
   }, [lote, reset]);
@@ -218,44 +208,23 @@ export default function LoteFormPage() {
             <CardTitle>Información Básica</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tipo_servicio">Tipo de Servicio *</Label>
-                <Select
-                  value={watch('tipo_servicio')}
-                  onValueChange={(v) => setValue('tipo_servicio', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_SERVICIO.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prioridad">Prioridad *</Label>
-                <Select
-                  value={watch('prioridad')}
-                  onValueChange={(v) => setValue('prioridad', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRIORIDADES.map((pri) => (
-                      <SelectItem key={pri.value} value={pri.value}>
-                        {pri.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="prioridad">Prioridad *</Label>
+              <Select
+                value={watch('prioridad')}
+                onValueChange={(v) => setValue('prioridad', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORIDADES.map((pri) => (
+                    <SelectItem key={pri.value} value={pri.value}>
+                      {pri.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -304,38 +273,6 @@ export default function LoteFormPage() {
                 rows={2}
                 {...register('descripcion')}
               />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Estado del Material */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Estado del Material</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-6">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="tiene_manchas"
-                  checked={watch('tiene_manchas')}
-                  onCheckedChange={(checked) => setValue('tiene_manchas', !!checked)}
-                />
-                <Label htmlFor="tiene_manchas" className="cursor-pointer">
-                  Tiene manchas
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="tiene_roturas"
-                  checked={watch('tiene_roturas')}
-                  onCheckedChange={(checked) => setValue('tiene_roturas', !!checked)}
-                />
-                <Label htmlFor="tiene_roturas" className="cursor-pointer">
-                  Tiene roturas
-                </Label>
-              </div>
             </div>
           </CardContent>
         </Card>
