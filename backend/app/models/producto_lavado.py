@@ -5,7 +5,7 @@ Modelo de Producto de Lavado (catálogo de prendas).
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import Boolean, Column, Numeric, String, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from uuid import uuid4
@@ -86,7 +86,7 @@ class PrecioProductoLavado(Base, TimestampMixin):
     # Lista de precios
     lista_precios_id = Column(
         UUID(as_uuid=True),
-        # ForeignKey("listas_precios.id"),  # Se agregará cuando exista la tabla
+        ForeignKey("listas_precios.id"),
         nullable=False,
         index=True
     )
@@ -94,7 +94,7 @@ class PrecioProductoLavado(Base, TimestampMixin):
     # Producto
     producto_id = Column(
         UUID(as_uuid=True),
-        # ForeignKey("productos_lavado.id"),  # Comentado para evitar circular import
+        ForeignKey("productos_lavado.id"),
         nullable=False,
         index=True
     )
