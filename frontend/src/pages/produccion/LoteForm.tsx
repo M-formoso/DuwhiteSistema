@@ -62,8 +62,8 @@ export default function LoteFormPage() {
 
   // Cargar lista de clientes
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes-activos'],
-    queryFn: () => clienteService.getClientes({ activo: true }),
+    queryKey: ['clientes-lista'],
+    queryFn: () => clienteService.getClientesLista(),
   });
 
   // Cargar lote existente
@@ -203,9 +203,9 @@ export default function LoteFormPage() {
                   <SelectValue placeholder="Seleccionar cliente..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {clientes.map((cliente: { id: string; nombre_fantasia?: string; razon_social: string }) => (
+                  {clientes.map((cliente) => (
                     <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.nombre_fantasia || cliente.razon_social}
+                      {cliente.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
