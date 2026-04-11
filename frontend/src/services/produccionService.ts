@@ -228,6 +228,7 @@ export async function iniciarEtapa(
     maquina_id?: string;
     observaciones?: string;
     canastos_ids?: string[];
+    peso_kg?: number;
   }
 ): Promise<LoteEtapa> {
   const response = await api.post(
