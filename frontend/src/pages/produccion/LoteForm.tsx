@@ -63,7 +63,7 @@ export default function LoteFormPage() {
   // Cargar lista de clientes
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes-activos'],
-    queryFn: () => clienteService.getAll({ solo_activos: true }),
+    queryFn: () => clienteService.getClientes({ activo: true }),
   });
 
   // Cargar lote existente
