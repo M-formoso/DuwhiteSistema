@@ -237,6 +237,10 @@ class IniciarEtapaRequest(BaseModel):
     # Para validación con PIN del operario
     operario_id: Optional[UUID] = None
     pin: Optional[str] = Field(None, min_length=4, max_length=6)
+    # Peso de entrada (para etapa Recepción y Pesaje)
+    peso_kg: Optional[Decimal] = Field(None, ge=0)
+    # Canastos asignados (para etapas LAV, SEC)
+    canastos_ids: Optional[List[UUID]] = None
 
 
 class FinalizarEtapaRequest(BaseModel):

@@ -5,12 +5,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, User, Loader2, Settings2, Box, Check } from 'lucide-react';
+import { KeyRound, User, Loader2, Settings2, Box, Check, Scale } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -58,7 +57,7 @@ interface Canasto {
 interface IniciarEtapaModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[]) => void;
+  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => void;
   title?: string;
   description?: string;
   showMachineSelection?: boolean;
@@ -68,6 +67,7 @@ interface IniciarEtapaModalProps {
   loteNumero?: string;
   showCanastosSelection?: boolean;  // Mostrar selección de canastos
   etapaCodigo?: string;  // Código de la etapa (LAV, SEC, etc.)
+  showPesoInput?: boolean;  // Mostrar input de peso (para Recepción)
 }
 
 export function IniciarEtapaModal({
@@ -83,17 +83,22 @@ export function IniciarEtapaModal({
   loteNumero,
   showCanastosSelection = false,
   etapaCodigo,
+  showPesoInput = false,
 }: IniciarEtapaModalProps) {
   const [operarioId, setOperarioId] = useState<string>('');
   const [pin, setPin] = useState('');
   const [maquinaId, setMaquinaId] = useState<string>('');
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
+  const [pesoKg, setPesoKg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Determinar si esta etapa requiere canastos (LAV o SEC)
   const requiereCanastos = showCanastosSelection || ['LAV', 'SEC'].includes(etapaCodigo || '');
+
+  // Determinar si esta etapa requiere peso (REC - Recepción y Pesaje)
+  const requierePeso = showPesoInput || etapaCodigo === 'REC';
 
   // Cargar operarios con PIN
   const { data: operarios = [], isLoading: loadingOperarios } = useQuery<Operario[]>({
@@ -123,6 +128,7 @@ export function IniciarEtapaModal({
       setPin('');
       setMaquinaId('');
       setSelectedCanastos([]);
+      setPesoKg('');
       setError(null);
       refetchMaquinas();
       if (requiereCanastos) {
@@ -156,6 +162,12 @@ export function IniciarEtapaModal({
       return;
     }
 
+    // Validar peso si es requerido
+    if (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) {
+      setError('Debes ingresar el peso del lote');
+      return;
+    }
+
     setValidating(true);
     setError(null);
 
@@ -167,7 +179,8 @@ export function IniciarEtapaModal({
           operarioId,
           result.operario_nombre,
           maquinaId || undefined,
-          selectedCanastos.length > 0 ? selectedCanastos : undefined
+          selectedCanastos.length > 0 ? selectedCanastos : undefined,
+          pesoKg ? parseFloat(pesoKg) : undefined
         );
         onClose();
       } else {
@@ -272,6 +285,28 @@ export function IniciarEtapaModal({
               className="text-center text-2xl tracking-widest font-mono"
             />
           </div>
+
+          {/* Input de peso (para Recepción y Pesaje) */}
+          {requierePeso && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                Peso de Entrada (kg) <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={pesoKg}
+                onChange={(e) => setPesoKg(e.target.value)}
+                placeholder="Ej: 45.5"
+                className="text-lg"
+              />
+              <p className="text-xs text-muted-foreground">
+                Ingresa el peso que marca la balanza
+              </p>
+            </div>
+          )}
 
           {/* Selector de máquina */}
           {(showMachineSelection || requiereMaquina) && (
@@ -403,7 +438,8 @@ export function IniciarEtapaModal({
               validating ||
               isLoading ||
               (requiereMaquina && (!maquinaId || maquinas.length === 0)) ||
-              (requiereCanastos && (selectedCanastos.length === 0 || canastos.length === 0))
+              (requiereCanastos && (selectedCanastos.length === 0 || canastos.length === 0)) ||
+              (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0))
             }
           >
             {validating ? (

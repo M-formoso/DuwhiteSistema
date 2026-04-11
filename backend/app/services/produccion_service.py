@@ -564,6 +564,19 @@ class ProduccionService:
                 lote.estado = EstadoLote.EN_PROCESO.value
                 lote.fecha_inicio_proceso = datetime.utcnow()
 
+            # Si se proporcionó peso (etapa Recepción y Pesaje), actualizar el lote
+            if data.peso_kg is not None:
+                lote.peso_entrada_kg = data.peso_kg
+
+            # Si se proporcionaron canastos, asignarlos al lote
+            if data.canastos_ids:
+                from app.models.canasto import Canasto
+                for canasto_id in data.canastos_ids:
+                    canasto = self.db.query(Canasto).filter(Canasto.id == canasto_id).first()
+                    if canasto:
+                        canasto.estado = "en_uso"
+                        canasto.lote_actual_id = lote_id
+
         self.db.commit()
         self.db.refresh(lote_etapa)
 

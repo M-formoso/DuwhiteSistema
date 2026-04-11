@@ -292,8 +292,8 @@ export default function KanbanBoardPage() {
 
   // Iniciar etapa
   const iniciarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId, operarioId, maquinaId, canastosIds }: { loteId: string; etapaId: string; operarioId: string; maquinaId?: string; canastosIds?: string[] }) =>
-      produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId, maquina_id: maquinaId, canastos_ids: canastosIds }),
+    mutationFn: ({ loteId, etapaId, operarioId, maquinaId, canastosIds, pesoKg }: { loteId: string; etapaId: string; operarioId: string; maquinaId?: string; canastosIds?: string[]; pesoKg?: number }) =>
+      produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId, maquina_id: maquinaId, canastos_ids: canastosIds, peso_kg: pesoKg }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
@@ -347,12 +347,12 @@ export default function KanbanBoardPage() {
     setShowPinModal(true);
   };
 
-  const handleIniciarConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[]) => {
+  const handleIniciarConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => {
     if (!pendingAction) return;
 
     toast({
       title: 'Operario validado',
-      description: `Etapa iniciada por ${operarioNombre}${canastosIds?.length ? ` con ${canastosIds.length} canasto(s)` : ''}`,
+      description: `Etapa iniciada por ${operarioNombre}${canastosIds?.length ? ` con ${canastosIds.length} canasto(s)` : ''}${pesoKg ? ` - ${pesoKg} kg` : ''}`,
     });
 
     iniciarMutation.mutate({
@@ -361,6 +361,7 @@ export default function KanbanBoardPage() {
       operarioId,
       maquinaId,
       canastosIds,
+      pesoKg,
     });
 
     setPendingAction(null);
