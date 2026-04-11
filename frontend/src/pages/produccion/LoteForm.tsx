@@ -13,14 +13,8 @@ import { ArrowLeft, Save, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
@@ -61,10 +55,17 @@ export default function LoteFormPage() {
   });
 
   // Cargar lista de clientes
-  const { data: clientes = [] } = useQuery({
+  const { data: clientes = [], isLoading: loadingClientes } = useQuery({
     queryKey: ['clientes-lista'],
     queryFn: () => clienteService.getClientesLista(),
   });
+
+  // Convertir clientes a opciones para el combobox
+  const clientesOptions = clientes.map((cliente) => ({
+    value: cliente.id,
+    label: cliente.nombre,
+    sublabel: cliente.codigo,
+  }));
 
   // Cargar lote existente
   const { data: lote, isLoading } = useQuery({
@@ -195,21 +196,16 @@ export default function LoteFormPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="cliente_id">Cliente *</Label>
-              <Select
-                value={watch('cliente_id') || ''}
-                onValueChange={(v) => setValue('cliente_id', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={clientesOptions}
+                value={watch('cliente_id') || null}
+                onChange={(v) => setValue('cliente_id', v || '')}
+                placeholder="Seleccionar cliente..."
+                searchPlaceholder="Buscar cliente..."
+                emptyText="No se encontraron clientes"
+                isLoading={loadingClientes}
+                allowClear={false}
+              />
               {errors.cliente_id && (
                 <p className="text-sm text-red-500">{errors.cliente_id.message}</p>
               )}
