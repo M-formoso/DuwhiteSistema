@@ -41,17 +41,8 @@ const ESTADO_LABELS: Record<string, string> = {
   fuera_servicio: 'Fuera de Servicio',
 };
 
-interface CanastoGrid {
-  id: string;
-  numero: number;
-  codigo: string;
-  estado: string;
-  lote_actual?: {
-    id: string;
-    numero: string;
-    cliente_nombre?: string;
-  } | null;
-}
+// Usamos CanastoGridItem de produccion-v2.ts
+import type { CanastoGridItem, CanastosGridResponse } from '@/types/produccion-v2';
 
 interface MaquinaEstado {
   id: string;
@@ -116,7 +107,7 @@ export default function EstadoRecursosPage() {
   };
 
   // Procesar canastos del grid
-  const canastos: CanastoGrid[] = canastosData?.canastos || [];
+  const canastos: CanastoGridItem[] = canastosData?.canastos || [];
 
   // Estadísticas de canastos
   const canastosDisponibles = canastos.filter(c => c.estado === 'disponible').length;
@@ -253,15 +244,15 @@ export default function EstadoRecursosPage() {
                       ${canasto.estado === 'fuera_servicio' ? 'bg-red-50 border-red-400 text-red-700' : ''}
                     `}
                     title={
-                      canasto.lote_actual
-                        ? `Lote: ${canasto.lote_actual.numero}${canasto.lote_actual.cliente_nombre ? ` - ${canasto.lote_actual.cliente_nombre}` : ''}`
+                      canasto.lote_id
+                        ? `Lote: ${canasto.lote_numero}${canasto.cliente_nombre ? ` - ${canasto.cliente_nombre}` : ''}`
                         : ESTADO_LABELS[canasto.estado] || canasto.estado
                     }
                   >
                     <span className="font-bold text-lg">#{canasto.numero}</span>
-                    {canasto.lote_actual && (
+                    {canasto.lote_id && (
                       <div className="text-[10px] truncate mt-1 font-medium">
-                        {canasto.lote_actual.numero}
+                        {canasto.lote_numero}
                       </div>
                     )}
                   </div>
@@ -280,12 +271,12 @@ export default function EstadoRecursosPage() {
                   <CardContent>
                     <div className="divide-y">
                       {canastos
-                        .filter(c => c.estado === 'en_uso' && c.lote_actual)
+                        .filter(c => c.estado === 'en_uso' && c.lote_id)
                         .map((canasto) => (
                           <div
                             key={canasto.id}
                             className="py-3 flex items-center justify-between hover:bg-gray-50 cursor-pointer rounded px-2"
-                            onClick={() => canasto.lote_actual && navigate(`/produccion/lotes/${canasto.lote_actual.id}`)}
+                            onClick={() => canasto.lote_id && navigate(`/produccion/lotes/${canasto.lote_id}`)}
                           >
                             <div className="flex items-center gap-3">
                               <Badge className="bg-blue-100 text-blue-700 border-blue-300">
@@ -295,11 +286,11 @@ export default function EstadoRecursosPage() {
                             </div>
                             <div className="text-right">
                               <span className="font-mono font-medium">
-                                {canasto.lote_actual?.numero}
+                                {canasto.lote_numero}
                               </span>
-                              {canasto.lote_actual?.cliente_nombre && (
+                              {canasto.cliente_nombre && (
                                 <span className="text-sm text-gray-500 ml-2">
-                                  ({canasto.lote_actual.cliente_nombre})
+                                  ({canasto.cliente_nombre})
                                 </span>
                               )}
                             </div>
