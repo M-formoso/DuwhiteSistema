@@ -40,6 +40,7 @@ from app.schemas.lote_produccion import (
     KanbanBoard,
     KanbanColumna,
     KanbanLote,
+    KanbanCanasto,
 )
 from app.services.log_service import log_service
 from app.services.stock_service import StockService
@@ -800,6 +801,25 @@ class ProduccionService:
                     # Está en proceso si tiene fecha_inicio pero no fecha_fin
                     etapa_en_proceso = lote_etapa.fecha_fin is None
 
+                # Obtener canastos asignados al lote
+                from app.models.canasto import Canasto
+                canastos_lote = (
+                    self.db.query(Canasto)
+                    .filter(Canasto.lote_actual_id == lote.id)
+                    .all()
+                )
+                canastos_data = [
+                    KanbanCanasto(id=c.id, numero=c.numero, codigo=c.codigo)
+                    for c in canastos_lote
+                ]
+
+                # Obtener lote padre si es relevado
+                lote_padre_numero = None
+                if lote.tipo_lote == "relevado" and lote.lote_padre_id:
+                    lote_padre = self.get_lote(lote.lote_padre_id)
+                    if lote_padre:
+                        lote_padre_numero = lote_padre.numero
+
                 kanban_lotes.append(KanbanLote(
                     id=lote.id,
                     numero=lote.numero,
@@ -812,6 +832,10 @@ class ProduccionService:
                     esta_atrasado=lote.esta_atrasado,
                     tiempo_en_etapa_minutos=tiempo_en_etapa,
                     etapa_en_proceso=etapa_en_proceso,
+                    fecha_inicio_etapa=lote_etapa.fecha_inicio if lote_etapa else None,
+                    tipo_lote=lote.tipo_lote or "normal",
+                    lote_padre_numero=lote_padre_numero,
+                    canastos=canastos_data,
                 ))
 
                 total_lotes += 1

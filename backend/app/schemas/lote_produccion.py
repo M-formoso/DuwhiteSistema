@@ -189,6 +189,13 @@ class LoteProduccionList(BaseModel):
 
 # ==================== KANBAN ====================
 
+class KanbanCanasto(BaseModel):
+    """Schema para canasto en el Kanban."""
+    id: UUID
+    numero: int
+    codigo: str
+
+
 class KanbanLote(BaseModel):
     """Schema para lote en el Kanban."""
     id: UUID
@@ -202,6 +209,10 @@ class KanbanLote(BaseModel):
     esta_atrasado: bool = False
     tiempo_en_etapa_minutos: int = 0
     etapa_en_proceso: bool = False  # True si la etapa actual tiene fecha_inicio pero no fecha_fin
+    fecha_inicio_etapa: Optional[datetime] = None  # Para timer en tiempo real
+    tipo_lote: str = "normal"  # normal o relevado
+    lote_padre_numero: Optional[str] = None  # Si es relevado, número del lote padre
+    canastos: List[KanbanCanasto] = []  # Canastos asignados al lote
 
     class Config:
         from_attributes = True
