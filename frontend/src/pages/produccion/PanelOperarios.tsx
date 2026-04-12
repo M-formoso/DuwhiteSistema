@@ -357,8 +357,8 @@ function PinModalGrande({
 
   // Determinar si requiere peso (REC - Recepción y Pesaje)
   const requierePeso = accion === 'iniciar' && etapaCodigo === 'REC';
-  // Determinar si requiere canastos (LAV, SEC)
-  const requiereCanastos = accion === 'iniciar' && ['LAV', 'SEC'].includes(etapaCodigo || '');
+  // Determinar si requiere canastos (REC, LAV, SEC)
+  const requiereCanastos = accion === 'iniciar' && ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
 
   const { data: operarios } = useQuery({
     queryKey: ['operarios-pin'],

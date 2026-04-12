@@ -94,8 +94,8 @@ export function IniciarEtapaModal({
   const [validating, setValidating] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
-  // Determinar si esta etapa requiere canastos (LAV o SEC)
-  const requiereCanastos = showCanastosSelection || ['LAV', 'SEC'].includes(etapaCodigo || '');
+  // Determinar si esta etapa requiere canastos (REC, LAV o SEC)
+  const requiereCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
 
   // Determinar si esta etapa requiere peso (REC - Recepción y Pesaje)
   const requierePeso = showPesoInput || etapaCodigo === 'REC';
