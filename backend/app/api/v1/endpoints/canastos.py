@@ -34,7 +34,7 @@ def listar_canastos(
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
     solo_disponibles: bool = Query(False, description="Solo canastos disponibles"),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Lista todos los canastos."""
     canastos = CanastoService.get_all(
@@ -68,7 +68,7 @@ def listar_canastos(
 @router.get("/grid", response_model=CanastosGridResponse)
 def obtener_grid_canastos(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Obtiene el grid visual de canastos con información de lotes."""
     return CanastoService.get_grid(db)
@@ -77,7 +77,7 @@ def obtener_grid_canastos(
 @router.get("/disponibles", response_model=List[CanastoListResponse])
 def listar_canastos_disponibles(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Lista canastos disponibles para asignar."""
     canastos = CanastoService.get_disponibles(db)
@@ -97,7 +97,7 @@ def listar_canastos_disponibles(
 @router.get("/disponibles/count")
 def contar_canastos_disponibles(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Obtiene la cantidad de canastos disponibles."""
     return {"count": CanastoService.get_disponibles_count(db)}
@@ -113,7 +113,7 @@ def obtener_estados_canasto():
 def obtener_canasto(
     canasto_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Obtiene un canasto por ID."""
     from fastapi import HTTPException, status
@@ -154,7 +154,7 @@ def actualizar_canasto(
     canasto_id: UUID,
     data: CanastoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion"))
 ):
     """Actualiza un canasto."""
     canasto = CanastoService.update(db, canasto_id, data, current_user.id)
@@ -188,7 +188,7 @@ def cambiar_estado_canasto(
     canasto_id: UUID,
     estado: str = Query(..., description="Nuevo estado"),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion"))
 ):
     """Cambia el estado de un canasto."""
     canasto = CanastoService.cambiar_estado(db, canasto_id, estado, current_user.id)
@@ -204,7 +204,7 @@ def obtener_historial_canasto(
     canasto_id: UUID,
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Obtiene el historial de uso de un canasto."""
     asignaciones = CanastoService.get_historial_canasto(db, canasto_id, limit)
@@ -238,7 +238,7 @@ def asignar_canastos_a_lote(
     lote_id: UUID,
     request: AsignarCanastosRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Asigna canastos a un lote."""
     asignaciones = CanastoService.asignar_canastos(db, lote_id, request, current_user.id)
@@ -259,7 +259,7 @@ def liberar_canastos_de_lote(
     lote_id: UUID,
     request: LiberarCanastosRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Libera canastos de un lote."""
     liberados = CanastoService.liberar_canastos(db, lote_id, request, current_user.id)
@@ -279,7 +279,7 @@ def liberar_canastos_de_lote(
 def obtener_canastos_de_lote(
     lote_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Obtiene los canastos actualmente asignados a un lote."""
     asignaciones = CanastoService.get_canastos_lote(db, lote_id)
