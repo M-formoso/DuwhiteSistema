@@ -524,8 +524,18 @@ class ProduccionService:
             .first()
         )
 
+        # Si no existe el registro LoteEtapa, crearlo
         if not lote_etapa:
-            return None
+            etapa = self.get_etapa(etapa_id)
+            if not etapa:
+                return None
+            lote_etapa = LoteEtapa(
+                lote_id=lote_id,
+                etapa_id=etapa_id,
+                orden=etapa.orden,
+                estado="pendiente"
+            )
+            self.db.add(lote_etapa)
 
         # Obtener la etapa para verificar si requiere máquina
         etapa = self.get_etapa(etapa_id)
