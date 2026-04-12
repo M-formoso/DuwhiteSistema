@@ -568,6 +568,7 @@ export default function KanbanBoardPage() {
         onConfirm={handleIniciarConfirm}
         title="Iniciar Etapa"
         description="Valida tu PIN para iniciar esta etapa"
+        loteId={pendingAction?.loteId}
         loteNumero={pendingAction?.loteNumero}
         etapaNombre={pendingAction?.etapaNombre}
         showMachineSelection={true}

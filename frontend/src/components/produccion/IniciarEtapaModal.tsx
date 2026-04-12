@@ -54,6 +54,13 @@ interface Canasto {
   estado: string;
 }
 
+interface CanastoAsignado {
+  id: string;
+  canasto_id: string;
+  canasto_numero: number;
+  canasto_codigo: string;
+}
+
 interface IniciarEtapaModalProps {
   open: boolean;
   onClose: () => void;
@@ -65,6 +72,7 @@ interface IniciarEtapaModalProps {
   tipoMaquina?: string | null;  // Filtrar por tipo: lavadora, secadora, planchadora
   etapaNombre?: string;
   loteNumero?: string;
+  loteId?: string;  // ID del lote para cargar canastos asignados
   showCanastosSelection?: boolean;  // Mostrar selección de canastos
   etapaCodigo?: string;  // Código de la etapa (LAV, SEC, etc.)
   showPesoInput?: boolean;  // Mostrar input de peso (para Recepción)
@@ -81,6 +89,7 @@ export function IniciarEtapaModal({
   tipoMaquina = null,
   etapaNombre,
   loteNumero,
+  loteId,
   showCanastosSelection = false,
   etapaCodigo,
   showPesoInput = false,
@@ -94,8 +103,12 @@ export function IniciarEtapaModal({
   const [validating, setValidating] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
-  // Determinar si esta etapa requiere canastos (REC, LAV o SEC)
-  const requiereCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
+  // Determinar si esta etapa muestra canastos (REC, LAV o SEC)
+  const muestraCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
+
+  // Solo es obligatorio seleccionar canastos en Recepción (REC) - primera etapa
+  // En LAV y SEC, si ya tiene canastos asignados, no es obligatorio cambiarlos
+  const esEtapaRecepcion = etapaCodigo === 'REC';
 
   // Determinar si esta etapa requiere peso (REC - Recepción y Pesaje)
   const requierePeso = showPesoInput || etapaCodigo === 'REC';
@@ -115,10 +128,17 @@ export function IniciarEtapaModal({
   });
 
   // Cargar canastos disponibles
-  const { data: canastos = [], isLoading: loadingCanastos, refetch: refetchCanastos } = useQuery<Canasto[]>({
+  const { data: canastosDisponibles = [], isLoading: loadingCanastos, refetch: refetchCanastos } = useQuery<Canasto[]>({
     queryKey: ['canastos-disponibles'],
     queryFn: () => canastoService.getDisponibles(),
-    enabled: open && requiereCanastos,
+    enabled: open && muestraCanastos,
+  });
+
+  // Cargar canastos ya asignados al lote
+  const { data: canastosDelLote = [], isLoading: loadingCanastosLote } = useQuery<CanastoAsignado[]>({
+    queryKey: ['canastos-lote', loteId],
+    queryFn: () => canastoService.getCanastosLote(loteId!),
+    enabled: open && muestraCanastos && !!loteId && !esEtapaRecepcion,
   });
 
   // Reset estado cuando se abre/cierra
@@ -131,11 +151,18 @@ export function IniciarEtapaModal({
       setPesoKg('');
       setError(null);
       refetchMaquinas();
-      if (requiereCanastos) {
+      if (muestraCanastos) {
         refetchCanastos();
       }
     }
-  }, [open, refetchMaquinas, refetchCanastos, requiereCanastos]);
+  }, [open, refetchMaquinas, refetchCanastos, muestraCanastos]);
+
+  // Preseleccionar canastos ya asignados al lote (para LAV y SEC)
+  useEffect(() => {
+    if (canastosDelLote.length > 0 && !esEtapaRecepcion) {
+      setSelectedCanastos(canastosDelLote.map(c => c.canasto_id));
+    }
+  }, [canastosDelLote, esEtapaRecepcion]);
 
   // Focus en PIN cuando se selecciona operario
   useEffect(() => {
@@ -157,7 +184,8 @@ export function IniciarEtapaModal({
     }
 
     // Validar que se seleccionen canastos si es requerido
-    if (requiereCanastos && selectedCanastos.length === 0) {
+    // Solo obligatorio en Recepción (REC) - en otras etapas ya vienen con canastos
+    if (esEtapaRecepcion && selectedCanastos.length === 0) {
       setError('Debes seleccionar al menos un canasto');
       return;
     }
@@ -201,7 +229,26 @@ export function IniciarEtapaModal({
     }
   };
 
-  const isLoading = loadingOperarios || loadingMaquinas || loadingCanastos;
+  const isLoading = loadingOperarios || loadingMaquinas || loadingCanastos || loadingCanastosLote;
+
+  // Combinar canastos disponibles con los del lote (para mostrar todos)
+  const canastosParaMostrar = esEtapaRecepcion
+    ? canastosDisponibles
+    : [
+        // Primero los canastos ya asignados al lote
+        ...canastosDelLote.map(c => ({
+          id: c.canasto_id,
+          numero: c.canasto_numero,
+          codigo: c.canasto_codigo,
+          estado: 'en_uso' as const,
+          esDelLote: true,
+        })),
+        // Luego los disponibles
+        ...canastosDisponibles.map(c => ({
+          ...c,
+          esDelLote: false,
+        })),
+      ];
 
   // Manejar selección de canasto
   const toggleCanasto = (canastoId: string) => {
@@ -365,23 +412,28 @@ export function IniciarEtapaModal({
           )}
 
           {/* Selector de canastos */}
-          {requiereCanastos && (
+          {muestraCanastos && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Box className="h-4 w-4" />
-                Canastos <span className="text-red-500">*</span>
+                Canastos {esEtapaRecepcion && <span className="text-red-500">*</span>}
+                {!esEtapaRecepcion && canastosDelLote.length > 0 && (
+                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-300">
+                    {canastosDelLote.length} asignados
+                  </Badge>
+                )}
                 {selectedCanastos.length > 0 && (
                   <Badge variant="secondary" className="ml-2">
                     {selectedCanastos.length} seleccionados
                   </Badge>
                 )}
               </Label>
-              {loadingCanastos ? (
+              {(loadingCanastos || loadingCanastosLote) ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Cargando canastos...
                 </div>
-              ) : canastos.length === 0 ? (
+              ) : canastosParaMostrar.length === 0 ? (
                 <Alert variant="destructive">
                   <AlertDescription>
                     No hay canastos disponibles. Todos están en uso.
@@ -390,30 +442,45 @@ export function IniciarEtapaModal({
               ) : (
                 <div className="max-h-32 overflow-y-auto border rounded-md p-2">
                   <div className="grid grid-cols-5 gap-2">
-                    {canastos.map((canasto) => (
-                      <div
-                        key={canasto.id}
-                        onClick={() => toggleCanasto(canasto.id)}
-                        className={`
-                          flex items-center justify-center p-2 rounded-md cursor-pointer
-                          border-2 transition-all text-sm font-medium
-                          ${selectedCanastos.includes(canasto.id)
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-green-50 border-green-300 hover:border-green-500'
-                          }
-                        `}
-                      >
-                        {selectedCanastos.includes(canasto.id) && (
-                          <Check className="h-3 w-3 mr-1" />
-                        )}
-                        #{canasto.numero}
-                      </div>
-                    ))}
+                    {canastosParaMostrar.map((canasto) => {
+                      const isSelected = selectedCanastos.includes(canasto.id);
+                      const isFromLote = 'esDelLote' in canasto && canasto.esDelLote;
+
+                      return (
+                        <div
+                          key={canasto.id}
+                          onClick={() => toggleCanasto(canasto.id)}
+                          className={`
+                            flex items-center justify-center p-2 rounded-md cursor-pointer
+                            border-2 transition-all text-sm font-medium
+                            ${isSelected
+                              ? isFromLote
+                                ? 'bg-blue-500 text-white border-blue-600'  // Azul para los del lote
+                                : 'bg-primary text-primary-foreground border-primary'
+                              : isFromLote
+                                ? 'bg-blue-50 border-blue-300 hover:border-blue-500'  // Los del lote en azul claro
+                                : 'bg-green-50 border-green-300 hover:border-green-500'
+                            }
+                          `}
+                          title={isFromLote ? 'Ya asignado a este lote' : 'Disponible'}
+                        >
+                          {isSelected && (
+                            <Check className="h-3 w-3 mr-1" />
+                          )}
+                          #{canasto.numero}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Selecciona los canastos donde se colocará el lote
+                {esEtapaRecepcion
+                  ? 'Selecciona los canastos donde se colocará el lote'
+                  : canastosDelLote.length > 0
+                    ? 'Los canastos en azul ya están asignados al lote. Puedes cambiarlos si es necesario.'
+                    : 'Selecciona los canastos para este lote'
+                }
               </p>
             </div>
           )}
@@ -438,7 +505,7 @@ export function IniciarEtapaModal({
               validating ||
               isLoading ||
               (requiereMaquina && (!maquinaId || maquinas.length === 0)) ||
-              (requiereCanastos && (selectedCanastos.length === 0 || canastos.length === 0)) ||
+              (esEtapaRecepcion && selectedCanastos.length === 0) ||
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0))
             }
           >
