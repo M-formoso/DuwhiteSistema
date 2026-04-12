@@ -283,7 +283,9 @@ export default function KanbanBoardPage() {
     refetchInterval: 10000,
   });
 
-  // Log error for debugging
+  // Log for debugging
+  console.log('Kanban data:', kanban);
+  console.log('Kanban columnas:', kanban?.columnas?.length || 0);
   if (kanbanError) {
     console.error('Error cargando Kanban:', kanbanError);
   }
