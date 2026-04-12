@@ -19,6 +19,7 @@ from app.models.lote_produccion import (
     EstadoLote,
     PrioridadLote,
 )
+from app.models.canasto import Canasto, LoteCanasto
 from app.models.orden_produccion import (
     OrdenProduccion,
     AsignacionEmpleadoOP,
@@ -571,7 +572,6 @@ class ProduccionService:
 
             # Si se proporcionaron canastos, asignarlos al lote
             if data.canastos_ids:
-                from app.models.canasto import Canasto, LoteCanasto
                 for canasto_id in data.canastos_ids:
                     canasto = self.db.query(Canasto).filter(Canasto.id == canasto_id).first()
                     if canasto:
@@ -773,7 +773,7 @@ class ProduccionService:
                 self.db.query(LoteProduccion)
                 .options(
                     joinedload(LoteProduccion.cliente),
-                    joinedload(LoteProduccion.canastos).joinedload("canasto")
+                    joinedload(LoteProduccion.canastos).joinedload(LoteCanasto.canasto)
                 )
                 .filter(
                     LoteProduccion.etapa_actual_id == etapa.id,

@@ -277,11 +277,16 @@ export default function KanbanBoardPage() {
   } | null>(null);
 
   // Cargar tablero Kanban - refetch cada 10 segundos para mantener actualizado
-  const { data: kanban, isLoading, refetch } = useQuery({
+  const { data: kanban, isLoading, error: kanbanError, refetch } = useQuery({
     queryKey: ['kanban'],
     queryFn: () => produccionService.getKanbanBoard(),
     refetchInterval: 10000,
   });
+
+  // Log error for debugging
+  if (kanbanError) {
+    console.error('Error cargando Kanban:', kanbanError);
+  }
 
   // Cargar pedidos en camino
   const { data: pedidosEnCamino } = useQuery({
@@ -438,6 +443,18 @@ export default function KanbanBoardPage() {
       {isLoading ? (
         <div className="flex items-center justify-center flex-1">
           <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : kanbanError ? (
+        <div className="flex flex-col items-center justify-center flex-1 text-red-500">
+          <AlertTriangle className="h-12 w-12 mb-4" />
+          <p className="text-lg font-medium">Error al cargar el tablero</p>
+          <p className="text-sm text-gray-500 mt-2">
+            {kanbanError instanceof Error ? kanbanError.message : 'Error desconocido'}
+          </p>
+          <Button onClick={() => refetch()} className="mt-4" variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Reintentar
+          </Button>
         </div>
       ) : (
         <div className="flex gap-4 overflow-x-auto flex-1 pb-2">
