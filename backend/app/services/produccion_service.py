@@ -963,14 +963,15 @@ class ProduccionService:
         lote: LoteProduccion,
         etapa_actual_id: UUID,
     ) -> Optional[EtapaProduccion]:
-        """Obtiene la siguiente etapa en el flujo."""
-        etapas_lote = sorted(lote.etapas, key=lambda x: x.orden)
+        """Obtiene la siguiente etapa en el flujo basándose en las etapas activas del sistema."""
+        # Obtener todas las etapas activas ordenadas
+        etapas_activas = self.get_etapas(solo_activas=True)
 
         encontrado = False
-        for le in etapas_lote:
-            if encontrado and le.estado != "completado":
-                return le.etapa
-            if le.etapa_id == etapa_actual_id:
+        for etapa in etapas_activas:
+            if encontrado:
+                return etapa
+            if etapa.id == etapa_actual_id:
                 encontrado = True
 
         return None
