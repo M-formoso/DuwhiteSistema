@@ -31,6 +31,7 @@ import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasPro
 import CanastosPage from '@/pages/produccion/CanastosPage';
 import ProductosLavadoPage from '@/pages/produccion/ProductosLavadoPage';
 import ConteoFinalizacionPage from '@/pages/produccion/ConteoFinalizacionPage';
+import EstadoRecursosPage from '@/pages/produccion/EstadoRecursosPage';
 
 // Clientes
 import { ClientesListPage, ClienteFormPage, ClienteDetailPage, ClienteCuentaCorrientePage } from '@/pages/clientes';
@@ -145,6 +146,7 @@ function App() {
         <Route path="/produccion/canastos" element={<CanastosPage />} />
         <Route path="/produccion/productos" element={<ProductosLavadoPage />} />
         <Route path="/produccion/lotes/:id/conteo" element={<ConteoFinalizacionPage />} />
+        <Route path="/produccion/recursos" element={<EstadoRecursosPage />} />
 
         {/* Clientes */}
         <Route path="/clientes" element={<ClientesListPage />} />

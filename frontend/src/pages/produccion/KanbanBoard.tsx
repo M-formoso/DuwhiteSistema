@@ -427,6 +427,10 @@ export default function KanbanBoardPage() {
             <Settings2 className="h-4 w-4 mr-2" />
             Máquinas
           </Button>
+          <Button variant="outline" onClick={() => navigate('/produccion/recursos')} className="border-green-500 text-green-600 hover:bg-green-50">
+            <Box className="h-4 w-4 mr-2" />
+            Estado Recursos
+          </Button>
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Actualizar
