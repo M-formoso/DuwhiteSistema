@@ -35,6 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
+import { canastoService } from '@/services/canastoService';
 import { formatDate } from '@/utils/formatters';
 import type { KanbanLote, KanbanColumna, PrioridadLote } from '@/types/produccion';
 
@@ -46,6 +47,14 @@ interface MaquinaDisponible {
   tipo: string;
   estado: string;
   capacidad_kg: number | null;
+}
+
+// Tipo local para canastos disponibles
+interface CanastoDisponible {
+  id: string;
+  numero: number;
+  codigo: string;
+  estado: string;
 }
 
 // Colores más vivos para prioridades
@@ -321,26 +330,35 @@ function PinModalGrande({
   title,
   loteNumero,
   etapaNombre,
+  etapaCodigo,
   accion,
   requiereMaquina = false,
   tipoMaquina = null,
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string) => void;
+  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => void;
   title: string;
   loteNumero?: string;
   etapaNombre?: string;
+  etapaCodigo?: string;
   accion: 'iniciar' | 'finalizar';
   requiereMaquina?: boolean;
   tipoMaquina?: string | null;
 }) {
   const [selectedOperario, setSelectedOperario] = useState('');
   const [selectedMaquina, setSelectedMaquina] = useState('');
+  const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
+  const [pesoKg, setPesoKg] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
+
+  // Determinar si requiere peso (REC - Recepción y Pesaje)
+  const requierePeso = accion === 'iniciar' && etapaCodigo === 'REC';
+  // Determinar si requiere canastos (LAV, SEC)
+  const requiereCanastos = accion === 'iniciar' && ['LAV', 'SEC'].includes(etapaCodigo || '');
 
   const { data: operarios } = useQuery({
     queryKey: ['operarios-pin'],
@@ -355,11 +373,20 @@ function PinModalGrande({
     enabled: open && accion === 'iniciar' && requiereMaquina,
   });
 
+  // Cargar canastos disponibles si es necesario
+  const { data: canastos = [] } = useQuery<CanastoDisponible[]>({
+    queryKey: ['canastos-disponibles'],
+    queryFn: () => canastoService.getDisponibles(),
+    enabled: open && requiereCanastos,
+  });
+
   // Reset cuando se abre
   useEffect(() => {
     if (open) {
       setSelectedOperario('');
       setSelectedMaquina('');
+      setSelectedCanastos([]);
+      setPesoKg('');
       setPin('');
       setError('');
     }
@@ -386,6 +413,16 @@ function PinModalGrande({
       setError('Debe seleccionar una máquina');
       return;
     }
+    // Validar peso si es requerido
+    if (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) {
+      setError('Debe ingresar el peso del lote');
+      return;
+    }
+    // Validar canastos si es requerido
+    if (requiereCanastos && selectedCanastos.length === 0) {
+      setError('Debe seleccionar al menos un canasto');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -393,10 +430,18 @@ function PinModalGrande({
     try {
       const result = await produccionService.validarPin(selectedOperario, pin);
       if (result.valido) {
-        onConfirm(result.operario_id, result.operario_nombre, selectedMaquina || undefined);
+        onConfirm(
+          result.operario_id,
+          result.operario_nombre,
+          selectedMaquina || undefined,
+          selectedCanastos.length > 0 ? selectedCanastos : undefined,
+          pesoKg ? parseFloat(pesoKg) : undefined
+        );
         setPin('');
         setSelectedOperario('');
         setSelectedMaquina('');
+        setSelectedCanastos([]);
+        setPesoKg('');
       } else {
         setError(result.mensaje || 'PIN incorrecto');
         setPin('');
@@ -408,6 +453,15 @@ function PinModalGrande({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Toggle canasto selection
+  const toggleCanasto = (canastoId: string) => {
+    setSelectedCanastos((prev) =>
+      prev.includes(canastoId)
+        ? prev.filter((id) => id !== canastoId)
+        : [...prev, canastoId]
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -494,6 +548,72 @@ function PinModalGrande({
             />
           </div>
 
+          {/* Input de peso (solo para Recepción y Pesaje) */}
+          {requierePeso && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                Peso de Entrada (kg) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={pesoKg}
+                onChange={(e) => setPesoKg(e.target.value)}
+                placeholder="Ej: 45.5"
+                className="w-full h-12 px-4 rounded-md border border-gray-300 text-xl
+                           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500">Ingresa el peso que marca la balanza</p>
+            </div>
+          )}
+
+          {/* Selector de canastos (solo para Lavado/Secado) */}
+          {requiereCanastos && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Canastos <span className="text-red-500">*</span>
+                {selectedCanastos.length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">
+                    {selectedCanastos.length} seleccionados
+                  </span>
+                )}
+              </label>
+              {canastos.length === 0 ? (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-700 text-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>No hay canastos disponibles. Todos están en uso.</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2">
+                  <div className="grid grid-cols-5 gap-2">
+                    {canastos.map((canasto) => (
+                      <div
+                        key={canasto.id}
+                        onClick={() => toggleCanasto(canasto.id)}
+                        className={`
+                          flex items-center justify-center p-3 rounded-lg cursor-pointer
+                          border-2 transition-all text-lg font-bold
+                          ${selectedCanastos.includes(canasto.id)
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-green-50 border-green-300 hover:border-green-500 text-green-700'
+                          }
+                        `}
+                      >
+                        #{canasto.numero}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-500">Selecciona los canastos donde se colocará el lote</p>
+            </div>
+          )}
+
           {/* Selector de máquina (solo para iniciar y si requiere) */}
           {accion === 'iniciar' && requiereMaquina && (
             <div className="space-y-2">
@@ -559,7 +679,9 @@ function PinModalGrande({
               loading ||
               !selectedOperario ||
               pin.length < 4 ||
-              (accion === 'iniciar' && requiereMaquina && (!selectedMaquina || maquinas.length === 0))
+              (accion === 'iniciar' && requiereMaquina && (!selectedMaquina || maquinas.length === 0)) ||
+              (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
+              (requiereCanastos && selectedCanastos.length === 0)
             }
             className="px-4 py-2 rounded-md bg-primary text-white hover:bg-primary/90
                        disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -602,12 +724,25 @@ export default function PanelOperariosPage() {
 
   // Mutations
   const iniciarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId, operarioId, maquinaId }: { loteId: string; etapaId: string; operarioId: string; maquinaId?: string }) =>
-      produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId, maquina_id: maquinaId }),
+    mutationFn: ({ loteId, etapaId, operarioId, maquinaId, canastosIds, pesoKg }: {
+      loteId: string;
+      etapaId: string;
+      operarioId: string;
+      maquinaId?: string;
+      canastosIds?: string[];
+      pesoKg?: number;
+    }) =>
+      produccionService.iniciarEtapa(loteId, etapaId, {
+        responsable_id: operarioId,
+        maquina_id: maquinaId,
+        canastos_ids: canastosIds,
+        peso_kg: pesoKg
+      }),
     onSuccess: () => {
       // Invalidar inmediatamente y refetch para actualizar UI
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
+      queryClient.invalidateQueries({ queryKey: ['canastos-disponibles'] });
       toast({ title: 'Etapa iniciada correctamente' });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
@@ -638,7 +773,7 @@ export default function PanelOperariosPage() {
     setPinModal({ open: true, accion: 'finalizar', lote, columna });
   };
 
-  const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string) => {
+  const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => {
     const { accion, lote, columna } = pinModal;
 
     if (!lote || !columna) return;
@@ -651,6 +786,8 @@ export default function PanelOperariosPage() {
         etapaId: columna.etapa_id,
         operarioId,
         maquinaId,
+        canastosIds,
+        pesoKg,
       });
     } else {
       finalizarMutation.mutate({
@@ -802,6 +939,7 @@ export default function PanelOperariosPage() {
         title={pinModal.accion === 'iniciar' ? 'Iniciar Etapa' : 'Finalizar Etapa'}
         loteNumero={pinModal.lote?.numero}
         etapaNombre={pinModal.columna?.etapa_nombre}
+        etapaCodigo={pinModal.columna?.etapa_codigo}
         accion={pinModal.accion}
         requiereMaquina={pinModal.columna?.requiere_maquina}
         tipoMaquina={pinModal.columna?.tipo_maquina}
