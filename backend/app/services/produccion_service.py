@@ -571,12 +571,19 @@ class ProduccionService:
 
             # Si se proporcionaron canastos, asignarlos al lote
             if data.canastos_ids:
-                from app.models.canasto import Canasto
+                from app.models.canasto import Canasto, LoteCanasto
                 for canasto_id in data.canastos_ids:
                     canasto = self.db.query(Canasto).filter(Canasto.id == canasto_id).first()
                     if canasto:
                         canasto.estado = "en_uso"
-                        canasto.lote_actual_id = lote_id
+                        # Crear relación en LoteCanasto
+                        lote_canasto = LoteCanasto(
+                            lote_id=lote_id,
+                            canasto_id=canasto_id,
+                            etapa_id=etapa_id,
+                            asignado_por_id=usuario_id
+                        )
+                        self.db.add(lote_canasto)
 
         self.db.commit()
         self.db.refresh(lote_etapa)
@@ -764,7 +771,10 @@ class ProduccionService:
             # Obtener lotes en esta etapa
             lotes_en_etapa = (
                 self.db.query(LoteProduccion)
-                .options(joinedload(LoteProduccion.cliente))
+                .options(
+                    joinedload(LoteProduccion.cliente),
+                    joinedload(LoteProduccion.canastos).joinedload("canasto")
+                )
                 .filter(
                     LoteProduccion.etapa_actual_id == etapa.id,
                     LoteProduccion.activo == True,
@@ -801,17 +811,16 @@ class ProduccionService:
                     # Está en proceso si tiene fecha_inicio pero no fecha_fin
                     etapa_en_proceso = lote_etapa.fecha_fin is None
 
-                # Obtener canastos asignados al lote
-                from app.models.canasto import Canasto
-                canastos_lote = (
-                    self.db.query(Canasto)
-                    .filter(Canasto.lote_actual_id == lote.id)
-                    .all()
-                )
-                canastos_data = [
-                    KanbanCanasto(id=c.id, numero=c.numero, codigo=c.codigo)
-                    for c in canastos_lote
-                ]
+                # Obtener canastos asignados al lote (a través de la relación lote.canastos)
+                canastos_data = []
+                if hasattr(lote, 'canastos') and lote.canastos:
+                    for lc in lote.canastos:
+                        if lc.fecha_liberacion is None and lc.activo and lc.canasto:
+                            canastos_data.append(KanbanCanasto(
+                                id=lc.canasto.id,
+                                numero=lc.canasto.numero,
+                                codigo=lc.canasto.codigo
+                            ))
 
                 # Obtener lote padre si es relevado
                 lote_padre_numero = None
