@@ -293,7 +293,7 @@ export function IniciarEtapaModal({
                 </AlertDescription>
               </Alert>
             ) : (
-              <Select value={operarioId} onValueChange={setOperarioId}>
+              <Select value={operarioId || undefined} onValueChange={setOperarioId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar operario..." />
                 </SelectTrigger>

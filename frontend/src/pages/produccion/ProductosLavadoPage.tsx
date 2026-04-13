@@ -253,12 +253,15 @@ export default function ProductosLavadoPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
+            <Select
+              value={categoriaFiltro || "all"}
+              onValueChange={(v) => setCategoriaFiltro(v === "all" ? "" : v)}
+            >
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Todas las categorías" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas las categorías</SelectItem>
+                <SelectItem value="all">Todas las categorías</SelectItem>
                 {CATEGORIAS_PRODUCTO_LAVADO.map((cat) => (
                   <SelectItem key={cat.value} value={cat.value}>
                     {cat.label}
