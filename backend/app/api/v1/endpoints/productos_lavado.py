@@ -33,7 +33,7 @@ def listar_productos(
     search: Optional[str] = Query(None, description="Buscar por código o nombre"),
     solo_activos: bool = Query(True, description="Solo productos activos"),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Lista todos los productos de lavado."""
     productos = ProductoLavadoService.get_all(
@@ -67,7 +67,7 @@ def obtener_productos_con_precios(
     lista_precios_id: UUID = Query(..., description="ID de la lista de precios"),
     categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """
     Obtiene todos los productos con sus precios para una lista de precios.
@@ -80,7 +80,7 @@ def obtener_productos_con_precios(
 def obtener_producto(
     producto_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Obtiene un producto por ID."""
     from fastapi import HTTPException, status
@@ -107,7 +107,7 @@ def obtener_producto(
 def crear_producto(
     data: ProductoLavadoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "crear"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion"))
 ):
     """Crea un nuevo producto de lavado."""
     producto = ProductoLavadoService.create(db, data, current_user.id)
@@ -128,7 +128,7 @@ def actualizar_producto(
     producto_id: UUID,
     data: ProductoLavadoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion"))
 ):
     """Actualiza un producto de lavado."""
     producto = ProductoLavadoService.update(db, producto_id, data, current_user.id)
@@ -148,7 +148,7 @@ def actualizar_producto(
 def eliminar_producto(
     producto_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "eliminar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador"))
 ):
     """Desactiva un producto de lavado (soft delete)."""
     ProductoLavadoService.delete(db, producto_id, current_user.id)
@@ -161,7 +161,7 @@ def eliminar_producto(
 def obtener_precios_lista(
     lista_precios_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("servicios", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial"))
 ):
     """Obtiene los precios de productos para una lista de precios."""
     precios = ProductoLavadoService.get_precios_lista(db, lista_precios_id)
@@ -184,7 +184,7 @@ def obtener_precios_lista(
 def establecer_precio(
     data: PrecioProductoLavadoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("servicios", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador"))
 ):
     """Establece o actualiza el precio de un producto en una lista."""
     precio = ProductoLavadoService.set_precio(db, data, current_user.id)
@@ -205,7 +205,7 @@ def obtener_precio_producto(
     lista_precios_id: UUID,
     producto_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Obtiene el precio de un producto específico en una lista."""
     precio = ProductoLavadoService.get_precio_producto(db, lista_precios_id, producto_id)
