@@ -145,13 +145,12 @@ export default function ConteoFinalizacionPage() {
       const itemsConCantidad = conteoItems.filter((item) => item.cantidad > 0);
 
       return remitoService.generarDesdeLote(loteId, {
-        observaciones: observaciones || undefined,
-        items: itemsConCantidad.map((item) => ({
+        notas: observaciones || undefined,
+        detalles: itemsConCantidad.map((item) => ({
           producto_id: item.producto_id,
           cantidad: item.cantidad,
           precio_unitario: item.precio_unitario,
         })),
-        generar_relevado: tieneRelevado,
         items_relevado: tieneRelevado
           ? conteoItems
               .filter((item) => item.cantidad_relevado > 0)
