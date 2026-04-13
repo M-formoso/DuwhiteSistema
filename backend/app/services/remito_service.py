@@ -236,7 +236,8 @@ class RemitoService:
         db.commit()
 
         # Log
-        LogService.log(
+        log_service = LogService()
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="generar_remito",
@@ -344,7 +345,8 @@ class RemitoService:
         db.flush()
 
         # Log
-        LogService.log(
+        log_service = LogService()
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="crear_lote_relevado",
@@ -461,7 +463,8 @@ class RemitoService:
         db.commit()
 
         # Log
-        LogService.log(
+        log_service = LogService()
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="generar_remito_complementario",
@@ -512,7 +515,8 @@ class RemitoService:
         db.refresh(remito)
 
         # Log
-        LogService.log(
+        log_service = LogService()
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="entregar_remito",
@@ -575,7 +579,8 @@ class RemitoService:
         db.refresh(remito)
 
         # Log
-        LogService.log(
+        log_service = LogService()
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="anular_remito",
