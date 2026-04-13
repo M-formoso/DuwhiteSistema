@@ -21,6 +21,7 @@ import {
   Box,
   RotateCcw,
   Scale,
+  Calculator,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -237,6 +238,19 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, isEnProceso }: Kanb
             >
               <Play className="h-3 w-3 mr-1" />
               Iniciar
+            </Button>
+          ) : columna.etapa_codigo === 'CONT' ? (
+            // En etapa de Conteo, ir a página de conteo en vez de finalizar directo
+            <Button
+              size="sm"
+              className="flex-1 text-xs bg-green-600 hover:bg-green-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/produccion/lotes/${lote.id}/conteo`);
+              }}
+            >
+              <Calculator className="h-3 w-3 mr-1" />
+              Ir a Conteo
             </Button>
           ) : (
             <Button
