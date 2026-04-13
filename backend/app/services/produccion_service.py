@@ -468,6 +468,28 @@ class ProduccionService:
 
         return lote
 
+    def delete_lote(self, lote_id: UUID, usuario_id: UUID) -> bool:
+        """Elimina un lote (soft delete)."""
+        lote = self.get_lote(lote_id)
+        if not lote:
+            return False
+
+        lote.activo = False
+        self.db.commit()
+
+        self.log_service.registrar(
+            db=self.db,
+            usuario_id=usuario_id,
+            accion="eliminar",
+            modulo="produccion",
+            entidad_tipo="LoteProduccion",
+            entidad_id=lote.id,
+            datos_anteriores={"numero": lote.numero, "activo": True},
+            datos_nuevos={"activo": False},
+        )
+
+        return True
+
     def cambiar_estado_lote(
         self,
         lote_id: UUID,

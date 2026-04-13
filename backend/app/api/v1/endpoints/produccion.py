@@ -691,6 +691,31 @@ def actualizar_lote(
     return obtener_lote(lote_id, db, current_user)
 
 
+@router.delete("/lotes/{lote_id}", response_model=MessageResponse)
+def eliminar_lote(
+    lote_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin")),
+):
+    """
+    Elimina un lote de producción (soft delete).
+    Solo disponible para superadmin.
+    """
+    service = ProduccionService(db)
+    lote = service.get_lote(lote_id)
+
+    if not lote:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lote no encontrado",
+        )
+
+    numero = lote.numero
+    service.delete_lote(lote_id, current_user.id)
+
+    return MessageResponse(message=f"Lote {numero} eliminado correctamente")
+
+
 @router.post("/lotes/{lote_id}/estado", response_model=MessageResponse)
 def cambiar_estado_lote(
     lote_id: UUID,

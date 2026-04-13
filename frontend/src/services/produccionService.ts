@@ -192,6 +192,11 @@ export async function updateLote(id: string, data: Partial<LoteProduccionCreate>
   return response.data;
 }
 
+export async function deleteLote(id: string): Promise<{ message: string }> {
+  const response = await api.delete(`/produccion/lotes/${id}`);
+  return response.data;
+}
+
 export async function cambiarEstadoLote(
   id: string,
   estado: EstadoLote,
@@ -324,6 +329,7 @@ export const produccionService = {
   getLote,
   createLote,
   updateLote,
+  deleteLote,
   cambiarEstadoLote,
   moverLote,
   crearLoteDirecto,

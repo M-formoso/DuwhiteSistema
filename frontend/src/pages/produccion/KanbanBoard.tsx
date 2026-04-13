@@ -487,23 +487,23 @@ export default function KanbanBoardPage() {
                       <CardTitle className="text-sm font-medium">
                         {columna.etapa_nombre}
                       </CardTitle>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {columna.tiempo_estimado_minutos && (
-                          <span className="text-xs text-muted-foreground">
-                            ~{formatTiempo(columna.tiempo_estimado_minutos)}
-                          </span>
-                        )}
-                        {totalKgColumna > 0 && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Scale className="h-3 w-3" />
-                            {formatNumber(totalKgColumna, 1)} kg
-                          </span>
-                        )}
-                      </div>
+                      {columna.tiempo_estimado_minutos && (
+                        <span className="text-xs text-muted-foreground">
+                          ~{formatTiempo(columna.tiempo_estimado_minutos)}
+                        </span>
+                      )}
                     </div>
                     <Badge variant="secondary" className="text-xs">
                       {columna.lotes.length}
                     </Badge>
+                  </div>
+                  {/* Total kg pendientes de procesar */}
+                  <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                    <Scale className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-sm font-semibold text-gray-700">
+                      {formatNumber(totalKgColumna, 1)} kg
+                    </span>
+                    <span className="text-xs text-muted-foreground">pendientes</span>
                   </div>
                 </CardHeader>
                 <CardContent className="p-2 space-y-2 flex-1 overflow-y-auto">

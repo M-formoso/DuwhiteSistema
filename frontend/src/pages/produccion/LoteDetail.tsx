@@ -23,6 +23,7 @@ import {
   Settings,
   Timer,
   Lock,
+  Trash2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useAuthStore } from '@/stores/authStore';
 
 import { produccionService } from '@/services/produccionService';
 import { formatNumber, formatDate, formatDateTime } from '@/utils/formatters';
@@ -219,10 +231,12 @@ export default function LoteDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuthStore();
 
   const [showEstadoModal, setShowEstadoModal] = useState(false);
   const [showMoverModal, setShowMoverModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [pinAction, setPinAction] = useState<{
     type: 'iniciar' | 'finalizar' | 'mover';
     etapaId?: string;
@@ -231,6 +245,9 @@ export default function LoteDetailPage() {
   } | null>(null);
   const [selectedEtapaId, setSelectedEtapaId] = useState<string | null>(null);
   const [observaciones, setObservaciones] = useState('');
+
+  // Solo superadmin puede eliminar lotes
+  const canDelete = user?.rol === 'superadmin';
 
   // Query del lote
   const { data: lote, isLoading, refetch } = useQuery({
@@ -297,6 +314,23 @@ export default function LoteDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['lote', id] });
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       toast({ title: 'Etapa finalizada' });
+    },
+  });
+
+  const eliminarLoteMutation = useMutation({
+    mutationFn: () => produccionService.deleteLote(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lotes'] });
+      queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      toast({ title: 'Lote eliminado correctamente' });
+      navigate('/produccion/lotes');
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar el lote',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -427,6 +461,16 @@ export default function LoteDetailPage() {
             <Settings className="h-4 w-4 mr-2" />
             Cambiar Estado
           </Button>
+          {canDelete && (
+            <Button
+              variant="outline"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+              onClick={() => setShowDeleteModal(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -945,6 +989,29 @@ export default function LoteDetailPage() {
         }
         description="Ingrese su PIN para confirmar la operación"
       />
+
+      {/* Modal de Confirmación de Eliminación */}
+      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar lote {lote.numero}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. El lote será marcado como inactivo
+              y ya no aparecerá en el tablero Kanban ni en los listados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => eliminarLoteMutation.mutate()}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={eliminarLoteMutation.isPending}
+            >
+              {eliminarLoteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
