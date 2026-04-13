@@ -1,8 +1,9 @@
 /**
- * Lista de Servicios con CRUD
+ * Lista de Productos de Lavado (Servicios)
+ * Muestra el catálogo de productos que se pueden lavar
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
@@ -10,8 +11,7 @@ import {
   Edit2,
   Trash2,
   Tag,
-  Clock,
-  DollarSign,
+  Scale,
   MoreHorizontal,
   Filter,
 } from 'lucide-react';
@@ -49,7 +49,6 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -64,137 +63,100 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
+import { productoLavadoService } from '@/services/productoLavadoService';
 import {
-  servicioService,
-  Servicio,
-  ServicioCreate,
-  ServicioUpdate,
-  TipoServicio,
-  UnidadCobro,
-} from '@/services/servicioService';
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-  }).format(value);
-};
+  ProductoLavado,
+  ProductoLavadoCreate,
+  CategoriaProductoLavado,
+  CATEGORIAS_PRODUCTO_LAVADO,
+} from '@/types/produccion-v2';
 
 export default function ServiciosList() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState<string>('todos');
+  const [filtroCategoria, setFiltroCategoria] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [servicioEditar, setServicioEditar] = useState<Servicio | null>(null);
-  const [servicioEliminar, setServicioEliminar] = useState<Servicio | null>(null);
+  const [productoEditar, setProductoEditar] = useState<ProductoLavado | null>(null);
+  const [productoEliminar, setProductoEliminar] = useState<ProductoLavado | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<ServicioCreate>({
+  const [formData, setFormData] = useState<ProductoLavadoCreate>({
     codigo: '',
     nombre: '',
     descripcion: '',
-    tipo: 'lavado_normal',
-    categoria: '',
-    unidad_cobro: 'kg',
-    precio_base: 0,
-    tiempo_estimado_minutos: undefined,
-    mostrar_en_web: false,
-    orden: 0,
-    notas: '',
+    categoria: 'otros',
+    peso_promedio_kg: undefined,
   });
 
-  // Queries
-  const { data: serviciosData, isLoading } = useQuery({
-    queryKey: ['servicios', search, filtroTipo],
+  // Query productos
+  const { data: productos = [], isLoading } = useQuery<ProductoLavado[]>({
+    queryKey: ['productos-lavado', search, filtroCategoria],
     queryFn: () =>
-      servicioService.listar({
+      productoLavadoService.getAll({
         search: search || undefined,
-        tipo: filtroTipo !== 'todos' ? filtroTipo : undefined,
-        limit: 100,
+        categoria: filtroCategoria !== 'all' ? (filtroCategoria as CategoriaProductoLavado) : undefined,
       }),
-  });
-
-  const { data: tipos = [] } = useQuery({
-    queryKey: ['tipos-servicio'],
-    queryFn: () => servicioService.getTipos(),
-  });
-
-  const { data: unidadesCobro = [] } = useQuery({
-    queryKey: ['unidades-cobro'],
-    queryFn: () => servicioService.getUnidadesCobro(),
   });
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: servicioService.crear,
+    mutationFn: productoLavadoService.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicios'] });
-      toast.success('Servicio creado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['productos-lavado'] });
+      toast.success('Producto creado correctamente');
       handleCloseModal();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al crear servicio');
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al crear producto');
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ServicioUpdate }) =>
-      servicioService.actualizar(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<ProductoLavadoCreate> }) =>
+      productoLavadoService.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicios'] });
-      toast.success('Servicio actualizado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['productos-lavado'] });
+      toast.success('Producto actualizado correctamente');
       handleCloseModal();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al actualizar servicio');
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al actualizar');
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: servicioService.eliminar,
+    mutationFn: productoLavadoService.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['servicios'] });
-      toast.success('Servicio eliminado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['productos-lavado'] });
+      toast.success('Producto eliminado correctamente');
       setDeleteDialogOpen(false);
-      setServicioEliminar(null);
+      setProductoEliminar(null);
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al eliminar servicio');
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al eliminar');
     },
   });
 
-  const handleOpenModal = (servicio?: Servicio) => {
-    if (servicio) {
-      setServicioEditar(servicio);
+  const handleOpenModal = (producto?: ProductoLavado) => {
+    if (producto) {
+      setProductoEditar(producto);
       setFormData({
-        codigo: servicio.codigo,
-        nombre: servicio.nombre,
-        descripcion: servicio.descripcion || '',
-        tipo: servicio.tipo,
-        categoria: servicio.categoria || '',
-        unidad_cobro: servicio.unidad_cobro,
-        precio_base: servicio.precio_base,
-        tiempo_estimado_minutos: servicio.tiempo_estimado_minutos,
-        mostrar_en_web: servicio.mostrar_en_web,
-        orden: servicio.orden,
-        notas: servicio.notas || '',
+        codigo: producto.codigo,
+        nombre: producto.nombre,
+        descripcion: producto.descripcion || '',
+        categoria: producto.categoria as CategoriaProductoLavado,
+        peso_promedio_kg: producto.peso_promedio_kg || undefined,
       });
     } else {
-      setServicioEditar(null);
+      setProductoEditar(null);
       setFormData({
         codigo: '',
         nombre: '',
         descripcion: '',
-        tipo: 'lavado_normal',
-        categoria: '',
-        unidad_cobro: 'kg',
-        precio_base: 0,
-        tiempo_estimado_minutos: undefined,
-        mostrar_en_web: false,
-        orden: 0,
-        notas: '',
+        categoria: 'otros',
+        peso_promedio_kg: undefined,
       });
     }
     setModalOpen(true);
@@ -202,44 +164,53 @@ export default function ServiciosList() {
 
   const handleCloseModal = () => {
     setModalOpen(false);
-    setServicioEditar(null);
+    setProductoEditar(null);
   };
 
   const handleSubmit = () => {
-    if (!formData.codigo || !formData.nombre || formData.precio_base <= 0) {
+    if (!formData.codigo || !formData.nombre) {
       toast.error('Completa los campos obligatorios');
       return;
     }
 
-    if (servicioEditar) {
-      updateMutation.mutate({ id: servicioEditar.id, data: formData });
+    const payload = {
+      ...formData,
+      codigo: formData.codigo.toUpperCase(),
+    };
+
+    if (productoEditar) {
+      updateMutation.mutate({ id: productoEditar.id, data: payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload);
     }
   };
 
-  const handleDelete = (servicio: Servicio) => {
-    setServicioEliminar(servicio);
+  const handleDelete = (producto: ProductoLavado) => {
+    setProductoEliminar(producto);
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = () => {
-    if (servicioEliminar) {
-      deleteMutation.mutate(servicioEliminar.id);
+    if (productoEliminar) {
+      deleteMutation.mutate(productoEliminar.id);
     }
   };
 
-  const getTipoLabel = (tipo: string) => {
-    const found = tipos.find((t) => t.value === tipo);
-    return found?.label || tipo;
+  const getCategoriaLabel = (categoria: string) => {
+    return CATEGORIAS_PRODUCTO_LAVADO.find((c) => c.value === categoria)?.label || categoria;
   };
 
-  const getUnidadLabel = (unidad: string) => {
-    const found = unidadesCobro.find((u) => u.value === unidad);
-    return found?.label || unidad;
+  const getCategoriaColor = (categoria: string): string => {
+    const colors: Record<string, string> = {
+      toallas: 'bg-blue-100 text-blue-800',
+      ropa_cama: 'bg-purple-100 text-purple-800',
+      manteleria: 'bg-green-100 text-green-800',
+      alfombras: 'bg-amber-100 text-amber-800',
+      cortinas: 'bg-pink-100 text-pink-800',
+      otros: 'bg-gray-100 text-gray-800',
+    };
+    return colors[categoria] || colors.otros;
   };
-
-  const servicios = serviciosData?.items || [];
 
   return (
     <div className="space-y-4">
@@ -275,16 +246,19 @@ export default function ServiciosList() {
           <CardContent className="pt-4">
             <div className="flex gap-4">
               <div className="w-48">
-                <Label>Tipo</Label>
-                <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+                <Label>Categoría</Label>
+                <Select
+                  value={filtroCategoria}
+                  onValueChange={setFiltroCategoria}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    {tipos.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
+                    <SelectItem value="all">Todas</SelectItem>
+                    {CATEGORIAS_PRODUCTO_LAVADO.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -304,7 +278,7 @@ export default function ServiciosList() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : servicios.length === 0 ? (
+          ) : productos.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No hay servicios registrados</p>
@@ -323,28 +297,46 @@ export default function ServiciosList() {
                 <TableRow>
                   <TableHead>Código</TableHead>
                   <TableHead>Nombre</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Unidad</TableHead>
-                  <TableHead className="text-right">Precio Base</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead className="text-right">Peso Prom.</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {servicios.map((servicio) => (
-                  <TableRow key={servicio.id}>
-                    <TableCell className="font-medium">{servicio.codigo}</TableCell>
-                    <TableCell>{servicio.nombre}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getTipoLabel(servicio.tipo)}</Badge>
-                    </TableCell>
-                    <TableCell>{getUnidadLabel(servicio.unidad_cobro)}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(servicio.precio_base)}
+                {productos.map((producto) => (
+                  <TableRow key={producto.id}>
+                    <TableCell className="font-mono font-medium">
+                      {producto.codigo}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={servicio.activo ? 'success' : 'secondary'}>
-                        {servicio.activo ? 'Activo' : 'Inactivo'}
+                      <div>
+                        <p className="font-medium">{producto.nombre}</p>
+                        {producto.descripcion && (
+                          <p className="text-xs text-muted-foreground truncate max-w-xs">
+                            {producto.descripcion}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getCategoriaColor(producto.categoria)}>
+                        {getCategoriaLabel(producto.categoria)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {producto.peso_promedio_kg ? (
+                        <span className="flex items-center justify-end gap-1">
+                          <Scale className="h-3 w-3 text-muted-foreground" />
+                          {producto.peso_promedio_kg} kg
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={producto.activo ? 'default' : 'secondary'}>
+                        {producto.activo ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -355,13 +347,13 @@ export default function ServiciosList() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleOpenModal(servicio)}>
+                          <DropdownMenuItem onClick={() => handleOpenModal(producto)}>
                             <Edit2 className="h-4 w-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => handleDelete(servicio)}
+                            onClick={() => handleDelete(producto)}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Eliminar
@@ -382,7 +374,7 @@ export default function ServiciosList() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {servicioEditar ? 'Editar Servicio' : 'Nuevo Servicio'}
+              {productoEditar ? 'Editar Servicio' : 'Nuevo Servicio'}
             </DialogTitle>
           </DialogHeader>
 
@@ -395,18 +387,28 @@ export default function ServiciosList() {
                   onChange={(e) =>
                     setFormData({ ...formData, codigo: e.target.value.toUpperCase() })
                   }
-                  placeholder="SRV001"
+                  placeholder="TOA-001"
                 />
               </div>
               <div>
-                <Label>Orden</Label>
-                <Input
-                  type="number"
-                  value={formData.orden}
-                  onChange={(e) =>
-                    setFormData({ ...formData, orden: parseInt(e.target.value) || 0 })
+                <Label>Categoría *</Label>
+                <Select
+                  value={formData.categoria}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, categoria: v as CategoriaProductoLavado })
                   }
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIAS_PRODUCTO_LAVADO.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -415,133 +417,46 @@ export default function ServiciosList() {
               <Input
                 value={formData.nombre}
                 onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                placeholder="Lavado Normal"
+                placeholder="Toalla Grande"
               />
             </div>
 
             <div>
-              <Label>Descripcion</Label>
+              <Label>Descripción</Label>
               <Textarea
                 value={formData.descripcion}
                 onChange={(e) =>
                   setFormData({ ...formData, descripcion: e.target.value })
                 }
-                placeholder="Descripcion del servicio..."
+                placeholder="Descripción del producto..."
                 rows={2}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Tipo</Label>
-                <Select
-                  value={formData.tipo}
-                  onValueChange={(v) => setFormData({ ...formData, tipo: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tipos.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Categoria</Label>
-                <Input
-                  value={formData.categoria}
-                  onChange={(e) =>
-                    setFormData({ ...formData, categoria: e.target.value })
-                  }
-                  placeholder="Ej: Ropa blanca"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Unidad de Cobro</Label>
-                <Select
-                  value={formData.unidad_cobro}
-                  onValueChange={(v) => setFormData({ ...formData, unidad_cobro: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unidadesCobro.map((u) => (
-                      <SelectItem key={u.value} value={u.value}>
-                        {u.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Precio Base *</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.precio_base}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        precio_base: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            </div>
-
             <div>
-              <Label>Tiempo Estimado (minutos)</Label>
+              <Label>Peso Promedio (kg)</Label>
               <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Scale className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="number"
+                  step="0.001"
                   min="0"
-                  value={formData.tiempo_estimado_minutos || ''}
+                  value={formData.peso_promedio_kg || ''}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      tiempo_estimado_minutos: e.target.value
-                        ? parseInt(e.target.value)
+                      peso_promedio_kg: e.target.value
+                        ? parseFloat(e.target.value)
                         : undefined,
                     })
                   }
                   className="pl-9"
-                  placeholder="Ej: 60"
+                  placeholder="0.400"
                 />
               </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label>Mostrar en Web</Label>
-              <Switch
-                checked={formData.mostrar_en_web}
-                onCheckedChange={(v) =>
-                  setFormData({ ...formData, mostrar_en_web: v })
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Notas</Label>
-              <Textarea
-                value={formData.notas}
-                onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-                placeholder="Notas internas..."
-                rows={2}
-              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Peso promedio por unidad para estimaciones
+              </p>
             </div>
           </div>
 
@@ -553,20 +468,20 @@ export default function ServiciosList() {
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {servicioEditar ? 'Guardar Cambios' : 'Crear Servicio'}
+              {productoEditar ? 'Guardar Cambios' : 'Crear Servicio'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de confirmacion de eliminacion */}
+      {/* Dialog de confirmación de eliminación */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar Servicio</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estas seguro de eliminar el servicio "{servicioEliminar?.nombre}"? Esta
-              accion no se puede deshacer.
+              ¿Estás seguro de eliminar el servicio "{productoEliminar?.nombre}"? Esta
+              acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
