@@ -65,6 +65,7 @@ import { toast } from 'sonner';
 import { produccionService } from '@/services/produccionService';
 import { productoLavadoService } from '@/services/productoLavadoService';
 import { remitoService } from '@/services/remitoService';
+import { clienteService } from '@/services/clienteService';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import {
   ProductoConPrecio,
@@ -101,18 +102,21 @@ export default function ConteoFinalizacionPage() {
     enabled: !!loteId,
   });
 
+  // Query: Datos del cliente
+  const { data: cliente } = useQuery({
+    queryKey: ['cliente', lote?.cliente_id],
+    queryFn: () => clienteService.getCliente(lote!.cliente_id),
+    enabled: !!lote?.cliente_id,
+  });
+
   // Query: Productos con precios del cliente
   const { data: productosConPrecios, isLoading: loadingProductos } = useQuery<ProductoConPrecio[]>({
-    queryKey: ['productos-con-precios', lote?.cliente_id],
+    queryKey: ['productos-con-precios', cliente?.lista_precios_id],
     queryFn: async () => {
-      if (!lote?.cliente_id) return [];
-      // Obtener la lista de precios del cliente y cargar productos
-      const clienteResponse = await fetch(`/api/v1/clientes/${lote.cliente_id}`);
-      const cliente = await clienteResponse.json();
-      if (!cliente.lista_precios_id) return [];
+      if (!cliente?.lista_precios_id) return [];
       return productoLavadoService.getProductosConPrecios(cliente.lista_precios_id);
     },
-    enabled: !!lote?.cliente_id,
+    enabled: !!cliente?.lista_precios_id,
   });
 
   // Inicializar items de conteo cuando se cargan los productos
@@ -264,6 +268,49 @@ export default function ConteoFinalizacionPage() {
         <Button className="mt-4" onClick={() => navigate('/produccion')}>
           Volver al Kanban
         </Button>
+      </div>
+    );
+  }
+
+  // Verificar si el cliente tiene lista de precios
+  if (cliente && !cliente.lista_precios_id) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Conteo y Finalización</h1>
+            <p className="text-gray-500 text-sm">
+              Lote {lote.numero} - {lote.cliente_nombre}
+            </p>
+          </div>
+        </div>
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                Cliente sin Lista de Precios
+              </h3>
+              <p className="text-yellow-700 mb-4">
+                El cliente "{lote.cliente_nombre}" no tiene una lista de precios asignada.
+                <br />
+                Debe asignar una lista de precios al cliente para poder realizar el conteo.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <Button variant="outline" onClick={() => navigate('/produccion')}>
+                  Volver al Kanban
+                </Button>
+                <Button onClick={() => navigate(`/clientes/${lote.cliente_id}/editar`)}>
+                  Editar Cliente
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
