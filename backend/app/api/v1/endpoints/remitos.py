@@ -41,7 +41,7 @@ def listar_remitos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Lista remitos con filtros."""
     remitos = RemitoService.get_all(
@@ -88,7 +88,7 @@ def obtener_estados_remito():
 def obtener_remito(
     remito_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Obtiene un remito por ID."""
     remito = RemitoService.get_by_id(db, remito_id)
@@ -167,7 +167,7 @@ def generar_remito_desde_lote(
     lote_id: UUID,
     request: GenerarRemitoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """
     Genera un remito desde la etapa de conteo y finalización.
@@ -188,7 +188,7 @@ def generar_remito_complementario(
     lote_id: UUID,
     request: GenerarRemitoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """
     Genera un remito complementario para un lote de relevado.
@@ -208,7 +208,7 @@ def marcar_remito_entregado(
     remito_id: UUID,
     request: EntregarRemitoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "editar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
 ):
     """Marca un remito como entregado."""
     remito = RemitoService.marcar_entregado(
@@ -228,7 +228,7 @@ def anular_remito(
     remito_id: UUID,
     request: AnularRemitoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "eliminar"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador"))
 ):
     """Anula un remito y revierte el cargo en cuenta corriente."""
     remito = RemitoService.anular(db, remito_id, request.motivo, current_user.id)
@@ -249,7 +249,7 @@ def obtener_remitos_cliente(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("clientes", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Obtiene los remitos de un cliente."""
     remitos = RemitoService.get_remitos_cliente(db, cliente_id, skip, limit)
@@ -274,7 +274,7 @@ def obtener_remitos_cliente(
 def obtener_remitos_lote(
     lote_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("produccion", "ver"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
     """Obtiene los remitos de un lote."""
     remitos = RemitoService.get_remitos_lote(db, lote_id)
