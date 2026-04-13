@@ -80,6 +80,7 @@ export interface ClienteCreate {
   ciudad?: string | null;
   provincia?: string;
   codigo_postal?: string | null;
+  lista_precios_id?: string | null;
   descuento_general?: number | null;
   limite_credito?: number | null;
   dias_credito?: number | null;

@@ -26,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 
 import { clienteService } from '@/services/clienteService';
+import { listaPreciosService } from '@/services/servicioService';
 import { TIPOS_CLIENTE, CONDICIONES_IVA } from '@/types/cliente';
 import type { ClienteCreate } from '@/types/cliente';
 
@@ -49,6 +50,7 @@ const clienteSchema = z.object({
   ciudad: z.string().nullable().optional(),
   provincia: z.string().default('Córdoba'),
   codigo_postal: z.string().nullable().optional(),
+  lista_precios_id: z.string().nullable().optional(),
   descuento_general: z.coerce.number().min(0).max(100).nullable().optional(),
   limite_credito: z.coerce.number().min(0).nullable().optional(),
   dias_credito: z.coerce.number().int().min(0).nullable().optional(),
@@ -94,6 +96,12 @@ export default function ClienteFormPage() {
     enabled: isEditing,
   });
 
+  // Query listas de precios
+  const { data: listasPrecios = { items: [] } } = useQuery({
+    queryKey: ['listas-precios-activas'],
+    queryFn: () => listaPreciosService.listar({ activa: true, limit: 100 }),
+  });
+
   useEffect(() => {
     if (cliente) {
       reset({
@@ -111,6 +119,7 @@ export default function ClienteFormPage() {
         ciudad: cliente.ciudad,
         provincia: cliente.provincia,
         codigo_postal: cliente.codigo_postal,
+        lista_precios_id: cliente.lista_precios_id,
         descuento_general: cliente.descuento_general,
         limite_credito: cliente.limite_credito,
         dias_credito: cliente.dias_credito,
@@ -170,6 +179,7 @@ export default function ClienteFormPage() {
       ...data,
       cuit: data.cuit || null,
       email: data.email || null,
+      lista_precios_id: data.lista_precios_id || null,
       descuento_general: data.descuento_general || null,
       limite_credito: data.limite_credito || null,
       dias_credito: data.dias_credito || null,
@@ -348,6 +358,30 @@ export default function ClienteFormPage() {
             <CardTitle>Condiciones Comerciales</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Lista de Precios */}
+            <div className="space-y-2">
+              <Label htmlFor="lista_precios_id">Lista de Precios</Label>
+              <Select
+                value={watch('lista_precios_id') || 'none'}
+                onValueChange={(v) => setValue('lista_precios_id', v === 'none' ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar lista de precios" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin lista asignada</SelectItem>
+                  {listasPrecios.items.map((lista) => (
+                    <SelectItem key={lista.id} value={lista.id}>
+                      {lista.codigo} - {lista.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                La lista de precios determina los valores de los productos de lavado para este cliente
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="descuento_general">Descuento General (%)</Label>
