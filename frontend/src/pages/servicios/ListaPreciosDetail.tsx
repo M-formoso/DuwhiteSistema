@@ -1,5 +1,5 @@
 /**
- * Detalle de Lista de Precios con gestion de items
+ * Detalle de Lista de Precios con gestión de productos de lavado
  */
 
 import { useState } from 'react';
@@ -11,9 +11,8 @@ import {
   Edit2,
   Trash2,
   DollarSign,
-  Search,
-  RefreshCw,
   Tag,
+  Scale,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,14 +55,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
+import { listaPreciosService, ListaPreciosConItems } from '@/services/servicioService';
+import { productoLavadoService } from '@/services/productoLavadoService';
 import {
-  listaPreciosService,
-  servicioService,
-  ItemListaPrecios,
-  ItemListaPreciosCreate,
-  ItemListaPreciosUpdate,
-  Servicio,
-} from '@/services/servicioService';
+  ProductoLavado,
+  PrecioProductoLavado,
+  CATEGORIAS_PRODUCTO_LAVADO,
+} from '@/types/produccion-v2';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('es-AR', {
@@ -72,110 +70,98 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+interface PrecioConProducto extends PrecioProductoLavado {
+  producto?: ProductoLavado;
+}
+
 export default function ListaPreciosDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [searchServicio, setSearchServicio] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [itemEditar, setItemEditar] = useState<ItemListaPrecios | null>(null);
-  const [itemEliminar, setItemEliminar] = useState<ItemListaPrecios | null>(null);
+  const [precioEditar, setPrecioEditar] = useState<PrecioConProducto | null>(null);
+  const [precioEliminar, setPrecioEliminar] = useState<PrecioConProducto | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<ItemListaPreciosCreate>({
-    servicio_id: '',
-    precio: 0,
-    precio_minimo: undefined,
-    cantidad_minima: undefined,
+  const [formData, setFormData] = useState({
+    producto_id: '',
+    precio_unitario: 0,
   });
 
-  // Queries
-  const { data: lista, isLoading } = useQuery({
+  // Query lista de precios (datos básicos)
+  const { data: lista, isLoading: isLoadingLista } = useQuery<ListaPreciosConItems>({
     queryKey: ['lista-precios', id],
     queryFn: () => listaPreciosService.obtener(id!),
     enabled: !!id,
   });
 
-  const { data: serviciosDisponibles = [] } = useQuery({
-    queryKey: ['servicios-busqueda', searchServicio],
-    queryFn: () => servicioService.buscar(searchServicio || '', 20),
-    enabled: modalOpen && !itemEditar,
+  // Query todos los productos de lavado
+  const { data: productos = [] } = useQuery<ProductoLavado[]>({
+    queryKey: ['productos-lavado'],
+    queryFn: () => productoLavadoService.getAll({ solo_activos: true }),
   });
 
-  const { data: todosServicios = { items: [] } } = useQuery({
-    queryKey: ['servicios-todos'],
-    queryFn: () => servicioService.listar({ limit: 500 }),
+  // Query precios de productos para esta lista
+  const { data: precios = [], isLoading: isLoadingPrecios } = useQuery<PrecioProductoLavado[]>({
+    queryKey: ['precios-productos-lavado', id],
+    queryFn: () => productoLavadoService.getPreciosLista(id!),
+    enabled: !!id,
   });
 
-  // Mutations
-  const agregarItemMutation = useMutation({
-    mutationFn: (data: ItemListaPreciosCreate) =>
-      listaPreciosService.agregarItem(id!, data),
+  // Combinar precios con datos del producto
+  const preciosConProducto: PrecioConProducto[] = precios.map((precio) => ({
+    ...precio,
+    producto: productos.find((p) => p.id === precio.producto_id),
+  }));
+
+  // Productos que aún no tienen precio en esta lista
+  const productosConPrecio = new Set(precios.map((p) => p.producto_id));
+  const productosSinPrecio = productos.filter((p) => !productosConPrecio.has(p.id));
+
+  // Mutation: Establecer/actualizar precio
+  const setPrecioMutation = useMutation({
+    mutationFn: (data: { lista_precios_id: string; producto_id: string; precio_unitario: number }) =>
+      productoLavadoService.setPrecio(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lista-precios', id] });
-      toast.success('Item agregado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['precios-productos-lavado', id] });
+      toast.success(precioEditar ? 'Precio actualizado' : 'Precio agregado');
       handleCloseModal();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al agregar item');
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al guardar precio');
     },
   });
 
-  const actualizarItemMutation = useMutation({
-    mutationFn: ({ itemId, data }: { itemId: string; data: ItemListaPreciosUpdate }) =>
-      listaPreciosService.actualizarItem(id!, itemId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lista-precios', id] });
-      toast.success('Item actualizado correctamente');
-      handleCloseModal();
+  // Mutation: Eliminar precio (soft delete en backend)
+  const deletePrecioMutation = useMutation({
+    mutationFn: async (precioId: string) => {
+      // El backend hace soft delete al establecer precio en 0 o desactivar
+      // Por ahora solo invalidamos y recargamos
+      // Idealmente se necesitaría un endpoint DELETE /precios/{id}
+      toast.info('Funcionalidad de eliminar precio no disponible aún');
+      return Promise.resolve();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al actualizar item');
-    },
-  });
-
-  const eliminarItemMutation = useMutation({
-    mutationFn: (itemId: string) => listaPreciosService.eliminarItem(id!, itemId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lista-precios', id] });
-      toast.success('Item eliminado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['precios-productos-lavado', id] });
       setDeleteDialogOpen(false);
-      setItemEliminar(null);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al eliminar item');
+      setPrecioEliminar(null);
     },
   });
 
-  const aplicarModificadorMutation = useMutation({
-    mutationFn: () => listaPreciosService.aplicarModificador(id!),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['lista-precios', id] });
-      toast.success(`Se actualizaron ${data.items_actualizados} items`);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al aplicar modificador');
-    },
-  });
-
-  const handleOpenModal = (item?: ItemListaPrecios) => {
-    if (item) {
-      setItemEditar(item);
+  const handleOpenModal = (precio?: PrecioConProducto) => {
+    if (precio) {
+      setPrecioEditar(precio);
       setFormData({
-        servicio_id: item.servicio_id,
-        precio: item.precio,
-        precio_minimo: item.precio_minimo || undefined,
-        cantidad_minima: item.cantidad_minima || undefined,
+        producto_id: precio.producto_id,
+        precio_unitario: Number(precio.precio_unitario),
       });
     } else {
-      setItemEditar(null);
+      setPrecioEditar(null);
       setFormData({
-        servicio_id: '',
-        precio: 0,
-        precio_minimo: undefined,
-        cantidad_minima: undefined,
+        producto_id: '',
+        precio_unitario: 0,
       });
     }
     setModalOpen(true);
@@ -183,46 +169,50 @@ export default function ListaPreciosDetail() {
 
   const handleCloseModal = () => {
     setModalOpen(false);
-    setItemEditar(null);
-    setSearchServicio('');
+    setPrecioEditar(null);
   };
 
   const handleSubmit = () => {
-    if (!formData.servicio_id || formData.precio <= 0) {
-      toast.error('Selecciona un servicio y define un precio');
+    if (!formData.producto_id || formData.precio_unitario <= 0) {
+      toast.error('Selecciona un producto y define un precio válido');
       return;
     }
 
-    if (itemEditar) {
-      actualizarItemMutation.mutate({
-        itemId: itemEditar.id,
-        data: {
-          precio: formData.precio,
-          precio_minimo: formData.precio_minimo,
-          cantidad_minima: formData.cantidad_minima,
-        },
-      });
-    } else {
-      agregarItemMutation.mutate(formData);
-    }
+    setPrecioMutation.mutate({
+      lista_precios_id: id!,
+      producto_id: formData.producto_id,
+      precio_unitario: formData.precio_unitario,
+    });
   };
 
-  const handleDelete = (item: ItemListaPrecios) => {
-    setItemEliminar(item);
+  const handleDelete = (precio: PrecioConProducto) => {
+    setPrecioEliminar(precio);
     setDeleteDialogOpen(true);
   };
 
   const confirmDelete = () => {
-    if (itemEliminar) {
-      eliminarItemMutation.mutate(itemEliminar.id);
+    if (precioEliminar) {
+      deletePrecioMutation.mutate(precioEliminar.id);
     }
   };
 
-  // Filtrar servicios que ya estan en la lista
-  const serviciosEnLista = new Set(lista?.items.map((i) => i.servicio_id) || []);
-  const serviciosFiltrados = serviciosDisponibles.filter(
-    (s) => !serviciosEnLista.has(s.id)
-  );
+  const getCategoriaLabel = (categoria: string) => {
+    return CATEGORIAS_PRODUCTO_LAVADO.find((c) => c.value === categoria)?.label || categoria;
+  };
+
+  const getCategoriaColor = (categoria: string): string => {
+    const colors: Record<string, string> = {
+      toallas: 'bg-blue-100 text-blue-800',
+      ropa_cama: 'bg-purple-100 text-purple-800',
+      manteleria: 'bg-green-100 text-green-800',
+      alfombras: 'bg-amber-100 text-amber-800',
+      cortinas: 'bg-pink-100 text-pink-800',
+      otros: 'bg-gray-100 text-gray-800',
+    };
+    return colors[categoria] || colors.otros;
+  };
+
+  const isLoading = isLoadingLista || isLoadingPrecios;
 
   if (isLoading) {
     return (
@@ -258,16 +248,6 @@ export default function ListaPreciosDetail() {
             {lista.codigo} - {lista.es_lista_base ? 'Lista Base' : 'Lista Derivada'}
           </p>
         </div>
-        {!lista.es_lista_base && lista.lista_base_id && (
-          <Button
-            variant="outline"
-            onClick={() => aplicarModificadorMutation.mutate()}
-            disabled={aplicarModificadorMutation.isPending}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Aplicar Modificador
-          </Button>
-        )}
       </div>
 
       {/* Info de la lista */}
@@ -303,90 +283,105 @@ export default function ListaPreciosDetail() {
                 </div>
               )}
             <div>
-              <p className="text-sm text-muted-foreground">Items</p>
-              <p className="font-medium">{lista.items.length}</p>
+              <p className="text-sm text-muted-foreground">Productos con Precio</p>
+              <p className="font-medium">{precios.length} / {productos.length}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Estado</p>
-              <Badge variant={lista.activa ? 'success' : 'secondary'}>
+              <Badge variant={lista.activa ? 'default' : 'secondary'}>
                 {lista.activa ? 'Activa' : 'Inactiva'}
               </Badge>
             </div>
           </div>
           {lista.descripcion && (
             <div className="mt-4">
-              <p className="text-sm text-muted-foreground">Descripcion</p>
+              <p className="text-sm text-muted-foreground">Descripción</p>
               <p>{lista.descripcion}</p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Items */}
+      {/* Precios de Productos */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Precios de Servicios</CardTitle>
-          <Button onClick={() => handleOpenModal()}>
+          <CardTitle>Precios de Productos de Lavado</CardTitle>
+          <Button onClick={() => handleOpenModal()} disabled={productosSinPrecio.length === 0}>
             <Plus className="h-4 w-4 mr-2" />
-            Agregar Servicio
+            Agregar Producto
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          {lista.items.length === 0 ? (
+          {preciosConProducto.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay servicios en esta lista</p>
+              <p>No hay productos con precio en esta lista</p>
               <Button
                 variant="outline"
                 className="mt-4"
                 onClick={() => handleOpenModal()}
+                disabled={productosSinPrecio.length === 0}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Agregar primer servicio
+                Agregar primer producto
               </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Codigo</TableHead>
-                  <TableHead>Servicio</TableHead>
-                  <TableHead>Unidad</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">Precio Minimo</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead className="text-right">Peso Prom.</TableHead>
+                  <TableHead className="text-right">Precio Unitario</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lista.items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.servicio_codigo}
+                {preciosConProducto.map((precio) => (
+                  <TableRow key={precio.id}>
+                    <TableCell className="font-mono font-medium">
+                      {precio.producto?.codigo || '-'}
                     </TableCell>
-                    <TableCell>{item.servicio_nombre}</TableCell>
-                    <TableCell>{item.servicio_unidad_cobro}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(item.precio)}
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{precio.producto?.nombre || 'Producto eliminado'}</p>
+                        {precio.producto?.descripcion && (
+                          <p className="text-xs text-muted-foreground truncate max-w-xs">
+                            {precio.producto.descripcion}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {precio.producto && (
+                        <Badge variant="outline" className={getCategoriaColor(precio.producto.categoria)}>
+                          {getCategoriaLabel(precio.producto.categoria)}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {item.precio_minimo ? formatCurrency(item.precio_minimo) : '-'}
+                      {precio.producto?.peso_promedio_kg ? (
+                        <span className="flex items-center justify-end gap-1">
+                          <Scale className="h-3 w-3 text-muted-foreground" />
+                          {precio.producto.peso_promedio_kg} kg
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-green-600">
+                      {formatCurrency(Number(precio.precio_unitario))}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleOpenModal(item)}
+                          onClick={() => handleOpenModal(precio)}
                         >
                           <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive"
-                          onClick={() => handleDelete(item)}
-                        >
-                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -398,120 +393,80 @@ export default function ListaPreciosDetail() {
         </CardContent>
       </Card>
 
-      {/* Modal agregar/editar item */}
+      {/* Modal agregar/editar precio */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {itemEditar ? 'Editar Precio' : 'Agregar Servicio a la Lista'}
+              {precioEditar ? 'Editar Precio' : 'Agregar Producto a la Lista'}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {!itemEditar && (
+            {!precioEditar ? (
               <div>
-                <Label>Servicio *</Label>
+                <Label>Producto *</Label>
                 <Select
-                  value={formData.servicio_id || 'none'}
+                  value={formData.producto_id || 'none'}
                   onValueChange={(v) => {
-                    const servicio = todosServicios.items.find((s) => s.id === v);
                     setFormData({
                       ...formData,
-                      servicio_id: v === 'none' ? '' : v,
-                      precio: servicio?.precio_base || 0,
+                      producto_id: v === 'none' ? '' : v,
                     });
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar servicio" />
+                    <SelectValue placeholder="Seleccionar producto" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none" disabled>
-                      Seleccionar servicio
+                      Seleccionar producto
                     </SelectItem>
-                    {todosServicios.items
-                      .filter((s) => !serviciosEnLista.has(s.id))
-                      .map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.codigo} - {s.nombre} ({formatCurrency(s.precio_base)})
-                        </SelectItem>
-                      ))}
+                    {productosSinPrecio.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.codigo} - {p.nombre}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {productosSinPrecio.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Todos los productos ya tienen precio asignado
+                  </p>
+                )}
               </div>
-            )}
-
-            {itemEditar && (
+            ) : (
               <div>
-                <Label>Servicio</Label>
+                <Label>Producto</Label>
                 <Input
-                  value={`${itemEditar.servicio_codigo} - ${itemEditar.servicio_nombre}`}
+                  value={`${precioEditar.producto?.codigo} - ${precioEditar.producto?.nombre}`}
                   disabled
                 />
               </div>
             )}
 
             <div>
-              <Label>Precio *</Label>
+              <Label>Precio Unitario *</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.precio}
+                  value={formData.precio_unitario}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      precio: parseFloat(e.target.value) || 0,
+                      precio_unitario: parseFloat(e.target.value) || 0,
                     })
                   }
                   className="pl-9"
+                  placeholder="0.00"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Precio Minimo</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.precio_minimo || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        precio_minimo: e.target.value
-                          ? parseFloat(e.target.value)
-                          : undefined,
-                      })
-                    }
-                    className="pl-9"
-                    placeholder="Opcional"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Cantidad Minima</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.cantidad_minima || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      cantidad_minima: e.target.value
-                        ? parseFloat(e.target.value)
-                        : undefined,
-                    })
-                  }
-                  placeholder="Opcional"
-                />
-              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Precio por unidad de producto
+              </p>
             </div>
           </div>
 
@@ -521,24 +476,26 @@ export default function ListaPreciosDetail() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={
-                agregarItemMutation.isPending || actualizarItemMutation.isPending
-              }
+              disabled={setPrecioMutation.isPending}
             >
-              {itemEditar ? 'Guardar Cambios' : 'Agregar'}
+              {setPrecioMutation.isPending
+                ? 'Guardando...'
+                : precioEditar
+                ? 'Guardar Cambios'
+                : 'Agregar'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de confirmacion de eliminacion */}
+      {/* Dialog de confirmación de eliminación */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Item</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar Precio</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estas seguro de eliminar el servicio "{itemEliminar?.servicio_nombre}" de
-              esta lista?
+              ¿Estás seguro de eliminar el precio del producto "{precioEliminar?.producto?.nombre}"
+              de esta lista?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
