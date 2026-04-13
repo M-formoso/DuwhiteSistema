@@ -105,7 +105,7 @@ export default function ConteoFinalizacionPage() {
   // Query: Datos del cliente
   const { data: cliente } = useQuery({
     queryKey: ['cliente', lote?.cliente_id],
-    queryFn: () => clienteService.getCliente(lote!.cliente_id),
+    queryFn: () => clienteService.getCliente(lote!.cliente_id!),
     enabled: !!lote?.cliente_id,
   });
 
