@@ -1,16 +1,16 @@
 /**
  * Modal para dividir un lote en la etapa de Estirado (bifurcación)
- * Permite enviar parte del lote a Secado y otra parte de vuelta a Lavado
+ * Permite seleccionar qué productos van a Secado y cuáles a Planchado
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Split, Scale, ArrowRight, Loader2, Info, AlertTriangle } from 'lucide-react';
+import { Split, ArrowRight, Loader2, Info, AlertTriangle, Package, Check } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -22,11 +22,10 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
-import { formatNumber } from '@/utils/formatters';
+import api from '@/services/api';
 
 interface EtapaBifurcacionInfo {
   permite_bifurcacion: boolean;
@@ -34,6 +33,14 @@ interface EtapaBifurcacionInfo {
   etapa_destino_principal_nombre: string | null;
   etapa_destino_alternativa_id: string | null;
   etapa_destino_alternativa_nombre: string | null;
+}
+
+interface ProductoLavado {
+  id: string;
+  codigo: string;
+  nombre: string;
+  categoria: string;
+  peso_promedio_kg: number | null;
 }
 
 interface DividirLoteModalProps {
@@ -45,6 +52,8 @@ interface DividirLoteModalProps {
   etapaNombre: string;
   pesoTotalKg: number;
 }
+
+type DestinoProducto = 'principal' | 'alternativo';
 
 export function DividirLoteModal({
   open,
@@ -58,9 +67,8 @@ export function DividirLoteModal({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Estado del formulario
-  const [pesoPrincipal, setPesoPrincipal] = useState(pesoTotalKg);
-  const [pesoAlternativo, setPesoAlternativo] = useState(0);
+  // Estado: productos seleccionados para cada destino
+  const [productosDestino, setProductosDestino] = useState<Record<string, DestinoProducto>>({});
   const [observacionesPrincipal, setObservacionesPrincipal] = useState('');
   const [observacionesAlternativo, setObservacionesAlternativo] = useState('');
 
@@ -71,25 +79,110 @@ export function DividirLoteModal({
     enabled: open && !!etapaId,
   });
 
+  // Cargar productos de lavado
+  const { data: productos = [], isLoading: loadingProductos } = useQuery<ProductoLavado[]>({
+    queryKey: ['productos-lavado'],
+    queryFn: async () => {
+      const response = await api.get('/produccion/productos', { params: { activo: true } });
+      return response.data.items || response.data || [];
+    },
+    enabled: open,
+  });
+
   // Reset cuando se abre el modal
   useEffect(() => {
     if (open) {
-      setPesoPrincipal(pesoTotalKg);
-      setPesoAlternativo(0);
+      // Por defecto todos los productos van al destino principal (Secado)
+      const defaultDestinos: Record<string, DestinoProducto> = {};
+      productos.forEach(p => {
+        defaultDestinos[p.id] = 'principal';
+      });
+      setProductosDestino(defaultDestinos);
       setObservacionesPrincipal('');
       setObservacionesAlternativo('');
     }
-  }, [open, pesoTotalKg]);
+  }, [open, productos]);
+
+  // Agrupar productos por categoría
+  const productosPorCategoria = useMemo(() => {
+    const grouped: Record<string, ProductoLavado[]> = {};
+    productos.forEach(p => {
+      const cat = p.categoria || 'otros';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(p);
+    });
+    return grouped;
+  }, [productos]);
+
+  // Contar productos por destino
+  const conteos = useMemo(() => {
+    let principal = 0;
+    let alternativo = 0;
+    Object.values(productosDestino).forEach(destino => {
+      if (destino === 'principal') principal++;
+      else alternativo++;
+    });
+    return { principal, alternativo };
+  }, [productosDestino]);
+
+  // Obtener nombres de productos por destino para las observaciones
+  const productosNombres = useMemo(() => {
+    const principal: string[] = [];
+    const alternativo: string[] = [];
+    productos.forEach(p => {
+      if (productosDestino[p.id] === 'principal') {
+        principal.push(p.nombre);
+      } else if (productosDestino[p.id] === 'alternativo') {
+        alternativo.push(p.nombre);
+      }
+    });
+    return { principal, alternativo };
+  }, [productos, productosDestino]);
+
+  // Cambiar destino de un producto
+  const toggleProductoDestino = (productoId: string, destino: DestinoProducto) => {
+    setProductosDestino(prev => ({
+      ...prev,
+      [productoId]: destino,
+    }));
+  };
+
+  // Seleccionar todos de una categoría
+  const seleccionarCategoria = (categoria: string, destino: DestinoProducto) => {
+    const nuevosDestinos = { ...productosDestino };
+    productosPorCategoria[categoria]?.forEach(p => {
+      nuevosDestinos[p.id] = destino;
+    });
+    setProductosDestino(nuevosDestinos);
+  };
 
   // Mutation para dividir el lote
   const dividirMutation = useMutation({
-    mutationFn: () =>
-      produccionService.dividirLote(loteId, etapaId, {
+    mutationFn: () => {
+      // Calcular peso aproximado basado en proporción de productos
+      const totalProductos = conteos.principal + conteos.alternativo;
+      const proporcionPrincipal = totalProductos > 0 ? conteos.principal / totalProductos : 1;
+      const pesoPrincipal = Math.round(pesoTotalKg * proporcionPrincipal * 10) / 10;
+      const pesoAlternativo = Math.round((pesoTotalKg - pesoPrincipal) * 10) / 10;
+
+      // Agregar lista de productos a las observaciones
+      const obsPrincipal = [
+        observacionesPrincipal,
+        `Productos: ${productosNombres.principal.join(', ') || 'Todos'}`,
+      ].filter(Boolean).join('\n');
+
+      const obsAlternativo = conteos.alternativo > 0 ? [
+        observacionesAlternativo,
+        `Productos: ${productosNombres.alternativo.join(', ')}`,
+      ].filter(Boolean).join('\n') : undefined;
+
+      return produccionService.dividirLote(loteId, etapaId, {
         peso_destino_principal_kg: pesoPrincipal,
         peso_destino_alternativo_kg: pesoAlternativo,
-        observaciones_principal: observacionesPrincipal || undefined,
-        observaciones_alternativo: observacionesAlternativo || undefined,
-      }),
+        observaciones_principal: obsPrincipal,
+        observaciones_alternativo: obsAlternativo,
+      });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       queryClient.invalidateQueries({ queryKey: ['lotes'] });
@@ -109,28 +202,11 @@ export function DividirLoteModal({
     },
   });
 
-  // Calcular porcentaje para la barra de progreso
-  const porcentajePrincipal = pesoTotalKg > 0 ? (pesoPrincipal / pesoTotalKg) * 100 : 100;
-
-  const handlePesoPrincipalChange = (value: string) => {
-    const num = parseFloat(value) || 0;
-    const clamped = Math.min(Math.max(0, num), pesoTotalKg);
-    setPesoPrincipal(clamped);
-    setPesoAlternativo(Math.round((pesoTotalKg - clamped) * 10) / 10);
-  };
-
-  const handlePesoAlternativoChange = (value: string) => {
-    const num = parseFloat(value) || 0;
-    const clamped = Math.min(Math.max(0, num), pesoTotalKg);
-    setPesoAlternativo(clamped);
-    setPesoPrincipal(Math.round((pesoTotalKg - clamped) * 10) / 10);
-  };
-
   const handleSubmit = () => {
-    if (pesoPrincipal <= 0) {
+    if (conteos.principal === 0 && conteos.alternativo === 0) {
       toast({
         title: 'Error',
-        description: 'El peso del destino principal debe ser mayor a 0',
+        description: 'Debes seleccionar al menos un producto',
         variant: 'destructive',
       });
       return;
@@ -138,7 +214,9 @@ export function DividirLoteModal({
     dividirMutation.mutate();
   };
 
-  if (!bifurcacionInfo?.permite_bifurcacion && !loadingInfo) {
+  const isLoading = loadingInfo || loadingProductos;
+
+  if (!bifurcacionInfo?.permite_bifurcacion && !isLoading) {
     return (
       <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
         <DialogContent>
@@ -159,137 +237,199 @@ export function DividirLoteModal({
     );
   }
 
+  const destinoPrincipalNombre = bifurcacionInfo?.etapa_destino_principal_nombre || 'Secado';
+  const destinoAlternativoNombre = bifurcacionInfo?.etapa_destino_alternativa_nombre || 'Planchado';
+
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Split className="h-5 w-5 text-primary" />
             Dividir Lote - {loteNumero}
           </DialogTitle>
           <DialogDescription>
-            Divide el lote en {etapaNombre} para enviar parte a cada destino
+            Selecciona qué productos van a {destinoPrincipalNombre} y cuáles a {destinoAlternativoNombre}
           </DialogDescription>
         </DialogHeader>
 
-        {loadingInfo ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="space-y-6 py-4">
-            {/* Info del lote */}
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Peso total del lote: <strong>{formatNumber(pesoTotalKg, 1)} kg</strong>
-              </AlertDescription>
-            </Alert>
+          <div className="space-y-4">
+            {/* Resumen de selección */}
+            <div className="grid grid-cols-2 gap-4">
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="pt-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4 text-green-600" />
+                      <Badge className="bg-green-600">{destinoPrincipalNombre}</Badge>
+                    </div>
+                    <span className="text-2xl font-bold text-green-700">{conteos.principal}</span>
+                  </div>
+                  <p className="text-xs text-green-600 mt-1">productos seleccionados</p>
+                </CardContent>
+              </Card>
 
-            {/* Barra de distribución visual */}
-            <div className="space-y-2">
-              <Label>Distribución del peso</Label>
-              <Progress value={porcentajePrincipal} className="h-3" />
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span className="text-green-600">{formatNumber(porcentajePrincipal, 0)}% a {bifurcacionInfo?.etapa_destino_principal_nombre || 'Secado'}</span>
-                <span className="text-orange-600">{formatNumber(100 - porcentajePrincipal, 0)}% a {bifurcacionInfo?.etapa_destino_alternativa_nombre || 'Lavado'}</span>
+              <Card className={`border-orange-200 ${conteos.alternativo > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
+                <CardContent className="pt-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4 text-orange-600" />
+                      <Badge className="bg-orange-500">{destinoAlternativoNombre}</Badge>
+                    </div>
+                    <span className="text-2xl font-bold text-orange-700">{conteos.alternativo}</span>
+                  </div>
+                  <p className="text-xs text-orange-600 mt-1">productos seleccionados</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Lista de productos por categoría */}
+            <div className="border rounded-lg">
+              <div className="bg-gray-50 px-4 py-2 border-b flex items-center justify-between">
+                <Label className="font-medium flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Seleccionar productos por destino
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-green-300 text-green-700 hover:bg-green-50"
+                    onClick={() => {
+                      const todos: Record<string, DestinoProducto> = {};
+                      productos.forEach(p => { todos[p.id] = 'principal'; });
+                      setProductosDestino(todos);
+                    }}
+                  >
+                    Todos a {destinoPrincipalNombre}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                    onClick={() => {
+                      const todos: Record<string, DestinoProducto> = {};
+                      productos.forEach(p => { todos[p.id] = 'alternativo'; });
+                      setProductosDestino(todos);
+                    }}
+                  >
+                    Todos a {destinoAlternativoNombre}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="h-[300px] overflow-y-auto">
+                <div className="p-4 space-y-4">
+                  {Object.entries(productosPorCategoria).map(([categoria, prods]) => (
+                    <div key={categoria} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold capitalize text-gray-700">
+                          {categoria.replace(/_/g, ' ')}
+                        </Label>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs text-green-600 hover:bg-green-50"
+                            onClick={() => seleccionarCategoria(categoria, 'principal')}
+                          >
+                            → {destinoPrincipalNombre}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs text-orange-600 hover:bg-orange-50"
+                            onClick={() => seleccionarCategoria(categoria, 'alternativo')}
+                          >
+                            → {destinoAlternativoNombre}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {prods.map(producto => {
+                          const destino = productosDestino[producto.id] || 'principal';
+                          const esPrincipal = destino === 'principal';
+
+                          return (
+                            <div
+                              key={producto.id}
+                              className={`
+                                flex items-center justify-between p-2 rounded border cursor-pointer transition-colors
+                                ${esPrincipal
+                                  ? 'border-green-200 bg-green-50 hover:bg-green-100'
+                                  : 'border-orange-200 bg-orange-50 hover:bg-orange-100'
+                                }
+                              `}
+                              onClick={() => toggleProductoDestino(
+                                producto.id,
+                                esPrincipal ? 'alternativo' : 'principal'
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`
+                                  w-5 h-5 rounded flex items-center justify-center
+                                  ${esPrincipal ? 'bg-green-500' : 'bg-orange-500'}
+                                `}>
+                                  <Check className="h-3 w-3 text-white" />
+                                </div>
+                                <span className="text-sm">{producto.nombre}</span>
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${esPrincipal
+                                  ? 'border-green-300 text-green-700'
+                                  : 'border-orange-300 text-orange-700'
+                                }`}
+                              >
+                                {esPrincipal ? destinoPrincipalNombre : destinoAlternativoNombre}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Cards de destino */}
+            {/* Observaciones */}
             <div className="grid grid-cols-2 gap-4">
-              {/* Destino Principal */}
-              <Card className="border-green-200 bg-green-50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <ArrowRight className="h-4 w-4 text-green-600" />
-                    <Badge variant="outline" className="bg-green-100 text-green-700">
-                      {bifurcacionInfo?.etapa_destino_principal_nombre || 'Secado'}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Peso (kg)</Label>
-                    <div className="flex items-center gap-2">
-                      <Scale className="h-4 w-4 text-green-600" />
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max={pesoTotalKg}
-                        value={pesoPrincipal}
-                        onChange={(e) => handlePesoPrincipalChange(e.target.value)}
-                        className="text-lg font-semibold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Observaciones</Label>
-                    <Textarea
-                      value={observacionesPrincipal}
-                      onChange={(e) => setObservacionesPrincipal(e.target.value)}
-                      placeholder="Opcional..."
-                      rows={2}
-                      className="text-xs"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Destino Alternativo */}
-              <Card className={`border-orange-200 ${pesoAlternativo > 0 ? 'bg-orange-50' : 'bg-gray-50 opacity-60'}`}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <ArrowRight className="h-4 w-4 text-orange-600" />
-                    <Badge variant="outline" className="bg-orange-100 text-orange-700">
-                      {bifurcacionInfo?.etapa_destino_alternativa_nombre || 'Lavado'}
-                    </Badge>
-                    {pesoAlternativo > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        Sub-lote
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Peso (kg)</Label>
-                    <div className="flex items-center gap-2">
-                      <Scale className="h-4 w-4 text-orange-600" />
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max={pesoTotalKg}
-                        value={pesoAlternativo}
-                        onChange={(e) => handlePesoAlternativoChange(e.target.value)}
-                        className="text-lg font-semibold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Observaciones</Label>
-                    <Textarea
-                      value={observacionesAlternativo}
-                      onChange={(e) => setObservacionesAlternativo(e.target.value)}
-                      placeholder="Opcional..."
-                      rows={2}
-                      className="text-xs"
-                      disabled={pesoAlternativo === 0}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-1">
+                <Label className="text-xs text-green-700">Observaciones {destinoPrincipalNombre}</Label>
+                <Textarea
+                  value={observacionesPrincipal}
+                  onChange={(e) => setObservacionesPrincipal(e.target.value)}
+                  placeholder="Opcional..."
+                  rows={2}
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-orange-700">Observaciones {destinoAlternativoNombre}</Label>
+                <Textarea
+                  value={observacionesAlternativo}
+                  onChange={(e) => setObservacionesAlternativo(e.target.value)}
+                  placeholder="Opcional..."
+                  rows={2}
+                  className="text-xs"
+                  disabled={conteos.alternativo === 0}
+                />
+              </div>
             </div>
 
-            {/* Resumen */}
-            {pesoAlternativo > 0 && (
+            {/* Mensaje informativo */}
+            {conteos.alternativo > 0 && (
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  Se creará un <strong>sub-lote ({loteNumero}-B)</strong> con {formatNumber(pesoAlternativo, 1)} kg
-                  que volverá a <strong>{bifurcacionInfo?.etapa_destino_alternativa_nombre || 'Lavado'}</strong>
+                  Se creará un <strong>sub-lote ({loteNumero}-B)</strong> con los {conteos.alternativo} productos
+                  seleccionados para <strong>{destinoAlternativoNombre}</strong>
                 </AlertDescription>
               </Alert>
             )}
@@ -302,7 +442,7 @@ export function DividirLoteModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={dividirMutation.isPending || pesoPrincipal <= 0 || loadingInfo}
+            disabled={dividirMutation.isPending || isLoading}
           >
             {dividirMutation.isPending ? (
               <>
