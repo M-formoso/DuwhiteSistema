@@ -217,6 +217,8 @@ export interface KanbanColumna {
   // Campos nuevos para v2
   total_kg?: number;
   total_lotes?: number;
+  // Campos de bifurcación
+  permite_bifurcacion?: boolean;
 }
 
 export interface KanbanBoard {

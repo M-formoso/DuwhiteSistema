@@ -33,6 +33,7 @@ from app.schemas.maquina import MaquinaCreate, MaquinaUpdate
 from app.schemas.lote_produccion import (
     LoteProduccionCreate,
     LoteProduccionUpdate,
+    LoteProduccionList,
     LoteEtapaUpdate,
     ConsumoInsumoLoteCreate,
     IniciarEtapaRequest,
@@ -42,6 +43,9 @@ from app.schemas.lote_produccion import (
     KanbanColumna,
     KanbanLote,
     KanbanCanasto,
+    DividirLoteRequest,
+    DividirLoteResponse,
+    EtapaBifurcacionInfo,
 )
 from app.services.log_service import log_service
 from app.services.stock_service import StockService
@@ -661,6 +665,11 @@ class ProduccionService:
                     horas = (lote_etapa.fecha_fin - lote_etapa.fecha_inicio).total_seconds() / 3600
                     maquina.horas_uso_totales += int(horas)
 
+        # Liberar canastos si se finaliza la etapa de Planchado (PLA)
+        etapa = self.get_etapa(etapa_id)
+        if etapa and etapa.codigo == "PLA":
+            self._liberar_canastos_lote(lote_id, usuario_id)
+
         # Verificar si hay siguiente etapa
         lote = self.get_lote(lote_id)
         if lote:
@@ -686,6 +695,41 @@ class ProduccionService:
         self.db.refresh(lote_etapa)
 
         return lote_etapa
+
+    def _liberar_canastos_lote(
+        self,
+        lote_id: UUID,
+        usuario_id: UUID,
+    ) -> int:
+        """
+        Libera TODOS los canastos asignados a un lote.
+        Se llama al finalizar la etapa de Planchado (PLA).
+        Retorna la cantidad de canastos liberados.
+        """
+        # Buscar canastos asignados a este lote que aún no fueron liberados
+        asignaciones = (
+            self.db.query(LoteCanasto)
+            .filter(
+                LoteCanasto.lote_id == lote_id,
+                LoteCanasto.fecha_liberacion.is_(None),
+                LoteCanasto.activo == True,
+            )
+            .all()
+        )
+
+        liberados = 0
+        for asignacion in asignaciones:
+            # Marcar la asignación como liberada
+            asignacion.fecha_liberacion = datetime.utcnow()
+            asignacion.liberado_por_id = usuario_id
+
+            # Cambiar el estado del canasto a disponible
+            canasto = self.db.query(Canasto).filter(Canasto.id == asignacion.canasto_id).first()
+            if canasto:
+                canasto.estado = "disponible"
+                liberados += 1
+
+        return liberados
 
     def mover_lote_a_etapa(
         self,
@@ -902,6 +946,7 @@ class ProduccionService:
                 tiempo_estimado_minutos=etapa.tiempo_estimado_minutos,
                 requiere_maquina=etapa.requiere_maquina,
                 tipo_maquina=tipo_maquina,
+                permite_bifurcacion=etapa.permite_bifurcacion or False,
                 lotes=kanban_lotes,
             ))
 
@@ -1602,3 +1647,225 @@ class ProduccionService:
         )
 
         return lote, movimiento.id
+
+    # ==================== BIFURCACIÓN / DIVISIÓN DE LOTES ====================
+
+    def get_bifurcacion_info(self, etapa_id: UUID) -> EtapaBifurcacionInfo:
+        """
+        Obtiene la información de bifurcación de una etapa.
+        Útil para el frontend para saber si mostrar opciones de división.
+        """
+        etapa = self.get_etapa(etapa_id)
+        if not etapa:
+            return EtapaBifurcacionInfo()
+
+        info = EtapaBifurcacionInfo(
+            permite_bifurcacion=etapa.permite_bifurcacion or False,
+        )
+
+        if etapa.permite_bifurcacion:
+            if etapa.etapa_destino_principal_id:
+                etapa_principal = self.get_etapa(etapa.etapa_destino_principal_id)
+                if etapa_principal:
+                    info.etapa_destino_principal_id = etapa_principal.id
+                    info.etapa_destino_principal_nombre = etapa_principal.nombre
+
+            if etapa.etapa_destino_alternativa_id:
+                etapa_alt = self.get_etapa(etapa.etapa_destino_alternativa_id)
+                if etapa_alt:
+                    info.etapa_destino_alternativa_id = etapa_alt.id
+                    info.etapa_destino_alternativa_nombre = etapa_alt.nombre
+
+        return info
+
+    def dividir_lote(
+        self,
+        lote_id: UUID,
+        etapa_id: UUID,
+        data: DividirLoteRequest,
+        usuario_id: UUID,
+    ) -> DividirLoteResponse:
+        """
+        Divide un lote en la etapa de bifurcación (ej: Estirado).
+
+        - El lote principal continúa a la etapa destino principal (ej: Secado)
+        - Si hay peso para destino alternativo, se crea un sub-lote que va a esa etapa (ej: Lavado)
+        """
+        lote = self.get_lote(lote_id)
+        if not lote:
+            raise ValueError("Lote no encontrado")
+
+        etapa = self.get_etapa(etapa_id)
+        if not etapa:
+            raise ValueError("Etapa no encontrada")
+
+        if not etapa.permite_bifurcacion:
+            raise ValueError(f"La etapa '{etapa.nombre}' no permite bifurcación")
+
+        # Obtener etapas destino
+        etapa_principal = None
+        etapa_alternativa = None
+
+        if etapa.etapa_destino_principal_id:
+            etapa_principal = self.get_etapa(etapa.etapa_destino_principal_id)
+        if etapa.etapa_destino_alternativa_id:
+            etapa_alternativa = self.get_etapa(etapa.etapa_destino_alternativa_id)
+
+        if not etapa_principal:
+            # Si no hay etapa principal configurada, usar la siguiente en el flujo
+            etapa_principal = self._get_siguiente_etapa(lote, etapa_id)
+
+        if not etapa_principal:
+            raise ValueError("No se encontró etapa destino principal")
+
+        # Validar pesos
+        peso_total = data.peso_destino_principal_kg + data.peso_destino_alternativo_kg
+        if lote.peso_entrada_kg and peso_total > lote.peso_entrada_kg:
+            raise ValueError(
+                f"La suma de pesos ({peso_total} kg) excede el peso del lote ({lote.peso_entrada_kg} kg)"
+            )
+
+        # Finalizar la etapa actual del lote principal
+        lote_etapa = (
+            self.db.query(LoteEtapa)
+            .filter(LoteEtapa.lote_id == lote_id, LoteEtapa.etapa_id == etapa_id)
+            .first()
+        )
+
+        if lote_etapa:
+            lote_etapa.estado = "completado"
+            lote_etapa.fecha_fin = datetime.utcnow()
+            lote_etapa.peso_kg = data.peso_destino_principal_kg
+            if data.observaciones_principal:
+                lote_etapa.observaciones = (lote_etapa.observaciones or "") + f"\n{data.observaciones_principal}"
+
+        # Liberar máquina si estaba en uso
+        if lote_etapa and lote_etapa.maquina_id:
+            maquina = self.get_maquina(lote_etapa.maquina_id)
+            if maquina:
+                maquina.estado = "disponible"
+
+        # Actualizar el lote principal - mover a etapa destino principal
+        lote.etapa_actual_id = etapa_principal.id
+        lote.peso_entrada_kg = data.peso_destino_principal_kg  # Actualizar peso
+
+        # Agregar nota de división
+        nota_division = f"[División en {etapa.nombre}] {data.peso_destino_principal_kg}kg → {etapa_principal.nombre}"
+        lote.notas_internas = (lote.notas_internas or "") + f"\n{datetime.utcnow()}: {nota_division}"
+
+        lote_secundario = None
+
+        # Si hay peso para destino alternativo, crear sub-lote
+        if data.peso_destino_alternativo_kg > 0 and etapa_alternativa:
+            # Generar número de sub-lote
+            numero_sublote = f"{lote.numero}-B"
+
+            lote_secundario = LoteProduccion(
+                numero=numero_sublote,
+                cliente_id=lote.cliente_id,
+                pedido_id=lote.pedido_id,
+                tipo_servicio=lote.tipo_servicio,
+                tipo_lote="relevado",  # Marcamos como relevado/sub-lote
+                lote_padre_id=lote.id,  # Referencia al lote original
+                estado=EstadoLote.EN_PROCESO.value,
+                prioridad=lote.prioridad,
+                etapa_actual_id=etapa_alternativa.id,
+                peso_entrada_kg=data.peso_destino_alternativo_kg,
+                cantidad_prendas=None,  # No se puede dividir cantidad exacta de prendas
+                fecha_compromiso=lote.fecha_compromiso,
+                fecha_ingreso=datetime.utcnow(),
+                fecha_inicio_proceso=datetime.utcnow(),
+                creado_por_id=usuario_id,
+                descripcion=f"Sub-lote de {lote.numero} - División en {etapa.nombre}",
+                notas_internas=data.observaciones_alternativo or f"Creado por división en etapa {etapa.nombre}",
+                notas_cliente=lote.notas_cliente,
+            )
+
+            self.db.add(lote_secundario)
+            self.db.flush()
+
+            # Crear registros de etapas para el sub-lote
+            # Solo las etapas desde la alternativa en adelante
+            etapas_activas = self.get_etapas(solo_activas=True)
+            etapa_alt_orden = etapa_alternativa.orden
+
+            for i, e in enumerate(etapas_activas):
+                if e.orden >= etapa_alt_orden:
+                    estado_etapa = "pendiente"
+                    if e.id == etapa_alternativa.id:
+                        estado_etapa = "en_proceso"
+
+                    lote_etapa_nuevo = LoteEtapa(
+                        lote_id=lote_secundario.id,
+                        etapa_id=e.id,
+                        orden=i,
+                        estado=estado_etapa,
+                        fecha_inicio=datetime.utcnow() if estado_etapa == "en_proceso" else None,
+                    )
+                    self.db.add(lote_etapa_nuevo)
+
+        self.db.commit()
+        self.db.refresh(lote)
+
+        # Log de la operación
+        self.log_service.registrar(
+            db=self.db,
+            usuario_id=usuario_id,
+            accion="dividir_lote",
+            modulo="produccion",
+            entidad_tipo="LoteProduccion",
+            entidad_id=lote.id,
+            datos_nuevos={
+                "peso_principal": float(data.peso_destino_principal_kg),
+                "peso_alternativo": float(data.peso_destino_alternativo_kg),
+                "etapa_division": etapa.nombre,
+                "destino_principal": etapa_principal.nombre,
+                "destino_alternativo": etapa_alternativa.nombre if etapa_alternativa else None,
+                "sublote_creado": lote_secundario.numero if lote_secundario else None,
+            },
+        )
+
+        # Preparar respuesta
+        lote_principal_list = LoteProduccionList(
+            id=lote.id,
+            numero=lote.numero,
+            cliente_nombre=lote.cliente.razon_social if lote.cliente else None,
+            tipo_servicio=lote.tipo_servicio,
+            estado=lote.estado,
+            prioridad=lote.prioridad,
+            etapa_actual_nombre=etapa_principal.nombre,
+            etapa_actual_color=etapa_principal.color,
+            peso_entrada_kg=lote.peso_entrada_kg,
+            fecha_ingreso=lote.fecha_ingreso,
+            fecha_compromiso=lote.fecha_compromiso,
+            esta_atrasado=lote.esta_atrasado,
+            porcentaje_avance=lote.porcentaje_avance,
+        )
+
+        lote_secundario_list = None
+        if lote_secundario:
+            self.db.refresh(lote_secundario)
+            lote_secundario_list = LoteProduccionList(
+                id=lote_secundario.id,
+                numero=lote_secundario.numero,
+                cliente_nombre=lote.cliente.razon_social if lote.cliente else None,
+                tipo_servicio=lote_secundario.tipo_servicio,
+                estado=lote_secundario.estado,
+                prioridad=lote_secundario.prioridad,
+                etapa_actual_nombre=etapa_alternativa.nombre,
+                etapa_actual_color=etapa_alternativa.color,
+                peso_entrada_kg=lote_secundario.peso_entrada_kg,
+                fecha_ingreso=lote_secundario.fecha_ingreso,
+                fecha_compromiso=lote_secundario.fecha_compromiso,
+                esta_atrasado=False,
+                porcentaje_avance=0,
+            )
+
+        return DividirLoteResponse(
+            lote_principal=lote_principal_list,
+            lote_secundario=lote_secundario_list,
+            mensaje=f"Lote dividido correctamente. {data.peso_destino_principal_kg}kg → {etapa_principal.nombre}"
+                    + (f", {data.peso_destino_alternativo_kg}kg → {etapa_alternativa.nombre}" if lote_secundario else ""),
+            etapa_destino_principal=etapa_principal.nombre,
+            etapa_destino_alternativo=etapa_alternativa.nombre if etapa_alternativa and lote_secundario else None,
+        )

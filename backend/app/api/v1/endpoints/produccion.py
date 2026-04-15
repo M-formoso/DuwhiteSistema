@@ -42,6 +42,9 @@ from app.schemas.lote_produccion import (
     ValidarPinResponse,
     LoteDirectoCreate,
     LoteDirectoResponse,
+    DividirLoteRequest,
+    DividirLoteResponse,
+    EtapaBifurcacionInfo,
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.schemas.orden_produccion import (
@@ -1405,3 +1408,49 @@ def resolver_incidencia(
         )
 
     return obtener_incidencia(incidencia_id, db, current_user)
+
+
+# ==================== BIFURCACIÓN / DIVISIÓN DE LOTES ====================
+
+@router.get("/etapas/{etapa_id}/bifurcacion", response_model=EtapaBifurcacionInfo)
+def obtener_info_bifurcacion_etapa(
+    etapa_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Obtiene información de bifurcación de una etapa.
+    Útil para saber si la etapa permite dividir lotes y hacia dónde.
+    """
+    service = ProduccionService(db)
+    return service.get_bifurcacion_info(etapa_id)
+
+
+@router.post("/lotes/{lote_id}/etapas/{etapa_id}/dividir", response_model=DividirLoteResponse)
+def dividir_lote_en_etapa(
+    lote_id: UUID,
+    etapa_id: UUID,
+    data: DividirLoteRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
+):
+    """
+    Divide un lote en la etapa de bifurcación (ej: Estirado).
+
+    Permite enviar parte del lote al destino principal (ej: Secado) y
+    otra parte al destino alternativo (ej: vuelve a Lavado).
+
+    Si peso_destino_alternativo_kg es 0, todo el lote va al destino principal.
+    Si peso_destino_alternativo_kg > 0, se crea un sub-lote que va al destino alternativo.
+    """
+    service = ProduccionService(db)
+
+    try:
+        result = service.dividir_lote(lote_id, etapa_id, data, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return result

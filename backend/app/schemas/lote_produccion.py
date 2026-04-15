@@ -228,6 +228,7 @@ class KanbanColumna(BaseModel):
     tiempo_estimado_minutos: Optional[int] = None
     requiere_maquina: bool = False
     tipo_maquina: Optional[str] = None  # lavadora, secadora, planchadora según código de etapa
+    permite_bifurcacion: bool = False  # Si la etapa permite dividir lotes
     lotes: List[KanbanLote] = []
 
 
@@ -332,3 +333,47 @@ class LoteDirectoResponse(BaseModel):
     lote: LoteProduccionResponse
     movimiento_cc_id: UUID
     mensaje: str
+
+
+# ==================== DIVISIÓN DE LOTES (Bifurcación) ====================
+
+class DividirLoteRequest(BaseModel):
+    """
+    Schema para dividir un lote en la etapa de Estirado.
+    Permite enviar parte del lote a Secado y otra parte de vuelta a Lavado.
+    """
+    # Peso que va a la etapa destino principal (ej: Secado)
+    peso_destino_principal_kg: Decimal = Field(
+        ..., gt=0,
+        description="Peso en kg que continúa al destino principal (ej: Secado)"
+    )
+    # Peso que va a la etapa alternativa (ej: Lavado) - si es 0, no se crea sub-lote
+    peso_destino_alternativo_kg: Decimal = Field(
+        default=Decimal("0"), ge=0,
+        description="Peso en kg que va al destino alternativo (ej: vuelve a Lavado)"
+    )
+    # Observaciones para el lote que continúa
+    observaciones_principal: Optional[str] = None
+    # Observaciones para el sub-lote (si se crea)
+    observaciones_alternativo: Optional[str] = None
+    # PIN de validación
+    operario_id: Optional[UUID] = None
+    pin: Optional[str] = Field(None, min_length=4, max_length=6)
+
+
+class DividirLoteResponse(BaseModel):
+    """Schema de respuesta para división de lote."""
+    lote_principal: LoteProduccionList
+    lote_secundario: Optional[LoteProduccionList] = None  # Solo si se creó un sub-lote
+    mensaje: str
+    etapa_destino_principal: str
+    etapa_destino_alternativo: Optional[str] = None
+
+
+class EtapaBifurcacionInfo(BaseModel):
+    """Schema con información de bifurcación de una etapa."""
+    permite_bifurcacion: bool = False
+    etapa_destino_principal_id: Optional[UUID] = None
+    etapa_destino_principal_nombre: Optional[str] = None
+    etapa_destino_alternativa_id: Optional[UUID] = None
+    etapa_destino_alternativa_nombre: Optional[str] = None

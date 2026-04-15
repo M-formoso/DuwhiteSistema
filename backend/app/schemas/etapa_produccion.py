@@ -22,6 +22,10 @@ class EtapaProduccionBase(BaseModel):
     requiere_maquina: bool = False
     tiempo_estimado_minutos: Optional[int] = Field(None, ge=0)
     activo: bool = True
+    # Campos de bifurcación
+    permite_bifurcacion: bool = False
+    etapa_destino_principal_id: Optional[UUID] = None
+    etapa_destino_alternativa_id: Optional[UUID] = None
 
 
 class EtapaProduccionCreate(EtapaProduccionBase):
@@ -42,6 +46,10 @@ class EtapaProduccionUpdate(BaseModel):
     requiere_maquina: Optional[bool] = None
     tiempo_estimado_minutos: Optional[int] = Field(None, ge=0)
     activo: Optional[bool] = None
+    # Campos de bifurcación
+    permite_bifurcacion: Optional[bool] = None
+    etapa_destino_principal_id: Optional[UUID] = None
+    etapa_destino_alternativa_id: Optional[UUID] = None
 
 
 class EtapaProduccionInDB(EtapaProduccionBase):
@@ -57,6 +65,9 @@ class EtapaProduccionInDB(EtapaProduccionBase):
 class EtapaProduccionResponse(EtapaProduccionInDB):
     """Schema de respuesta de etapa."""
     cantidad_lotes_activos: Optional[int] = None
+    # Nombres de etapas destino (para UI)
+    etapa_destino_principal_nombre: Optional[str] = None
+    etapa_destino_alternativa_nombre: Optional[str] = None
 
 
 class EtapaProduccionList(BaseModel):

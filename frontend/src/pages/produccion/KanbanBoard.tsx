@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Scale,
   Calculator,
+  Split,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 
 import { PinValidationModal } from '@/components/produccion/PinValidationModal';
 import { IniciarEtapaModal } from '@/components/produccion/IniciarEtapaModal';
+import { DividirLoteModal } from '@/components/produccion/DividirLoteModal';
 import { produccionService } from '@/services/produccionService';
 import { clienteService } from '@/services/clienteService';
 import { formatNumber, formatCurrency } from '@/utils/formatters';
@@ -96,10 +98,11 @@ interface KanbanCardProps {
   columna: KanbanColumna;
   onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null, etapaCodigo?: string) => void;
   onFinalizar: (loteId: string, etapaId: string) => void;
+  onDividir: (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => void;
   isEnProceso: boolean;
 }
 
-function KanbanCard({ lote, columna, onIniciar, onFinalizar, isEnProceso }: KanbanCardProps) {
+function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProceso }: KanbanCardProps) {
   const navigate = useNavigate();
 
   // Timer en tiempo real
@@ -252,6 +255,39 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, isEnProceso }: Kanb
               <Calculator className="h-3 w-3 mr-1" />
               Ir a Conteo
             </Button>
+          ) : columna.permite_bifurcacion ? (
+            // En etapa con bifurcación (Estirado), mostrar botones de dividir y finalizar
+            <div className="flex gap-1 w-full">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDividir(
+                    lote.id,
+                    lote.numero,
+                    columna.etapa_id,
+                    columna.etapa_nombre,
+                    Number(lote.peso_entrada_kg) || 0
+                  );
+                }}
+              >
+                <Split className="h-3 w-3 mr-1" />
+                Dividir
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFinalizar(lote.id, columna.etapa_id);
+                }}
+              >
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Finalizar
+              </Button>
+            </div>
           ) : (
             <Button
               size="sm"
@@ -279,6 +315,7 @@ export default function KanbanBoardPage() {
   // Estado para modal de PIN / Iniciar
   const [showPinModal, setShowPinModal] = useState(false);
   const [showIniciarModal, setShowIniciarModal] = useState(false);
+  const [showDividirModal, setShowDividirModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
     type: 'iniciar' | 'finalizar';
     loteId: string;
@@ -288,6 +325,13 @@ export default function KanbanBoardPage() {
     requiereMaquina?: boolean;
     tipoMaquina?: string | null;
     etapaCodigo?: string;
+  } | null>(null);
+  const [dividirData, setDividirData] = useState<{
+    loteId: string;
+    loteNumero: string;
+    etapaId: string;
+    etapaNombre: string;
+    pesoKg: number;
   } | null>(null);
 
   // Cargar tablero Kanban - refetch cada 10 segundos para mantener actualizado
@@ -366,6 +410,11 @@ export default function KanbanBoardPage() {
   const handleFinalizar = (loteId: string, etapaId: string) => {
     setPendingAction({ type: 'finalizar', loteId, etapaId });
     setShowPinModal(true);
+  };
+
+  const handleDividir = (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => {
+    setDividirData({ loteId, loteNumero, etapaId, etapaNombre, pesoKg });
+    setShowDividirModal(true);
   };
 
   const handleIniciarConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => {
@@ -534,6 +583,7 @@ export default function KanbanBoardPage() {
                         columna={columna}
                         onIniciar={handleIniciar}
                         onFinalizar={handleFinalizar}
+                        onDividir={handleDividir}
                         isEnProceso={isLoteEnProceso(lote)}
                       />
                     ))
@@ -602,6 +652,22 @@ export default function KanbanBoardPage() {
         title="Finalizar Etapa"
         description="Valida tu PIN para finalizar esta etapa"
       />
+
+      {/* Modal para dividir lote */}
+      {dividirData && (
+        <DividirLoteModal
+          open={showDividirModal}
+          onClose={() => {
+            setShowDividirModal(false);
+            setDividirData(null);
+          }}
+          loteId={dividirData.loteId}
+          loteNumero={dividirData.loteNumero}
+          etapaId={dividirData.etapaId}
+          etapaNombre={dividirData.etapaNombre}
+          pesoTotalKg={dividirData.pesoKg}
+        />
+      )}
     </div>
   );
 }

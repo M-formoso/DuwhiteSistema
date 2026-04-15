@@ -303,6 +303,48 @@ export async function crearLoteDirecto(data: LoteDirectoCreate): Promise<LoteDir
   return response.data;
 }
 
+// ==================== BIFURCACIÓN / DIVISIÓN DE LOTES ====================
+
+export interface EtapaBifurcacionInfo {
+  permite_bifurcacion: boolean;
+  etapa_destino_principal_id: string | null;
+  etapa_destino_principal_nombre: string | null;
+  etapa_destino_alternativa_id: string | null;
+  etapa_destino_alternativa_nombre: string | null;
+}
+
+export interface DividirLoteRequest {
+  peso_destino_principal_kg: number;
+  peso_destino_alternativo_kg?: number;
+  observaciones_principal?: string;
+  observaciones_alternativo?: string;
+}
+
+export interface DividirLoteResponse {
+  lote_principal: LoteProduccionList;
+  lote_secundario: LoteProduccionList | null;
+  mensaje: string;
+  etapa_destino_principal: string;
+  etapa_destino_alternativo: string | null;
+}
+
+export async function getBifurcacionInfo(etapaId: string): Promise<EtapaBifurcacionInfo> {
+  const response = await api.get(`/produccion/etapas/${etapaId}/bifurcacion`);
+  return response.data;
+}
+
+export async function dividirLote(
+  loteId: string,
+  etapaId: string,
+  data: DividirLoteRequest
+): Promise<DividirLoteResponse> {
+  const response = await api.post(
+    `/produccion/lotes/${loteId}/etapas/${etapaId}/dividir`,
+    data
+  );
+  return response.data;
+}
+
 // ==================== EXPORTS ====================
 
 export const produccionService = {
@@ -339,6 +381,9 @@ export const produccionService = {
   // Consumos
   getConsumosLote,
   registrarConsumo,
+  // Bifurcación / División
+  getBifurcacionInfo,
+  dividirLote,
 };
 
 export default produccionService;

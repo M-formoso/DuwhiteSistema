@@ -48,6 +48,17 @@ class EtapaProduccion(Base, TimestampMixin):
     requiere_maquina = Column(Boolean, default=False)  # Si usa máquina específica
     tiempo_estimado_minutos = Column(Integer, nullable=True)  # Tiempo promedio
 
+    # Configuración de bifurcación (para etapas como Estirado)
+    permite_bifurcacion = Column(Boolean, default=False)  # Si permite dividir el lote
+    etapa_destino_principal_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )  # Etapa destino por defecto (ej: Secado)
+    etapa_destino_alternativa_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )  # Etapa alternativa (ej: Lavado)
+
     # Estado
     activo = Column(Boolean, default=True, nullable=False)
 
