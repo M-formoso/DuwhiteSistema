@@ -83,8 +83,8 @@ export function DividirLoteModal({
   const { data: productos = [], isLoading: loadingProductos } = useQuery<ProductoLavado[]>({
     queryKey: ['productos-lavado'],
     queryFn: async () => {
-      const response = await api.get('/produccion/productos', { params: { activo: true } });
-      return response.data.items || response.data || [];
+      const response = await api.get('/produccion/productos-lavado', { params: { solo_activos: true } });
+      return response.data || [];
     },
     enabled: open,
   });
