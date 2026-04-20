@@ -15,6 +15,7 @@ from app.models.maquina import Maquina
 from app.models.lote_produccion import (
     LoteProduccion,
     LoteEtapa,
+    LoteEtapaMaquina,
     ConsumoInsumoLote,
     EstadoLote,
     PrioridadLote,
@@ -281,7 +282,32 @@ class ProduccionService:
         return query.order_by(Maquina.codigo).all()
 
     def get_lote_usando_maquina(self, maquina_id: UUID) -> Optional[dict]:
-        """Obtiene el lote que está usando una máquina."""
+        """Obtiene el lote que está usando una máquina (busca en tabla intermedia y campo legacy)."""
+        # Primero buscar en la tabla intermedia (nuevo sistema)
+        lote_etapa_maquina = (
+            self.db.query(LoteEtapaMaquina)
+            .join(LoteEtapa, LoteEtapaMaquina.lote_etapa_id == LoteEtapa.id)
+            .filter(
+                LoteEtapaMaquina.maquina_id == maquina_id,
+                LoteEtapaMaquina.fecha_liberacion.is_(None),
+                LoteEtapa.estado == "en_proceso",
+            )
+            .first()
+        )
+
+        if lote_etapa_maquina:
+            lote_etapa = self.db.query(LoteEtapa).filter(LoteEtapa.id == lote_etapa_maquina.lote_etapa_id).first()
+            if lote_etapa:
+                lote = self.get_lote(lote_etapa.lote_id)
+                if lote:
+                    return {
+                        "lote_id": str(lote.id),
+                        "lote_numero": lote.numero,
+                        "etapa_id": str(lote_etapa.etapa_id),
+                        "fecha_inicio": lote_etapa.fecha_inicio.isoformat() if lote_etapa.fecha_inicio else None,
+                    }
+
+        # Fallback: buscar en campo legacy maquina_id (compatibilidad)
         lote_etapa = (
             self.db.query(LoteEtapa)
             .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
@@ -566,31 +592,45 @@ class ProduccionService:
         # Obtener la etapa para verificar si requiere máquina
         etapa = self.get_etapa(etapa_id)
 
+        # Determinar las máquinas a usar (nuevo: maquinas_ids, o compatibilidad: maquina_id)
+        maquinas_ids = data.maquinas_ids or ([data.maquina_id] if data.maquina_id else [])
+
         # Validar que se seleccione máquina si la etapa lo requiere
-        if etapa and etapa.requiere_maquina and not data.maquina_id:
+        if etapa and etapa.requiere_maquina and not maquinas_ids:
             raise ValueError(
-                f"La etapa '{etapa.nombre}' requiere seleccionar una máquina"
+                f"La etapa '{etapa.nombre}' requiere seleccionar al menos una máquina"
             )
 
-        # Verificar si la máquina está disponible
-        if data.maquina_id:
-            if not self.is_maquina_disponible(data.maquina_id):
-                lote_en_uso = self.get_lote_usando_maquina(data.maquina_id)
+        # Verificar si las máquinas están disponibles
+        for maq_id in maquinas_ids:
+            if not self.is_maquina_disponible(maq_id):
+                lote_en_uso = self.get_lote_usando_maquina(maq_id)
+                maquina_info = self.get_maquina(maq_id)
+                maquina_codigo = maquina_info.codigo if maquina_info else str(maq_id)
                 if lote_en_uso:
                     raise ValueError(
-                        f"La máquina está siendo usada por el lote {lote_en_uso['lote_numero']}"
+                        f"La máquina {maquina_codigo} está siendo usada por el lote {lote_en_uso['lote_numero']}"
                     )
-                raise ValueError("La máquina no está disponible")
+                raise ValueError(f"La máquina {maquina_codigo} no está disponible")
 
         lote_etapa.estado = "en_proceso"
         lote_etapa.fecha_inicio = datetime.utcnow()
         lote_etapa.responsable_id = data.responsable_id or usuario_id
-        lote_etapa.maquina_id = data.maquina_id
+        # Mantener maquina_id para compatibilidad (primera máquina)
+        lote_etapa.maquina_id = maquinas_ids[0] if maquinas_ids else None
         lote_etapa.observaciones = data.observaciones
 
-        # Actualizar máquina a "en_uso"
-        if data.maquina_id:
-            maquina = self.get_maquina(data.maquina_id)
+        # Asignar todas las máquinas usando la tabla intermedia
+        for maq_id in maquinas_ids:
+            lote_etapa_maquina = LoteEtapaMaquina(
+                lote_etapa_id=lote_etapa.id,
+                maquina_id=maq_id,
+                fecha_asignacion=datetime.utcnow()
+            )
+            self.db.add(lote_etapa_maquina)
+
+            # Actualizar máquina a "en_uso"
+            maquina = self.get_maquina(maq_id)
             if maquina:
                 maquina.estado = "en_uso"
 
@@ -655,12 +695,31 @@ class ProduccionService:
         if data.observaciones:
             lote_etapa.observaciones = (lote_etapa.observaciones or "") + f"\n{data.observaciones}"
 
-        # Liberar máquina
-        if lote_etapa.maquina_id:
-            maquina = self.get_maquina(lote_etapa.maquina_id)
+        # Liberar todas las máquinas asignadas
+        maquinas_asignadas = (
+            self.db.query(LoteEtapaMaquina)
+            .filter(
+                LoteEtapaMaquina.lote_etapa_id == lote_etapa.id,
+                LoteEtapaMaquina.fecha_liberacion.is_(None)
+            )
+            .all()
+        )
+
+        for lem in maquinas_asignadas:
+            lem.fecha_liberacion = datetime.utcnow()
+            maquina = self.get_maquina(lem.maquina_id)
             if maquina:
                 maquina.estado = "disponible"
                 # Actualizar horas de uso
+                if lote_etapa.fecha_inicio:
+                    horas = (lote_etapa.fecha_fin - lote_etapa.fecha_inicio).total_seconds() / 3600
+                    maquina.horas_uso_totales += int(horas)
+
+        # Compatibilidad: también liberar maquina_id si existe
+        if lote_etapa.maquina_id and not maquinas_asignadas:
+            maquina = self.get_maquina(lote_etapa.maquina_id)
+            if maquina:
+                maquina.estado = "disponible"
                 if lote_etapa.fecha_inicio:
                     horas = (lote_etapa.fecha_fin - lote_etapa.fecha_inicio).total_seconds() / 3600
                     maquina.horas_uso_totales += int(horas)
@@ -1739,11 +1798,27 @@ class ProduccionService:
             if data.observaciones_principal:
                 lote_etapa.observaciones = (lote_etapa.observaciones or "") + f"\n{data.observaciones_principal}"
 
-        # Liberar máquina si estaba en uso
-        if lote_etapa and lote_etapa.maquina_id:
-            maquina = self.get_maquina(lote_etapa.maquina_id)
-            if maquina:
-                maquina.estado = "disponible"
+        # Liberar todas las máquinas asignadas
+        if lote_etapa:
+            maquinas_asignadas = (
+                self.db.query(LoteEtapaMaquina)
+                .filter(
+                    LoteEtapaMaquina.lote_etapa_id == lote_etapa.id,
+                    LoteEtapaMaquina.fecha_liberacion.is_(None)
+                )
+                .all()
+            )
+            for lem in maquinas_asignadas:
+                lem.fecha_liberacion = datetime.utcnow()
+                maquina = self.get_maquina(lem.maquina_id)
+                if maquina:
+                    maquina.estado = "disponible"
+
+            # Compatibilidad: también liberar maquina_id legacy si existe
+            if lote_etapa.maquina_id and not maquinas_asignadas:
+                maquina = self.get_maquina(lote_etapa.maquina_id)
+                if maquina:
+                    maquina.estado = "disponible"
 
         # Actualizar el lote principal - mover a etapa destino principal
         lote.etapa_actual_id = etapa_principal.id

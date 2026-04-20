@@ -1,6 +1,7 @@
 /**
- * Modal para iniciar una etapa con validación de PIN, selección de máquina y canastos
+ * Modal para iniciar una etapa con validación de PIN, selección de máquinas y canastos
  * V2: Soporte para múltiples canastos en etapas de lavado/secado
+ * V3: Soporte para múltiples máquinas por etapa
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -64,11 +65,11 @@ interface CanastoAsignado {
 interface IniciarEtapaModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => void;
+  onConfirm: (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => void;
   title?: string;
   description?: string;
   showMachineSelection?: boolean;
-  requiereMaquina?: boolean;  // Si es true, es obligatorio seleccionar máquina
+  requiereMaquina?: boolean;  // Si es true, es obligatorio seleccionar al menos una máquina
   tipoMaquina?: string | null;  // Filtrar por tipo: lavadora, secadora, planchadora
   etapaNombre?: string;
   loteNumero?: string;
@@ -96,7 +97,7 @@ export function IniciarEtapaModal({
 }: IniciarEtapaModalProps) {
   const [operarioId, setOperarioId] = useState<string>('');
   const [pin, setPin] = useState('');
-  const [maquinaId, setMaquinaId] = useState<string>('');
+  const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [pesoKg, setPesoKg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export function IniciarEtapaModal({
     if (open) {
       setOperarioId('');
       setPin('');
-      setMaquinaId('');
+      setSelectedMaquinas([]);
       setSelectedCanastos([]);
       setPesoKg('');
       setError(null);
@@ -177,9 +178,9 @@ export function IniciarEtapaModal({
       return;
     }
 
-    // Validar que se seleccione máquina si es obligatorio
-    if (requiereMaquina && !maquinaId) {
-      setError('Debes seleccionar una máquina para esta etapa');
+    // Validar que se seleccione al menos una máquina si es obligatorio
+    if (requiereMaquina && selectedMaquinas.length === 0) {
+      setError('Debes seleccionar al menos una máquina para esta etapa');
       return;
     }
 
@@ -206,7 +207,7 @@ export function IniciarEtapaModal({
         onConfirm(
           operarioId,
           result.operario_nombre,
-          maquinaId || undefined,
+          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
           selectedCanastos.length > 0 ? selectedCanastos : undefined,
           pesoKg ? parseFloat(pesoKg) : undefined
         );
@@ -249,6 +250,15 @@ export function IniciarEtapaModal({
           esDelLote: false,
         })),
       ];
+
+  // Manejar selección de máquina (múltiple)
+  const toggleMaquina = (maquinaId: string) => {
+    setSelectedMaquinas((prev) =>
+      prev.includes(maquinaId)
+        ? prev.filter((id) => id !== maquinaId)
+        : [...prev, maquinaId]
+    );
+  };
 
   // Manejar selección de canasto
   const toggleCanasto = (canastoId: string) => {
@@ -355,15 +365,20 @@ export function IniciarEtapaModal({
             </div>
           )}
 
-          {/* Selector de máquina */}
+          {/* Selector de máquinas (múltiple) */}
           {(showMachineSelection || requiereMaquina) && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
-                Máquina {requiereMaquina ? <span className="text-red-500">*</span> : '(opcional)'}
+                Máquinas {requiereMaquina ? <span className="text-red-500">*</span> : '(opcional)'}
                 {tipoMaquina && (
                   <Badge variant="outline" className="ml-2 capitalize">
                     {tipoMaquina}
+                  </Badge>
+                )}
+                {selectedMaquinas.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {selectedMaquinas.length} seleccionada(s)
                   </Badge>
                 )}
               </Label>
@@ -381,31 +396,46 @@ export function IniciarEtapaModal({
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Select value={maquinaId || 'none'} onValueChange={(v) => setMaquinaId(v === 'none' ? '' : v)}>
-                  <SelectTrigger className={requiereMaquina && !maquinaId ? 'border-orange-400' : ''}>
-                    <SelectValue placeholder={requiereMaquina ? 'Seleccionar máquina...' : 'Sin máquina asignada'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {!requiereMaquina && <SelectItem value="none">Sin máquina</SelectItem>}
-                    {maquinas.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <span className="font-mono">{m.codigo}</span>
-                          <span className="text-muted-foreground">{m.nombre}</span>
-                          {m.capacidad_kg && (
-                            <Badge variant="outline" className="ml-2">
-                              {formatNumber(m.capacidad_kg, 0)} kg
-                            </Badge>
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {maquinas.map((m) => {
+                      const isSelected = selectedMaquinas.includes(m.id);
+
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => toggleMaquina(m.id)}
+                          className={`
+                            flex items-center gap-2 p-2 rounded-md cursor-pointer
+                            border-2 transition-all text-sm
+                            ${isSelected
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-gray-50 border-gray-200 hover:border-primary/50'
+                            }
+                          `}
+                        >
+                          {isSelected && (
+                            <Check className="h-4 w-4 flex-shrink-0" />
                           )}
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-mono font-medium truncate">{m.codigo}</span>
+                            <span className={`text-xs truncate ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                              {m.nombre}
+                              {m.capacidad_kg && ` - ${formatNumber(m.capacidad_kg, 0)} kg`}
+                            </span>
+                          </div>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-              {requiereMaquina && maquinas.length > 0 && (
+              {maquinas.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Hay {maquinas.length} {tipoMaquina || 'máquina'}(s) disponible(s)
+                  {requiereMaquina
+                    ? `Selecciona al menos una máquina. Hay ${maquinas.length} disponible(s).`
+                    : `Puedes seleccionar múltiples máquinas. Hay ${maquinas.length} disponible(s).`
+                  }
                 </p>
               )}
             </div>
@@ -504,7 +534,7 @@ export function IniciarEtapaModal({
               pin.length < 4 ||
               validating ||
               isLoading ||
-              (requiereMaquina && (!maquinaId || maquinas.length === 0)) ||
+              (requiereMaquina && (selectedMaquinas.length === 0 || maquinas.length === 0)) ||
               (esEtapaRecepcion && selectedCanastos.length === 0) ||
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0))
             }

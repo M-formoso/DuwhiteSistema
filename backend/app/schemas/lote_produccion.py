@@ -12,6 +12,26 @@ from pydantic import BaseModel, Field
 from app.models.lote_produccion import EstadoLote, PrioridadLote, TipoServicio
 
 
+# ==================== LOTE ETAPA MAQUINA ====================
+
+class LoteEtapaMaquinaBase(BaseModel):
+    """Base schema para máquina asignada a una etapa."""
+    maquina_id: UUID
+
+
+class LoteEtapaMaquinaResponse(LoteEtapaMaquinaBase):
+    """Schema de respuesta para máquina asignada."""
+    id: UUID
+    lote_etapa_id: UUID
+    fecha_asignacion: datetime
+    fecha_liberacion: Optional[datetime] = None
+    maquina_codigo: Optional[str] = None
+    maquina_nombre: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== LOTE ETAPA ====================
 
 class LoteEtapaBase(BaseModel):
@@ -20,7 +40,8 @@ class LoteEtapaBase(BaseModel):
     orden: int = Field(..., ge=0)
     estado: str = Field(default="pendiente")
     responsable_id: Optional[UUID] = None
-    maquina_id: Optional[UUID] = None
+    maquina_id: Optional[UUID] = None  # Mantener por compatibilidad
+    maquinas_ids: Optional[List[UUID]] = None  # Nuevo: múltiples máquinas
     peso_kg: Optional[Decimal] = Field(None, ge=0)
     observaciones: Optional[str] = None
 
@@ -34,7 +55,8 @@ class LoteEtapaUpdate(BaseModel):
     """Schema para actualizar etapa de lote."""
     estado: Optional[str] = None
     responsable_id: Optional[UUID] = None
-    maquina_id: Optional[UUID] = None
+    maquina_id: Optional[UUID] = None  # Mantener por compatibilidad
+    maquinas_ids: Optional[List[UUID]] = None  # Nuevo: múltiples máquinas
     peso_kg: Optional[Decimal] = Field(None, ge=0)
     observaciones: Optional[str] = None
 
@@ -57,7 +79,8 @@ class LoteEtapaResponse(LoteEtapaInDB):
     etapa_nombre: Optional[str] = None
     etapa_color: Optional[str] = None
     responsable_nombre: Optional[str] = None
-    maquina_nombre: Optional[str] = None
+    maquina_nombre: Optional[str] = None  # Primera máquina (compatibilidad)
+    maquinas: List[LoteEtapaMaquinaResponse] = []  # Todas las máquinas
     duracion_minutos: int = 0
 
 
@@ -244,7 +267,8 @@ class KanbanBoard(BaseModel):
 class IniciarEtapaRequest(BaseModel):
     """Schema para iniciar una etapa."""
     responsable_id: Optional[UUID] = None
-    maquina_id: Optional[UUID] = None
+    maquina_id: Optional[UUID] = None  # Mantener por compatibilidad
+    maquinas_ids: Optional[List[UUID]] = None  # Nuevo: múltiples máquinas
     observaciones: Optional[str] = None
     # Para validación con PIN del operario
     operario_id: Optional[UUID] = None

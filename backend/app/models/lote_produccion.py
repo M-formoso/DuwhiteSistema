@@ -290,10 +290,23 @@ class LoteEtapa(Base, TimestampMixin):
     lote = relationship("LoteProduccion", back_populates="etapas")
     etapa = relationship("EtapaProduccion", back_populates="lotes_etapa")
     responsable = relationship("Usuario")
-    maquina = relationship("Maquina")
+    maquina = relationship("Maquina")  # Mantener por compatibilidad
+    maquinas_asignadas = relationship(
+        "LoteEtapaMaquina",
+        back_populates="lote_etapa",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<LoteEtapa {self.lote_id} - {self.etapa_id}>"
+
+    @property
+    def maquinas_en_uso(self) -> list:
+        """Retorna las máquinas actualmente en uso (no liberadas)."""
+        return [
+            lem.maquina for lem in self.maquinas_asignadas
+            if lem.fecha_liberacion is None
+        ]
 
     @property
     def duracion_minutos(self) -> int:
@@ -302,6 +315,46 @@ class LoteEtapa(Base, TimestampMixin):
             return 0
         delta = self.fecha_fin - self.fecha_inicio
         return int(delta.total_seconds() / 60)
+
+
+class LoteEtapaMaquina(Base, TimestampMixin):
+    """
+    Relación many-to-many entre LoteEtapa y Maquina.
+
+    Permite asignar múltiples máquinas a una etapa de un lote.
+    Por ejemplo: usar 2 secadoras simultáneamente para un lote grande.
+    """
+
+    __tablename__ = "lotes_etapas_maquinas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    # LoteEtapa
+    lote_etapa_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("lotes_etapas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Máquina
+    maquina_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("maquinas.id"),
+        nullable=False,
+        index=True,
+    )
+
+    # Fechas de uso
+    fecha_asignacion = Column(DateTime, nullable=False, default=datetime.utcnow)
+    fecha_liberacion = Column(DateTime, nullable=True)
+
+    # Relaciones
+    lote_etapa = relationship("LoteEtapa", back_populates="maquinas_asignadas")
+    maquina = relationship("Maquina")
+
+    def __repr__(self) -> str:
+        return f"<LoteEtapaMaquina {self.lote_etapa_id} - {self.maquina_id}>"
 
 
 class ConsumoInsumoLote(Base, TimestampMixin):

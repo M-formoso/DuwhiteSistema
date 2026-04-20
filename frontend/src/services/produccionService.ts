@@ -230,7 +230,8 @@ export async function iniciarEtapa(
   etapaId: string,
   data?: {
     responsable_id?: string;
-    maquina_id?: string;
+    maquina_id?: string;      // Mantener por compatibilidad
+    maquinas_ids?: string[];  // Nuevo: múltiples máquinas
     observaciones?: string;
     canastos_ids?: string[];
     peso_kg?: number;
