@@ -233,23 +233,29 @@ export function IniciarEtapaModal({
   const isLoading = loadingOperarios || loadingMaquinas || loadingCanastos || loadingCanastosLote;
 
   // Combinar canastos disponibles con los del lote (para mostrar todos)
+  // Importante: filtrar disponibles para excluir los que ya están asignados al lote
   const canastosParaMostrar = esEtapaRecepcion
     ? canastosDisponibles
-    : [
-        // Primero los canastos ya asignados al lote
-        ...canastosDelLote.map(c => ({
-          id: c.canasto_id,
-          numero: c.canasto_numero,
-          codigo: c.canasto_codigo,
-          estado: 'en_uso' as const,
-          esDelLote: true,
-        })),
-        // Luego los disponibles
-        ...canastosDisponibles.map(c => ({
-          ...c,
-          esDelLote: false,
-        })),
-      ];
+    : (() => {
+        const idsDelLote = new Set(canastosDelLote.map(c => c.canasto_id));
+        return [
+          // Primero los canastos ya asignados al lote
+          ...canastosDelLote.map(c => ({
+            id: c.canasto_id,
+            numero: c.canasto_numero,
+            codigo: c.canasto_codigo,
+            estado: 'en_uso' as const,
+            esDelLote: true,
+          })),
+          // Luego los disponibles (excluyendo los que ya están en el lote)
+          ...canastosDisponibles
+            .filter(c => !idsDelLote.has(c.id))
+            .map(c => ({
+              ...c,
+              esDelLote: false,
+            })),
+        ];
+      })();
 
   // Manejar selección de máquina (múltiple)
   const toggleMaquina = (maquinaId: string) => {
