@@ -350,7 +350,7 @@ export function DividirLoteModal({
                           </Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
                         {prods.map(producto => {
                           const destino = productosDestino[producto.id] || 'principal';
                           const esPrincipal = destino === 'principal';
@@ -358,36 +358,37 @@ export function DividirLoteModal({
                           return (
                             <div
                               key={producto.id}
-                              className={`
-                                flex items-center justify-between p-2 rounded border cursor-pointer transition-colors
-                                ${esPrincipal
-                                  ? 'border-green-200 bg-green-50 hover:bg-green-100'
-                                  : 'border-orange-200 bg-orange-50 hover:bg-orange-100'
-                                }
-                              `}
-                              onClick={() => toggleProductoDestino(
-                                producto.id,
-                                esPrincipal ? 'alternativo' : 'principal'
-                              )}
+                              className="flex items-center justify-between p-2 rounded border bg-white hover:bg-gray-50"
                             >
-                              <div className="flex items-center gap-2">
-                                <div className={`
-                                  w-5 h-5 rounded flex items-center justify-center
-                                  ${esPrincipal ? 'bg-green-500' : 'bg-orange-500'}
-                                `}>
-                                  <Check className="h-3 w-3 text-white" />
-                                </div>
-                                <span className="text-sm">{producto.nombre}</span>
+                              <span className="text-sm font-medium">{producto.nombre}</span>
+                              <div className="flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleProductoDestino(producto.id, 'principal')}
+                                  className={`
+                                    px-3 py-1 text-xs font-medium rounded-full transition-all
+                                    ${esPrincipal
+                                      ? 'bg-green-500 text-white shadow-sm'
+                                      : 'text-gray-500 hover:text-green-600'
+                                    }
+                                  `}
+                                >
+                                  {destinoPrincipalNombre}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleProductoDestino(producto.id, 'alternativo')}
+                                  className={`
+                                    px-3 py-1 text-xs font-medium rounded-full transition-all
+                                    ${!esPrincipal
+                                      ? 'bg-orange-500 text-white shadow-sm'
+                                      : 'text-gray-500 hover:text-orange-600'
+                                    }
+                                  `}
+                                >
+                                  {destinoAlternativoNombre}
+                                </button>
                               </div>
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${esPrincipal
-                                  ? 'border-green-300 text-green-700'
-                                  : 'border-orange-300 text-orange-700'
-                                }`}
-                              >
-                                {esPrincipal ? destinoPrincipalNombre : destinoAlternativoNombre}
-                              </Badge>
                             </div>
                           );
                         })}
