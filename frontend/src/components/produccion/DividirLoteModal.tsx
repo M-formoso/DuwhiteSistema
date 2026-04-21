@@ -242,8 +242,8 @@ export function DividirLoteModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Split className="h-5 w-5 text-primary" />
             Dividir Lote - {loteNumero}
@@ -254,11 +254,11 @@ export function DividirLoteModal({
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-8 flex-1">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
             {/* Resumen de selección */}
             <div className="grid grid-cols-2 gap-4">
               <Card className="border-green-200 bg-green-50">
@@ -437,7 +437,7 @@ export function DividirLoteModal({
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={dividirMutation.isPending}>
             Cancelar
           </Button>
