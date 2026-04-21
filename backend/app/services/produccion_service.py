@@ -1089,8 +1089,21 @@ class ProduccionService:
         lote: LoteProduccion,
         etapa_actual_id: UUID,
     ) -> Optional[EtapaProduccion]:
-        """Obtiene la siguiente etapa en el flujo basándose en las etapas activas del sistema."""
-        # Obtener todas las etapas activas ordenadas
+        """
+        Obtiene la siguiente etapa en el flujo.
+
+        Prioridad:
+        1. Si la etapa actual tiene `siguiente_etapa_id` configurado, usar esa
+        2. Si no, seguir el orden secuencial de etapas activas
+        """
+        # Obtener la etapa actual
+        etapa_actual = self.get_etapa(etapa_actual_id)
+
+        # Si la etapa tiene una siguiente etapa específica configurada, usarla
+        if etapa_actual and etapa_actual.siguiente_etapa_id:
+            return self.get_etapa(etapa_actual.siguiente_etapa_id)
+
+        # Si no, seguir el orden secuencial
         etapas_activas = self.get_etapas(solo_activas=True)
 
         encontrado = False

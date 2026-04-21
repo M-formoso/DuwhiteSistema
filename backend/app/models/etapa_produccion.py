@@ -59,6 +59,12 @@ class EtapaProduccion(Base, TimestampMixin):
         nullable=True,
     )  # Etapa alternativa (ej: Lavado)
 
+    # Siguiente etapa específica (para saltar etapas, ej: Secado -> Conteo, saltando Planchado)
+    siguiente_etapa_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
     # Estado
     activo = Column(Boolean, default=True, nullable=False)
 
