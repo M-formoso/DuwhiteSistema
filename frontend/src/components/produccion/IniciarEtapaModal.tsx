@@ -275,10 +275,13 @@ export function IniciarEtapaModal({
     );
   };
 
+  // Determinar si el modal necesita ser más grande (tiene máquinas Y canastos)
+  const necesitaModalGrande = (showMachineSelection || requiereMaquina) && muestraCanastos;
+
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[450px]">
-        <DialogHeader>
+      <DialogContent className={necesitaModalGrande ? "sm:max-w-[700px] max-h-[90vh] flex flex-col" : "sm:max-w-[450px] max-h-[90vh] flex flex-col"}>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" />
             {title}
@@ -293,7 +296,7 @@ export function IniciarEtapaModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1">
           {/* Selector de operario */}
           <div className="space-y-2">
             <Label>Operario</Label>
@@ -371,8 +374,127 @@ export function IniciarEtapaModal({
             </div>
           )}
 
-          {/* Selector de máquinas (múltiple) */}
-          {(showMachineSelection || requiereMaquina) && (
+          {/* Grid para máquinas y canastos cuando ambos están presentes */}
+          {necesitaModalGrande ? (
+            <div className="grid grid-cols-2 gap-4">
+              {/* Selector de máquinas (múltiple) */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 flex-wrap">
+                  <Settings2 className="h-4 w-4" />
+                  Máquinas {requiereMaquina ? <span className="text-red-500">*</span> : '(opcional)'}
+                  {tipoMaquina && (
+                    <Badge variant="outline" className="capitalize">
+                      {tipoMaquina}
+                    </Badge>
+                  )}
+                  {selectedMaquinas.length > 0 && (
+                    <Badge variant="secondary">
+                      {selectedMaquinas.length} sel.
+                    </Badge>
+                  )}
+                </Label>
+                {loadingMaquinas ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando...
+                  </div>
+                ) : maquinas.length === 0 ? (
+                  <Alert variant={requiereMaquina ? 'destructive' : 'default'}>
+                    <AlertDescription className="text-xs">
+                      No hay máquinas disponibles
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                    <div className="grid grid-cols-2 gap-1">
+                      {maquinas.map((m) => {
+                        const isSelected = selectedMaquinas.includes(m.id);
+                        return (
+                          <div
+                            key={m.id}
+                            onClick={() => toggleMaquina(m.id)}
+                            className={`
+                              flex items-center gap-1 p-1.5 rounded cursor-pointer
+                              border transition-all text-xs
+                              ${isSelected
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-gray-50 border-gray-200 hover:border-primary/50'
+                              }
+                            `}
+                          >
+                            {isSelected && <Check className="h-3 w-3 flex-shrink-0" />}
+                            <span className="font-mono font-medium truncate">{m.codigo}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {maquinas.length} disponible(s)
+                </p>
+              </div>
+
+              {/* Selector de canastos */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 flex-wrap">
+                  <Box className="h-4 w-4" />
+                  Canastos {esEtapaRecepcion && <span className="text-red-500">*</span>}
+                  {selectedCanastos.length > 0 && (
+                    <Badge variant="secondary">
+                      {selectedCanastos.length} sel.
+                    </Badge>
+                  )}
+                </Label>
+                {(loadingCanastos || loadingCanastosLote) ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando...
+                  </div>
+                ) : canastosParaMostrar.length === 0 ? (
+                  <Alert variant="destructive">
+                    <AlertDescription className="text-xs">
+                      No hay canastos disponibles
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                    <div className="grid grid-cols-4 gap-1">
+                      {canastosParaMostrar.map((canasto) => {
+                        const isSelected = selectedCanastos.includes(canasto.id);
+                        const isFromLote = 'esDelLote' in canasto && canasto.esDelLote;
+                        return (
+                          <div
+                            key={canasto.id}
+                            onClick={() => toggleCanasto(canasto.id)}
+                            className={`
+                              flex items-center justify-center p-1.5 rounded cursor-pointer
+                              border transition-all text-xs font-medium
+                              ${isSelected
+                                ? isFromLote
+                                  ? 'bg-blue-500 text-white border-blue-600'
+                                  : 'bg-primary text-primary-foreground border-primary'
+                                : isFromLote
+                                  ? 'bg-blue-50 border-blue-300 hover:border-blue-500'
+                                  : 'bg-green-50 border-green-300 hover:border-green-500'
+                              }
+                            `}
+                          >
+                            {isSelected && <Check className="h-3 w-3 mr-0.5" />}
+                            #{canasto.numero}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {esEtapaRecepcion ? 'Selecciona canastos' : 'Azul = ya asignados'}
+                </p>
+              </div>
+            </div>
+          ) : (showMachineSelection || requiereMaquina) && (
+            /* Selector de máquinas solo (sin canastos) */
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
@@ -447,8 +569,8 @@ export function IniciarEtapaModal({
             </div>
           )}
 
-          {/* Selector de canastos */}
-          {muestraCanastos && (
+          {/* Selector de canastos (solo cuando NO hay grid, es decir, cuando no hay máquinas) */}
+          {muestraCanastos && !necesitaModalGrande && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Box className="h-4 w-4" />
@@ -529,7 +651,7 @@ export function IniciarEtapaModal({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
           <Button variant="outline" onClick={onClose} disabled={validating}>
             Cancelar
           </Button>
