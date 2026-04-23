@@ -1,7 +1,7 @@
 """Add produccion v2: canastos, productos_lavado, remitos, relevado
 
 Revision ID: 20260409100000
-Revises: 20260408100000
+Revises: 20260408_dias
 Create Date: 2026-04-09 10:00:00.000000
 
 Esta migración agrega:
@@ -20,7 +20,10 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20260409100000'
-down_revision = '20260408100000'
+# NOTA: el parent es '20260408_dias' (no '20260408100000'): el archivo
+# 20260408100000_add_dias_franco_feriado.py declara revision='20260408_dias'
+# internamente aunque su nombre use el timestamp.
+down_revision = '20260408_dias'
 branch_labels = None
 depends_on = None
 
