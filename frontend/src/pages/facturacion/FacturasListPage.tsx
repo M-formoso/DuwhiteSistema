@@ -32,9 +32,12 @@ import { formatCurrency, formatDate } from '@/utils/formatters';
 import {
   TipoComprobante,
   EstadoFactura,
+  EstadoPago,
   TIPOS_COMPROBANTE_LABEL,
   ESTADOS_FACTURA_COLOR,
   ESTADOS_FACTURA_LABEL,
+  ESTADOS_PAGO_COLOR,
+  ESTADOS_PAGO_LABEL,
 } from '@/types/factura';
 
 const PAGE_SIZE = 20;
@@ -44,16 +47,18 @@ export default function FacturasListPage() {
   const [search, setSearch] = useState('');
   const [tipo, setTipo] = useState<TipoComprobante | 'todos'>('todos');
   const [estado, setEstado] = useState<EstadoFactura | 'todos'>('todos');
+  const [estadoPago, setEstadoPago] = useState<EstadoPago | 'todos'>('todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [page, setPage] = useState(1);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['facturas', { tipo, estado, fechaDesde, fechaHasta, search, page }],
+    queryKey: ['facturas', { tipo, estado, estadoPago, fechaDesde, fechaHasta, search, page }],
     queryFn: () =>
       facturaService.listar({
         tipo: tipo === 'todos' ? undefined : tipo,
         estado: estado === 'todos' ? undefined : estado,
+        estado_pago: estadoPago === 'todos' ? undefined : estadoPago,
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
         numero: search.trim() || undefined,
@@ -82,7 +87,7 @@ export default function FacturasListPage() {
       {/* Filtros */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
@@ -126,15 +131,33 @@ export default function FacturasListPage() {
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Estado" />
+                <SelectValue placeholder="Estado fiscal" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="todos">Estado fiscal</SelectItem>
                 {Object.entries(ESTADOS_FACTURA_LABEL).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={estadoPago}
+              onValueChange={(v) => {
+                setEstadoPago(v as EstadoPago | 'todos');
+                setPage(1);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Cobranza" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Cualquier cobranza</SelectItem>
+                <SelectItem value="sin_cobrar">Impagas</SelectItem>
+                <SelectItem value="parcial">Parciales</SelectItem>
+                <SelectItem value="pagada">Pagadas</SelectItem>
               </SelectContent>
             </Select>
 
@@ -173,6 +196,7 @@ export default function FacturasListPage() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Cobranza</TableHead>
                 <TableHead>CAE</TableHead>
                 <TableHead className="text-right">Total</TableHead>
               </TableRow>
@@ -180,13 +204,13 @@ export default function FacturasListPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : data?.items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-text-secondary">
+                  <TableCell colSpan={8} className="text-center py-8 text-text-secondary">
                     No hay facturas que coincidan con los filtros.
                   </TableCell>
                 </TableRow>
@@ -214,6 +238,16 @@ export default function FacturasListPage() {
                       <Badge className={ESTADOS_FACTURA_COLOR[f.estado]}>
                         {ESTADOS_FACTURA_LABEL[f.estado]}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={ESTADOS_PAGO_COLOR[f.estado_pago]}>
+                        {ESTADOS_PAGO_LABEL[f.estado_pago]}
+                      </Badge>
+                      {f.estado_pago === 'parcial' && (
+                        <div className="text-xs text-text-secondary mt-0.5">
+                          {formatCurrency(Number(f.monto_pagado))} / {formatCurrency(Number(f.total))}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {f.cae || <span className="text-text-secondary">—</span>}

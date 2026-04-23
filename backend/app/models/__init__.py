@@ -157,6 +157,7 @@ from app.models.factura import (
     FacturaDetalle,
     TipoComprobante,
     EstadoFactura,
+    EstadoPago,
     ConceptoAfip,
     CondicionVenta,
     CODIGO_AFIP,

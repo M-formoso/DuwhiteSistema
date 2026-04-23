@@ -143,6 +143,29 @@ class EmitirFacturaResponse(BaseModel):
     errores: Optional[str] = None
 
 
+class RegistrarCobroRequest(BaseModel):
+    """Registrar un cobro sobre una factura."""
+
+    monto: Decimal = Field(..., gt=0)
+    fecha_cobro: Optional[date] = None
+    medio_pago: str = "efectivo"  # efectivo, transferencia, cheque, etc.
+    referencia_pago: Optional[str] = Field(default=None, max_length=100)
+    observaciones: Optional[str] = None
+
+    @field_validator("fecha_cobro", mode="before")
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
+
+class RegistrarCobroResponse(BaseModel):
+    factura_id: str
+    estado_pago: str
+    monto_pagado: Decimal
+    monto_adeudado: Decimal
+    movimiento_cuenta_corriente_id: str
+
+
 class FacturaResponse(BaseModel):
     """Respuesta detallada de factura."""
 
@@ -152,6 +175,10 @@ class FacturaResponse(BaseModel):
     punto_venta: int
     numero_comprobante: Optional[int] = None
     numero_completo: Optional[str] = None
+
+    estado_pago: str = "sin_cobrar"
+    monto_pagado: Decimal = Decimal("0")
+    fecha_ultimo_cobro: Optional[date] = None
 
     cliente_id: str
     cliente_razon_social_snap: str
@@ -219,6 +246,8 @@ class FacturaListItem(BaseModel):
     fecha_emision: date
     total: Decimal
     estado: str
+    estado_pago: str = "sin_cobrar"
+    monto_pagado: Decimal = Decimal("0")
     cae: Optional[str] = None
 
     class Config:
@@ -231,6 +260,7 @@ class FacturaFiltros(BaseModel):
     cliente_id: Optional[str] = None
     tipo: Optional[str] = None  # factura_a, factura_b, nota_credito_a, etc.
     estado: Optional[str] = None
+    estado_pago: Optional[str] = None  # sin_cobrar, parcial, pagada
     fecha_desde: Optional[date] = None
     fecha_hasta: Optional[date] = None
     numero: Optional[str] = None
@@ -254,4 +284,11 @@ ESTADOS_FACTURA = [
     {"value": "autorizada", "label": "Autorizada", "color": "green"},
     {"value": "rechazada", "label": "Rechazada", "color": "red"},
     {"value": "anulada", "label": "Anulada", "color": "orange"},
+]
+
+ESTADOS_PAGO = [
+    {"value": "sin_cobrar", "label": "Impaga", "color": "red"},
+    {"value": "parcial", "label": "Parcial", "color": "amber"},
+    {"value": "pagada", "label": "Pagada", "color": "green"},
+    {"value": "no_aplica", "label": "N/A", "color": "gray"},
 ]

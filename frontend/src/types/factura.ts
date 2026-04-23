@@ -12,6 +12,8 @@ export type TipoComprobante =
 
 export type EstadoFactura = 'borrador' | 'autorizada' | 'rechazada' | 'anulada';
 
+export type EstadoPago = 'sin_cobrar' | 'parcial' | 'pagada' | 'no_aplica';
+
 export type LetraFactura = 'A' | 'B';
 
 export type CondicionVenta = 'contado' | 'cuenta_corriente';
@@ -80,6 +82,9 @@ export interface Factura {
   total: string;
 
   estado: EstadoFactura;
+  estado_pago: EstadoPago;
+  monto_pagado: string;
+  fecha_ultimo_cobro: string | null;
   cae: string | null;
   cae_vencimiento: string | null;
   afip_resultado: string | null;
@@ -111,6 +116,8 @@ export interface FacturaListItem {
   fecha_emision: string;
   total: string;
   estado: EstadoFactura;
+  estado_pago: EstadoPago;
+  monto_pagado: string;
   cae: string | null;
 }
 
@@ -182,11 +189,28 @@ export interface FacturaFiltros {
   cliente_id?: string;
   tipo?: TipoComprobante;
   estado?: EstadoFactura;
+  estado_pago?: EstadoPago;
   fecha_desde?: string;
   fecha_hasta?: string;
   numero?: string;
   page?: number;
   page_size?: number;
+}
+
+export interface RegistrarCobroRequest {
+  monto: number;
+  fecha_cobro?: string;
+  medio_pago?: string;
+  referencia_pago?: string;
+  observaciones?: string;
+}
+
+export interface RegistrarCobroResponse {
+  factura_id: string;
+  estado_pago: EstadoPago;
+  monto_pagado: string;
+  monto_adeudado: string;
+  movimiento_cuenta_corriente_id: string;
 }
 
 export const TIPOS_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
@@ -211,3 +235,27 @@ export const ESTADOS_FACTURA_LABEL: Record<EstadoFactura, string> = {
   rechazada: 'Rechazada',
   anulada: 'Anulada',
 };
+
+export const ESTADOS_PAGO_LABEL: Record<EstadoPago, string> = {
+  sin_cobrar: 'Impaga',
+  parcial: 'Parcial',
+  pagada: 'Pagada',
+  no_aplica: 'N/A',
+};
+
+export const ESTADOS_PAGO_COLOR: Record<EstadoPago, string> = {
+  sin_cobrar: 'bg-red-100 text-red-700',
+  parcial: 'bg-amber-100 text-amber-800',
+  pagada: 'bg-green-100 text-green-700',
+  no_aplica: 'bg-gray-100 text-gray-600',
+};
+
+export const MEDIOS_PAGO = [
+  { value: 'efectivo', label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'tarjeta_debito', label: 'Tarjeta de débito' },
+  { value: 'tarjeta_credito', label: 'Tarjeta de crédito' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'mercado_pago', label: 'MercadoPago' },
+  { value: 'otro', label: 'Otro' },
+];

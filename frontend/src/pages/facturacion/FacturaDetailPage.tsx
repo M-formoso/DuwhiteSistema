@@ -17,11 +17,30 @@ import {
   Loader2,
   FilePlus,
   FileMinus,
+  DollarSign,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -49,6 +68,9 @@ import {
   TIPOS_COMPROBANTE_LABEL,
   ESTADOS_FACTURA_COLOR,
   ESTADOS_FACTURA_LABEL,
+  ESTADOS_PAGO_COLOR,
+  ESTADOS_PAGO_LABEL,
+  MEDIOS_PAGO,
 } from '@/types/factura';
 
 export default function FacturaDetailPage() {
@@ -59,6 +81,12 @@ export default function FacturaDetailPage() {
 
   const [showEmitirConfirm, setShowEmitirConfirm] = useState(false);
   const [showEliminarConfirm, setShowEliminarConfirm] = useState(false);
+  const [showCobroDialog, setShowCobroDialog] = useState(false);
+  const [cobroMonto, setCobroMonto] = useState('');
+  const [cobroMedio, setCobroMedio] = useState('efectivo');
+  const [cobroFecha, setCobroFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [cobroReferencia, setCobroReferencia] = useState('');
+  const [cobroObservaciones, setCobroObservaciones] = useState('');
 
   const { data: factura, isLoading } = useQuery({
     queryKey: ['factura', id],
@@ -88,6 +116,40 @@ export default function FacturaDetailPage() {
       toast({
         variant: 'destructive',
         title: 'Error al emitir',
+        description: getErrorMessage(err),
+      });
+    },
+  });
+
+  const cobroMutation = useMutation({
+    mutationFn: () =>
+      facturaService.registrarCobro(id!, {
+        monto: Number(cobroMonto),
+        medio_pago: cobroMedio,
+        fecha_cobro: cobroFecha || undefined,
+        referencia_pago: cobroReferencia || undefined,
+        observaciones: cobroObservaciones || undefined,
+      }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['factura', id] });
+      queryClient.invalidateQueries({ queryKey: ['facturas'] });
+      queryClient.invalidateQueries({ queryKey: ['cuenta-corriente'] });
+      setShowCobroDialog(false);
+      setCobroMonto('');
+      setCobroReferencia('');
+      setCobroObservaciones('');
+      toast({
+        title: 'Cobro registrado',
+        description:
+          res.estado_pago === 'pagada'
+            ? 'La factura quedó totalmente pagada.'
+            : `Adeudado: ${res.monto_adeudado}`,
+      });
+    },
+    onError: (err) => {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo registrar el cobro',
         description: getErrorMessage(err),
       });
     },
@@ -148,6 +210,14 @@ export default function FacturaDetailPage() {
 
   const esBorrador = factura.estado === 'borrador';
   const esAutorizada = factura.estado === 'autorizada';
+  const total = Number(factura.total);
+  const pagado = Number(factura.monto_pagado || 0);
+  const adeudado = Math.max(total - pagado, 0);
+  const puedeCobrar =
+    esAutorizada &&
+    !factura.factura_original_id &&
+    factura.estado_pago !== 'pagada' &&
+    factura.estado_pago !== 'no_aplica';
 
   return (
     <div className="space-y-6">
@@ -203,6 +273,18 @@ export default function FacturaDetailPage() {
                 <Printer className="w-4 h-4 mr-2" />
                 Descargar PDF
               </Button>
+              {puedeCobrar && (
+                <Button
+                  onClick={() => {
+                    setCobroMonto(adeudado.toFixed(2));
+                    setShowCobroDialog(true);
+                  }}
+                  className="bg-primary hover:bg-primary-hover"
+                >
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Registrar cobro
+                </Button>
+              )}
               {!factura.factura_original_id && (
                 <>
                   <Button
@@ -263,6 +345,48 @@ export default function FacturaDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Estado de cobranza (solo facturas autorizadas que aplican) */}
+      {esAutorizada && factura.estado_pago !== 'no_aplica' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Estado de cobranza</span>
+              <Badge className={ESTADOS_PAGO_COLOR[factura.estado_pago]}>
+                {ESTADOS_PAGO_LABEL[factura.estado_pago]}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-text-secondary">Total factura</p>
+              <p className="text-lg font-semibold">{formatCurrency(total)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary">Cobrado</p>
+              <p className="text-lg font-semibold text-green-700">
+                {formatCurrency(pagado)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary">Adeudado</p>
+              <p
+                className={
+                  'text-lg font-semibold ' +
+                  (adeudado > 0 ? 'text-red-700' : 'text-text-secondary')
+                }
+              >
+                {formatCurrency(adeudado)}
+              </p>
+              {factura.fecha_ultimo_cobro && (
+                <p className="text-xs text-text-secondary mt-1">
+                  Último cobro: {formatDate(factura.fecha_ultimo_cobro)}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Errores / Observaciones AFIP */}
       {(factura.afip_errores || factura.afip_observaciones) && (
@@ -474,6 +598,95 @@ export default function FacturaDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog registrar cobro */}
+      <Dialog open={showCobroDialog} onOpenChange={setShowCobroDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Registrar cobro</DialogTitle>
+            <DialogDescription>
+              Saldo adeudado: <span className="font-semibold">{formatCurrency(adeudado)}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label htmlFor="cobro-monto">Monto *</Label>
+              <Input
+                id="cobro-monto"
+                type="number"
+                step="0.01"
+                min="0"
+                max={adeudado}
+                value={cobroMonto}
+                onChange={(e) => setCobroMonto(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="cobro-medio">Medio de pago</Label>
+              <Select value={cobroMedio} onValueChange={setCobroMedio}>
+                <SelectTrigger id="cobro-medio">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MEDIOS_PAGO.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="cobro-fecha">Fecha</Label>
+              <Input
+                id="cobro-fecha"
+                type="date"
+                value={cobroFecha}
+                onChange={(e) => setCobroFecha(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="cobro-ref">Referencia (opcional)</Label>
+              <Input
+                id="cobro-ref"
+                placeholder="Nro de transferencia, cheque, etc."
+                value={cobroReferencia}
+                onChange={(e) => setCobroReferencia(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="cobro-obs">Observaciones (opcional)</Label>
+              <Textarea
+                id="cobro-obs"
+                value={cobroObservaciones}
+                onChange={(e) => setCobroObservaciones(e.target.value)}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCobroDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => cobroMutation.mutate()}
+              disabled={
+                cobroMutation.isPending ||
+                !cobroMonto ||
+                Number(cobroMonto) <= 0 ||
+                Number(cobroMonto) > adeudado + 0.01
+              }
+            >
+              {cobroMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <DollarSign className="w-4 h-4 mr-2" />
+              )}
+              Confirmar cobro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog confirmar eliminación */}
       <AlertDialog open={showEliminarConfirm} onOpenChange={setShowEliminarConfirm}>

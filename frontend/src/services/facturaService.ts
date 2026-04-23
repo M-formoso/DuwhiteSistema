@@ -12,6 +12,8 @@ import {
   NotaDebitoCreate,
   EmitirFacturaResponse,
   FacturaFiltros,
+  RegistrarCobroRequest,
+  RegistrarCobroResponse,
 } from '@/types/factura';
 
 const BASE_URL = '/facturas';
@@ -54,6 +56,14 @@ export const facturaService = {
 
   async eliminarBorrador(id: string): Promise<void> {
     await api.delete(`${BASE_URL}/${id}`);
+  },
+
+  async registrarCobro(
+    id: string,
+    data: RegistrarCobroRequest,
+  ): Promise<RegistrarCobroResponse> {
+    const response = await api.post(`${BASE_URL}/${id}/cobros`, data);
+    return response.data;
   },
 
   async descargarPdf(id: string): Promise<Blob> {

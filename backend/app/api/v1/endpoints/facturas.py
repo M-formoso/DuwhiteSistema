@@ -23,8 +23,11 @@ from app.schemas.factura import (
     EmitirFacturaResponse,
     NotaCreditoCreate,
     NotaDebitoCreate,
+    RegistrarCobroRequest,
+    RegistrarCobroResponse,
     TIPOS_COMPROBANTE,
     ESTADOS_FACTURA,
+    ESTADOS_PAGO,
 )
 from app.services import factura_service
 from app.services import factura_pdf_service
@@ -69,6 +72,9 @@ def _factura_to_response(factura) -> FacturaResponse:
         percepciones=factura.percepciones,
         total=factura.total,
         estado=factura.estado,
+        estado_pago=factura.estado_pago,
+        monto_pagado=factura.monto_pagado,
+        fecha_ultimo_cobro=factura.fecha_ultimo_cobro,
         cae=factura.cae,
         cae_vencimiento=factura.cae_vencimiento,
         afip_resultado=factura.afip_resultado,
@@ -119,6 +125,8 @@ def _factura_to_list_item(factura) -> FacturaListItem:
         fecha_emision=factura.fecha_emision,
         total=factura.total,
         estado=factura.estado,
+        estado_pago=factura.estado_pago,
+        monto_pagado=factura.monto_pagado,
         cae=factura.cae,
     )
 
@@ -138,6 +146,12 @@ def listar_estados_factura(current_user: Usuario = Depends(get_current_user)):
     return ESTADOS_FACTURA
 
 
+@router.get("/estados-pago")
+def listar_estados_pago(current_user: Usuario = Depends(get_current_user)):
+    verificar_permiso(current_user, "facturacion.ver")
+    return ESTADOS_PAGO
+
+
 # ==================== LISTADO Y DETALLE ====================
 
 
@@ -146,6 +160,7 @@ def listar_facturas(
     cliente_id: Optional[str] = None,
     tipo: Optional[str] = None,
     estado: Optional[str] = None,
+    estado_pago: Optional[str] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
     numero: Optional[str] = None,
@@ -160,6 +175,7 @@ def listar_facturas(
         cliente_id=cliente_id,
         tipo=tipo,
         estado=estado,
+        estado_pago=estado_pago,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
         numero=numero,
@@ -314,6 +330,36 @@ def crear_nota_debito(
     db.commit()
     db.refresh(nd)
     return _factura_to_response(nd)
+
+
+# ==================== COBROS ====================
+
+
+@router.post(
+    "/{factura_id}/cobros",
+    response_model=RegistrarCobroResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def registrar_cobro_factura(
+    factura_id: UUID,
+    data: RegistrarCobroRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Registra un cobro contra una factura autorizada. Crea el movimiento
+    de cuenta corriente (PAGO), actualiza el saldo del cliente y recalcula
+    el estado de pago de la factura.
+    """
+    verificar_permiso(current_user, "facturacion.crear")
+    resultado = factura_service.registrar_cobro(
+        db=db,
+        factura_id=factura_id,
+        data=data,
+        usuario_id=current_user.id,
+    )
+    db.commit()
+    return RegistrarCobroResponse(**resultado)
 
 
 # ==================== PDF ====================

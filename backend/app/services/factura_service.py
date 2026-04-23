@@ -28,12 +28,14 @@ from app.models.cuenta_corriente import (
     MovimientoCuentaCorriente,
     TipoMovimientoCC,
     EstadoFacturacion,
+    MedioPago,
 )
 from app.models.factura import (
     Factura,
     FacturaDetalle,
     TipoComprobante,
     EstadoFactura,
+    EstadoPago,
     ConceptoAfip,
     CondicionVenta,
     CODIGO_AFIP,
@@ -47,6 +49,7 @@ from app.schemas.factura import (
     FacturaFiltros,
     NotaCreditoCreate,
     NotaDebitoCreate,
+    RegistrarCobroRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -389,6 +392,8 @@ def listar(
         query = query.filter(Factura.tipo == filtros.tipo)
     if filtros.estado:
         query = query.filter(Factura.estado == filtros.estado)
+    if filtros.estado_pago:
+        query = query.filter(Factura.estado_pago == filtros.estado_pago)
     if filtros.fecha_desde:
         query = query.filter(Factura.fecha_emision >= filtros.fecha_desde)
     if filtros.fecha_hasta:
@@ -889,6 +894,13 @@ def emitir_factura(db: Session, factura_id: UUID, usuario_id: UUID) -> Factura:
         factura.emitido_at = datetime.utcnow()
         factura.emitido_por_id = usuario_id
 
+        # Estado de pago inicial según tipo
+        if factura.es_nota_credito:
+            factura.estado_pago = EstadoPago.NO_APLICA.value
+        else:
+            factura.estado_pago = EstadoPago.SIN_COBRAR.value
+            factura.monto_pagado = Decimal("0")
+
         # Impacto en cuenta corriente (solo si factura no es borrador previo rechazado que ya creó mov)
         if not factura.movimiento_cuenta_corriente_id:
             mov = _registrar_impacto_cuenta_corriente(db, factura, usuario_id)
@@ -909,3 +921,107 @@ def emitir_factura(db: Session, factura_id: UUID, usuario_id: UUID) -> Factura:
 
     db.flush()
     return factura
+
+
+# ==================== COBROS SOBRE FACTURA ====================
+
+
+def registrar_cobro(
+    db: Session,
+    factura_id: UUID,
+    data: RegistrarCobroRequest,
+    usuario_id: UUID,
+) -> dict:
+    """
+    Registra un cobro sobre una factura AUTORIZADA.
+
+    Efectos:
+      - Crea un ``MovimientoCuentaCorriente`` tipo PAGO con `factura_numero` de la factura.
+      - Actualiza ``factura.monto_pagado`` y ``factura.estado_pago``:
+        * pagada si monto_pagado == total
+        * parcial si 0 < monto_pagado < total
+      - Baja el ``cliente.saldo_cuenta_corriente`` en el monto del cobro.
+
+    Validaciones:
+      - La factura debe estar AUTORIZADA (no borrador, rechazada ni anulada).
+      - No debe ser NC/ND (esas tienen ``estado_pago = no_aplica``).
+      - El cobro no puede hacer que ``monto_pagado`` supere ``total``.
+    """
+    factura = obtener(db, factura_id)
+    if not factura:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Factura no encontrada")
+
+    if factura.estado != EstadoFactura.AUTORIZADA.value:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pueden registrar cobros sobre una factura en estado {factura.estado}.",
+        )
+    if factura.es_nota_credito or factura.es_nota_debito:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Los cobros se registran sobre facturas, no sobre notas de crédito/débito.",
+        )
+
+    total = Decimal(factura.total)
+    ya_pagado = Decimal(factura.monto_pagado or 0)
+    nuevo_pagado = ya_pagado + Decimal(data.monto)
+    if nuevo_pagado > total + Decimal("0.01"):  # tolerancia centavos
+        adeudado = total - ya_pagado
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"El cobro supera el saldo adeudado de la factura (adeudado: {adeudado}).",
+        )
+
+    cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
+    if not cliente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    saldo_anterior = Decimal(cliente.saldo_cuenta_corriente or 0)
+    saldo_posterior = saldo_anterior - Decimal(data.monto)
+
+    estado_fact = (
+        EstadoFacturacion.FACTURA_A.value
+        if factura.letra == "A"
+        else EstadoFacturacion.FACTURA_B.value
+    )
+
+    movimiento = MovimientoCuentaCorriente(
+        id=uuid.uuid4(),
+        cliente_id=cliente.id,
+        tipo=TipoMovimientoCC.PAGO.value,
+        concepto=f"Cobro Factura {factura.letra} {factura.numero_completo}",
+        pedido_id=factura.pedido_id,
+        factura_numero=factura.numero_completo,
+        estado_facturacion=estado_fact,
+        monto=Decimal(data.monto),
+        saldo_anterior=saldo_anterior,
+        saldo_posterior=saldo_posterior,
+        medio_pago=data.medio_pago,
+        referencia_pago=data.referencia_pago,
+        fecha_movimiento=data.fecha_cobro or date.today(),
+        registrado_por_id=usuario_id,
+        notas=data.observaciones,
+    )
+    db.add(movimiento)
+
+    cliente.saldo_cuenta_corriente = saldo_posterior
+    factura.monto_pagado = nuevo_pagado
+    factura.fecha_ultimo_cobro = data.fecha_cobro or date.today()
+
+    # Recalcular estado_pago
+    if nuevo_pagado >= total - Decimal("0.01"):
+        factura.estado_pago = EstadoPago.PAGADA.value
+    elif nuevo_pagado > 0:
+        factura.estado_pago = EstadoPago.PARCIAL.value
+    else:
+        factura.estado_pago = EstadoPago.SIN_COBRAR.value
+
+    db.flush()
+
+    return {
+        "factura_id": str(factura.id),
+        "estado_pago": factura.estado_pago,
+        "monto_pagado": factura.monto_pagado,
+        "monto_adeudado": total - nuevo_pagado,
+        "movimiento_cuenta_corriente_id": str(movimiento.id),
+    }

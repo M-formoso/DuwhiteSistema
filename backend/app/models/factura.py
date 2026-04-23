@@ -61,12 +61,21 @@ LETRA_COMPROBANTE = {
 
 
 class EstadoFactura(str, Enum):
-    """Ciclo de vida de la factura."""
+    """Ciclo de vida fiscal de la factura."""
 
     BORRADOR = "borrador"         # Creada, editable, sin CAE
     AUTORIZADA = "autorizada"     # Con CAE, inmutable
     RECHAZADA = "rechazada"       # AFIP devolvió "R"
     ANULADA = "anulada"           # Cancelada por Nota de Crédito total
+
+
+class EstadoPago(str, Enum):
+    """Estado de cobranza de la factura (independiente del estado fiscal)."""
+
+    SIN_COBRAR = "sin_cobrar"
+    PARCIAL = "parcial"
+    PAGADA = "pagada"
+    NO_APLICA = "no_aplica"       # Para NC (no se cobran, se devuelven)
 
 
 class ConceptoAfip(str, Enum):
@@ -140,8 +149,15 @@ class Factura(Base, BaseModelMixin):
         String(30), nullable=False, default=CondicionVenta.CUENTA_CORRIENTE.value
     )
 
-    # Estado / AFIP
+    # Estado fiscal / AFIP
     estado = Column(String(20), nullable=False, default=EstadoFactura.BORRADOR.value, index=True)
+    # Estado de cobranza (independiente del fiscal)
+    estado_pago = Column(
+        String(20), nullable=False, default=EstadoPago.SIN_COBRAR.value, index=True
+    )
+    monto_pagado = Column(Numeric(14, 2), nullable=False, default=0)
+    fecha_ultimo_cobro = Column(Date, nullable=True)
+
     cae = Column(String(20), nullable=True, index=True)
     cae_vencimiento = Column(Date, nullable=True)
     afip_resultado = Column(String(1), nullable=True)  # A (aceptado), R (rechazado), P (parcial)
