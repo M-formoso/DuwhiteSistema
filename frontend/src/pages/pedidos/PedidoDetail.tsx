@@ -22,6 +22,7 @@ import {
   Loader2,
   AlertTriangle,
   ArrowRight,
+  Receipt,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,8 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 
 import { clienteService } from '@/services/clienteService';
+import { facturaService } from '@/services/facturaService';
+import { getErrorMessage } from '@/services/api';
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
 import { ESTADOS_PEDIDO, TIPOS_ENTREGA } from '@/types/cliente';
 import type { EstadoPedido } from '@/types/cliente';
@@ -101,6 +104,26 @@ export default function PedidoDetail() {
       toast({
         title: 'Error',
         description: error.message || 'No se pudo cambiar el estado.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Crear factura desde pedido
+  const facturarMutation = useMutation({
+    mutationFn: () => facturaService.crearDesdePedido({ pedido_id: id! }),
+    onSuccess: (factura) => {
+      queryClient.invalidateQueries({ queryKey: ['facturas'] });
+      toast({
+        title: 'Factura creada',
+        description: 'Se creó la factura en borrador. Revisala y emitila a AFIP.',
+      });
+      navigate(`/facturacion/${factura.id}`);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'No se pudo crear la factura',
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     },
@@ -212,6 +235,20 @@ export default function PedidoDetail() {
             >
               <Pencil className="h-4 w-4 mr-2" />
               Editar
+            </Button>
+          )}
+          {pedido.estado !== 'cancelado' && pedido.estado !== 'facturado' && (
+            <Button
+              onClick={() => facturarMutation.mutate()}
+              disabled={facturarMutation.isPending}
+              className="bg-primary hover:bg-primary-hover"
+            >
+              {facturarMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Receipt className="h-4 w-4 mr-2" />
+              )}
+              Facturar
             </Button>
           )}
           {pedido.estado !== 'cancelado' && pedido.estado !== 'facturado' && (

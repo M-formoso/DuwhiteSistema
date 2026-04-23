@@ -32,6 +32,7 @@ import {
   Landmark,
   Clock,
   Banknote,
+  Receipt,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -127,6 +128,12 @@ const navSectionsInternal: NavSection[] = [
         href: '/servicios',
         icon: Tag,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'contador', 'solo_lectura'],
+      },
+      {
+        title: 'Facturación',
+        href: '/facturacion',
+        icon: Receipt,
+        roles: ['superadmin', 'administrador', 'contador', 'solo_lectura'],
       },
     ],
   },

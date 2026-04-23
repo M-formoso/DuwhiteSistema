@@ -75,13 +75,42 @@ class Settings(BaseSettings):
 
     # Empresa (defaults)
     EMPRESA_NOMBRE: str = "DUWHITE"
+    EMPRESA_RAZON_SOCIAL: str = "DUWHITE S.A."
     EMPRESA_CUIT: str = "XX-XXXXXXXX-X"
     EMPRESA_DIRECCION: str = "Córdoba, Argentina"
+    EMPRESA_LOCALIDAD: str = "Córdoba"
+    EMPRESA_PROVINCIA: str = "Córdoba"
     EMPRESA_CONDICION_IVA: str = "Responsable Inscripto"
+    EMPRESA_IIBB: str = ""
+    EMPRESA_INICIO_ACTIVIDADES: str = "2008-01-01"
+
+    # AFIP - Facturación Electrónica (WSFEv1 + WSAA)
+    AFIP_ENTORNO: str = "homologacion"  # "homologacion" | "produccion"
+    AFIP_PUNTO_VENTA: int = 1
+    AFIP_CERT_PATH: str = ""  # Ruta al certificado .crt emitido por AFIP
+    AFIP_KEY_PATH: str = ""  # Ruta a la clave privada .key
+    AFIP_CACHE_DIR: str = "/tmp/duwhite/afip"  # Cache del ticket WSAA
+    AFIP_WSAA_URL_HOMO: str = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?wsdl"
+    AFIP_WSAA_URL_PROD: str = "https://wsaa.afip.gov.ar/ws/services/LoginCms?wsdl"
+    AFIP_WSFEV1_URL_HOMO: str = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"
+    AFIP_WSFEV1_URL_PROD: str = "https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL"
 
     # Pagination defaults
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
+
+    @property
+    def AFIP_WSAA_URL(self) -> str:
+        return self.AFIP_WSAA_URL_PROD if self.AFIP_ENTORNO == "produccion" else self.AFIP_WSAA_URL_HOMO
+
+    @property
+    def AFIP_WSFEV1_URL(self) -> str:
+        return self.AFIP_WSFEV1_URL_PROD if self.AFIP_ENTORNO == "produccion" else self.AFIP_WSFEV1_URL_HOMO
+
+    @property
+    def EMPRESA_CUIT_NUMERICO(self) -> int:
+        """CUIT sin guiones, como entero (formato requerido por AFIP)."""
+        return int(self.EMPRESA_CUIT.replace("-", "").replace(" ", ""))
 
 
 settings = Settings()

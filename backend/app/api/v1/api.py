@@ -32,6 +32,7 @@ from app.api.v1.endpoints import (
     canastos,
     productos_lavado,
     remitos,
+    facturas,
 )
 
 api_router = APIRouter()
@@ -218,6 +219,12 @@ api_router.include_router(
     tags=["Remitos"],
 )
 
+# Facturación (A/B + NC/ND)
+api_router.include_router(
+    facturas.router,
+    prefix="/facturas",
+    tags=["Facturación"],
+)
+
 # Los siguientes routers se agregarán a medida que se implementen los módulos:
-# api_router.include_router(facturacion.router, prefix="/facturacion", tags=["Facturación"])
 # api_router.include_router(configuracion.router, prefix="/config", tags=["Configuración"])

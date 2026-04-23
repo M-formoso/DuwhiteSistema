@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Factura {{ factura.letra }} {{ factura.numero_completo }}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  body { font-family: "Helvetica", Arial, sans-serif; font-size: 10pt; color: #333; }
+  .muted { color: #777; }
+  .small { font-size: 8pt; }
+  .right { text-align: right; }
+  .bold { font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+
+  /* Header con letra ABC */
+  .header { display: flex; border: 1px solid #333; }
+  .header .col { padding: 8px 10px; flex: 1; }
+  .header .letra {
+    width: 55px; text-align: center; border-left: 1px solid #333; border-right: 1px solid #333;
+    font-size: 36pt; font-weight: 800; padding: 4px 0 0 0;
+  }
+  .header .sub-letra { font-size: 7pt; font-weight: 400; display: block; margin-top: -4px; }
+  .header h1 { margin: 0 0 2px; font-size: 16pt; }
+  .header h2 { margin: 0; font-size: 11pt; font-weight: 500; }
+
+  .tipo-label { font-size: 9pt; letter-spacing: 1px; text-transform: uppercase; }
+  .numero { font-size: 13pt; margin-top: 4px; }
+
+  /* Bloque datos cliente */
+  .cliente-box { border: 1px solid #333; border-top: none; padding: 8px 10px; }
+  .cliente-box .row { display: flex; gap: 16px; margin-bottom: 2px; }
+  .cliente-box .label { width: 120px; color: #777; }
+
+  /* Totales */
+  .totales td { padding: 3px 8px; }
+  .totales .grand-total {
+    border-top: 2px solid #333; font-size: 13pt; font-weight: 800;
+  }
+
+  /* Líneas */
+  .detalle { margin-top: 12px; }
+  .detalle th, .detalle td {
+    border-bottom: 1px solid #e0e0e0; padding: 5px 6px; vertical-align: top;
+  }
+  .detalle thead tr { background: #f7f8fa; border-bottom: 2px solid #333; }
+  .detalle th { text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* CAE y footer */
+  .cae-box { border: 1px solid #333; padding: 6px 10px; margin-top: 12px; font-size: 9pt; }
+  .cae-box .label { color: #777; margin-right: 6px; }
+
+  .footer-row { display: flex; align-items: flex-start; gap: 16px; margin-top: 12px; }
+  .qr-wrap { width: 90px; flex-shrink: 0; }
+  .qr-wrap img { width: 90px; height: 90px; }
+  .afip-legend { font-size: 8pt; color: #777; }
+
+  .nota-credito-banner {
+    background: #fff7ed; border: 1px solid #f59e0b; color: #b45309;
+    padding: 6px 10px; margin-top: 8px; font-size: 9pt;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="col">
+    <h1>{{ empresa.nombre }}</h1>
+    <h2>{{ empresa.razon_social }}</h2>
+    <div class="small muted" style="margin-top:6px;">
+      {{ empresa.direccion }}<br>
+      IVA: {{ empresa.condicion_iva }}<br>
+      {% if empresa.iibb %}IIBB: {{ empresa.iibb }}<br>{% endif %}
+      Inicio actividades: {{ empresa.inicio_actividades }}
+    </div>
+  </div>
+  <div class="letra">
+    {{ factura.letra }}
+    <span class="sub-letra">Cód. {{ factura.codigo_afip }}</span>
+  </div>
+  <div class="col right">
+    <div class="tipo-label">
+      {% if factura.es_nota_credito %}
+        Nota de Crédito {{ factura.letra }}
+      {% elif factura.es_nota_debito %}
+        Nota de Débito {{ factura.letra }}
+      {% else %}
+        Factura {{ factura.letra }}
+      {% endif %}
+    </div>
+    <div class="numero bold">Nº {{ factura.numero_completo }}</div>
+    <div class="small" style="margin-top:6px;">
+      <div><span class="muted">Fecha:</span> {{ factura.fecha_emision|fecha_ar }}</div>
+      <div><span class="muted">CUIT:</span> {{ empresa.cuit }}</div>
+      <div><span class="muted">Pto. Venta:</span> {{ "%04d"|format(factura.punto_venta) }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Cliente -->
+<div class="cliente-box">
+  <div class="row"><span class="label">Razón social:</span><span class="bold">{{ factura.cliente_razon_social_snap }}</span></div>
+  <div class="row"><span class="label">{{ factura.cliente_documento_tipo_snap or 'Documento' }}:</span><span>{{ factura.cliente_documento_nro_snap or '—' }}</span></div>
+  <div class="row"><span class="label">Cond. IVA:</span><span>{{ factura.cliente_condicion_iva_snap|replace('_', ' ')|title }}</span></div>
+  <div class="row"><span class="label">Domicilio:</span><span>{{ factura.cliente_domicilio_snap or '—' }}</span></div>
+  <div class="row">
+    <span class="label">Condición venta:</span>
+    <span>{{ factura.condicion_venta|replace('_', ' ')|title }}</span>
+    {% if factura.fecha_vencimiento_pago %}
+      <span class="muted" style="margin-left:20px;">Vto pago: {{ factura.fecha_vencimiento_pago|fecha_ar }}</span>
+    {% endif %}
+  </div>
+  {% if factura.fecha_servicio_desde or factura.fecha_servicio_hasta %}
+    <div class="row">
+      <span class="label">Período servicio:</span>
+      <span>{{ factura.fecha_servicio_desde|fecha_ar }} — {{ factura.fecha_servicio_hasta|fecha_ar }}</span>
+    </div>
+  {% endif %}
+</div>
+
+{% if factura.es_nota_credito or factura.es_nota_debito %}
+  {% if factura.factura_original %}
+    <div class="nota-credito-banner">
+      Comprobante relacionado:
+      <span class="bold">{{ factura.factura_original.tipo|replace('_', ' ')|title }} {{ factura.factura_original.numero_completo }}</span>
+      {% if factura.motivo %} — Motivo: {{ factura.motivo }}{% endif %}
+    </div>
+  {% endif %}
+{% endif %}
+
+<!-- Detalle -->
+<table class="detalle">
+  <thead>
+    <tr>
+      <th style="width:42%">Descripción</th>
+      <th class="right" style="width:10%">Cantidad</th>
+      <th class="right" style="width:15%">P. Unit.{% if es_factura_a %} (neto){% endif %}</th>
+      {% if es_factura_a %}<th class="right" style="width:8%">IVA%</th>{% endif %}
+      <th class="right" style="width:13%">Subtotal{% if es_factura_a %} neto{% endif %}</th>
+      <th class="right" style="width:12%">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in factura.detalles %}
+      <tr>
+        <td>{{ d.descripcion }}</td>
+        <td class="right">{{ d.cantidad }} {{ d.unidad_medida }}</td>
+        {% if es_factura_a %}
+          <td class="right">{{ d.precio_unitario_neto|moneda }}</td>
+          <td class="right">{{ d.iva_porcentaje }}%</td>
+          <td class="right">{{ d.subtotal_neto|moneda }}</td>
+        {% else %}
+          {# Factura B: mostrar precio con IVA incluido #}
+          <td class="right">{{ d.total_linea|moneda if d.cantidad == 1 else (d.total_linea / d.cantidad)|moneda }}</td>
+          <td class="right">{{ d.total_linea|moneda }}</td>
+        {% endif %}
+        <td class="right bold">{{ d.total_linea|moneda }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Totales -->
+<table class="totales" style="width: 55%; margin-left: auto; margin-top: 14px;">
+  {% if es_factura_a %}
+    {% if factura.neto_gravado_21 and factura.neto_gravado_21|float > 0 %}
+      <tr><td class="muted">Neto gravado 21%</td><td class="right">{{ factura.neto_gravado_21|moneda }}</td></tr>
+      <tr><td class="muted">IVA 21%</td><td class="right">{{ factura.iva_21|moneda }}</td></tr>
+    {% endif %}
+    {% if factura.neto_gravado_105 and factura.neto_gravado_105|float > 0 %}
+      <tr><td class="muted">Neto gravado 10,5%</td><td class="right">{{ factura.neto_gravado_105|moneda }}</td></tr>
+      <tr><td class="muted">IVA 10,5%</td><td class="right">{{ factura.iva_105|moneda }}</td></tr>
+    {% endif %}
+    {% if factura.neto_no_gravado and factura.neto_no_gravado|float > 0 %}
+      <tr><td class="muted">No gravado</td><td class="right">{{ factura.neto_no_gravado|moneda }}</td></tr>
+    {% endif %}
+  {% endif %}
+  {% if factura.percepciones and factura.percepciones|float > 0 %}
+    <tr><td class="muted">Percepciones</td><td class="right">{{ factura.percepciones|moneda }}</td></tr>
+  {% endif %}
+  <tr class="grand-total"><td>TOTAL</td><td class="right">{{ factura.total|moneda }}</td></tr>
+  {% if es_factura_b %}
+    <tr><td colspan="2" class="right small muted">(IVA incluido)</td></tr>
+  {% endif %}
+</table>
+
+<!-- CAE -->
+<div class="cae-box">
+  <span class="label">CAE:</span><span class="bold">{{ factura.cae }}</span>
+  <span style="margin-left:20px;" class="label">Vto. CAE:</span>
+  <span class="bold">{{ factura.cae_vencimiento|fecha_ar }}</span>
+</div>
+
+<!-- QR + leyenda AFIP -->
+<div class="footer-row">
+  {% if qr_datauri %}
+    <div class="qr-wrap">
+      <img src="{{ qr_datauri }}" alt="QR AFIP">
+    </div>
+  {% endif %}
+  <div class="afip-legend">
+    Comprobante autorizado.<br>
+    Para validar el comprobante ingresá a
+    <b>https://www.afip.gob.ar</b> → Constatación de comprobantes.<br>
+    {% if factura.observaciones %}
+      <br><b>Observaciones:</b> {{ factura.observaciones }}
+    {% endif %}
+  </div>
+</div>
+
+</body>
+</html>

@@ -79,6 +79,14 @@ import { ServiciosPage, ListaPreciosDetail } from '@/pages/servicios';
 // Liquidaciones de Pedidos
 import { LiquidacionesPedidosPage, LiquidacionDetail } from '@/pages/liquidaciones';
 
+// Facturación
+import {
+  FacturasListPage,
+  FacturaDetailPage,
+  NotaCreditoFormPage,
+  NotaDebitoFormPage,
+} from '@/pages/facturacion';
+
 // Componente para redirección inteligente según rol
 function HomeRedirect() {
   const user = useAuthStore((state) => state.user);
@@ -176,6 +184,12 @@ function App() {
         {/* Liquidaciones de Pedidos */}
         <Route path="/liquidaciones" element={<LiquidacionesPedidosPage />} />
         <Route path="/liquidaciones/:id" element={<LiquidacionDetail />} />
+
+        {/* Facturación (A/B + NC/ND) */}
+        <Route path="/facturacion" element={<FacturasListPage />} />
+        <Route path="/facturacion/:id" element={<FacturaDetailPage />} />
+        <Route path="/facturacion/:id/nota-credito" element={<NotaCreditoFormPage />} />
+        <Route path="/facturacion/:id/nota-debito" element={<NotaDebitoFormPage />} />
 
         {/* Costos */}
         <Route path="/costos" element={<CostosPage />} />

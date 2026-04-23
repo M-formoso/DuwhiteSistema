@@ -86,6 +86,12 @@ class Pedido(Base, BaseModelMixin):
     creado_por = relationship("Usuario", foreign_keys=[creado_por_id])
     detalles = relationship("DetallePedido", back_populates="pedido", cascade="all, delete-orphan")
     lotes = relationship("LoteProduccion", back_populates="pedido", lazy="dynamic")
+    facturas = relationship(
+        "Factura",
+        back_populates="pedido",
+        foreign_keys="Factura.pedido_id",
+        lazy="dynamic",
+    )
 
     def __repr__(self) -> str:
         return f"<Pedido {self.numero}>"

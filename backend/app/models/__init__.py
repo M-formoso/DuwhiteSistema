@@ -150,3 +150,15 @@ from app.models.tesoreria import (
     Cheque,
     MovimientoTesoreria,
 )
+
+# Facturación
+from app.models.factura import (
+    Factura,
+    FacturaDetalle,
+    TipoComprobante,
+    EstadoFactura,
+    ConceptoAfip,
+    CondicionVenta,
+    CODIGO_AFIP,
+    LETRA_COMPROBANTE,
+)
