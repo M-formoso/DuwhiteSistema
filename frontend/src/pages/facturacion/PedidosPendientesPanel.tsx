@@ -128,147 +128,154 @@ export default function PedidosPendientesPanel() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="pt-6 flex flex-col md:flex-row md:items-center gap-3">
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              placeholder="Desde"
-            />
-            <Input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              placeholder="Hasta"
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualizar
-          </Button>
-          <div className="flex-1" />
-          {algunoMarcado && (
-            <>
-              <div className="text-sm text-text-secondary">
-                {seleccionados.size} seleccionados · {formatCurrency(totalSeleccionado)}
-              </div>
-              <Button
-                onClick={() => facturarMasivo.mutate()}
-                disabled={facturarMasivo.isPending}
-                className="bg-primary hover:bg-primary-hover"
-              >
-                {facturarMasivo.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Receipt className="w-4 h-4 mr-2" />
-                )}
-                Facturar {seleccionados.size} seleccionados
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="w-[150px]"
+              />
+              <Input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="w-[150px]"
+              />
+              <Button variant="outline" size="icon" onClick={() => refetch()} title="Actualizar">
+                <RefreshCw className="w-4 h-4" />
               </Button>
-            </>
-          )}
+            </div>
+            <div className="flex-1" />
+            {algunoMarcado && (
+              <>
+                <div className="text-sm text-text-secondary whitespace-nowrap">
+                  {seleccionados.size} sel. · {formatCurrency(totalSeleccionado)}
+                </div>
+                <Button
+                  onClick={() => facturarMasivo.mutate()}
+                  disabled={facturarMasivo.isPending}
+                  className="bg-primary hover:bg-primary-hover"
+                >
+                  {facturarMasivo.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Receipt className="w-4 h-4 mr-2" />
+                  )}
+                  Facturar {seleccionados.size}
+                </Button>
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={todosMarcados}
-                    onCheckedChange={(c) => toggleTodos(c === true)}
-                    disabled={items.length === 0}
-                  />
-                </TableHead>
-                <TableHead>Pedido</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Sugerido</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Fecha pedido</TableHead>
-                <TableHead>Entrega</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+          <div className="overflow-x-auto">
+            <Table className="min-w-[960px]">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
-                    Cargando...
-                  </TableCell>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={todosMarcados}
+                      onCheckedChange={(c) => toggleTodos(c === true)}
+                      disabled={items.length === 0}
+                    />
+                  </TableHead>
+                  <TableHead className="w-[110px]">Pedido</TableHead>
+                  <TableHead className="min-w-[200px]">Cliente</TableHead>
+                  <TableHead className="w-[130px]">Sugerido</TableHead>
+                  <TableHead className="w-[110px]">Estado</TableHead>
+                  <TableHead className="w-[120px]">F. pedido</TableHead>
+                  <TableHead className="w-[120px]">Entrega</TableHead>
+                  <TableHead className="w-[120px] text-right">Total</TableHead>
+                  <TableHead className="w-[110px]"></TableHead>
                 </TableRow>
-              ) : items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10">
-                    <div className="flex flex-col items-center gap-2 text-text-secondary">
-                      <Receipt className="w-8 h-8" />
-                      <p>No hay pedidos pendientes de facturar.</p>
-                      <p className="text-xs">
-                        Los pedidos aparecen acá cuando pasan a estado <b>listo</b> o <b>entregado</b>.
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                items.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={seleccionados.has(p.id)}
-                        onCheckedChange={(c) => toggleUno(p.id, c === true)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono">#{p.numero}</TableCell>
-                    <TableCell>
-                      <div>{p.cliente_razon_social}</div>
-                      <div className="text-xs text-text-secondary">
-                        {p.cliente_condicion_iva.replace(/_/g, ' ')}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {TIPOS_COMPROBANTE_LABEL[p.tipo_comprobante_sugerido]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          p.estado === 'entregado'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-green-100 text-green-700'
-                        }
-                      >
-                        {p.estado}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(p.fecha_pedido)}</TableCell>
-                    <TableCell>
-                      {p.fecha_entrega_real ? (
-                        formatDate(p.fecha_entrega_real)
-                      ) : (
-                        <span className="text-text-secondary">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(Number(p.total))}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={facturarIndividual.isPending}
-                        onClick={() => facturarIndividual.mutate(p.id)}
-                      >
-                        Facturar
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8">
+                      Cargando...
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-10">
+                      <div className="flex flex-col items-center gap-2 text-text-secondary">
+                        <Receipt className="w-8 h-8" />
+                        <p>No hay pedidos pendientes de facturar.</p>
+                        <p className="text-xs">
+                          Los pedidos aparecen cuando pasan a estado <b>listo</b> o <b>entregado</b>.
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  items.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={seleccionados.has(p.id)}
+                          onCheckedChange={(c) => toggleUno(p.id, c === true)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono whitespace-nowrap">#{p.numero}</TableCell>
+                      <TableCell className="max-w-[280px]">
+                        <div className="truncate" title={p.cliente_razon_social}>
+                          {p.cliente_razon_social}
+                        </div>
+                        <div className="text-xs text-text-secondary truncate">
+                          {p.cliente_condicion_iva.replace(/_/g, ' ')}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="whitespace-nowrap">
+                          {TIPOS_COMPROBANTE_LABEL[p.tipo_comprobante_sugerido]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            p.estado === 'entregado'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-green-100 text-green-700'
+                          }
+                        >
+                          {p.estado}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDate(p.fecha_pedido)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {p.fecha_entrega_real ? (
+                          formatDate(p.fecha_entrega_real)
+                        ) : (
+                          <span className="text-text-secondary">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold whitespace-nowrap">
+                        {formatCurrency(Number(p.total))}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={facturarIndividual.isPending}
+                          onClick={() => facturarIndividual.mutate(p.id)}
+                        >
+                          Facturar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
