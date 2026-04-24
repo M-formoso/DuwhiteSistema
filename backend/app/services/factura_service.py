@@ -377,17 +377,23 @@ def listar_pedidos_pendientes(
     cliente_id: Optional[UUID] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    solo_listos: bool = False,
     page: int = 1,
     page_size: int = 50,
 ) -> Tuple[List[Pedido], int]:
     """
-    Pedidos que terminaron producción y están pendientes de facturar.
+    Pedidos pendientes de facturar.
 
     Criterios:
       - pedido.activo == True
-      - pedido.estado en ('listo', 'entregado')  — completaron producción
+      - pedido.estado NOT IN ('cancelado', 'facturado', 'borrador')
       - NO tienen factura activa (borrador o autorizada) asociada
+      - Si ``solo_listos=True``, filtra además a ('listo', 'entregado').
+
+    Se ordena poniendo primero los que ya terminaron producción.
     """
+    from sqlalchemy import case
+
     subq_facturas_activas = (
         db.query(Factura.pedido_id)
         .filter(
@@ -400,9 +406,19 @@ def listar_pedidos_pendientes(
         .subquery()
     )
 
+    # Estados "candidatos a factura": todo lo que no sea terminal
+    estados_validos = [
+        EstadoPedido.CONFIRMADO.value,
+        EstadoPedido.EN_PROCESO.value,
+        EstadoPedido.LISTO.value,
+        EstadoPedido.ENTREGADO.value,
+    ]
+    if solo_listos:
+        estados_validos = [EstadoPedido.LISTO.value, EstadoPedido.ENTREGADO.value]
+
     query = db.query(Pedido).filter(
         Pedido.activo == True,
-        Pedido.estado.in_([EstadoPedido.LISTO.value, EstadoPedido.ENTREGADO.value]),
+        Pedido.estado.in_(estados_validos),
         ~Pedido.id.in_(subq_facturas_activas),
     )
 
@@ -414,10 +430,24 @@ def listar_pedidos_pendientes(
         query = query.filter(Pedido.fecha_pedido <= fecha_hasta)
 
     total = query.count()
-    query = query.order_by(
-        Pedido.fecha_entrega_real.desc().nullslast(),
-        Pedido.fecha_pedido.desc(),
-    ).offset((page - 1) * page_size).limit(page_size)
+
+    # Orden: primero entregados, después listos, después en_proceso, después confirmado.
+    orden_estado = case(
+        (Pedido.estado == EstadoPedido.ENTREGADO.value, 1),
+        (Pedido.estado == EstadoPedido.LISTO.value, 2),
+        (Pedido.estado == EstadoPedido.EN_PROCESO.value, 3),
+        (Pedido.estado == EstadoPedido.CONFIRMADO.value, 4),
+        else_=5,
+    )
+    query = (
+        query.order_by(
+            orden_estado,
+            Pedido.fecha_entrega_real.desc().nullslast(),
+            Pedido.fecha_pedido.desc(),
+        )
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
 
     return query.all(), total
 

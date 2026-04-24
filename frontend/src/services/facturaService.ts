@@ -77,6 +77,7 @@ export const facturaService = {
     cliente_id?: string;
     fecha_desde?: string;
     fecha_hasta?: string;
+    solo_listos?: boolean;
     page?: number;
     page_size?: number;
   }): Promise<PedidosPendientesResponse> {

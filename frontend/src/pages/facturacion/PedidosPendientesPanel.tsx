@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -27,6 +29,20 @@ import { getErrorMessage } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { TIPOS_COMPROBANTE_LABEL } from '@/types/factura';
 
+const ESTADO_PEDIDO_LABEL: Record<string, string> = {
+  confirmado: 'Confirmado',
+  en_proceso: 'En producción',
+  listo: 'Listo',
+  entregado: 'Entregado',
+};
+
+const ESTADO_PEDIDO_COLOR: Record<string, string> = {
+  confirmado: 'bg-blue-100 text-blue-700',
+  en_proceso: 'bg-yellow-100 text-yellow-700',
+  listo: 'bg-green-100 text-green-700',
+  entregado: 'bg-purple-100 text-purple-700',
+};
+
 export default function PedidosPendientesPanel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -34,14 +50,16 @@ export default function PedidosPendientesPanel() {
 
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  const [soloListos, setSoloListos] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['pedidos-pendientes-facturar', { fechaDesde, fechaHasta }],
+    queryKey: ['pedidos-pendientes-facturar', { fechaDesde, fechaHasta, soloListos }],
     queryFn: () =>
       facturaService.listarPedidosPendientes({
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
+        solo_listos: soloListos || undefined,
         page: 1,
         page_size: 100,
       }),
@@ -147,6 +165,16 @@ export default function PedidosPendientesPanel() {
                 <RefreshCw className="w-4 h-4" />
               </Button>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="solo-listos"
+                checked={soloListos}
+                onCheckedChange={setSoloListos}
+              />
+              <Label htmlFor="solo-listos" className="text-sm whitespace-nowrap cursor-pointer">
+                Solo los que terminaron producción
+              </Label>
+            </div>
             <div className="flex-1" />
             {algunoMarcado && (
               <>
@@ -208,7 +236,9 @@ export default function PedidosPendientesPanel() {
                         <Receipt className="w-8 h-8" />
                         <p>No hay pedidos pendientes de facturar.</p>
                         <p className="text-xs">
-                          Los pedidos aparecen cuando pasan a estado <b>listo</b> o <b>entregado</b>.
+                          {soloListos
+                            ? 'No hay pedidos en estado listo o entregado. Desmarcá "Solo los que terminaron producción" para ver los que siguen en proceso.'
+                            : 'Los pedidos sin factura (confirmado, en producción, listo o entregado) aparecen acá.'}
                         </p>
                       </div>
                     </TableCell>
@@ -237,14 +267,8 @@ export default function PedidosPendientesPanel() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          className={
-                            p.estado === 'entregado'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-green-100 text-green-700'
-                          }
-                        >
-                          {p.estado}
+                        <Badge className={ESTADO_PEDIDO_COLOR[p.estado] || 'bg-gray-100 text-gray-700'}>
+                          {ESTADO_PEDIDO_LABEL[p.estado] || p.estado}
                         </Badge>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">

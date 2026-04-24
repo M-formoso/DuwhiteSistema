@@ -163,14 +163,17 @@ def listar_pedidos_pendientes(
     cliente_id: Optional[UUID] = None,
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
+    solo_listos: bool = Query(False, description="Si True, solo muestra estado listo/entregado"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
     """
-    Cola de pedidos listos para facturar: estado `listo` o `entregado`
-    y sin factura activa.
+    Cola de pedidos pendientes de facturar. Por defecto incluye todos
+    los estados no-terminales (confirmado, en_proceso, listo, entregado)
+    sin factura activa. Con ``solo_listos=true`` filtra a los que ya
+    terminaron producción.
     """
     verificar_permiso(current_user, "facturacion.ver")
     pedidos, total = factura_service.listar_pedidos_pendientes(
@@ -178,6 +181,7 @@ def listar_pedidos_pendientes(
         cliente_id=cliente_id,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
+        solo_listos=solo_listos,
         page=page,
         page_size=page_size,
     )
