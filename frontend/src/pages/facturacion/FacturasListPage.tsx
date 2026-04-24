@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 import { facturaService } from '@/services/facturaService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
@@ -39,6 +40,7 @@ import {
   ESTADOS_PAGO_COLOR,
   ESTADOS_PAGO_LABEL,
 } from '@/types/factura';
+import PedidosPendientesPanel from './PedidosPendientesPanel';
 
 const PAGE_SIZE = 20;
 
@@ -67,6 +69,14 @@ export default function FacturasListPage() {
       }),
   });
 
+  // Badge con cantidad de pedidos pendientes (sin filtros) para mostrar en la pestaña
+  const { data: pendientes } = useQuery({
+    queryKey: ['pedidos-pendientes-facturar-count'],
+    queryFn: () => facturaService.listarPedidosPendientes({ page: 1, page_size: 1 }),
+    refetchOnWindowFocus: true,
+  });
+  const pendientesCount = pendientes?.total ?? 0;
+
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -76,13 +86,32 @@ export default function FacturasListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Facturación</h1>
-          <p className="text-text-secondary">Facturas A/B y Notas de Crédito/Débito</p>
+          <p className="text-text-secondary">Pedidos listos para facturar y facturas emitidas</p>
         </div>
-        <Button onClick={() => refetch()} variant="outline">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Actualizar
-        </Button>
       </div>
+
+      <Tabs defaultValue={pendientesCount > 0 ? 'pendientes' : 'facturas'}>
+        <TabsList>
+          <TabsTrigger value="pendientes" className="gap-2">
+            Pendientes de facturar
+            {pendientesCount > 0 && (
+              <Badge className="bg-primary text-white">{pendientesCount}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="facturas">Facturas emitidas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pendientes" className="mt-6">
+          <PedidosPendientesPanel />
+        </TabsContent>
+
+        <TabsContent value="facturas" className="mt-6 space-y-6">
+          <div className="flex justify-end">
+            <Button onClick={() => refetch()} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Actualizar
+            </Button>
+          </div>
 
       {/* Filtros */}
       <Card>
@@ -292,6 +321,8 @@ export default function FacturasListPage() {
           </div>
         </div>
       )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

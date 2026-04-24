@@ -369,6 +369,94 @@ def _recalcular_y_persistir_totales(db: Session, factura: Factura) -> None:
     db.flush()
 
 
+# ==================== PEDIDOS PENDIENTES DE FACTURAR ====================
+
+
+def listar_pedidos_pendientes(
+    db: Session,
+    cliente_id: Optional[UUID] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> Tuple[List[Pedido], int]:
+    """
+    Pedidos que terminaron producción y están pendientes de facturar.
+
+    Criterios:
+      - pedido.activo == True
+      - pedido.estado en ('listo', 'entregado')  — completaron producción
+      - NO tienen factura activa (borrador o autorizada) asociada
+    """
+    subq_facturas_activas = (
+        db.query(Factura.pedido_id)
+        .filter(
+            Factura.activo == True,
+            Factura.pedido_id.isnot(None),
+            Factura.estado.in_(
+                [EstadoFactura.BORRADOR.value, EstadoFactura.AUTORIZADA.value]
+            ),
+        )
+        .subquery()
+    )
+
+    query = db.query(Pedido).filter(
+        Pedido.activo == True,
+        Pedido.estado.in_([EstadoPedido.LISTO.value, EstadoPedido.ENTREGADO.value]),
+        ~Pedido.id.in_(subq_facturas_activas),
+    )
+
+    if cliente_id:
+        query = query.filter(Pedido.cliente_id == cliente_id)
+    if fecha_desde:
+        query = query.filter(Pedido.fecha_pedido >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Pedido.fecha_pedido <= fecha_hasta)
+
+    total = query.count()
+    query = query.order_by(
+        Pedido.fecha_entrega_real.desc().nullslast(),
+        Pedido.fecha_pedido.desc(),
+    ).offset((page - 1) * page_size).limit(page_size)
+
+    return query.all(), total
+
+
+def facturar_pedidos_masivo(
+    db: Session,
+    pedido_ids: List[UUID],
+    usuario_id: UUID,
+    punto_venta: int,
+) -> dict:
+    """
+    Crea facturas BORRADOR para una lista de pedidos.
+    No emite a AFIP — solo crea los borradores (el usuario después revisa y emite).
+
+    Devuelve ``{creadas: [factura_ids], errores: [{pedido_id, detail}]}``
+    sin abortar la transacción si algún pedido falla (se saltea).
+    """
+    from app.schemas.factura import FacturaCreateDesdePedido
+
+    creadas: List[str] = []
+    errores: List[dict] = []
+
+    for pid in pedido_ids:
+        try:
+            factura = crear_desde_pedido(
+                db=db,
+                data=FacturaCreateDesdePedido(pedido_id=str(pid)),
+                usuario_id=usuario_id,
+                punto_venta=punto_venta,
+            )
+            creadas.append(str(factura.id))
+        except HTTPException as exc:
+            errores.append({"pedido_id": str(pid), "detail": exc.detail})
+        except Exception as exc:  # defensive: no romper el batch
+            errores.append({"pedido_id": str(pid), "detail": str(exc)})
+
+    return {"creadas": creadas, "errores": errores}
+
+
 # ==================== LECTURA ====================
 
 

@@ -268,6 +268,36 @@ class FacturaFiltros(BaseModel):
     page_size: int = 20
 
 
+# ==================== PEDIDOS PENDIENTES DE FACTURAR ====================
+
+
+class PedidoPendienteFacturar(BaseModel):
+    """Fila de la cola de pedidos listos para facturar."""
+
+    id: str
+    numero: str
+    estado: str
+    cliente_id: str
+    cliente_razon_social: str
+    cliente_condicion_iva: str
+    tipo_comprobante_sugerido: str  # "factura_a" | "factura_b"
+    fecha_pedido: date
+    fecha_entrega_real: Optional[date] = None
+    total: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class FacturarMasivoRequest(BaseModel):
+    pedido_ids: List[str] = Field(..., min_length=1)
+
+
+class FacturarMasivoResponse(BaseModel):
+    creadas: List[str]
+    errores: List[dict]
+
+
 # ==================== CONSTANTES ====================
 
 TIPOS_COMPROBANTE = [

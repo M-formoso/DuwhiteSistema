@@ -25,6 +25,9 @@ from app.schemas.factura import (
     NotaDebitoCreate,
     RegistrarCobroRequest,
     RegistrarCobroResponse,
+    PedidoPendienteFacturar,
+    FacturarMasivoRequest,
+    FacturarMasivoResponse,
     TIPOS_COMPROBANTE,
     ESTADOS_FACTURA,
     ESTADOS_PAGO,
@@ -150,6 +153,80 @@ def listar_estados_factura(current_user: Usuario = Depends(get_current_user)):
 def listar_estados_pago(current_user: Usuario = Depends(get_current_user)):
     verificar_permiso(current_user, "facturacion.ver")
     return ESTADOS_PAGO
+
+
+# ==================== PEDIDOS PENDIENTES DE FACTURAR ====================
+
+
+@router.get("/pedidos-pendientes")
+def listar_pedidos_pendientes(
+    cliente_id: Optional[UUID] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Cola de pedidos listos para facturar: estado `listo` o `entregado`
+    y sin factura activa.
+    """
+    verificar_permiso(current_user, "facturacion.ver")
+    pedidos, total = factura_service.listar_pedidos_pendientes(
+        db=db,
+        cliente_id=cliente_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        page=page,
+        page_size=page_size,
+    )
+    items = []
+    for p in pedidos:
+        cliente = p.cliente
+        condicion = cliente.condicion_iva if cliente else "consumidor_final"
+        tipo_sug = factura_service.determinar_tipo_factura(condicion).value
+        items.append(
+            PedidoPendienteFacturar(
+                id=str(p.id),
+                numero=p.numero,
+                estado=p.estado,
+                cliente_id=str(p.cliente_id),
+                cliente_razon_social=cliente.razon_social if cliente else "",
+                cliente_condicion_iva=condicion,
+                tipo_comprobante_sugerido=tipo_sug,
+                fecha_pedido=p.fecha_pedido,
+                fecha_entrega_real=p.fecha_entrega_real,
+                total=p.total,
+            )
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.post(
+    "/pedidos-pendientes/facturar-masivo",
+    response_model=FacturarMasivoResponse,
+)
+def facturar_pedidos_masivo(
+    data: FacturarMasivoRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Crea facturas BORRADOR para varios pedidos a la vez.
+    No emite a AFIP — el usuario revisa y emite después.
+    Los pedidos que no se puedan facturar se reportan en ``errores``.
+    """
+    verificar_permiso(current_user, "facturacion.crear")
+    ids = [UUID(s) for s in data.pedido_ids]
+    resultado = factura_service.facturar_pedidos_masivo(
+        db=db,
+        pedido_ids=ids,
+        usuario_id=current_user.id,
+        punto_venta=settings.AFIP_PUNTO_VENTA,
+    )
+    db.commit()
+    return FacturarMasivoResponse(**resultado)
 
 
 # ==================== LISTADO Y DETALLE ====================

@@ -213,6 +213,31 @@ export interface RegistrarCobroResponse {
   movimiento_cuenta_corriente_id: string;
 }
 
+export interface PedidoPendienteFacturar {
+  id: string;
+  numero: string;
+  estado: string;
+  cliente_id: string;
+  cliente_razon_social: string;
+  cliente_condicion_iva: string;
+  tipo_comprobante_sugerido: TipoComprobante;
+  fecha_pedido: string;
+  fecha_entrega_real: string | null;
+  total: string;
+}
+
+export interface PedidosPendientesResponse {
+  items: PedidoPendienteFacturar[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface FacturarMasivoResponse {
+  creadas: string[];
+  errores: Array<{ pedido_id: string; detail: string }>;
+}
+
 export const TIPOS_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
   factura_a: 'Factura A',
   factura_b: 'Factura B',

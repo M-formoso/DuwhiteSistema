@@ -14,6 +14,8 @@ import {
   FacturaFiltros,
   RegistrarCobroRequest,
   RegistrarCobroResponse,
+  PedidosPendientesResponse,
+  FacturarMasivoResponse,
 } from '@/types/factura';
 
 const BASE_URL = '/facturas';
@@ -68,6 +70,25 @@ export const facturaService = {
 
   async descargarPdf(id: string): Promise<Blob> {
     const response = await api.get(`${BASE_URL}/${id}/pdf`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  async listarPedidosPendientes(params?: {
+    cliente_id?: string;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PedidosPendientesResponse> {
+    const response = await api.get(`${BASE_URL}/pedidos-pendientes`, { params });
+    return response.data;
+  },
+
+  async facturarMasivo(pedidoIds: string[]): Promise<FacturarMasivoResponse> {
+    const response = await api.post(
+      `${BASE_URL}/pedidos-pendientes/facturar-masivo`,
+      { pedido_ids: pedidoIds },
+    );
     return response.data;
   },
 };
