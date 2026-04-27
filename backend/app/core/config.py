@@ -73,10 +73,10 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAIL_FROM: str = "gestion@duwhite.com"
 
-    # Empresa (defaults)
+    # Empresa (defaults — DUWHITE S.R.L., dependencia AGENCIA SEDE CORDOBA)
     EMPRESA_NOMBRE: str = "DUWHITE"
-    EMPRESA_RAZON_SOCIAL: str = "DUWHITE S.A."
-    EMPRESA_CUIT: str = "XX-XXXXXXXX-X"
+    EMPRESA_RAZON_SOCIAL: str = "DUWHITE S.R.L."
+    EMPRESA_CUIT: str = "30-71925569-4"
     EMPRESA_DIRECCION: str = "Córdoba, Argentina"
     EMPRESA_LOCALIDAD: str = "Córdoba"
     EMPRESA_PROVINCIA: str = "Córdoba"
@@ -84,9 +84,10 @@ class Settings(BaseSettings):
     EMPRESA_IIBB: str = ""
     EMPRESA_INICIO_ACTIVIDADES: str = "2008-01-01"
 
-    # AFIP - Facturación Electrónica (WSFEv1 + WSAA)
+    # ARCA / AFIP - Facturación Electrónica (WSFEv1 + WSAA)
     AFIP_ENTORNO: str = "homologacion"  # "homologacion" | "produccion"
-    AFIP_PUNTO_VENTA: int = 1
+    # PV 2: "RECE para aplicativo y web services" en DUWHITE (PV 1 es Factura en Línea, no sirve para WS)
+    AFIP_PUNTO_VENTA: int = 2
     AFIP_CERT_PATH: str = ""  # Ruta al certificado .crt emitido por AFIP
     AFIP_KEY_PATH: str = ""  # Ruta a la clave privada .key
     AFIP_CACHE_DIR: str = "/tmp/duwhite/afip"  # Cache del ticket WSAA
