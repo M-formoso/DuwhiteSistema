@@ -86,6 +86,23 @@ media/
 static/uploads/
 
 # -----------------------------------------------
+# Certificados ARCA / AFIP — NUNCA al repo
+# -----------------------------------------------
+backend/afip_homologacion/
+backend/afip_produccion/
+*.key
+*.crt
+*.csr
+*.pem
+*.p12
+*.pfx
+
+# -----------------------------------------------
+# Documentación fiscal sensible (no commitear)
+# -----------------------------------------------
+Constancia_de_Habilitacion_*.pdf
+
+# -----------------------------------------------
 # IDE / Editor specific
 # -----------------------------------------------
 .vscode/
