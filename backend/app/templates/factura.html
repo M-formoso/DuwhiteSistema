@@ -58,6 +58,19 @@
     background: #fff7ed; border: 1px solid #f59e0b; color: #b45309;
     padding: 6px 10px; margin-top: 8px; font-size: 9pt;
   }
+
+  /* Régimen RG 1575/03 — pago en CBU informada (obligatorio en Factura A) */
+  .cbu-box {
+    border: 2px solid #1e40af; background: #eff6ff;
+    padding: 8px 10px; margin-top: 12px; font-size: 8.5pt;
+  }
+  .cbu-box .titulo {
+    font-weight: 700; color: #1e40af; text-transform: uppercase;
+    letter-spacing: 0.5px; font-size: 8pt; margin-bottom: 4px;
+  }
+  .cbu-box .leyenda { color: #333; line-height: 1.35; }
+  .cbu-box .datos { margin-top: 6px; font-family: monospace; font-size: 9pt; }
+  .cbu-box .datos b { color: #1e40af; }
 </style>
 </head>
 <body>
@@ -183,6 +196,21 @@
     <tr><td colspan="2" class="right small muted">(IVA incluido)</td></tr>
   {% endif %}
 </table>
+
+<!-- Régimen Pago en CBU Informada (obligatorio para Factura A según RG 5762/25) -->
+{% if es_factura_a %}
+<div class="cbu-box">
+  <div class="titulo">Operación sujeta a Régimen de Pago en CBU Informada</div>
+  <div class="leyenda">{{ empresa.leyenda_cbu }}</div>
+  {% if empresa.cbu %}
+    <div class="datos">
+      <b>CBU:</b> {{ empresa.cbu }}
+      {% if empresa.banco %} &nbsp;·&nbsp; <b>Banco:</b> {{ empresa.banco }}{% endif %}
+      {% if empresa.cuenta_titular %} &nbsp;·&nbsp; <b>Titular:</b> {{ empresa.cuenta_titular }}{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- CAE -->
 <div class="cae-box">

@@ -84,6 +84,17 @@ class Settings(BaseSettings):
     EMPRESA_IIBB: str = ""
     EMPRESA_INICIO_ACTIVIDADES: str = "2008-01-01"
 
+    # Régimen "Pago en CBU informada" (RG 1575/03 — habilitado por RG 5762/25 el 20/04/2026)
+    # Solo aplica a Factura/NC/ND clase A. ARCA exige imprimir la leyenda + CBU en el PDF.
+    EMPRESA_CBU: str = ""                     # CBU informada a ARCA (22 dígitos)
+    EMPRESA_BANCO: str = ""                   # Nombre del banco (cosmético)
+    EMPRESA_CUENTA_TITULAR: str = ""          # Titular si difiere de la razón social
+    EMPRESA_LEYENDA_CBU: str = (
+        "Operación sujeta al Régimen de Pago en CBU Informada "
+        "(RG 1575/03 - RG 5762/25). El pago de esta factura debe efectuarse "
+        "mediante depósito o transferencia bancaria a la CBU informada por el emisor."
+    )
+
     # ARCA / AFIP - Facturación Electrónica (WSFEv1 + WSAA)
     AFIP_ENTORNO: str = "homologacion"  # "homologacion" | "produccion"
     # PV 2: "RECE para aplicativo y web services" en DUWHITE (PV 1 es Factura en Línea, no sirve para WS)
