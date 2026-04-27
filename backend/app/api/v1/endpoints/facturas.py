@@ -34,6 +34,7 @@ from app.schemas.factura import (
 )
 from app.services import factura_service
 from app.services import factura_pdf_service
+from app.services import factura_diagnostico_service
 
 
 router = APIRouter()
@@ -153,6 +154,25 @@ def listar_estados_factura(current_user: Usuario = Depends(get_current_user)):
 def listar_estados_pago(current_user: Usuario = Depends(get_current_user)):
     verificar_permiso(current_user, "facturacion.ver")
     return ESTADOS_PAGO
+
+
+# ==================== DIAGNÓSTICO ARCA ====================
+
+
+@router.get("/estado-arca")
+def estado_arca(current_user: Usuario = Depends(get_current_user)):
+    """
+    Diagnóstico de la integración con ARCA / AFIP.
+    Devuelve un reporte con el estado de cada componente: CUIT, certificado,
+    clave privada, conexión WSAA, conexión WSFEv1, CBU configurada.
+
+    Estado general posible:
+      - "verde": todo OK, listo para emitir.
+      - "amarillo": se puede emitir pero hay advertencias (ej. CBU no cargada).
+      - "rojo": falta algún requisito crítico.
+    """
+    verificar_permiso(current_user, "facturacion.ver")
+    return factura_diagnostico_service.diagnosticar_arca()
 
 
 # ==================== PEDIDOS PENDIENTES DE FACTURAR ====================

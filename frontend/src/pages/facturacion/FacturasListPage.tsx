@@ -28,6 +28,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
+import EstadoArcaBanner from './EstadoArcaBanner';
 import { facturaService } from '@/services/facturaService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import {
@@ -89,6 +90,9 @@ export default function FacturasListPage() {
           <p className="text-text-secondary">Pedidos listos para facturar y facturas emitidas</p>
         </div>
       </div>
+
+      {/* Banner con estado de la integración con ARCA */}
+      <EstadoArcaBanner />
 
       <Tabs defaultValue={pendientesCount > 0 ? 'pendientes' : 'facturas'}>
         <TabsList>

@@ -238,6 +238,26 @@ export interface FacturarMasivoResponse {
   errores: Array<{ pedido_id: string; detail: string }>;
 }
 
+export interface EstadoArcaCheck {
+  id: string;
+  titulo: string;
+  ok: boolean;
+  detalle: string;
+  critico: boolean;
+}
+
+export type EstadoArcaSemaforo = 'verde' | 'amarillo' | 'rojo';
+
+export interface EstadoArcaResponse {
+  estado: EstadoArcaSemaforo;
+  resumen: string;
+  entorno: string;
+  punto_venta: number;
+  cuit_empresa: string;
+  checks: EstadoArcaCheck[];
+  evaluado_at: string;
+}
+
 export const TIPOS_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
   factura_a: 'Factura A',
   factura_b: 'Factura B',

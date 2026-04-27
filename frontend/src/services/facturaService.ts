@@ -16,6 +16,7 @@ import {
   RegistrarCobroResponse,
   PedidosPendientesResponse,
   FacturarMasivoResponse,
+  EstadoArcaResponse,
 } from '@/types/factura';
 
 const BASE_URL = '/facturas';
@@ -90,6 +91,11 @@ export const facturaService = {
       `${BASE_URL}/pedidos-pendientes/facturar-masivo`,
       { pedido_ids: pedidoIds },
     );
+    return response.data;
+  },
+
+  async estadoArca(): Promise<EstadoArcaResponse> {
+    const response = await api.get(`${BASE_URL}/estado-arca`);
     return response.data;
   },
 };
