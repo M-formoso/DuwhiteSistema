@@ -417,16 +417,16 @@ export default function LoteDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+        <div className="flex items-start gap-2 sm:gap-4 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="flex-shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900 font-mono">{lote.numero}</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center flex-wrap gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 font-mono">{lote.numero}</h1>
               <Badge className={ESTADO_COLORS[lote.estado]}>{getEstadoLabel(lote.estado)}</Badge>
               <Badge className={PRIORIDAD_COLORS[lote.prioridad]}>
                 {getPrioridadLabel(lote.prioridad)}
@@ -438,37 +438,38 @@ export default function LoteDetailPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-gray-500">
+            <p className="text-sm text-gray-500 mt-1">
               {getTipoServicioLabel(lote.tipo_servicio)}
               {lote.cliente_nombre && ` · ${lote.cliente_nombre}`}
             </p>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="hidden sm:inline-flex">
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={() => navigate(`/produccion/lotes/${id}/editar`)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Editar
+          <Button variant="outline" size="sm" onClick={() => navigate(`/produccion/lotes/${id}/editar`)}>
+            <Edit className="h-4 w-4 sm:mr-2" />
+            <span className="ml-2 sm:ml-0">Editar</span>
           </Button>
-          <Button variant="outline" onClick={() => setShowMoverModal(true)}>
-            <ChevronRight className="h-4 w-4 mr-2" />
-            Mover a Etapa
+          <Button variant="outline" size="sm" onClick={() => setShowMoverModal(true)}>
+            <ChevronRight className="h-4 w-4 sm:mr-2" />
+            <span className="ml-2 sm:ml-0 truncate">Mover Etapa</span>
           </Button>
-          <Button variant="outline" onClick={() => setShowEstadoModal(true)}>
-            <Settings className="h-4 w-4 mr-2" />
-            Cambiar Estado
+          <Button variant="outline" size="sm" onClick={() => setShowEstadoModal(true)}>
+            <Settings className="h-4 w-4 sm:mr-2" />
+            <span className="ml-2 sm:ml-0 truncate">Estado</span>
           </Button>
           {canDelete && (
             <Button
               variant="outline"
+              size="sm"
               className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
               onClick={() => setShowDeleteModal(true)}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Eliminar
+              <Trash2 className="h-4 w-4 sm:mr-2" />
+              <span className="ml-2 sm:ml-0">Eliminar</span>
             </Button>
           )}
         </div>
@@ -477,17 +478,17 @@ export default function LoteDetailPage() {
       {/* Banner de etapa en proceso */}
       {etapaEnProceso && (
         <Card className="border-blue-400 bg-blue-50">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center">
+          <CardContent className="py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center flex-shrink-0">
                   <Play className="h-5 w-5" />
                 </div>
-                <div>
-                  <p className="font-medium text-blue-900">
+                <div className="min-w-0">
+                  <p className="font-medium text-blue-900 text-sm sm:text-base">
                     En proceso: {etapaEnProceso.etapa_nombre}
                   </p>
-                  <div className="flex items-center gap-4 text-sm text-blue-700">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-blue-700">
                     {etapaEnProceso.responsable_nombre && (
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
@@ -496,12 +497,11 @@ export default function LoteDetailPage() {
                     )}
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      Tiempo transcurrido:{' '}
                       <TiempoEnVivo fechaInicio={etapaEnProceso.fecha_inicio!} />
                     </span>
                     {tiempoEstimadoEtapaActual && (
-                      <span className="text-blue-600">
-                        (Estimado: {formatDuration(tiempoEstimadoEtapaActual)})
+                      <span className="text-blue-600 hidden sm:inline">
+                        (Est: {formatDuration(tiempoEstimadoEtapaActual)})
                       </span>
                     )}
                   </div>
@@ -510,6 +510,7 @@ export default function LoteDetailPage() {
               <Button
                 onClick={() => handleFinalizarEtapa(etapaEnProceso.etapa_id)}
                 disabled={finalizarEtapaMutation.isPending}
+                className="w-full sm:w-auto"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Finalizar Etapa
@@ -604,19 +605,19 @@ export default function LoteDetailPage() {
                   return (
                     <div
                       key={etapa.id}
-                      className={`p-4 rounded-lg border-2 ${ETAPA_ESTADO_COLORS[etapa.estado]}`}
+                      className={`p-3 sm:p-4 rounded-lg border-2 ${ETAPA_ESTADO_COLORS[etapa.estado]}`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0">
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
                             style={{ backgroundColor: etapa.etapa_color || '#6B7280' }}
                           >
                             {index + 1}
                           </div>
-                          <div>
-                            <p className="font-medium">{etapa.etapa_nombre}</p>
-                            <div className="flex items-center gap-3 text-sm text-gray-500">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm sm:text-base">{etapa.etapa_nombre}</p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-gray-500">
                               {etapa.fecha_inicio && (
                                 <span>
                                   Inicio:{' '}
@@ -637,10 +638,11 @@ export default function LoteDetailPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 sm:flex-shrink-0">
                           {etapa.estado === 'pendiente' && lote.etapa_actual_id === etapa.etapa_id && (
                             <Button
                               size="sm"
+                              className="w-full sm:w-auto"
                               onClick={() => handleIniciarEtapa(etapa.etapa_id)}
                               disabled={iniciarEtapaMutation.isPending}
                             >
@@ -652,6 +654,7 @@ export default function LoteDetailPage() {
                             <Button
                               size="sm"
                               variant="secondary"
+                              className="w-full sm:w-auto"
                               onClick={() => handleFinalizarEtapa(etapa.etapa_id)}
                               disabled={finalizarEtapaMutation.isPending}
                             >

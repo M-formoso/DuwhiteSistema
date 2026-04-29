@@ -465,10 +465,10 @@ export default function KanbanBoardPage() {
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Producción</h1>
-          <p className="text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Producción</h1>
+          <p className="text-sm text-gray-500">
             Tablero Kanban - {kanban?.total_lotes || 0} lotes activos
             {kanban && kanban.lotes_atrasados > 0 && (
               <span className="text-red-600 ml-2">
@@ -477,10 +477,10 @@ export default function KanbanBoardPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => navigate('/produccion/panel')} className="bg-green-600 hover:bg-green-700">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-2">
+          <Button onClick={() => navigate('/produccion/panel')} className="bg-green-600 hover:bg-green-700 col-span-2 sm:col-span-1">
             <Play className="h-4 w-4 mr-2" />
-            Panel Operarios
+            <span className="truncate">Panel Operarios</span>
           </Button>
           <Button variant="outline" onClick={() => navigate('/produccion/canastos')}>
             <Box className="h-4 w-4 mr-2" />
@@ -496,18 +496,18 @@ export default function KanbanBoardPage() {
           </Button>
           <Button variant="outline" onClick={() => navigate('/produccion/recursos')} className="border-green-500 text-green-600 hover:bg-green-50">
             <Box className="h-4 w-4 mr-2" />
-            Estado Recursos
+            <span className="truncate">Recursos</span>
           </Button>
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Actualizar
+            <span className="truncate">Actualizar</span>
           </Button>
           <Button variant="outline" onClick={() => navigate('/produccion/lotes')}>
-            Ver Lista
+            <span className="truncate">Ver Lista</span>
           </Button>
           <Button onClick={() => navigate('/produccion/lotes/nuevo')}>
             <Plus className="h-4 w-4 mr-2" />
-            Nuevo Lote
+            <span className="truncate">Nuevo Lote</span>
           </Button>
         </div>
       </div>
@@ -542,7 +542,7 @@ export default function KanbanBoardPage() {
             return (
             <div
               key={columna.etapa_id}
-              className="flex-shrink-0 w-80 flex flex-col"
+              className="flex-shrink-0 w-[85vw] xs:w-72 sm:w-80 flex flex-col"
             >
               <Card className="flex flex-col h-full">
                 <CardHeader

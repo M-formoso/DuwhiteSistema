@@ -207,23 +207,23 @@ export default function ProductosLavadoPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Productos de Lavado</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Productos de Lavado</h1>
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
             Catálogo de prendas para el proceso de conteo y facturación
           </p>
         </div>
-        <Button onClick={handleOpenCreate}>
+        <Button onClick={handleOpenCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Producto
         </Button>
       </div>
 
       {/* Resumen por categoría */}
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
         {productosPorCategoria.map((cat) => (
           <Card
             key={cat.value}

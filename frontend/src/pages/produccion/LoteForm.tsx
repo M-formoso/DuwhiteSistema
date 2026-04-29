@@ -171,17 +171,17 @@ export default function LoteFormPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+      <div className="flex items-start gap-2 sm:gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="flex-shrink-0">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">
             {isEditing ? `Editar Lote ${lote?.numero}` : 'Nuevo Lote de Producción'}
           </h1>
-          <p className="text-gray-500">
+          <p className="text-xs sm:text-sm text-gray-500">
             {isEditing ? 'Modifica los datos del lote' : 'Ingresa los datos del nuevo lote'}
           </p>
         </div>
@@ -224,7 +224,7 @@ export default function LoteFormPage() {
         </Card>
 
         {/* Acciones */}
-        <div className="flex justify-end gap-4">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-4">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancelar
           </Button>

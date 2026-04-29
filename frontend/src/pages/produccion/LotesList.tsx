@@ -123,32 +123,32 @@ export default function LotesListPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Lotes de Producción</h1>
-          <p className="text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Lotes de Producción</h1>
+          <p className="text-sm text-gray-500">
             {total} lotes en total
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/produccion')}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="flex-1 sm:flex-initial" onClick={() => navigate('/produccion')}>
             <LayoutGrid className="h-4 w-4 mr-2" />
-            Ver Kanban
+            <span className="hidden xs:inline">Ver </span>Kanban
           </Button>
-          <Button onClick={() => navigate('/produccion/lotes/nuevo')}>
+          <Button className="flex-1 sm:flex-initial" onClick={() => navigate('/produccion/lotes/nuevo')}>
             <Plus className="h-4 w-4 mr-2" />
-            Nuevo Lote
+            <span className="hidden xs:inline">Nuevo </span>Lote
           </Button>
         </div>
       </div>
 
       {/* Filtros */}
       <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
+        <CardContent className="py-3 sm:py-4">
+          <div className="flex flex-wrap gap-2 sm:gap-4 items-center">
+            <div className="hidden sm:flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
               <span className="text-sm font-medium text-gray-700">Filtros:</span>
             </div>
@@ -157,7 +157,7 @@ export default function LotesListPage() {
               value={estado || 'all'}
               onValueChange={(v) => updateFilter('estado', v === 'all' ? null : v)}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full xs:w-36 sm:w-40">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -174,7 +174,7 @@ export default function LotesListPage() {
               value={prioridad || 'all'}
               onValueChange={(v) => updateFilter('prioridad', v === 'all' ? null : v)}
             >
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-full xs:w-32 sm:w-36">
                 <SelectValue placeholder="Prioridad" />
               </SelectTrigger>
               <SelectContent>
@@ -194,19 +194,20 @@ export default function LotesListPage() {
               className={soloAtrasados ? '' : 'text-red-600 border-red-300 hover:bg-red-50'}
             >
               <AlertTriangle className="h-4 w-4 mr-1" />
-              Solo atrasados
+              <span className="hidden xs:inline">Solo </span>Atrasados
             </Button>
 
             {(estado || prioridad || soloAtrasados) && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Limpiar filtros
+                Limpiar
               </Button>
             )}
 
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex gap-1 sm:gap-2">
               <Button
                 variant={viewMode === 'table' ? 'secondary' : 'ghost'}
                 size="icon"
+                className="hidden md:inline-flex"
                 onClick={() => setViewMode('table')}
               >
                 <List className="h-4 w-4" />
@@ -214,6 +215,7 @@ export default function LotesListPage() {
               <Button
                 variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
                 size="icon"
+                className="hidden md:inline-flex"
                 onClick={() => setViewMode('cards')}
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -232,7 +234,7 @@ export default function LotesListPage() {
           <RefreshCw className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : viewMode === 'table' ? (
-        <Card>
+        <Card className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -320,8 +322,22 @@ export default function LotesListPage() {
             </TableBody>
           </Table>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ) : null}
+
+      {/* Vista de cards: siempre en mobile, opcional en desktop */}
+      {!isLoading && (
+        <div
+          className={
+            viewMode === 'cards'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4'
+              : 'grid grid-cols-1 sm:grid-cols-2 gap-3 md:hidden'
+          }
+        >
+          {lotes.length === 0 && viewMode === 'cards' && (
+            <p className="col-span-full text-center text-gray-500 py-8">
+              No se encontraron lotes
+            </p>
+          )}
           {lotes.map((lote) => (
             <Card
               key={lote.id}

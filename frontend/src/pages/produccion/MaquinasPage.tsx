@@ -275,21 +275,21 @@ export default function MaquinasPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Máquinas</h1>
-          <p className="text-gray-500">Gestiona el equipamiento de producción</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Máquinas</h1>
+          <p className="text-xs sm:text-sm text-gray-500">Gestiona el equipamiento de producción</p>
         </div>
-        <Button onClick={handleOpenCreate}>
+        <Button onClick={handleOpenCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nueva Máquina
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{stats.total}</div>

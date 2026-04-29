@@ -315,27 +315,27 @@ export default function ConteoFinalizacionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-2 sm:gap-4 min-w-0">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="flex-shrink-0">
+            <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Volver</span>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Calculator className="h-6 w-6" />
-              Conteo y Finalización
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <Calculator className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
+              <span className="truncate">Conteo y Finalización</span>
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-500 text-xs sm:text-sm truncate">
               Lote {lote.numero} - {lote.cliente_nombre}
             </p>
           </div>
         </div>
         <Badge
           variant={lote.tipo_lote === 'relevado' ? 'outline' : 'default'}
-          className={lote.tipo_lote === 'relevado' ? 'bg-purple-100 text-purple-700' : ''}
+          className={`self-start sm:self-auto ${lote.tipo_lote === 'relevado' ? 'bg-purple-100 text-purple-700' : ''}`}
         >
           {lote.tipo_lote === 'relevado' ? 'Relevado' : 'Normal'}
         </Badge>
@@ -344,7 +344,7 @@ export default function ConteoFinalizacionPage() {
       {/* Info del lote */}
       <Card>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-gray-400" />
               <div>
@@ -501,9 +501,9 @@ export default function ConteoFinalizacionPage() {
       {/* Resumen y acciones */}
       <Card className="border-2 border-primary">
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <span>Resumen del Conteo</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Checkbox
                 id="relevado"
                 checked={tieneRelevado}
@@ -536,20 +536,20 @@ export default function ConteoFinalizacionPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-6 mb-6">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-600">Total Unidades</p>
-              <p className="text-3xl font-bold text-blue-700">{totales.totalUnidades}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
+            <div className="text-center p-3 sm:p-4 bg-blue-50 rounded-lg">
+              <p className="text-xs sm:text-sm text-blue-600">Total Unidades</p>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-700">{totales.totalUnidades}</p>
             </div>
             {tieneRelevado && (
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <p className="text-sm text-purple-600">Para Relevado</p>
-                <p className="text-3xl font-bold text-purple-700">{totales.totalRelevado}</p>
+              <div className="text-center p-3 sm:p-4 bg-purple-50 rounded-lg">
+                <p className="text-xs sm:text-sm text-purple-600">Para Relevado</p>
+                <p className="text-2xl sm:text-3xl font-bold text-purple-700">{totales.totalRelevado}</p>
               </div>
             )}
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-green-600">Total a Facturar</p>
-              <p className="text-3xl font-bold text-green-700">
+            <div className="text-center p-3 sm:p-4 bg-green-50 rounded-lg">
+              <p className="text-xs sm:text-sm text-green-600">Total a Facturar</p>
+              <p className="text-xl sm:text-3xl font-bold text-green-700 break-words">
                 {formatCurrency(totales.totalMonto)}
               </p>
             </div>
@@ -565,7 +565,7 @@ export default function ConteoFinalizacionPage() {
             />
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
             <Button
               className="flex-1"
               size="lg"

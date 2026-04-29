@@ -224,14 +224,14 @@ export default function EtapasProduccionPage() {
   const etapasOrdenadas = [...(etapas || [])].sort((a, b) => a.orden - b.orden);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Etapas de Producción</h1>
-          <p className="text-gray-500">Configura las etapas del proceso productivo</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Etapas de Producción</h1>
+          <p className="text-xs sm:text-sm text-gray-500">Configura las etapas del proceso productivo</p>
         </div>
-        <Button onClick={handleOpenCreate}>
+        <Button onClick={handleOpenCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Nueva Etapa
         </Button>

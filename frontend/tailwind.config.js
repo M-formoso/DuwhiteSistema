@@ -14,6 +14,9 @@ export default {
       },
     },
     extend: {
+      screens: {
+        xs: "475px",
+      },
       colors: {
         // Paleta DUWHITE
         primary: {

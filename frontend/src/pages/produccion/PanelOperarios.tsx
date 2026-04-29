@@ -107,7 +107,7 @@ function LoteCard({
   return (
     <div
       className={`
-        relative rounded-2xl border-4 p-5 transition-all duration-300
+        relative rounded-2xl border-4 p-3 sm:p-5 transition-all duration-300
         ${enProceso ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-200' : ''}
         ${lote.esta_atrasado && !enProceso ? 'border-red-500 bg-red-50' : ''}
         ${!enProceso && !lote.esta_atrasado ? `${prioridad.border} bg-white` : ''}
@@ -144,8 +144,8 @@ function LoteCard({
       {/* Contenido principal */}
       <div className="mt-2">
         {/* Número de lote */}
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-2xl font-bold font-mono tracking-wide">{lote.numero}</h3>
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <h3 className="text-xl sm:text-2xl font-bold font-mono tracking-wide truncate">{lote.numero}</h3>
           {lote.tiempo_en_etapa_minutos > 0 && (
             <TiempoEnVivo minutos={lote.tiempo_en_etapa_minutos} />
           )}
@@ -153,29 +153,29 @@ function LoteCard({
 
         {/* Cliente */}
         {lote.cliente_nombre && (
-          <div className="flex items-center gap-2 text-lg text-gray-700 mb-3">
-            <User className="h-5 w-5" />
+          <div className="flex items-center gap-2 text-base sm:text-lg text-gray-700 mb-3">
+            <User className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
             <span className="font-medium truncate">{lote.cliente_nombre}</span>
           </div>
         )}
 
         {/* Info del lote */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-4">
           {lote.peso_entrada_kg && (
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-3">
-              <Scale className="h-6 w-6 text-gray-600" />
-              <div>
-                <p className="text-xs text-gray-500">Peso</p>
-                <p className="text-lg font-bold">{Number(lote.peso_entrada_kg).toFixed(1)} kg</p>
+            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-2 sm:p-3">
+              <Scale className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500">Peso</p>
+                <p className="text-base sm:text-lg font-bold truncate">{Number(lote.peso_entrada_kg).toFixed(1)} kg</p>
               </div>
             </div>
           )}
           {lote.cantidad_prendas && (
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-3">
-              <Shirt className="h-6 w-6 text-gray-600" />
-              <div>
-                <p className="text-xs text-gray-500">Prendas</p>
-                <p className="text-lg font-bold">{lote.cantidad_prendas}</p>
+            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-2 sm:p-3">
+              <Shirt className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500">Prendas</p>
+                <p className="text-base sm:text-lg font-bold truncate">{lote.cantidad_prendas}</p>
               </div>
             </div>
           )}
@@ -215,23 +215,23 @@ function LoteCard({
         {!enProceso ? (
           <button
             onClick={onIniciar}
-            className="w-full py-5 rounded-2xl bg-gradient-to-r from-green-500 to-green-600
-                       text-white text-xl font-bold flex items-center justify-center gap-3
+            className="w-full py-3 sm:py-5 rounded-2xl bg-gradient-to-r from-green-500 to-green-600
+                       text-white text-base sm:text-xl font-bold flex items-center justify-center gap-2 sm:gap-3
                        hover:from-green-600 hover:to-green-700 active:scale-98
                        transition-all shadow-lg shadow-green-200"
           >
-            <Play className="h-8 w-8" />
+            <Play className="h-6 w-6 sm:h-8 sm:w-8" />
             INICIAR ETAPA
           </button>
         ) : (
           <button
             onClick={onFinalizar}
-            className="w-full py-5 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600
-                       text-white text-xl font-bold flex items-center justify-center gap-3
+            className="w-full py-3 sm:py-5 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600
+                       text-white text-base sm:text-xl font-bold flex items-center justify-center gap-2 sm:gap-3
                        hover:from-blue-600 hover:to-blue-700 active:scale-98
                        transition-all shadow-lg shadow-blue-200"
           >
-            <CheckCircle className="h-8 w-8" />
+            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8" />
             FINALIZAR ETAPA
           </button>
         )}
@@ -256,27 +256,27 @@ function EtapaColumna({
   const lotesUrgentes = columna.lotes.filter((l) => l.prioridad === 'urgente').length;
 
   return (
-    <div className="flex-shrink-0 w-[400px] flex flex-col h-full">
+    <div className="flex-shrink-0 w-[88vw] sm:w-[360px] lg:w-[400px] flex flex-col h-full">
       {/* Header de etapa */}
       <div
-        className="rounded-t-2xl p-4 text-white"
+        className="rounded-t-2xl p-3 sm:p-4 text-white"
         style={{ backgroundColor: columna.etapa_color }}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">{columna.etapa_nombre}</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-2xl font-bold truncate">{columna.etapa_nombre}</h2>
             {columna.tiempo_estimado_minutos && (
-              <p className="text-white/80 text-sm flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                Estimado: {columna.tiempo_estimado_minutos >= 60
+              <p className="text-white/80 text-xs sm:text-sm flex items-center gap-1">
+                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+                Est: {columna.tiempo_estimado_minutos >= 60
                   ? `${Math.floor(columna.tiempo_estimado_minutos / 60)}h ${columna.tiempo_estimado_minutos % 60}m`
                   : `${columna.tiempo_estimado_minutos}m`}
               </p>
             )}
           </div>
-          <div className="text-right">
-            <div className="text-4xl font-bold">{columna.lotes.length}</div>
-            <div className="text-sm text-white/80">lotes</div>
+          <div className="text-right flex-shrink-0">
+            <div className="text-2xl sm:text-4xl font-bold leading-none">{columna.lotes.length}</div>
+            <div className="text-xs sm:text-sm text-white/80">lotes</div>
           </div>
         </div>
 
@@ -299,7 +299,7 @@ function EtapaColumna({
       </div>
 
       {/* Lista de lotes */}
-      <div className="bg-gray-100 rounded-b-2xl p-4 flex-1 overflow-y-auto space-y-4">
+      <div className="bg-gray-100 rounded-b-2xl p-3 sm:p-4 flex-1 overflow-y-auto space-y-3 sm:space-y-4">
         {columna.lotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Package className="h-16 w-16 mb-4 opacity-50" />
@@ -839,16 +839,16 @@ export default function PanelOperariosPage() {
   return (
     <div className={`h-screen bg-gray-50 flex flex-col overflow-hidden ${fullscreen ? 'p-4' : ''}`}>
       {/* Header fijo */}
-      <div className="bg-white border-b flex-shrink-0 px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border-b flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
           {/* Logo y título */}
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
-              <Package className="h-7 w-7 text-white" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
+              <Package className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Panel de Producción</h1>
-              <p className="text-gray-500 text-sm">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">Panel de Producción</h1>
+              <p className="text-gray-500 text-xs sm:text-sm truncate">
                 {new Date().toLocaleDateString('es-AR', {
                   weekday: 'long',
                   day: 'numeric',
@@ -859,66 +859,63 @@ export default function PanelOperariosPage() {
           </div>
 
           {/* Stats rápidos */}
-          <div className="flex items-center gap-6">
-            <div className="text-center px-4 py-2 bg-gray-100 rounded-xl">
-              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-              <p className="text-xs text-gray-500">LOTES ACTIVOS</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:flex xl:items-center gap-2 sm:gap-3 xl:gap-6">
+            <div className="text-center px-2 sm:px-4 py-2 bg-gray-100 rounded-xl">
+              <p className="text-xl sm:text-3xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 leading-tight">LOTES ACTIVOS</p>
             </div>
             {stats.enProceso > 0 && (
-              <div className="text-center px-4 py-2 bg-blue-100 rounded-xl">
-                <p className="text-3xl font-bold text-blue-700">{stats.enProceso}</p>
-                <p className="text-xs text-blue-600">EN PROCESO</p>
+              <div className="text-center px-2 sm:px-4 py-2 bg-blue-100 rounded-xl">
+                <p className="text-xl sm:text-3xl font-bold text-blue-700">{stats.enProceso}</p>
+                <p className="text-[10px] sm:text-xs text-blue-600 leading-tight">EN PROCESO</p>
               </div>
             )}
             {stats.atrasados > 0 && (
-              <div className="text-center px-4 py-2 bg-red-100 rounded-xl">
-                <p className="text-3xl font-bold text-red-700">{stats.atrasados}</p>
-                <p className="text-xs text-red-600">ATRASADOS</p>
+              <div className="text-center px-2 sm:px-4 py-2 bg-red-100 rounded-xl">
+                <p className="text-xl sm:text-3xl font-bold text-red-700">{stats.atrasados}</p>
+                <p className="text-[10px] sm:text-xs text-red-600 leading-tight">ATRASADOS</p>
               </div>
             )}
             {stats.urgentes > 0 && (
-              <div className="text-center px-4 py-2 bg-amber-100 rounded-xl">
-                <p className="text-3xl font-bold text-amber-700">{stats.urgentes}</p>
-                <p className="text-xs text-amber-600">URGENTES</p>
+              <div className="text-center px-2 sm:px-4 py-2 bg-amber-100 rounded-xl">
+                <p className="text-xl sm:text-3xl font-bold text-amber-700">{stats.urgentes}</p>
+                <p className="text-[10px] sm:text-xs text-amber-600 leading-tight">URGENTES</p>
               </div>
             )}
           </div>
 
           {/* Acciones */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
-              size="lg"
               onClick={() => refetch()}
-              className="h-12"
+              className="h-10 sm:h-12 flex-1 xl:flex-initial"
             >
-              <RefreshCw className="h-5 w-5 mr-2" />
-              Actualizar
+              <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+              <span className="hidden sm:inline">Actualizar</span>
             </Button>
             <Button
               variant="outline"
-              size="lg"
               onClick={toggleFullscreen}
-              className="h-12"
+              className="h-10 sm:h-12 hidden sm:inline-flex"
             >
               <Maximize2 className="h-5 w-5" />
             </Button>
             <Button
               variant="outline"
-              size="lg"
               onClick={() => navigate('/produccion')}
-              className="h-12"
+              className="h-10 sm:h-12 flex-1 xl:flex-initial"
             >
-              Vista Admin
-              <ChevronRight className="h-5 w-5 ml-1" />
+              <span className="text-sm sm:text-base">Vista Admin</span>
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 ml-1" />
             </Button>
           </div>
         </div>
       </div>
 
       {/* Tablero Kanban */}
-      <div className="p-6 overflow-x-auto flex-1 overflow-y-hidden">
-        <div className="flex gap-6 h-full" style={{ minWidth: 'max-content' }}>
+      <div className="p-3 sm:p-6 overflow-x-auto flex-1 overflow-y-hidden">
+        <div className="flex gap-3 sm:gap-6 h-full" style={{ minWidth: 'max-content' }}>
           {kanban?.columnas.map((columna) => (
             <EtapaColumna
               key={columna.etapa_id}

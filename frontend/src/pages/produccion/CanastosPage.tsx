@@ -131,23 +131,23 @@ export default function CanastosPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Canastos de Producción</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Canastos de Producción</h1>
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
             50 canastos disponibles para el proceso de lavado
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()}>
+        <Button variant="outline" onClick={() => refetch()} className="w-full sm:w-auto">
           <RefreshCw className="h-4 w-4 mr-2" />
           Actualizar
         </Button>
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="pt-4">
             <div className="flex justify-between items-center">
@@ -200,19 +200,19 @@ export default function CanastosPage() {
           <CardTitle>Grid de Canastos</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-10 gap-3">
+          <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3">
             {canastos.map((canasto) => (
               <div
                 key={canasto.id}
                 onClick={() => handleCanastoClick(canasto)}
                 className={cn(
-                  'relative p-3 rounded-lg border-2 cursor-pointer transition-all',
-                  'flex flex-col items-center justify-center min-h-[100px]',
+                  'relative p-2 sm:p-3 rounded-lg border-2 cursor-pointer transition-all',
+                  'flex flex-col items-center justify-center min-h-[80px] sm:min-h-[100px]',
                   getEstadoBgColor(canasto.estado as EstadoCanasto)
                 )}
               >
                 {/* Número del canasto */}
-                <span className="text-2xl font-bold text-gray-800">{canasto.numero}</span>
+                <span className="text-xl sm:text-2xl font-bold text-gray-800">{canasto.numero}</span>
                 <span className="text-xs text-gray-600">{canasto.codigo}</span>
 
                 {/* Info si está en uso */}

@@ -123,19 +123,19 @@ export default function EstadoRecursosPage() {
   const isLoading = loadingCanastos || loadingMaquinas;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2 sm:gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/produccion')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Estado de Recursos</h1>
-            <p className="text-gray-500">Canastos y Máquinas en tiempo real</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Estado de Recursos</h1>
+            <p className="text-xs sm:text-sm text-gray-500">Canastos y Máquinas en tiempo real</p>
           </div>
         </div>
-        <Button onClick={refetchAll} variant="outline" disabled={isLoading}>
+        <Button onClick={refetchAll} variant="outline" disabled={isLoading} className="w-full sm:w-auto">
           <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
           Actualizar
         </Button>
