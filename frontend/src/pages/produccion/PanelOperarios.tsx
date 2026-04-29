@@ -473,33 +473,33 @@ function PinModalGrande({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-[450px] p-6 relative shadow-xl">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-xl w-full max-w-[450px] max-h-[95vh] flex flex-col p-4 sm:p-6 relative shadow-xl">
         {/* Cerrar */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1 rounded-full hover:bg-gray-100"
         >
           <X className="h-5 w-5 text-gray-400" />
         </button>
 
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6 flex-shrink-0 pr-8">
           <div className="flex items-center gap-2 mb-1">
-            <Lock className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            <Lock className="h-5 w-5 text-primary flex-shrink-0" />
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{title}</h2>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-xs sm:text-sm text-gray-500">
             Valida tu PIN para {accion === 'iniciar' ? 'iniciar' : 'finalizar'} esta etapa
           </p>
           {loteNumero && etapaNombre && (
-            <p className="text-sm font-medium text-gray-900 mt-1">
+            <p className="text-xs sm:text-sm font-medium text-gray-900 mt-1 truncate">
               Lote {loteNumero} - {etapaNombre}
             </p>
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4 flex-1 overflow-y-auto pr-1">
           {/* Selector de operario */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
@@ -590,14 +590,14 @@ function PinModalGrande({
                 </div>
               ) : (
                 <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-4 xs:grid-cols-5 gap-1.5 sm:gap-2">
                     {canastos.map((canasto) => (
                       <div
                         key={canasto.id}
                         onClick={() => toggleCanasto(canasto.id)}
                         className={`
-                          flex items-center justify-center p-3 rounded-lg cursor-pointer
-                          border-2 transition-all text-lg font-bold
+                          flex items-center justify-center p-2 sm:p-3 rounded-lg cursor-pointer
+                          border-2 transition-all text-base sm:text-lg font-bold
                           ${selectedCanastos.includes(canasto.id)
                             ? 'bg-primary text-white border-primary'
                             : 'bg-green-50 border-green-300 hover:border-green-500 text-green-700'
@@ -664,11 +664,11 @@ function PinModalGrande({
         </div>
 
         {/* Botones */}
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4 sm:mt-6 flex-shrink-0 pt-3 sm:pt-4 border-t">
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50
+            className="w-full sm:w-auto px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancelar
@@ -683,8 +683,8 @@ function PinModalGrande({
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
               (requiereCanastos && selectedCanastos.length === 0)
             }
-            className="px-4 py-2 rounded-md bg-primary text-white hover:bg-primary/90
-                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="w-full sm:w-auto px-4 py-2 rounded-md bg-primary text-white hover:bg-primary/90
+                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <>

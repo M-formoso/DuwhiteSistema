@@ -113,7 +113,7 @@ export function PinValidationModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[400px]">
+      <DialogContent className="sm:max-w-[400px] w-[95vw] p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" />
@@ -186,12 +186,13 @@ export function PinValidationModal({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={validating}>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+          <Button variant="outline" onClick={onClose} disabled={validating} className="w-full sm:w-auto">
             Cancelar
           </Button>
           <Button
             onClick={handleValidate}
+            className="w-full sm:w-auto"
             disabled={!operarioId || pin.length < 4 || validating}
           >
             {validating ? (

@@ -242,7 +242,7 @@ export function DividirLoteModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[800px] w-[95vw] max-h-[90vh] flex flex-col p-4 sm:p-6">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Split className="h-5 w-5 text-primary" />
@@ -260,7 +260,7 @@ export function DividirLoteModal({
         ) : (
           <div className="space-y-4 flex-1 overflow-y-auto pr-1">
             {/* Resumen de selección */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <Card className="border-green-200 bg-green-50">
                 <CardContent className="pt-4 pb-2">
                   <div className="flex items-center justify-between">
@@ -400,7 +400,7 @@ export function DividirLoteModal({
             </div>
 
             {/* Observaciones */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1">
                 <Label className="text-xs text-green-700">Observaciones {destinoPrincipalNombre}</Label>
                 <Textarea
@@ -437,12 +437,13 @@ export function DividirLoteModal({
           </div>
         )}
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} disabled={dividirMutation.isPending}>
+        <DialogFooter className="flex-shrink-0 pt-3 sm:pt-4 border-t flex-col-reverse sm:flex-row gap-2">
+          <Button variant="outline" onClick={onClose} disabled={dividirMutation.isPending} className="w-full sm:w-auto">
             Cancelar
           </Button>
           <Button
             onClick={handleSubmit}
+            className="w-full sm:w-auto"
             disabled={dividirMutation.isPending || isLoading}
           >
             {dividirMutation.isPending ? (

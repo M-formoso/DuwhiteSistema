@@ -280,13 +280,13 @@ export function IniciarEtapaModal({
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={necesitaModalGrande ? "sm:max-w-[700px] max-h-[90vh] flex flex-col" : "sm:max-w-[450px] max-h-[90vh] flex flex-col"}>
+      <DialogContent className={`${necesitaModalGrande ? "sm:max-w-[700px]" : "sm:max-w-[450px]"} w-[95vw] max-h-[90vh] flex flex-col p-4 sm:p-6`}>
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <KeyRound className="h-5 w-5 text-primary" />
-            {title}
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <KeyRound className="h-5 w-5 text-primary flex-shrink-0" />
+            <span className="truncate">{title}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {description}
             {loteNumero && etapaNombre && (
               <span className="block mt-1 font-medium text-foreground">
@@ -296,7 +296,7 @@ export function IniciarEtapaModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4 overflow-y-auto flex-1">
+        <div className="space-y-3 sm:space-y-4 py-3 sm:py-4 overflow-y-auto flex-1">
           {/* Selector de operario */}
           <div className="space-y-2">
             <Label>Operario</Label>
@@ -376,7 +376,7 @@ export function IniciarEtapaModal({
 
           {/* Grid para máquinas y canastos cuando ambos están presentes */}
           {necesitaModalGrande ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {/* Selector de máquinas (múltiple) */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2 flex-wrap">
@@ -405,8 +405,8 @@ export function IniciarEtapaModal({
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                    <div className="grid grid-cols-2 gap-1">
+                  <div className="max-h-40 sm:max-h-48 overflow-y-auto border rounded-md p-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-2 gap-1">
                       {maquinas.map((m) => {
                         const isSelected = selectedMaquinas.includes(m.id);
                         return (
@@ -458,8 +458,8 @@ export function IniciarEtapaModal({
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <div className="max-h-48 overflow-y-auto border rounded-md p-2">
-                    <div className="grid grid-cols-4 gap-1">
+                  <div className="max-h-40 sm:max-h-48 overflow-y-auto border rounded-md p-2">
+                    <div className="grid grid-cols-5 sm:grid-cols-4 gap-1">
                       {canastosParaMostrar.map((canasto) => {
                         const isSelected = selectedCanastos.includes(canasto.id);
                         const isFromLote = 'esDelLote' in canasto && canasto.esDelLote;
@@ -598,8 +598,8 @@ export function IniciarEtapaModal({
                   </AlertDescription>
                 </Alert>
               ) : (
-                <div className="max-h-32 overflow-y-auto border rounded-md p-2">
-                  <div className="grid grid-cols-5 gap-2">
+                <div className="max-h-40 sm:max-h-32 overflow-y-auto border rounded-md p-2">
+                  <div className="grid grid-cols-4 xs:grid-cols-5 gap-1.5 sm:gap-2">
                     {canastosParaMostrar.map((canasto) => {
                       const isSelected = selectedCanastos.includes(canasto.id);
                       const isFromLote = 'esDelLote' in canasto && canasto.esDelLote;
@@ -651,12 +651,13 @@ export function IniciarEtapaModal({
           )}
         </div>
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} disabled={validating}>
+        <DialogFooter className="flex-shrink-0 pt-3 sm:pt-4 border-t flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onClose} disabled={validating} className="w-full sm:w-auto">
             Cancelar
           </Button>
           <Button
             onClick={handleValidate}
+            className="w-full sm:w-auto"
             disabled={
               !operarioId ||
               pin.length < 4 ||
