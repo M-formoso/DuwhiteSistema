@@ -80,8 +80,8 @@ function TiempoEnVivo({ minutos }: { minutos: number }) {
   const mins = tiempo % 60;
 
   return (
-    <div className="flex items-center gap-2 font-mono text-2xl font-bold">
-      <Timer className="h-6 w-6 text-blue-500 animate-pulse" />
+    <div className="flex items-center gap-1 font-mono text-sm font-bold">
+      <Timer className="h-3.5 w-3.5 text-blue-500 animate-pulse" />
       <span>{horas > 0 ? `${horas}h ${mins}m` : `${mins}m`}</span>
     </div>
   );
@@ -107,25 +107,25 @@ function LoteCard({
   return (
     <div
       className={`
-        relative rounded-2xl border-4 p-3 sm:p-5 transition-all duration-300
-        ${enProceso ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-200' : ''}
+        relative rounded-xl border-2 p-3 sm:p-4 transition-all duration-300
+        ${enProceso ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100' : ''}
         ${lote.esta_atrasado && !enProceso ? 'border-red-500 bg-red-50' : ''}
         ${!enProceso && !lote.esta_atrasado ? `${prioridad.border} bg-white` : ''}
-        ${tiempoExcedido ? 'ring-4 ring-orange-300' : ''}
+        ${tiempoExcedido ? 'ring-2 ring-orange-300' : ''}
       `}
     >
       {/* Badge de prioridad */}
-      <div className="absolute -top-3 left-4">
-        <span className={`px-3 py-1 rounded-full text-xs font-bold ${prioridad.bg} ${prioridad.text}`}>
+      <div className="absolute -top-2 left-3">
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${prioridad.bg} ${prioridad.text}`}>
           {prioridad.label}
         </span>
       </div>
 
       {/* Indicador en proceso */}
       {enProceso && (
-        <div className="absolute -top-3 right-4">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-500 text-white flex items-center gap-1">
-            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+        <div className="absolute -top-2 right-3">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500 text-white flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
             EN PROCESO
           </span>
         </div>
@@ -133,19 +133,19 @@ function LoteCard({
 
       {/* Atrasado */}
       {lote.esta_atrasado && !enProceso && (
-        <div className="absolute -top-3 right-4">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500 text-white flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" />
+        <div className="absolute -top-2 right-3">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white flex items-center gap-1">
+            <AlertTriangle className="h-2.5 w-2.5" />
             ATRASADO
           </span>
         </div>
       )}
 
       {/* Contenido principal */}
-      <div className="mt-2">
+      <div className="mt-1">
         {/* Número de lote */}
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <h3 className="text-xl sm:text-2xl font-bold font-mono tracking-wide truncate">{lote.numero}</h3>
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <h3 className="text-base sm:text-lg font-bold font-mono tracking-wide truncate">{lote.numero}</h3>
           {lote.tiempo_en_etapa_minutos > 0 && (
             <TiempoEnVivo minutos={lote.tiempo_en_etapa_minutos} />
           )}
@@ -153,29 +153,29 @@ function LoteCard({
 
         {/* Cliente */}
         {lote.cliente_nombre && (
-          <div className="flex items-center gap-2 text-base sm:text-lg text-gray-700 mb-3">
-            <User className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-700 mb-2">
+            <User className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="font-medium truncate">{lote.cliente_nombre}</span>
           </div>
         )}
 
         {/* Info del lote */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-3 sm:mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-2">
           {lote.peso_entrada_kg && (
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-2 sm:p-3">
-              <Scale className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 flex-shrink-0" />
+            <div className="flex items-center gap-1.5 bg-gray-100 rounded-lg px-2 py-1.5">
+              <Scale className="h-4 w-4 text-gray-600 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-gray-500">Peso</p>
-                <p className="text-base sm:text-lg font-bold truncate">{Number(lote.peso_entrada_kg).toFixed(1)} kg</p>
+                <p className="text-[10px] text-gray-500 leading-none">Peso</p>
+                <p className="text-sm font-bold truncate">{Number(lote.peso_entrada_kg).toFixed(1)} kg</p>
               </div>
             </div>
           )}
           {lote.cantidad_prendas && (
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-2 sm:p-3">
-              <Shirt className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 flex-shrink-0" />
+            <div className="flex items-center gap-1.5 bg-gray-100 rounded-lg px-2 py-1.5">
+              <Shirt className="h-4 w-4 text-gray-600 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-gray-500">Prendas</p>
-                <p className="text-base sm:text-lg font-bold truncate">{lote.cantidad_prendas}</p>
+                <p className="text-[10px] text-gray-500 leading-none">Prendas</p>
+                <p className="text-sm font-bold truncate">{lote.cantidad_prendas}</p>
               </div>
             </div>
           )}
@@ -183,9 +183,9 @@ function LoteCard({
 
         {/* Tiempo estimado vs real */}
         {columna.tiempo_estimado_minutos && lote.tiempo_en_etapa_minutos > 0 && (
-          <div className={`rounded-xl p-3 mb-4 ${tiempoExcedido ? 'bg-orange-100' : 'bg-gray-100'}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Tiempo estimado:</span>
+          <div className={`rounded-lg px-2 py-1.5 mb-2 ${tiempoExcedido ? 'bg-orange-100' : 'bg-gray-100'}`}>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-600">Estimado:</span>
               <span className="font-medium">
                 {columna.tiempo_estimado_minutos >= 60
                   ? `${Math.floor(columna.tiempo_estimado_minutos / 60)}h ${columna.tiempo_estimado_minutos % 60}m`
@@ -193,11 +193,11 @@ function LoteCard({
               </span>
             </div>
             {tiempoExcedido && (
-              <div className="flex items-center gap-1 mt-1 text-orange-600 font-medium">
-                <AlertTriangle className="h-4 w-4" />
+              <div className="flex items-center gap-1 mt-0.5 text-orange-600 font-medium text-[11px]">
+                <AlertTriangle className="h-3 w-3" />
                 <span>
                   +{Math.floor((lote.tiempo_en_etapa_minutos - columna.tiempo_estimado_minutos) / 60)}h {' '}
-                  {(lote.tiempo_en_etapa_minutos - columna.tiempo_estimado_minutos) % 60}m sobre estimado
+                  {(lote.tiempo_en_etapa_minutos - columna.tiempo_estimado_minutos) % 60}m sobre est.
                 </span>
               </div>
             )}
@@ -206,32 +206,32 @@ function LoteCard({
 
         {/* Fecha compromiso */}
         {lote.fecha_compromiso && (
-          <div className={`text-sm mb-4 ${lote.esta_atrasado ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+          <div className={`text-xs mb-2 ${lote.esta_atrasado ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
             Compromiso: {formatDate(lote.fecha_compromiso)}
           </div>
         )}
 
-        {/* Botón de acción GRANDE */}
+        {/* Botón de acción */}
         {!enProceso ? (
           <button
             onClick={onIniciar}
-            className="w-full py-3 sm:py-5 rounded-2xl bg-gradient-to-r from-green-500 to-green-600
-                       text-white text-base sm:text-xl font-bold flex items-center justify-center gap-2 sm:gap-3
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600
+                       text-white text-sm font-bold flex items-center justify-center gap-2
                        hover:from-green-600 hover:to-green-700 active:scale-98
-                       transition-all shadow-lg shadow-green-200"
+                       transition-all shadow-md shadow-green-100"
           >
-            <Play className="h-6 w-6 sm:h-8 sm:w-8" />
+            <Play className="h-4 w-4" />
             INICIAR ETAPA
           </button>
         ) : (
           <button
             onClick={onFinalizar}
-            className="w-full py-3 sm:py-5 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-600
-                       text-white text-base sm:text-xl font-bold flex items-center justify-center gap-2 sm:gap-3
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600
+                       text-white text-sm font-bold flex items-center justify-center gap-2
                        hover:from-blue-600 hover:to-blue-700 active:scale-98
-                       transition-all shadow-lg shadow-blue-200"
+                       transition-all shadow-md shadow-blue-100"
           >
-            <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8" />
+            <CheckCircle className="h-4 w-4" />
             FINALIZAR ETAPA
           </button>
         )}
@@ -256,7 +256,7 @@ function EtapaColumna({
   const lotesUrgentes = columna.lotes.filter((l) => l.prioridad === 'urgente').length;
 
   return (
-    <div className="flex-shrink-0 w-[88vw] sm:w-[360px] lg:w-[400px] flex flex-col h-full">
+    <div className="flex-shrink-0 w-[88vw] sm:w-[320px] lg:w-[340px] flex flex-col h-full">
       {/* Header de etapa */}
       <div
         className="rounded-t-2xl p-3 sm:p-4 text-white"
@@ -299,7 +299,7 @@ function EtapaColumna({
       </div>
 
       {/* Lista de lotes */}
-      <div className="bg-gray-100 rounded-b-2xl p-3 sm:p-4 flex-1 overflow-y-auto space-y-3 sm:space-y-4">
+      <div className="bg-gray-100 rounded-b-2xl p-2 sm:p-3 flex-1 overflow-y-auto space-y-3">
         {columna.lotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
             <Package className="h-16 w-16 mb-4 opacity-50" />
