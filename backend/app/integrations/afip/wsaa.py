@@ -111,11 +111,16 @@ def _generar_tra(service: str) -> bytes:
 
 
 def _cargar_cert_pem() -> bytes:
-    """Devuelve el cert en bytes, leído de AFIP_CERT_PEM (env) o de AFIP_CERT_PATH."""
+    """Devuelve el cert en bytes. Prioridad: B64 > PEM > PATH."""
+    if settings.AFIP_CERT_B64:
+        try:
+            return base64.b64decode(settings.AFIP_CERT_B64)
+        except Exception as exc:
+            raise AfipAuthError(f"AFIP_CERT_B64 no decodifica como base64: {exc}")
     if settings.AFIP_CERT_PEM:
         return settings.AFIP_CERT_PEM.encode("utf-8")
     if not settings.AFIP_CERT_PATH:
-        raise AfipAuthError("Faltan AFIP_CERT_PEM o AFIP_CERT_PATH — sin certificado para firmar el TRA.")
+        raise AfipAuthError("Faltan AFIP_CERT_B64/PEM/PATH — sin certificado para firmar el TRA.")
     if not os.path.exists(settings.AFIP_CERT_PATH):
         raise AfipAuthError(f"Certificado no encontrado: {settings.AFIP_CERT_PATH}")
     with open(settings.AFIP_CERT_PATH, "rb") as f:
@@ -123,11 +128,16 @@ def _cargar_cert_pem() -> bytes:
 
 
 def _cargar_key_pem() -> bytes:
-    """Devuelve la clave privada en bytes, leída de AFIP_KEY_PEM (env) o de AFIP_KEY_PATH."""
+    """Devuelve la clave privada en bytes. Prioridad: B64 > PEM > PATH."""
+    if settings.AFIP_KEY_B64:
+        try:
+            return base64.b64decode(settings.AFIP_KEY_B64)
+        except Exception as exc:
+            raise AfipAuthError(f"AFIP_KEY_B64 no decodifica como base64: {exc}")
     if settings.AFIP_KEY_PEM:
         return settings.AFIP_KEY_PEM.encode("utf-8")
     if not settings.AFIP_KEY_PATH:
-        raise AfipAuthError("Faltan AFIP_KEY_PEM o AFIP_KEY_PATH — sin clave privada para firmar el TRA.")
+        raise AfipAuthError("Faltan AFIP_KEY_B64/PEM/PATH — sin clave privada para firmar el TRA.")
     if not os.path.exists(settings.AFIP_KEY_PATH):
         raise AfipAuthError(f"Clave privada no encontrada: {settings.AFIP_KEY_PATH}")
     with open(settings.AFIP_KEY_PATH, "rb") as f:
@@ -160,8 +170,9 @@ def _firmar_cms(tra_xml: bytes) -> bytes:
 
 def _llamar_wsaa(cms_der: bytes) -> dict:
     """Envía el CMS firmado a WSAA y devuelve el XML de respuesta parseado."""
+    from app.integrations.afip.ssl_helper import crear_session_afip
     try:
-        transport = Transport(timeout=30)
+        transport = Transport(session=crear_session_afip(), timeout=30)
         client = zeep.Client(settings.AFIP_WSAA_URL, transport=transport)
         cms_b64 = base64.b64encode(cms_der).decode("ascii")
         response_xml = client.service.loginCms(cms_b64)

@@ -56,6 +56,14 @@ def _check_punto_venta() -> dict:
 
 
 def _check_cert_existe() -> dict:
+    if settings.AFIP_CERT_B64:
+        return {
+            "id": "cert_existe",
+            "titulo": "Certificado ARCA (.crt)",
+            "ok": True,
+            "detalle": "Cargado desde AFIP_CERT_B64 (variable de entorno, base64).",
+            "critico": True,
+        }
     if settings.AFIP_CERT_PEM:
         return {
             "id": "cert_existe",
@@ -70,7 +78,7 @@ def _check_cert_existe() -> dict:
             "id": "cert_existe",
             "titulo": "Certificado ARCA (.crt)",
             "ok": False,
-            "detalle": "Faltan AFIP_CERT_PEM (env) o AFIP_CERT_PATH (archivo).",
+            "detalle": "Faltan AFIP_CERT_B64/PEM (env) o AFIP_CERT_PATH (archivo).",
             "critico": True,
         }
     existe = os.path.exists(path)
@@ -84,6 +92,14 @@ def _check_cert_existe() -> dict:
 
 
 def _check_key_existe() -> dict:
+    if settings.AFIP_KEY_B64:
+        return {
+            "id": "key_existe",
+            "titulo": "Clave privada (.key)",
+            "ok": True,
+            "detalle": "Cargada desde AFIP_KEY_B64 (variable de entorno, base64).",
+            "critico": True,
+        }
     if settings.AFIP_KEY_PEM:
         return {
             "id": "key_existe",
@@ -98,7 +114,7 @@ def _check_key_existe() -> dict:
             "id": "key_existe",
             "titulo": "Clave privada (.key)",
             "ok": False,
-            "detalle": "Faltan AFIP_KEY_PEM (env) o AFIP_KEY_PATH (archivo).",
+            "detalle": "Faltan AFIP_KEY_B64/PEM (env) o AFIP_KEY_PATH (archivo).",
             "critico": True,
         }
     existe = os.path.exists(path)
@@ -115,7 +131,20 @@ def _check_cert_valido() -> dict:
     """Verifica que el certificado se pueda parsear y mira su vencimiento."""
     cert_bytes: bytes | None = None
     origen = ""
-    if settings.AFIP_CERT_PEM:
+    if settings.AFIP_CERT_B64:
+        import base64 as _b64
+        try:
+            cert_bytes = _b64.b64decode(settings.AFIP_CERT_B64)
+            origen = "AFIP_CERT_B64"
+        except Exception as exc:
+            return {
+                "id": "cert_valido",
+                "titulo": "Certificado válido",
+                "ok": False,
+                "detalle": f"AFIP_CERT_B64 no decodifica: {exc}",
+                "critico": True,
+            }
+    elif settings.AFIP_CERT_PEM:
         cert_bytes = settings.AFIP_CERT_PEM.encode("utf-8")
         origen = "AFIP_CERT_PEM"
     elif settings.AFIP_CERT_PATH and os.path.exists(settings.AFIP_CERT_PATH):

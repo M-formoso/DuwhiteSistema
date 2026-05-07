@@ -81,9 +81,11 @@ class WsfeClient:
         self.wsdl_url = settings.AFIP_WSFEV1_URL
         self._client: Optional[zeep.Client] = None
 
-    def _get_client(self) -> zeep.Client:
+    def _get_client(self) -> zeep.Client:  # noqa: D401
+        from app.integrations.afip.ssl_helper import crear_session_afip
+
         if self._client is None:
-            transport = Transport(timeout=30)
+            transport = Transport(session=crear_session_afip(), timeout=30)
             self._client = zeep.Client(self.wsdl_url, transport=transport)
         return self._client
 
