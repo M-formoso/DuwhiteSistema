@@ -18,6 +18,7 @@ from app.models.cuenta_corriente import (
     DetalleRecibo,
     TipoMovimientoCC,
 )
+from app.models.tesoreria import MovimientoTesoreria, TipoMovimientoTesoreria
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.schemas.pedido import PedidoCreate, PedidoUpdate, DetallePedidoCreate
 from app.schemas.cuenta_corriente import MovimientoCCCreate, RegistrarPagoRequest
@@ -503,6 +504,31 @@ class ClienteService:
         )
 
         self.db.add(movimiento)
+
+        # Crear movimiento de tesorería en paralelo (refleja el ingreso real de plata)
+        tipo_tesoreria_map = {
+            "efectivo": TipoMovimientoTesoreria.INGRESO_EFECTIVO.value,
+            "transferencia": TipoMovimientoTesoreria.INGRESO_TRANSFERENCIA.value,
+            "cheque": TipoMovimientoTesoreria.INGRESO_CHEQUE.value,
+        }
+        metodo_pago_norm = (data.medio_pago or "efectivo").lower()
+        tipo_tesoreria = tipo_tesoreria_map.get(metodo_pago_norm, TipoMovimientoTesoreria.INGRESO_EFECTIVO.value)
+        metodo_pago_tesoreria = metodo_pago_norm if metodo_pago_norm in tipo_tesoreria_map else "efectivo"
+
+        movimiento_tesoreria = MovimientoTesoreria(
+            id=str(uuid4()),
+            tipo=tipo_tesoreria,
+            concepto=concepto,
+            monto=data.monto,
+            es_ingreso=True,
+            fecha_movimiento=data.fecha,
+            metodo_pago=metodo_pago_tesoreria,
+            cliente_id=data.cliente_id,
+            registrado_por_id=usuario_id,
+            notas=data.notas,
+            comprobante=data.referencia_pago,
+        )
+        self.db.add(movimiento_tesoreria)
 
         # Generar recibo
         numero_recibo = self._generar_numero_recibo()

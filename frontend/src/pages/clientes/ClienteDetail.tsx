@@ -583,8 +583,12 @@ export default function ClienteDetailPage() {
                   </Button>
                   <Button
                     className="flex-1"
-                    onClick={() => navigate(`/tesoreria?tipo=ingreso&cliente_id=${id}&cliente_nombre=${encodeURIComponent(cliente.nombre_fantasia || cliente.razon_social)}`)}
-                    disabled={!cliente.tiene_deuda}
+                    onClick={() => {
+                      setPagoMonto(cliente.saldo_cuenta_corriente?.toString() || '');
+                      setPagoMedio('efectivo');
+                      setPagoReferencia('');
+                      setShowPagoModal(true);
+                    }}
                   >
                     <CreditCard className="h-4 w-4 mr-2" />
                     Pagar
