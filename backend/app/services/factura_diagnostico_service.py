@@ -57,11 +57,14 @@ def _check_punto_venta() -> dict:
 
 def _check_cert_existe() -> dict:
     if settings.AFIP_CERT_B64:
+        import hashlib as _h
+        b64_clean = "".join(settings.AFIP_CERT_B64.split())
+        sha = _h.sha256(b64_clean.encode()).hexdigest()[:12]
         return {
             "id": "cert_existe",
             "titulo": "Certificado ARCA (.crt)",
             "ok": True,
-            "detalle": "Cargado desde AFIP_CERT_B64 (variable de entorno, base64).",
+            "detalle": f"AFIP_CERT_B64 — len={len(b64_clean)} chars, sha256={sha}",
             "critico": True,
         }
     if settings.AFIP_CERT_PEM:
@@ -93,11 +96,14 @@ def _check_cert_existe() -> dict:
 
 def _check_key_existe() -> dict:
     if settings.AFIP_KEY_B64:
+        import hashlib as _h
+        b64_clean = "".join(settings.AFIP_KEY_B64.split())
+        sha = _h.sha256(b64_clean.encode()).hexdigest()[:12]
         return {
             "id": "key_existe",
             "titulo": "Clave privada (.key)",
             "ok": True,
-            "detalle": "Cargada desde AFIP_KEY_B64 (variable de entorno, base64).",
+            "detalle": f"AFIP_KEY_B64 — len={len(b64_clean)} chars, sha256={sha} (esperado: len=2272)",
             "critico": True,
         }
     if settings.AFIP_KEY_PEM:
