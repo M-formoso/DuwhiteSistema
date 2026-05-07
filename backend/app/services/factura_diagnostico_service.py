@@ -56,13 +56,21 @@ def _check_punto_venta() -> dict:
 
 
 def _check_cert_existe() -> dict:
+    if settings.AFIP_CERT_PEM:
+        return {
+            "id": "cert_existe",
+            "titulo": "Certificado ARCA (.crt)",
+            "ok": True,
+            "detalle": "Cargado desde AFIP_CERT_PEM (variable de entorno).",
+            "critico": True,
+        }
     path = settings.AFIP_CERT_PATH
     if not path:
         return {
             "id": "cert_existe",
             "titulo": "Certificado ARCA (.crt)",
             "ok": False,
-            "detalle": "AFIP_CERT_PATH no configurado.",
+            "detalle": "Faltan AFIP_CERT_PEM (env) o AFIP_CERT_PATH (archivo).",
             "critico": True,
         }
     existe = os.path.exists(path)
@@ -70,19 +78,27 @@ def _check_cert_existe() -> dict:
         "id": "cert_existe",
         "titulo": "Certificado ARCA (.crt)",
         "ok": existe,
-        "detalle": f"{path} {'(encontrado)' if existe else '(no existe — subirlo como Secret File en Railway)'}",
+        "detalle": f"{path} {'(encontrado)' if existe else '(no existe — subirlo como Secret File en Railway o usar AFIP_CERT_PEM)'}",
         "critico": True,
     }
 
 
 def _check_key_existe() -> dict:
+    if settings.AFIP_KEY_PEM:
+        return {
+            "id": "key_existe",
+            "titulo": "Clave privada (.key)",
+            "ok": True,
+            "detalle": "Cargada desde AFIP_KEY_PEM (variable de entorno).",
+            "critico": True,
+        }
     path = settings.AFIP_KEY_PATH
     if not path:
         return {
             "id": "key_existe",
             "titulo": "Clave privada (.key)",
             "ok": False,
-            "detalle": "AFIP_KEY_PATH no configurado.",
+            "detalle": "Faltan AFIP_KEY_PEM (env) o AFIP_KEY_PATH (archivo).",
             "critico": True,
         }
     existe = os.path.exists(path)
@@ -90,28 +106,36 @@ def _check_key_existe() -> dict:
         "id": "key_existe",
         "titulo": "Clave privada (.key)",
         "ok": existe,
-        "detalle": f"{path} {'(encontrada)' if existe else '(no existe — subirla como Secret File en Railway)'}",
+        "detalle": f"{path} {'(encontrada)' if existe else '(no existe — subirla como Secret File en Railway o usar AFIP_KEY_PEM)'}",
         "critico": True,
     }
 
 
 def _check_cert_valido() -> dict:
     """Verifica que el certificado se pueda parsear y mira su vencimiento."""
-    path = settings.AFIP_CERT_PATH
-    if not path or not os.path.exists(path):
+    cert_bytes: bytes | None = None
+    origen = ""
+    if settings.AFIP_CERT_PEM:
+        cert_bytes = settings.AFIP_CERT_PEM.encode("utf-8")
+        origen = "AFIP_CERT_PEM"
+    elif settings.AFIP_CERT_PATH and os.path.exists(settings.AFIP_CERT_PATH):
+        with open(settings.AFIP_CERT_PATH, "rb") as f:
+            cert_bytes = f.read()
+        origen = settings.AFIP_CERT_PATH
+
+    if cert_bytes is None:
         return {
             "id": "cert_valido",
             "titulo": "Certificado válido",
             "ok": False,
-            "detalle": "No se puede validar — falta el archivo.",
+            "detalle": "No se puede validar — falta el certificado.",
             "critico": True,
         }
     try:
         from cryptography import x509
         from cryptography.hazmat.backends import default_backend
 
-        with open(path, "rb") as f:
-            cert = x509.load_pem_x509_certificate(f.read(), default_backend())
+        cert = x509.load_pem_x509_certificate(cert_bytes, default_backend())
 
         ahora = datetime.now(timezone.utc)
         not_after = cert.not_valid_after_utc if hasattr(cert, "not_valid_after_utc") else cert.not_valid_after

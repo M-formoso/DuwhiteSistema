@@ -110,6 +110,30 @@ def _generar_tra(service: str) -> bytes:
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8")
 
 
+def _cargar_cert_pem() -> bytes:
+    """Devuelve el cert en bytes, leído de AFIP_CERT_PEM (env) o de AFIP_CERT_PATH."""
+    if settings.AFIP_CERT_PEM:
+        return settings.AFIP_CERT_PEM.encode("utf-8")
+    if not settings.AFIP_CERT_PATH:
+        raise AfipAuthError("Faltan AFIP_CERT_PEM o AFIP_CERT_PATH — sin certificado para firmar el TRA.")
+    if not os.path.exists(settings.AFIP_CERT_PATH):
+        raise AfipAuthError(f"Certificado no encontrado: {settings.AFIP_CERT_PATH}")
+    with open(settings.AFIP_CERT_PATH, "rb") as f:
+        return f.read()
+
+
+def _cargar_key_pem() -> bytes:
+    """Devuelve la clave privada en bytes, leída de AFIP_KEY_PEM (env) o de AFIP_KEY_PATH."""
+    if settings.AFIP_KEY_PEM:
+        return settings.AFIP_KEY_PEM.encode("utf-8")
+    if not settings.AFIP_KEY_PATH:
+        raise AfipAuthError("Faltan AFIP_KEY_PEM o AFIP_KEY_PATH — sin clave privada para firmar el TRA.")
+    if not os.path.exists(settings.AFIP_KEY_PATH):
+        raise AfipAuthError(f"Clave privada no encontrada: {settings.AFIP_KEY_PATH}")
+    with open(settings.AFIP_KEY_PATH, "rb") as f:
+        return f.read()
+
+
 def _firmar_cms(tra_xml: bytes) -> bytes:
     """Firma el TRA con el certificado + clave en formato CMS/PKCS7 (DER)."""
     try:
@@ -119,20 +143,8 @@ def _firmar_cms(tra_xml: bytes) -> bytes:
     except ImportError as exc:  # pragma: no cover
         raise AfipAuthError(f"Falta la lib 'cryptography': {exc}")
 
-    if not settings.AFIP_CERT_PATH or not settings.AFIP_KEY_PATH:
-        raise AfipAuthError(
-            "AFIP_CERT_PATH / AFIP_KEY_PATH no configurados — imposible firmar el TRA."
-        )
-    if not os.path.exists(settings.AFIP_CERT_PATH):
-        raise AfipAuthError(f"Certificado no encontrado: {settings.AFIP_CERT_PATH}")
-    if not os.path.exists(settings.AFIP_KEY_PATH):
-        raise AfipAuthError(f"Clave privada no encontrada: {settings.AFIP_KEY_PATH}")
-
-    with open(settings.AFIP_CERT_PATH, "rb") as f:
-        cert = x509.load_pem_x509_certificate(f.read())
-
-    with open(settings.AFIP_KEY_PATH, "rb") as f:
-        private_key = serialization.load_pem_private_key(f.read(), password=None)
+    cert = x509.load_pem_x509_certificate(_cargar_cert_pem())
+    private_key = serialization.load_pem_private_key(_cargar_key_pem(), password=None)
 
     cms = (
         pkcs7.PKCS7SignatureBuilder()

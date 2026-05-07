@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     AFIP_PUNTO_VENTA: int = 2
     AFIP_CERT_PATH: str = ""  # Ruta al certificado .crt emitido por AFIP
     AFIP_KEY_PATH: str = ""  # Ruta a la clave privada .key
+    # Alternativa: contenido PEM directamente en variable de entorno (útil en Railway sin Mount Files).
+    # Si están seteados, tienen prioridad sobre AFIP_CERT_PATH / AFIP_KEY_PATH.
+    AFIP_CERT_PEM: str = ""
+    AFIP_KEY_PEM: str = ""
     AFIP_CACHE_DIR: str = "/tmp/duwhite/afip"  # Cache del ticket WSAA
     AFIP_WSAA_URL_HOMO: str = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?wsdl"
     AFIP_WSAA_URL_PROD: str = "https://wsaa.afip.gov.ar/ws/services/LoginCms?wsdl"
