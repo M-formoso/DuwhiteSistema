@@ -62,6 +62,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 
 import { facturaService } from '@/services/facturaService';
+import AplicacionesFactura from './AplicacionesFactura';
 import { getErrorMessage } from '@/services/api';
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
 import {
@@ -357,7 +358,7 @@ export default function FacturaDetailPage() {
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <p className="text-sm text-text-secondary">Total factura</p>
               <p className="text-lg font-semibold">{formatCurrency(total)}</p>
@@ -385,6 +386,7 @@ export default function FacturaDetailPage() {
               )}
             </div>
           </CardContent>
+          <AplicacionesFactura facturaId={factura.id} />
         </Card>
       )}
 

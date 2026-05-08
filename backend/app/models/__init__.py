@@ -68,6 +68,7 @@ from app.models.cuenta_corriente import (
     TipoMovimientoCC,
     MedioPago,
 )
+from app.models.aplicacion_pago import AplicacionPagoFactura
 from app.models.lista_precios import (
     ListaPrecios,
     Servicio,

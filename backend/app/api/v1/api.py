@@ -33,6 +33,7 @@ from app.api.v1.endpoints import (
     productos_lavado,
     remitos,
     facturas,
+    aplicaciones_pago,
 )
 
 api_router = APIRouter()
@@ -168,6 +169,12 @@ api_router.include_router(
     cuenta_corriente_cliente.router,
     prefix="/clientes/cuenta-corriente",
     tags=["Cuenta Corriente Clientes"],
+)
+
+# Aplicaciones pago↔factura
+api_router.include_router(
+    aplicaciones_pago.router,
+    tags=["Aplicaciones Pago"],
 )
 
 # Órdenes de Pago

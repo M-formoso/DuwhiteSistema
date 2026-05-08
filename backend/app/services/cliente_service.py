@@ -576,6 +576,14 @@ class ClienteService:
                     )
                     self.db.add(detalle)
 
+        # Aplicación FIFO automática a facturas pendientes del cliente
+        try:
+            from app.services import aplicacion_pago_service
+            aplicacion_pago_service.aplicar_fifo(self.db, movimiento, usuario_id)
+        except Exception:
+            # Si la aplicación falla, no bloqueamos el pago — queda como anticipo
+            pass
+
         self.db.commit()
         self.db.refresh(recibo)
         self.db.refresh(movimiento)
