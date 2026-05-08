@@ -34,6 +34,7 @@ from app.api.v1.endpoints import (
     remitos,
     facturas,
     aplicaciones_pago,
+    cobranzas,
 )
 
 api_router = APIRouter()
@@ -175,6 +176,13 @@ api_router.include_router(
 api_router.include_router(
     aplicaciones_pago.router,
     tags=["Aplicaciones Pago"],
+)
+
+# Cobranzas (aging, dashboard, compensación)
+api_router.include_router(
+    cobranzas.router,
+    prefix="/cobranzas",
+    tags=["Cobranzas"],
 )
 
 # Órdenes de Pago

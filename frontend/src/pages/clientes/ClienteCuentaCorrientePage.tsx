@@ -289,15 +289,16 @@ export default function ClienteCuentaCorrientePage() {
           <Button
             variant="outline"
             onClick={() => {
-              // TODO: Exportar a Excel/PDF
-              toast({
-                title: 'Próximamente',
-                description: 'La exportación estará disponible pronto.',
-              });
+              const params = new URLSearchParams();
+              if (fechaDesde) params.append('fecha_desde', fechaDesde);
+              if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+              const qs = params.toString();
+              const url = `/api/v1/clientes/${id}/estado-cuenta/pdf${qs ? `?${qs}` : ''}`;
+              window.open(url, '_blank');
             }}
           >
             <Download className="h-4 w-4 mr-2" />
-            Exportar
+            Exportar PDF
           </Button>
           <Button onClick={abrirModalCobranza} disabled={!cliente.tiene_deuda}>
             <CreditCard className="h-4 w-4 mr-2" />

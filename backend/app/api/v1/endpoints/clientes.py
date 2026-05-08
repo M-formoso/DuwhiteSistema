@@ -327,6 +327,29 @@ def obtener_estado_cuenta(
         )
 
 
+@router.get("/{cliente_id}/estado-cuenta/pdf")
+def descargar_estado_cuenta_pdf(
+    cliente_id: str,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Descarga el estado de cuenta del cliente como PDF."""
+    from fastapi.responses import Response
+    from app.services import estado_cuenta_pdf_service
+
+    pdf_bytes = estado_cuenta_pdf_service.generar_pdf(
+        db, cliente_id, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
+    filename = f"estado_cuenta_{cliente_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=\"{filename}\""},
+    )
+
+
 @router.get("/{cliente_id}/movimientos")
 def listar_movimientos_cuenta(
     cliente_id: str,

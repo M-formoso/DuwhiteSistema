@@ -41,6 +41,7 @@ import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedid
 
 // Finanzas - Solo CuentaCorrienteClientesPage (el resto migrado a Tesorería)
 import CuentaCorrienteClientesPage from '@/pages/finanzas/CuentaCorrienteClientesPage';
+import CobranzasDashboardPage from '@/pages/cobranzas/CobranzasDashboardPage';
 
 // Tesorería
 import TesoreriaPage from '@/pages/tesoreria/TesoreriaPage';
@@ -172,6 +173,9 @@ function App() {
         {/* Tesorería (antes Finanzas - todo centralizado aquí) */}
         <Route path="/tesoreria" element={<TesoreriaPage />} />
         <Route path="/tesoreria/cuentas-corrientes" element={<CuentaCorrienteClientesPage />} />
+
+        {/* Cobranzas (aging + dashboard de cobranzas) */}
+        <Route path="/cobranzas" element={<CobranzasDashboardPage />} />
 
         {/* Redirects de Finanzas antiguo a Tesorería */}
         <Route path="/finanzas" element={<Navigate to="/tesoreria" replace />} />

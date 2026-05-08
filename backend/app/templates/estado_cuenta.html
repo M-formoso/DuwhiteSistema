@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<title>Estado de Cuenta — {{ cliente.razon_social }}</title>
+<style>
+@page { size: A4; margin: 1.4cm 1.2cm; }
+body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; font-size: 10pt; }
+.header { border-bottom: 2px solid #00BCD4; padding-bottom: 10px; margin-bottom: 18px; display: flex; justify-content: space-between; }
+.header h1 { color: #00BCD4; margin: 0 0 4px 0; font-size: 18pt; }
+.empresa { font-size: 9pt; color: #777; line-height: 1.4; }
+.cliente-box { background: #F7F8FA; border: 1px solid #E0E0E0; padding: 10px 14px; margin-bottom: 16px; border-radius: 4px; }
+.cliente-box strong { color: #333; }
+.resumen { display: flex; gap: 8px; margin-bottom: 18px; }
+.resumen .card { flex: 1; border: 1px solid #E0E0E0; border-radius: 4px; padding: 10px; }
+.resumen .card .label { font-size: 8pt; color: #777; text-transform: uppercase; }
+.resumen .card .value { font-size: 14pt; font-weight: bold; margin-top: 4px; }
+.resumen .saldo { border-color: #EF4444; }
+.resumen .saldo .value { color: #EF4444; }
+.resumen .deuda .value { color: #3B82F6; }
+.resumen .sf .value { color: #F59E0B; }
+.resumen .sf { border-color: #F59E0B; }
+table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+th, td { padding: 6px 8px; border-bottom: 1px solid #E0E0E0; text-align: left; }
+th { background: #F7F8FA; color: #555; font-weight: 600; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.4px; }
+.text-right { text-align: right; }
+.debe { color: #EF4444; }
+.haber { color: #22C55E; }
+.estado-badge { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 7.5pt; font-weight: 600; }
+.b-cobrada { background: #DCFCE7; color: #166534; }
+.b-parcial { background: #FEF3C7; color: #854D0E; }
+.b-facturada { background: #DBEAFE; color: #1E40AF; }
+.b-sinfacturar { background: #FFEDD5; color: #9A3412; }
+.b-aplicado { background: #DCFCE7; color: #166534; }
+.b-anticipo { background: #EDE9FE; color: #5B21B6; }
+.footer { margin-top: 30px; font-size: 8pt; color: #777; border-top: 1px solid #E0E0E0; padding-top: 10px; }
+.totales { margin-top: 12px; text-align: right; font-weight: bold; }
+.totales .saldo-final { color: #EF4444; font-size: 12pt; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Estado de Cuenta</h1>
+    <div class="empresa">
+      {{ empresa.razon_social }}<br>
+      CUIT: {{ empresa.cuit }} · {{ empresa.condicion_iva }}<br>
+      {{ empresa.direccion }}
+    </div>
+  </div>
+  <div style="text-align: right; font-size: 9pt;">
+    <strong>Generado:</strong> {{ generado_at }}<br>
+    <strong>Período:</strong> {{ periodo or "Histórico completo" }}
+  </div>
+</div>
+
+<div class="cliente-box">
+  <strong>Cliente:</strong> {{ cliente.razon_social }}{% if cliente.nombre_fantasia %} ({{ cliente.nombre_fantasia }}){% endif %}<br>
+  {% if cliente.cuit %}<strong>CUIT:</strong> {{ cliente.cuit }} · {% endif %}
+  <strong>Cond. IVA:</strong> {{ cliente.condicion_iva }}
+  {% if cliente.codigo %} · <strong>Código:</strong> {{ cliente.codigo }}{% endif %}
+</div>
+
+<div class="resumen">
+  <div class="card saldo">
+    <div class="label">Saldo actual</div>
+    <div class="value">{{ saldo_actual | moneda }}</div>
+  </div>
+  <div class="card deuda">
+    <div class="label">Deuda facturada</div>
+    <div class="value">{{ deuda_facturada | moneda }}</div>
+  </div>
+  <div class="card sf">
+    <div class="label">Sin facturar</div>
+    <div class="value">{{ cargos_sin_facturar | moneda }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Saldo a favor</div>
+    <div class="value">{{ saldo_a_favor | moneda }}</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Fecha</th>
+      <th>Concepto</th>
+      <th>Comprobante</th>
+      <th>Estado</th>
+      <th class="text-right">Debe</th>
+      <th class="text-right">Haber</th>
+      <th class="text-right">Saldo</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in movimientos %}
+    <tr>
+      <td>{{ m.fecha_movimiento | fecha_ar }}</td>
+      <td>{{ m.concepto }}</td>
+      <td>{{ m.factura_numero or m.recibo_numero or m.referencia_pago or "—" }}</td>
+      <td>
+        {% if m.tipo == "cargo" %}
+          {% if m.factura and m.factura.estado_pago == "pagada" %}<span class="estado-badge b-cobrada">Cobrada</span>
+          {% elif m.factura and m.factura.estado_pago == "parcial" %}<span class="estado-badge b-parcial">Parcial</span>
+          {% elif m.factura %}<span class="estado-badge b-facturada">Facturada</span>
+          {% else %}<span class="estado-badge b-sinfacturar">Sin facturar</span>{% endif %}
+        {% elif m.tipo == "pago" %}
+          {% if m.factura_id %}<span class="estado-badge b-aplicado">Aplicado</span>
+          {% else %}<span class="estado-badge b-anticipo">Anticipo</span>{% endif %}
+        {% endif %}
+      </td>
+      <td class="text-right debe">{% if m.tipo == "cargo" %}{{ m.monto | moneda }}{% endif %}</td>
+      <td class="text-right haber">{% if m.tipo == "pago" %}{{ m.monto | moneda }}{% endif %}</td>
+      <td class="text-right">{{ m.saldo_posterior | moneda }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totales">
+  Saldo final: <span class="saldo-final">{{ saldo_actual | moneda }}</span>
+</div>
+
+<div class="footer">
+  Reporte generado por el Sistema de Gestión {{ empresa.nombre }}.
+  Este documento es informativo y no tiene validez fiscal.
+</div>
+
+</body>
+</html>
