@@ -177,24 +177,48 @@ export interface PedidoCreate {
 }
 
 // Cuenta Corriente
+export interface FacturaResumen {
+  id: string;
+  numero_completo: string | null;
+  tipo: string;
+  letra: string;
+  estado: string;
+  estado_pago: string | null;
+  total: number | null;
+  monto_pagado: number;
+  fecha_emision: string | null;
+  fecha_vencimiento_pago: string | null;
+  cae: string | null;
+}
+
 export interface MovimientoCuentaCorriente {
   id: string;
   tipo: TipoMovimientoCC;
   concepto: string;
   monto: number;
   fecha_movimiento: string;
+  fecha_vencimiento?: string | null;
   saldo_anterior: number;
   saldo_posterior: number;
+  factura_id?: string | null;
   factura_numero: string | null;
   recibo_numero: string | null;
   medio_pago: MedioPago | null;
   referencia_pago: string | null;
+  estado_facturacion?: string;
+  pedido_id?: string | null;
+  lote_id?: string | null;
+  factura?: FacturaResumen | null;
 }
 
 export interface EstadoCuenta {
   cliente_id: string;
   cliente_nombre: string;
   saldo_actual: number;
+  deuda_facturada?: number;
+  cargos_sin_facturar?: number;
+  saldo_a_favor?: number;
+  total_pagos_historicos?: number;
   limite_credito: number | null;
   credito_disponible: number | null;
   total_facturado_mes: number;

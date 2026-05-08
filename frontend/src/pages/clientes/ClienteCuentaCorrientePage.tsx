@@ -223,6 +223,31 @@ export default function ClienteCuentaCorrientePage() {
     }
   };
 
+  const getEstadoFacturacionBadge = (mov: any) => {
+    // Si es CARGO: depende de si tiene factura asociada y su estado_pago
+    if (mov.tipo === 'cargo') {
+      if (mov.factura) {
+        const ep = mov.factura.estado_pago;
+        if (ep === 'pagada') {
+          return <Badge className="bg-green-100 text-green-700">🟢 Cobrada</Badge>;
+        }
+        if (ep === 'parcial') {
+          return <Badge className="bg-yellow-100 text-yellow-700">🟡 Parcial</Badge>;
+        }
+        return <Badge className="bg-blue-100 text-blue-700">🔵 Facturada</Badge>;
+      }
+      return <Badge className="bg-orange-100 text-orange-700">🟠 Sin facturar</Badge>;
+    }
+    // Si es PAGO: depende de si está vinculado a una factura
+    if (mov.tipo === 'pago') {
+      if (mov.factura_id || mov.factura) {
+        return <Badge className="bg-green-100 text-green-700">🟢 Aplicado</Badge>;
+      }
+      return <Badge className="bg-purple-100 text-purple-700">🟣 Anticipo</Badge>;
+    }
+    return <Badge variant="outline">-</Badge>;
+  };
+
   const totalPages = Math.ceil((movimientosData?.total || 0) / ITEMS_PER_PAGE);
 
   if (loadingCliente) {
@@ -281,7 +306,7 @@ export default function ClienteCuentaCorrientePage() {
         </div>
       </div>
 
-      {/* Cards de resumen */}
+      {/* Cards de resumen — desglose contable */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className={cliente.tiene_deuda ? 'border-orange-300' : 'border-green-300'}>
           <CardContent className="pt-6">
@@ -294,6 +319,9 @@ export default function ClienteCuentaCorrientePage() {
                   }`}
                 >
                   {formatNumber(cliente.saldo_cuenta_corriente, 'currency')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {cliente.tiene_deuda ? 'A cobrar al cliente' : 'Sin deuda'}
                 </p>
               </div>
               <DollarSign
@@ -309,46 +337,43 @@ export default function ClienteCuentaCorrientePage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Facturado este mes</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatNumber(estadoCuenta?.total_facturado_mes || 0, 'currency')}
+                <p className="text-sm text-gray-500">Deuda facturada</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatNumber(estadoCuenta?.deuda_facturada || 0, 'currency')}
                 </p>
+                <p className="text-xs text-gray-400 mt-1">Con CAE de ARCA</p>
               </div>
-              <TrendingUp className="h-10 w-10 text-red-200" />
+              <Receipt className="h-10 w-10 text-blue-200" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={(estadoCuenta?.cargos_sin_facturar || 0) > 0 ? 'border-orange-300' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Pagado este mes</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatNumber(estadoCuenta?.total_pagado_mes || 0, 'currency')}
+                <p className="text-sm text-gray-500">Sin facturar</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatNumber(estadoCuenta?.cargos_sin_facturar || 0, 'currency')}
                 </p>
+                <p className="text-xs text-gray-400 mt-1">Cargos pendientes de factura</p>
               </div>
-              <TrendingDown className="h-10 w-10 text-green-200" />
+              <FileText className="h-10 w-10 text-orange-200" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={(estadoCuenta?.saldo_a_favor || 0) > 0 ? 'border-purple-300' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Crédito disponible</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    (estadoCuenta?.credito_disponible || 0) < 0 ? 'text-red-600' : 'text-gray-900'
-                  }`}
-                >
-                  {estadoCuenta?.limite_credito
-                    ? formatNumber(estadoCuenta.credito_disponible || 0, 'currency')
-                    : 'Sin límite'}
+                <p className="text-sm text-gray-500">Saldo a favor</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {formatNumber(estadoCuenta?.saldo_a_favor || 0, 'currency')}
                 </p>
+                <p className="text-xs text-gray-400 mt-1">Anticipos no aplicados</p>
               </div>
-              <CreditCard className="h-10 w-10 text-blue-200" />
+              <TrendingDown className="h-10 w-10 text-purple-200" />
             </div>
           </CardContent>
         </Card>
@@ -444,14 +469,15 @@ export default function ClienteCuentaCorrientePage() {
                       <TableHead className="w-[100px]">Fecha</TableHead>
                       <TableHead className="w-[100px]">Tipo</TableHead>
                       <TableHead>Concepto</TableHead>
-                      <TableHead>Referencia</TableHead>
+                      <TableHead>Comprobante</TableHead>
+                      <TableHead className="w-[140px]">Estado</TableHead>
                       <TableHead className="text-right">Debe</TableHead>
                       <TableHead className="text-right">Haber</TableHead>
                       <TableHead className="text-right">Saldo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movimientosFiltrados.map((mov) => (
+                    {movimientosFiltrados.map((mov: any) => (
                       <TableRow key={mov.id}>
                         <TableCell className="font-mono text-sm">
                           {formatDate(mov.fecha_movimiento)}
@@ -459,8 +485,11 @@ export default function ClienteCuentaCorrientePage() {
                         <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
                         <TableCell>{mov.concepto}</TableCell>
                         <TableCell className="text-gray-500 text-sm">
-                          {mov.referencia_pago || mov.factura_numero || mov.recibo_numero || '-'}
+                          {mov.factura?.numero_completo
+                            ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
+                            : (mov.factura_numero || mov.recibo_numero || mov.referencia_pago || '-')}
                         </TableCell>
+                        <TableCell>{getEstadoFacturacionBadge(mov)}</TableCell>
                         <TableCell className="text-right font-medium text-red-600">
                           {mov.tipo === 'cargo'
                             ? formatNumber(mov.monto, 'currency')

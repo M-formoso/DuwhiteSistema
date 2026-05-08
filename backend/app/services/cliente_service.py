@@ -635,10 +635,48 @@ class ClienteService:
         if cliente.limite_credito:
             credito_disponible = cliente.limite_credito - cliente.saldo_cuenta_corriente
 
+        # Desglose: cuánto del saldo es deuda facturada vs cargos sin facturar vs anticipos
+        deuda_facturada = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                MovimientoCuentaCorriente.factura_id.isnot(None),
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        cargos_sin_facturar = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                MovimientoCuentaCorriente.factura_id.is_(None),
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        total_pagos_historicos = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        # Saldo a favor = pagos > cargos. Si saldo cliente < 0, es a favor del cliente.
+        saldo_actual = Decimal(cliente.saldo_cuenta_corriente or 0)
+        saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
+
         return {
             "cliente_id": str(cliente.id),
             "cliente_nombre": cliente.nombre_display,
             "saldo_actual": cliente.saldo_cuenta_corriente,
+            "deuda_facturada": deuda_facturada,
+            "cargos_sin_facturar": cargos_sin_facturar,
+            "saldo_a_favor": saldo_a_favor,
+            "total_pagos_historicos": total_pagos_historicos,
             "limite_credito": cliente.limite_credito,
             "credito_disponible": credito_disponible,
             "total_facturado_mes": total_facturado_mes,

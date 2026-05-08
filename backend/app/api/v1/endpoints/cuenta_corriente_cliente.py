@@ -166,6 +166,46 @@ def obtener_resumen_cuentas_corrientes(
     }
 
 
+def _serializar_movimiento(m) -> dict:
+    """Serializa un MovimientoCuentaCorriente enriquecido con info de factura asociada."""
+    factura_info = None
+    if m.factura_id and m.factura:
+        f = m.factura
+        factura_info = {
+            "id": str(f.id),
+            "numero_completo": f.numero_completo,
+            "tipo": f.tipo,
+            "letra": f.letra,
+            "estado": f.estado,
+            "estado_pago": getattr(f, "estado_pago", None),
+            "total": float(f.total) if f.total is not None else None,
+            "monto_pagado": float(f.monto_pagado) if getattr(f, "monto_pagado", None) is not None else 0.0,
+            "fecha_emision": f.fecha_emision.isoformat() if f.fecha_emision else None,
+            "fecha_vencimiento_pago": f.fecha_vencimiento_pago.isoformat() if f.fecha_vencimiento_pago else None,
+            "cae": f.cae,
+        }
+
+    return {
+        "id": str(m.id),
+        "tipo": m.tipo,
+        "concepto": m.concepto,
+        "monto": float(m.monto),
+        "fecha_movimiento": m.fecha_movimiento.isoformat(),
+        "fecha_vencimiento": m.fecha_vencimiento.isoformat() if m.fecha_vencimiento else None,
+        "saldo_anterior": float(m.saldo_anterior),
+        "saldo_posterior": float(m.saldo_posterior),
+        "factura_id": str(m.factura_id) if m.factura_id else None,
+        "factura_numero": m.factura_numero,
+        "recibo_numero": m.recibo_numero,
+        "medio_pago": m.medio_pago,
+        "referencia_pago": m.referencia_pago,
+        "estado_facturacion": getattr(m, "estado_facturacion", "sin_facturar"),
+        "pedido_id": str(m.pedido_id) if m.pedido_id else None,
+        "lote_id": str(m.lote_id) if m.lote_id else None,
+        "factura": factura_info,
+    }
+
+
 # ==================== MOVIMIENTOS POR CLIENTE ====================
 
 @router.get("/{cliente_id}/movimientos", response_model=PaginatedResponse)
@@ -210,24 +250,7 @@ def listar_movimientos_cliente(
         MovimientoCuentaCorriente.created_at.desc()
     ).offset(skip).limit(limit).all()
 
-    items = []
-    for m in movimientos:
-        items.append({
-            "id": str(m.id),
-            "tipo": m.tipo,
-            "concepto": m.concepto,
-            "monto": float(m.monto),
-            "fecha_movimiento": m.fecha_movimiento.isoformat(),
-            "saldo_anterior": float(m.saldo_anterior),
-            "saldo_posterior": float(m.saldo_posterior),
-            "factura_numero": m.factura_numero,
-            "recibo_numero": m.recibo_numero,
-            "medio_pago": m.medio_pago,
-            "referencia_pago": m.referencia_pago,
-            "estado_facturacion": getattr(m, 'estado_facturacion', 'sin_facturar'),
-            "pedido_id": str(m.pedido_id) if m.pedido_id else None,
-            "lote_id": str(m.lote_id) if m.lote_id else None,
-        })
+    items = [_serializar_movimiento(m) for m in movimientos]
 
     return {
         "items": items,
