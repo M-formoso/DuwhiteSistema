@@ -175,6 +175,32 @@ def estado_arca(current_user: Usuario = Depends(get_current_user)):
     return factura_diagnostico_service.diagnosticar_arca()
 
 
+@router.get("/condiciones-iva-receptor/{cbte_tipo}")
+def consultar_condiciones_iva_receptor(
+    cbte_tipo: int,
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Consulta a ARCA las condiciones IVA del receptor permitidas para un
+    tipo de comprobante (RG 5616/2024). Útil para diagnosticar el error
+    10243 — devuelve los códigos vigentes de ARCA en tiempo real.
+
+    Códigos comunes de comprobante:
+      - 1: Factura A
+      - 6: Factura B
+      - 11: Factura C
+      - 3: NC A | 8: NC B | 13: NC C
+      - 2: ND A | 7: ND B | 12: ND C
+    """
+    verificar_permiso(current_user, "facturacion.ver")
+    from app.integrations.afip.wsfev1 import WsfeClient
+    client = WsfeClient()
+    return {
+        "cbte_tipo": cbte_tipo,
+        "condiciones": client.obtener_condiciones_iva_receptor(cbte_tipo),
+    }
+
+
 # ==================== PEDIDOS PENDIENTES DE FACTURAR ====================
 
 

@@ -112,6 +112,35 @@ class WsfeClient:
         _check_errores(resp)
         return int(resp.CbteNro or 0)
 
+    # -------- FEParamGetCondicionIvaReceptor --------
+
+    def obtener_condiciones_iva_receptor(self, cbte_tipo: int) -> list[dict]:
+        """
+        Devuelve las condiciones IVA del receptor permitidas para el tipo
+        de comprobante indicado (RG 5616/2024). Útil para diagnosticar el
+        error 10243.
+        """
+        client = self._get_client()
+        resp = client.service.FEParamGetCondicionIvaReceptor(
+            Auth=self._auth(),
+            CbteTipo=cbte_tipo,
+        )
+        _check_errores(resp)
+        condiciones = getattr(resp, "ResultGet", None)
+        if condiciones is None:
+            return []
+        items = getattr(condiciones, "CondicionIvaReceptor", []) or []
+        out: list[dict] = []
+        for it in items:
+            out.append(
+                {
+                    "id": int(getattr(it, "Id", 0)),
+                    "descripcion": str(getattr(it, "Desc", "") or ""),
+                    "cmp_clase": str(getattr(it, "Cmp_Clase", "") or ""),
+                }
+            )
+        return out
+
     # -------- FECAESolicitar --------
 
     def solicitar_cae(self, solicitud: SolicitudCae) -> RespuestaCae:
