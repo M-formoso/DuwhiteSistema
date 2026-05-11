@@ -115,10 +115,10 @@ export default function PedidoForm() {
     queryFn: () => clienteService.getClientesLista(),
   });
 
-  // Listas de precios disponibles
+  // Listas de precios disponibles (backend acepta máx 100 por defecto, ojo)
   const { data: listasPreciosResp } = useQuery({
     queryKey: ['listas-precios-activas'],
-    queryFn: () => listaPreciosService.listar({ activa: true, limit: 200 }),
+    queryFn: () => listaPreciosService.listar({ activa: true, limit: 100 }),
   });
   const listasPrecios = listasPreciosResp?.items || [];
 
@@ -132,7 +132,7 @@ export default function PedidoForm() {
   // Todos los servicios activos (fallback cuando la lista no tiene items)
   const { data: serviciosResp } = useQuery({
     queryKey: ['servicios-activos'],
-    queryFn: () => servicioService.listar({ activo: true, limit: 500 }),
+    queryFn: () => servicioService.listar({ activo: true, limit: 200 }),
   });
   const serviciosTodos = serviciosResp?.items || [];
 
