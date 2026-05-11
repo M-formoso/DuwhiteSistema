@@ -33,10 +33,8 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templa
 def _generar_qr_afip_datauri(factura: Factura) -> Optional[str]:
     """
     Genera el QR AFIP según RG 4892 y lo retorna como data URI (base64 png).
-
-    Estructura JSON requerida:
-      ver, fecha, cuit, ptoVta, tipoCmp, nroCmp, importe, moneda, ctz,
-      tipoDocRec, nroDocRec, tipoCodAut="E", codAut (CAE).
+    Si algo falla (PIL no disponible, cuit inválido, etc.) loguea y devuelve None
+    para que el PDF se pueda generar igual sin QR.
     """
     try:
         import qrcode
@@ -45,37 +43,44 @@ def _generar_qr_afip_datauri(factura: Factura) -> Optional[str]:
         return None
 
     if not factura.cae or not factura.numero_comprobante:
+        logger.info("Factura sin CAE o numero_comprobante, omitiendo QR")
         return None
 
-    # DocTipo para AFIP (80=CUIT, 99=CF)
-    doc_tipo = 80 if factura.cliente_cuit_snap else 99
-    doc_nro = (
-        int(factura.cliente_cuit_snap.replace("-", "")) if factura.cliente_cuit_snap else 0
-    )
+    try:
+        # DocTipo para AFIP (80=CUIT, 99=CF)
+        doc_tipo = 80 if factura.cliente_cuit_snap else 99
+        doc_nro = (
+            int(str(factura.cliente_cuit_snap).replace("-", "").replace(" ", ""))
+            if factura.cliente_cuit_snap
+            else 0
+        )
 
-    payload = {
-        "ver": 1,
-        "fecha": factura.fecha_emision.isoformat(),
-        "cuit": settings.EMPRESA_CUIT_NUMERICO,
-        "ptoVta": factura.punto_venta,
-        "tipoCmp": factura.codigo_afip,
-        "nroCmp": factura.numero_comprobante,
-        "importe": float(factura.total),
-        "moneda": "PES",
-        "ctz": 1,
-        "tipoDocRec": doc_tipo,
-        "nroDocRec": doc_nro,
-        "tipoCodAut": "E",
-        "codAut": int(factura.cae),
-    }
-    json_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    b64 = base64.urlsafe_b64encode(json_bytes).decode("ascii")
-    url = f"https://www.afip.gob.ar/fe/qr/?p={b64}"
+        payload = {
+            "ver": 1,
+            "fecha": factura.fecha_emision.isoformat(),
+            "cuit": settings.EMPRESA_CUIT_NUMERICO,
+            "ptoVta": factura.punto_venta,
+            "tipoCmp": factura.codigo_afip,
+            "nroCmp": factura.numero_comprobante,
+            "importe": float(factura.total),
+            "moneda": "PES",
+            "ctz": 1,
+            "tipoDocRec": doc_tipo,
+            "nroDocRec": doc_nro,
+            "tipoCodAut": "E",
+            "codAut": int(factura.cae),
+        }
+        json_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        b64 = base64.urlsafe_b64encode(json_bytes).decode("ascii")
+        url = f"https://www.afip.gob.ar/fe/qr/?p={b64}"
 
-    img = qrcode.make(url)
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+        img = qrcode.make(url)
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception as exc:
+        logger.exception("No se pudo generar el QR AFIP — el PDF se genera sin QR")
+        return None
 
 
 # ==================== FORMATEO ARG ====================
@@ -97,8 +102,12 @@ def _formatear_fecha(d) -> str:
         return ""
     if isinstance(d, str):
         return d
-    if isinstance(d, date):
-        return d.strftime("%d/%m/%Y")
+    # Tanto datetime como date soportan strftime — datetime hereda de date.
+    if hasattr(d, "strftime"):
+        try:
+            return d.strftime("%d/%m/%Y")
+        except Exception:
+            return str(d)
     return str(d)
 
 
@@ -147,25 +156,39 @@ def generar_pdf(db: Session, factura: Factura) -> bytes:
 
     qr_datauri = _generar_qr_afip_datauri(factura)
 
-    html_str = template.render(
-        factura=factura,
-        empresa={
-            "nombre": settings.EMPRESA_NOMBRE,
-            "razon_social": settings.EMPRESA_RAZON_SOCIAL,
-            "cuit": settings.EMPRESA_CUIT,
-            "direccion": settings.EMPRESA_DIRECCION,
-            "condicion_iva": settings.EMPRESA_CONDICION_IVA,
-            "iibb": settings.EMPRESA_IIBB,
-            "inicio_actividades": settings.EMPRESA_INICIO_ACTIVIDADES,
-            "cbu": settings.EMPRESA_CBU,
-            "banco": settings.EMPRESA_BANCO,
-            "cuenta_titular": settings.EMPRESA_CUENTA_TITULAR or settings.EMPRESA_RAZON_SOCIAL,
-            "leyenda_cbu": settings.EMPRESA_LEYENDA_CBU,
-        },
-        qr_datauri=qr_datauri,
-        es_factura_a=factura.letra == "A",
-        es_factura_b=factura.letra == "B",
-    )
+    try:
+        html_str = template.render(
+            factura=factura,
+            empresa={
+                "nombre": settings.EMPRESA_NOMBRE,
+                "razon_social": settings.EMPRESA_RAZON_SOCIAL,
+                "cuit": settings.EMPRESA_CUIT,
+                "direccion": settings.EMPRESA_DIRECCION,
+                "condicion_iva": settings.EMPRESA_CONDICION_IVA,
+                "iibb": settings.EMPRESA_IIBB,
+                "inicio_actividades": settings.EMPRESA_INICIO_ACTIVIDADES,
+                "cbu": settings.EMPRESA_CBU,
+                "banco": settings.EMPRESA_BANCO,
+                "cuenta_titular": settings.EMPRESA_CUENTA_TITULAR or settings.EMPRESA_RAZON_SOCIAL,
+                "leyenda_cbu": settings.EMPRESA_LEYENDA_CBU,
+            },
+            qr_datauri=qr_datauri,
+            es_factura_a=factura.letra == "A",
+            es_factura_b=factura.letra == "B",
+        )
+    except Exception as exc:
+        logger.exception("Error renderizando template factura.html para factura %s", factura.id)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al renderizar template: {exc}",
+        )
 
-    pdf_bytes = HTML(string=html_str, base_url=TEMPLATES_DIR).write_pdf()
+    try:
+        pdf_bytes = HTML(string=html_str, base_url=TEMPLATES_DIR).write_pdf()
+    except Exception as exc:
+        logger.exception("WeasyPrint falló al generar PDF para factura %s", factura.id)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al renderizar PDF (WeasyPrint): {exc}",
+        )
     return pdf_bytes
