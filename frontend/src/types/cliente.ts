@@ -63,6 +63,7 @@ export interface ClienteList {
   saldo_cuenta_corriente: number;
   activo: boolean;
   tiene_deuda: boolean;
+  lista_precios_id?: string | null;
 }
 
 export interface ClienteCreate {

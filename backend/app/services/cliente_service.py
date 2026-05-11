@@ -147,6 +147,7 @@ class ClienteService:
                 "codigo": c.codigo,
                 "nombre": c.nombre_display,
                 "cuit": c.cuit,
+                "lista_precios_id": str(c.lista_precios_id) if c.lista_precios_id else None,
             }
             for c in clientes
         ]

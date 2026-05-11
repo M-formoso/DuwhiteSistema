@@ -34,21 +34,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
 import { clienteService } from '@/services/clienteService';
+import { listaPreciosService } from '@/services/servicioService';
 import { TIPOS_ENTREGA } from '@/types/cliente';
 import type { DetallePedidoCreate } from '@/types/cliente';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 
 const detalleSchema = z.object({
-  descripcion: z.string().min(1, 'La descripción es requerida'),
+  servicio_id: z.string().nullable().optional(),
+  descripcion: z.string().nullable().optional(),
   cantidad: z.number().min(0.01, 'La cantidad debe ser mayor a 0'),
   unidad: z.string().default('kg'),
   precio_unitario: z.number().min(0, 'El precio no puede ser negativo'),
   descuento_porcentaje: z.number().min(0).max(100).nullable().optional(),
   notas: z.string().nullable().optional(),
-});
+}).refine(
+  (item) => Boolean(item.servicio_id) || Boolean((item.descripcion || '').trim()),
+  { message: 'Elegí un servicio o ingresá una descripción', path: ['descripcion'] }
+);
 
 const pedidoSchema = z.object({
   cliente_id: z.string().min(1, 'Debe seleccionar un cliente'),
+  lista_precios_id: z.string().nullable().optional(),
   fecha_pedido: z.string().min(1, 'La fecha es requerida'),
   fecha_retiro: z.string().nullable().optional(),
   fecha_entrega_estimada: z.string().nullable().optional(),
@@ -101,12 +107,38 @@ export default function PedidoForm() {
   const tipoEntrega = watch('tipo_entrega');
   const detalles = watch('detalles');
   const descuentoGeneral = watch('descuento_porcentaje') || 0;
+  const listaPreciosId = watch('lista_precios_id') || '';
 
   // Buscar clientes
   const { data: clientesLista } = useQuery({
     queryKey: ['clientes-lista'],
     queryFn: () => clienteService.getClientesLista(),
   });
+
+  // Listas de precios disponibles
+  const { data: listasPreciosResp } = useQuery({
+    queryKey: ['listas-precios-activas'],
+    queryFn: () => listaPreciosService.listar({ activa: true, limit: 200 }),
+  });
+  const listasPrecios = listasPreciosResp?.items || [];
+
+  // Lista de precios seleccionada (con items)
+  const { data: listaActiva } = useQuery({
+    queryKey: ['lista-precios-con-items', listaPreciosId],
+    queryFn: () => listaPreciosService.obtener(listaPreciosId),
+    enabled: Boolean(listaPreciosId),
+  });
+  const serviciosDeLista = listaActiva?.items || [];
+
+  // Al cambiar de cliente, pre-cargar su lista_precios_id default
+  useEffect(() => {
+    if (!clienteId || isEditing) return;
+    const cli = clientesLista?.find((c: any) => c.id === clienteId);
+    const ligada = cli?.lista_precios_id;
+    if (ligada && ligada !== listaPreciosId) {
+      setValue('lista_precios_id', ligada);
+    }
+  }, [clienteId, clientesLista, isEditing, listaPreciosId, setValue]);
 
   // Cliente seleccionado desde URL
   useEffect(() => {
@@ -135,10 +167,12 @@ export default function PedidoForm() {
         direccion_entrega: pedido.direccion_entrega,
         horario_entrega: pedido.horario_entrega,
         descuento_porcentaje: pedido.descuento_porcentaje,
+        lista_precios_id: (pedido as any).lista_precios_id || null,
         notas: pedido.notas,
         notas_internas: pedido.notas_internas,
         observaciones_entrega: pedido.observaciones_entrega,
-        detalles: pedido.detalles.map((d) => ({
+        detalles: pedido.detalles.map((d: any) => ({
+          servicio_id: d.servicio_id || null,
           descripcion: d.descripcion,
           cantidad: d.cantidad,
           unidad: d.unidad,
@@ -206,8 +240,19 @@ export default function PedidoForm() {
   });
 
   const onSubmit = (data: PedidoFormData) => {
+    // Si el detalle no tiene descripción manual, usar el nombre del servicio elegido
+    const detallesConDescripcion = data.detalles.map((d) => {
+      if ((d.descripcion || '').trim()) return d;
+      const item = serviciosDeLista.find((s) => s.servicio_id === d.servicio_id);
+      return {
+        ...d,
+        descripcion: item?.servicio_nombre || 'Item sin descripción',
+      };
+    });
+
     const cleanedData = {
       ...data,
+      detalles: detallesConDescripcion,
       fecha_retiro: data.fecha_retiro || null,
       fecha_entrega_estimada: data.fecha_entrega_estimada || null,
       direccion_entrega: data.direccion_entrega || null,
@@ -227,6 +272,7 @@ export default function PedidoForm() {
 
   const agregarItem = () => {
     append({
+      servicio_id: null,
       descripcion: '',
       cantidad: 1,
       unidad: 'kg',
@@ -234,6 +280,18 @@ export default function PedidoForm() {
       descuento_porcentaje: null,
       notas: null,
     });
+  };
+
+  const seleccionarServicio = (index: number, servicioId: string) => {
+    const item = serviciosDeLista.find((s) => s.servicio_id === servicioId);
+    if (!item) return;
+    setValue(`detalles.${index}.servicio_id`, servicioId);
+    setValue(`detalles.${index}.precio_unitario`, item.precio);
+    setValue(`detalles.${index}.unidad`, item.servicio_unidad_cobro || 'kg');
+    // Solo autocompletar descripción si está vacía (preservar lo que el usuario haya escrito)
+    if (!(watch(`detalles.${index}.descripcion`) || '').trim()) {
+      setValue(`detalles.${index}.descripcion`, item.servicio_nombre || '');
+    }
   };
 
   const clienteSeleccionado = clientesLista?.find((c) => c.id === clienteId);
@@ -442,7 +500,30 @@ export default function PedidoForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="descuento_porcentaje">Descuento General (%)</Label>
+                <Label htmlFor="lista_precios_id">Lista de precios</Label>
+                <Select
+                  value={listaPreciosId || ''}
+                  onValueChange={(v) => setValue('lista_precios_id', v || null)}
+                >
+                  <SelectTrigger id="lista_precios_id">
+                    <SelectValue placeholder="Sin lista asignada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listasPrecios.map((l: any) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.nombre}{l.es_lista_base ? ' (base)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {clienteSeleccionado?.lista_precios_id && listaPreciosId === clienteSeleccionado.lista_precios_id && (
+                  <p className="text-xs text-text-secondary">
+                    Lista asignada por defecto al cliente.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="descuento_porcentaje">Descuento general (%)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -498,10 +579,33 @@ export default function PedidoForm() {
                     >
                       <div className="grid gap-4 md:grid-cols-6">
                         <div className="md:col-span-2 space-y-2">
-                          <Label>Descripción</Label>
+                          <Label>Servicio</Label>
+                          <Select
+                            value={watch(`detalles.${index}.servicio_id`) || ''}
+                            onValueChange={(v) => seleccionarServicio(index, v)}
+                            disabled={!listaPreciosId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  listaPreciosId
+                                    ? 'Elegir servicio'
+                                    : 'Seleccioná una lista de precios primero'
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {serviciosDeLista.map((it: any) => (
+                                <SelectItem key={it.servicio_id} value={it.servicio_id}>
+                                  {it.servicio_nombre} — {formatCurrency(it.precio)} / {it.servicio_unidad_cobro || 'kg'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <Input
                             {...register(`detalles.${index}.descripcion`)}
-                            placeholder="Descripción del servicio"
+                            placeholder="Descripción libre (opcional)"
+                            className="text-xs"
                           />
                           {errors.detalles?.[index]?.descripcion && (
                             <p className="text-xs text-destructive">

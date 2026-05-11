@@ -129,6 +129,7 @@ class ClienteSelect(BaseModel):
     codigo: str
     nombre: str  # nombre_display
     cuit: Optional[str] = None
+    lista_precios_id: Optional[str] = None
 
     class Config:
         from_attributes = True
