@@ -39,6 +39,7 @@ export async function getClientesLista(): Promise<{
   codigo: string;
   nombre: string;
   cuit: string | null;
+  lista_precios_id?: string | null;
 }[]> {
   const response = await api.get('/clientes/lista');
   return response.data;

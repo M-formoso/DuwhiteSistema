@@ -154,7 +154,7 @@ export interface PedidoList {
 
 export interface DetallePedidoCreate {
   servicio_id?: string | null;
-  descripcion: string;
+  descripcion?: string | null;
   cantidad: number;
   unidad?: string;
   precio_unitario: number;
@@ -164,6 +164,7 @@ export interface DetallePedidoCreate {
 
 export interface PedidoCreate {
   cliente_id: string;
+  lista_precios_id?: string | null;
   fecha_pedido: string;
   fecha_retiro?: string | null;
   fecha_entrega_estimada?: string | null;
