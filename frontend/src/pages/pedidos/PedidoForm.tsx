@@ -130,11 +130,14 @@ export default function PedidoForm() {
   });
 
   // Todos los servicios activos (fallback cuando la lista no tiene items)
-  const { data: serviciosResp } = useQuery({
+  const { data: serviciosResp, error: serviciosError } = useQuery({
     queryKey: ['servicios-activos'],
     queryFn: () => servicioService.listar({ activo: true, limit: 200 }),
   });
   const serviciosTodos = serviciosResp?.items || [];
+  // DEBUG temporal — sacar después de confirmar que anda
+  // eslint-disable-next-line no-console
+  console.log('[PedidoForm] serviciosResp:', serviciosResp, 'error:', serviciosError);
 
   // Combinar items de lista + servicios activos. Prioridad: si el servicio
   // está en la lista, usar precio de la lista; sino, usar precio_base.
