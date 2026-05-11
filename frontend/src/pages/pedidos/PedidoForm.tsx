@@ -359,7 +359,28 @@ export default function PedidoForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={handleSubmit(onSubmit, (errs) => {
+          // Si la validación falla, mostrar un toast con el detalle.
+          const flat: string[] = [];
+          const walk = (obj: any, path = '') => {
+            if (!obj || typeof obj !== 'object') return;
+            if (obj.message) flat.push(`${path || 'campo'}: ${obj.message}`);
+            for (const k of Object.keys(obj)) {
+              if (k !== 'message' && k !== 'type' && k !== 'ref') {
+                walk(obj[k], path ? `${path}.${k}` : k);
+              }
+            }
+          };
+          walk(errs);
+          toast({
+            title: 'Faltan datos en el formulario',
+            description: flat.slice(0, 4).join(' · ') || 'Revisá los campos marcados en rojo.',
+            variant: 'destructive',
+          });
+        })}
+        className="space-y-6"
+      >
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Información Principal */}
           <Card className="lg:col-span-2">
@@ -564,6 +585,9 @@ export default function PedidoForm() {
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
               Items del Pedido
+              <span className="text-xs text-text-secondary font-normal ml-2">
+                ({serviciosDeLista.length} servicios disponibles)
+              </span>
             </CardTitle>
             <Button type="button" variant="outline" size="sm" onClick={agregarItem}>
               <Plus className="h-4 w-4 mr-2" />
