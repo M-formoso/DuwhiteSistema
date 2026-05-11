@@ -34,7 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
 import { clienteService } from '@/services/clienteService';
-import { listaPreciosService } from '@/services/servicioService';
+import { servicioService, listaPreciosService } from '@/services/servicioService';
 import { TIPOS_ENTREGA } from '@/types/cliente';
 import type { DetallePedidoCreate } from '@/types/cliente';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
@@ -128,7 +128,39 @@ export default function PedidoForm() {
     queryFn: () => listaPreciosService.obtener(listaPreciosId),
     enabled: Boolean(listaPreciosId),
   });
-  const serviciosDeLista = listaActiva?.items || [];
+
+  // Todos los servicios activos (fallback cuando la lista no tiene items)
+  const { data: serviciosResp } = useQuery({
+    queryKey: ['servicios-activos'],
+    queryFn: () => servicioService.listar({ activo: true, limit: 500 }),
+  });
+  const serviciosTodos = serviciosResp?.items || [];
+
+  // Combinar items de lista + servicios activos. Prioridad: si el servicio
+  // está en la lista, usar precio de la lista; sino, usar precio_base.
+  const serviciosDisponibles = (() => {
+    const itemsLista = listaActiva?.items || [];
+    const idsEnLista = new Set(itemsLista.map((i) => i.servicio_id));
+    const desdeLista = itemsLista.map((i) => ({
+      servicio_id: i.servicio_id,
+      servicio_nombre: i.servicio_nombre || '',
+      servicio_unidad_cobro: i.servicio_unidad_cobro || 'kg',
+      precio: Number(i.precio),
+      origen: 'lista' as const,
+    }));
+    const fueraDeLista = serviciosTodos
+      .filter((s) => !idsEnLista.has(s.id))
+      .map((s) => ({
+        servicio_id: s.id,
+        servicio_nombre: s.nombre,
+        servicio_unidad_cobro: s.unidad_cobro,
+        precio: Number(s.precio_base),
+        origen: 'base' as const,
+      }));
+    return [...desdeLista, ...fueraDeLista];
+  })();
+  // Conservo el nombre original para no romper otras referencias.
+  const serviciosDeLista = serviciosDisponibles;
 
   // Al cambiar de cliente, pre-cargar su lista_precios_id default
   useEffect(() => {
@@ -522,17 +554,6 @@ export default function PedidoForm() {
                   </p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="descuento_porcentaje">Descuento general (%)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  {...register('descuento_porcentaje', { valueAsNumber: true })}
-                  placeholder="0"
-                />
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -583,23 +604,23 @@ export default function PedidoForm() {
                           <Select
                             value={watch(`detalles.${index}.servicio_id`) || ''}
                             onValueChange={(v) => seleccionarServicio(index, v)}
-                            disabled={!listaPreciosId}
                           >
                             <SelectTrigger>
-                              <SelectValue
-                                placeholder={
-                                  listaPreciosId
-                                    ? 'Elegir servicio'
-                                    : 'Seleccioná una lista de precios primero'
-                                }
-                              />
+                              <SelectValue placeholder="Elegir servicio" />
                             </SelectTrigger>
                             <SelectContent>
-                              {serviciosDeLista.map((it: any) => (
-                                <SelectItem key={it.servicio_id} value={it.servicio_id}>
-                                  {it.servicio_nombre} — {formatCurrency(it.precio)} / {it.servicio_unidad_cobro || 'kg'}
-                                </SelectItem>
-                              ))}
+                              {serviciosDeLista.length === 0 ? (
+                                <div className="px-2 py-3 text-sm text-text-secondary">
+                                  No hay servicios disponibles. Cargá uno en /servicios.
+                                </div>
+                              ) : (
+                                serviciosDeLista.map((it: any) => (
+                                  <SelectItem key={it.servicio_id} value={it.servicio_id}>
+                                    {it.servicio_nombre} — {formatCurrency(it.precio)} / {it.servicio_unidad_cobro || 'kg'}
+                                    {it.origen === 'base' ? ' (precio base)' : ''}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           <Input
