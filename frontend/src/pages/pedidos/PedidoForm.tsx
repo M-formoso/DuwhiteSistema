@@ -34,7 +34,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
 import { clienteService } from '@/services/clienteService';
-import { servicioService, listaPreciosService } from '@/services/servicioService';
+import { listaPreciosService } from '@/services/servicioService';
+import { productoLavadoService } from '@/services/productoLavadoService';
 import { TIPOS_ENTREGA } from '@/types/cliente';
 import type { DetallePedidoCreate } from '@/types/cliente';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
@@ -129,41 +130,38 @@ export default function PedidoForm() {
     enabled: Boolean(listaPreciosId),
   });
 
-  // Todos los servicios activos (fallback cuando la lista no tiene items)
-  const { data: serviciosResp, error: serviciosError } = useQuery({
-    queryKey: ['servicios-activos'],
-    queryFn: () => servicioService.listar({ activo: true, limit: 200 }),
+  // Productos de lavado disponibles (con precio según lista si está seleccionada).
+  // El catálogo del sistema vive en /produccion/productos-lavado (no en /servicios,
+  // que es una tabla legacy vacía).
+  const { data: productosConPrecio } = useQuery({
+    queryKey: ['productos-con-precios', listaPreciosId],
+    queryFn: () => productoLavadoService.getProductosConPrecios(listaPreciosId),
+    enabled: Boolean(listaPreciosId),
   });
-  const serviciosTodos = serviciosResp?.items || [];
-  // DEBUG temporal — sacar después de confirmar que anda
-  // eslint-disable-next-line no-console
-  console.log('[PedidoForm] serviciosResp:', serviciosResp, 'error:', serviciosError);
+  const { data: productosTodos } = useQuery({
+    queryKey: ['productos-lavado-activos'],
+    queryFn: () => productoLavadoService.getAll({ solo_activos: true }),
+  });
 
-  // Combinar items de lista + servicios activos. Prioridad: si el servicio
-  // está en la lista, usar precio de la lista; sino, usar precio_base.
-  const serviciosDisponibles = (() => {
-    const itemsLista = listaActiva?.items || [];
-    const idsEnLista = new Set(itemsLista.map((i) => i.servicio_id));
-    const desdeLista = itemsLista.map((i) => ({
-      servicio_id: i.servicio_id,
-      servicio_nombre: i.servicio_nombre || '',
-      servicio_unidad_cobro: i.servicio_unidad_cobro || 'kg',
-      precio: Number(i.precio),
-      origen: 'lista' as const,
-    }));
-    const fueraDeLista = serviciosTodos
-      .filter((s) => !idsEnLista.has(s.id))
-      .map((s) => ({
-        servicio_id: s.id,
-        servicio_nombre: s.nombre,
-        servicio_unidad_cobro: s.unidad_cobro,
-        precio: Number(s.precio_base),
-        origen: 'base' as const,
+  // Si hay lista activa, usar productos con precio; sino, mostrar todos sin precio.
+  const serviciosDeLista = (() => {
+    if (listaPreciosId && productosConPrecio) {
+      return productosConPrecio.map((p) => ({
+        servicio_id: p.producto_id,
+        servicio_nombre: p.producto_nombre,
+        servicio_unidad_cobro: 'kg',
+        precio: Number(p.precio_unitario || 0),
+        origen: p.tiene_precio ? ('lista' as const) : ('base' as const),
       }));
-    return [...desdeLista, ...fueraDeLista];
+    }
+    return (productosTodos || []).map((p) => ({
+      servicio_id: p.id,
+      servicio_nombre: p.nombre,
+      servicio_unidad_cobro: 'kg',
+      precio: 0,
+      origen: 'base' as const,
+    }));
   })();
-  // Conservo el nombre original para no romper otras referencias.
-  const serviciosDeLista = serviciosDisponibles;
 
   // Al cambiar de cliente, pre-cargar su lista_precios_id default
   useEffect(() => {
