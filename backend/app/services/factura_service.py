@@ -830,6 +830,18 @@ def _construir_solicitud_cae(
 
     condicion_receptor = CONDICION_IVA_AFIP.get(factura.cliente_condicion_iva_snap)
 
+    # ARCA exige las 3 fechas juntas (FchServDesde + FchServHasta + FchVtoPago)
+    # cuando el concepto es 2 (Servicios) o 3 (Productos y Servicios). Si alguna
+    # está vacía y se manda otra → error 10033. Completamos con fecha_emision
+    # como fallback razonable: "el servicio se prestó/se completó en la fecha
+    # de emisión y el pago vence el día de emisión".
+    if concepto in (2, 3):
+        f_desde = factura.fecha_servicio_desde or factura.fecha_emision
+        f_hasta = factura.fecha_servicio_hasta or factura.fecha_emision
+        f_vto = factura.fecha_vencimiento_pago or factura.fecha_emision
+    else:
+        f_desde = f_hasta = f_vto = None
+
     return SolicitudCae(
         cbte_tipo=factura.codigo_afip,
         punto_venta=factura.punto_venta,
@@ -845,9 +857,9 @@ def _construir_solicitud_cae(
         imp_op_ex=imp_op_ex,
         imp_trib=imp_trib,
         imp_iva=imp_iva,
-        fecha_servicio_desde=factura.fecha_servicio_desde if concepto in (2, 3) else None,
-        fecha_servicio_hasta=factura.fecha_servicio_hasta if concepto in (2, 3) else None,
-        fecha_vto_pago=factura.fecha_vencimiento_pago if concepto in (2, 3) else None,
+        fecha_servicio_desde=f_desde,
+        fecha_servicio_hasta=f_hasta,
+        fecha_vto_pago=f_vto,
         alicuotas=_construir_alicuotas(factura),
         comprobantes_asociados=comprobantes_asoc,
         condicion_iva_receptor_id=condicion_receptor,
