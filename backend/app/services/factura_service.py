@@ -879,6 +879,38 @@ def _registrar_impacto_cuenta_corriente(
     if not cliente:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
 
+    # Anular cargos previos del mismo pedido (típicamente de remitos generados
+    # automáticamente desde producción) para evitar doble cargo en cuenta
+    # corriente. Solo anulamos cargos SIN factura_id, así no tocamos los de
+    # otras facturas.
+    if factura.pedido_id and not factura.es_nota_credito:
+        from app.models.lote_produccion import LoteProduccion
+
+        lote_ids_pedido = [
+            r[0]
+            for r in db.query(LoteProduccion.id)
+            .filter(LoteProduccion.pedido_id == factura.pedido_id)
+            .all()
+        ]
+        cargos_previos = (
+            db.query(MovimientoCuentaCorriente)
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente.id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                MovimientoCuentaCorriente.activo == True,
+                MovimientoCuentaCorriente.factura_id.is_(None),
+                or_(
+                    MovimientoCuentaCorriente.pedido_id == factura.pedido_id,
+                    MovimientoCuentaCorriente.lote_id.in_(lote_ids_pedido) if lote_ids_pedido else False,
+                ),
+            )
+            .all()
+        )
+        for cp in cargos_previos:
+            cliente.saldo_cuenta_corriente = Decimal(cliente.saldo_cuenta_corriente or 0) - Decimal(cp.monto)
+            cp.activo = False
+            cp.notas = (cp.notas or "") + f"\n[anulado] reemplazado por factura {factura.numero_completo or factura.id}"
+
     saldo_anterior = Decimal(cliente.saldo_cuenta_corriente or 0)
     monto = Decimal(factura.total)
 
@@ -1047,6 +1079,21 @@ def emitir_factura(db: Session, factura_id: UUID, usuario_id: UUID) -> Factura:
             if original and Decimal(factura.total) >= Decimal(original.total):
                 original.estado = EstadoFactura.ANULADA.value
                 original.anulada_por_nc_id = factura.id
+                # Anular el CARGO original en cuenta corriente para que el
+                # historial muestre estado real (factura emitida → anulada),
+                # en vez de tener CARGO y PAGO de NC vivos a la vez.
+                cargo_original = (
+                    db.query(MovimientoCuentaCorriente)
+                    .filter(
+                        MovimientoCuentaCorriente.factura_id == original.id,
+                        MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                        MovimientoCuentaCorriente.activo == True,
+                    )
+                    .first()
+                )
+                if cargo_original:
+                    cargo_original.activo = False
+                    cargo_original.notas = (cargo_original.notas or "") + f"\n[anulado] por NC {factura.numero_completo or factura.id}"
     else:
         factura.estado = EstadoFactura.RECHAZADA.value
 

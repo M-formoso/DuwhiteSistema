@@ -547,6 +547,11 @@ class ProduccionService:
         self.db.commit()
         self.db.refresh(lote)
 
+        # Cuando el lote pasa a COMPLETADO, sincronizar estado del pedido
+        # (LISTO si todos los lotes del pedido están completados).
+        if estado == EstadoLote.COMPLETADO and lote.pedido_id:
+            self._sincronizar_estado_pedido_si_lotes_completos(lote.pedido_id)
+
         self.log_service.registrar(
             db=self.db,
             usuario_id=usuario_id,
@@ -559,6 +564,50 @@ class ProduccionService:
         )
 
         return lote
+
+    def _sincronizar_estado_pedido_si_lotes_completos(self, pedido_id: UUID) -> None:
+        """
+        Si todos los lotes activos de un pedido están en COMPLETADO, transiciona
+        el pedido a LISTO. Pensado para llamar desde el cambio de estado del lote.
+        Es defensivo: cualquier error se loguea pero no rompe la operación principal.
+        """
+        try:
+            from app.models.pedido import Pedido, EstadoPedido
+
+            pedido = self.db.query(Pedido).filter(Pedido.id == pedido_id).first()
+            if not pedido:
+                return
+            # Si el pedido ya está en LISTO o más adelante, no hacemos nada
+            if pedido.estado in (
+                EstadoPedido.LISTO.value,
+                EstadoPedido.ENTREGADO.value,
+                EstadoPedido.FACTURADO.value,
+                EstadoPedido.CANCELADO.value,
+            ):
+                return
+
+            lotes_pedido = (
+                self.db.query(LoteProduccion)
+                .filter(
+                    LoteProduccion.pedido_id == pedido_id,
+                    LoteProduccion.activo == True,
+                    LoteProduccion.estado != EstadoLote.CANCELADO.value,
+                )
+                .all()
+            )
+            if not lotes_pedido:
+                return  # no hay lotes para juzgar
+            if not all(l.estado == EstadoLote.COMPLETADO.value for l in lotes_pedido):
+                return  # falta algún lote por completar
+
+            # Todos completos → pedido LISTO
+            pedido.estado = EstadoPedido.LISTO.value
+            self.db.commit()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudo sincronizar estado del pedido %s tras completar lote", pedido_id
+            )
 
     # ==================== ETAPAS DE LOTE ====================
 

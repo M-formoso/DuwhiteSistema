@@ -5,7 +5,7 @@ Servicio de Clientes.
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Tuple
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, or_, and_, case
 from sqlalchemy.orm import Session
@@ -283,7 +283,11 @@ class ClienteService:
         return pedido
 
     def cambiar_estado_pedido(
-        self, pedido_id: str, nuevo_estado: str, observaciones: Optional[str] = None
+        self,
+        pedido_id: str,
+        nuevo_estado: str,
+        observaciones: Optional[str] = None,
+        usuario_id: Optional[str] = None,
     ) -> Optional[Pedido]:
         """Cambia el estado de un pedido."""
         pedido = self.get_pedido(pedido_id)
@@ -293,7 +297,7 @@ class ClienteService:
         # Validar transición de estado
         transiciones_validas = {
             EstadoPedido.BORRADOR.value: [EstadoPedido.CONFIRMADO.value, EstadoPedido.CANCELADO.value],
-            EstadoPedido.CONFIRMADO.value: [EstadoPedido.EN_PROCESO.value, EstadoPedido.CANCELADO.value],
+            EstadoPedido.CONFIRMADO.value: [EstadoPedido.EN_PROCESO.value, EstadoPedido.LISTO.value, EstadoPedido.CANCELADO.value],
             EstadoPedido.EN_PROCESO.value: [EstadoPedido.LISTO.value, EstadoPedido.CANCELADO.value],
             EstadoPedido.LISTO.value: [EstadoPedido.ENTREGADO.value],
             EstadoPedido.ENTREGADO.value: [EstadoPedido.FACTURADO.value],
@@ -315,7 +319,71 @@ class ClienteService:
         self.db.commit()
         self.db.refresh(pedido)
 
+        # Si el pedido se confirmó y todavía no tiene lotes, crear uno automático
+        if nuevo_estado == EstadoPedido.CONFIRMADO.value and usuario_id:
+            self._crear_lote_para_pedido_si_no_existe(pedido, usuario_id)
+
         return pedido
+
+    def _crear_lote_para_pedido_si_no_existe(self, pedido: Pedido, usuario_id: str) -> None:
+        """
+        Si el pedido no tiene lotes activos, crea uno automáticamente con los
+        datos básicos extraídos del pedido. Pensado para el flujo confirmación
+        de pedido → producción.
+        """
+        from app.models.lote_produccion import LoteProduccion, EstadoLote, TipoServicio, PrioridadLote
+        from app.schemas.lote_produccion import LoteProduccionCreate
+        from app.services.produccion_service import ProduccionService
+
+        # Si ya existe un lote no cancelado para este pedido, no creamos otro
+        lote_existente = (
+            self.db.query(LoteProduccion)
+            .filter(
+                LoteProduccion.pedido_id == pedido.id,
+                LoteProduccion.activo == True,
+                LoteProduccion.estado != EstadoLote.CANCELADO.value,
+            )
+            .first()
+        )
+        if lote_existente:
+            return
+
+        # Calcular peso/cantidad sumando detalles
+        peso_total = Decimal("0")
+        cantidad_prendas = 0
+        descripciones = []
+        for det in pedido.detalles:
+            cant = Decimal(det.cantidad or 0)
+            if (det.unidad or "").lower() == "kg":
+                peso_total += cant
+            cantidad_prendas += int(cant)
+            if det.descripcion:
+                descripciones.append(det.descripcion)
+
+        descripcion = "; ".join(descripciones)[:300] or f"Pedido #{pedido.numero}"
+
+        lote_data = LoteProduccionCreate(
+            cliente_id=pedido.cliente_id,
+            pedido_id=pedido.id,
+            tipo_servicio=TipoServicio.LAVADO_NORMAL,
+            prioridad=PrioridadLote.NORMAL,
+            peso_entrada_kg=peso_total if peso_total > 0 else None,
+            cantidad_prendas=cantidad_prendas if cantidad_prendas > 0 else None,
+            fecha_compromiso=pedido.fecha_entrega_estimada,
+            descripcion=descripcion,
+            notas_internas=pedido.notas_internas,
+            notas_cliente=pedido.notas,
+        )
+        try:
+            ProduccionService(self.db).create_lote(lote_data, UUID(str(usuario_id)))
+        except Exception:
+            # No queremos que un error de creación de lote bloquee la confirmación
+            # del pedido. El usuario podrá crear el lote manualmente.
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudo auto-crear lote para pedido %s — se confirma igual",
+                pedido.id,
+            )
 
     def _agregar_detalle_pedido(self, pedido: Pedido, data: DetallePedidoCreate) -> None:
         """Agrega un detalle al pedido."""

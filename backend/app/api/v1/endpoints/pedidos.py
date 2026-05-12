@@ -361,7 +361,9 @@ def cambiar_estado_pedido(
     service = ClienteService(db)
 
     try:
-        pedido = service.cambiar_estado_pedido(pedido_id, data.estado, data.observaciones)
+        pedido = service.cambiar_estado_pedido(
+            pedido_id, data.estado, data.observaciones, str(current_user.id)
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
