@@ -407,6 +407,80 @@ def get_analisis_lote(
     return AnalisisCostoLoteResponse(**analisis.__dict__)
 
 
+@router.get("/pedidos/{pedido_id}/resumen")
+def resumen_costo_pedido(
+    pedido_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Resumen de costos y margen de un pedido completo: suma costos de todos
+    sus lotes y los cruza con la factura emitida (si hay) para mostrar
+    margen real.
+    """
+    from app.models.lote_produccion import LoteProduccion
+    from app.models.costo import AnalisisCostoLote
+    from app.models.factura import Factura, EstadoFactura
+    from app.models.pedido import Pedido
+    from decimal import Decimal as Dec
+
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if not pedido:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado")
+
+    lote_ids = [
+        r[0]
+        for r in db.query(LoteProduccion.id)
+        .filter(LoteProduccion.pedido_id == pedido_id, LoteProduccion.activo == True)
+        .all()
+    ]
+
+    if not lote_ids:
+        analisis = []
+    else:
+        analisis = db.query(AnalisisCostoLote).filter(AnalisisCostoLote.lote_id.in_(lote_ids)).all()
+
+    costo_insumos = sum((Dec(a.costo_insumos or 0) for a in analisis), Dec("0"))
+    costo_mano_obra = sum((Dec(a.costo_mano_obra or 0) for a in analisis), Dec("0"))
+    costo_energia = sum((Dec(a.costo_energia or 0) for a in analisis), Dec("0"))
+    costo_fijos = sum((Dec(a.costo_fijos_prorrateado or 0) for a in analisis), Dec("0"))
+    costo_otros = sum((Dec(a.costo_otros or 0) for a in analisis), Dec("0"))
+    costo_total = costo_insumos + costo_mano_obra + costo_energia + costo_fijos + costo_otros
+
+    factura = (
+        db.query(Factura)
+        .filter(
+            Factura.pedido_id == pedido_id,
+            Factura.activo == True,
+            Factura.estado == EstadoFactura.AUTORIZADA.value,
+        )
+        .first()
+    )
+    ingreso = Dec(factura.total) if factura else (Dec(pedido.total) if pedido.total else Dec("0"))
+    margen = ingreso - costo_total
+    margen_pct = float(margen / ingreso * 100) if ingreso > 0 else 0.0
+
+    return {
+        "pedido_id": pedido_id,
+        "pedido_numero": pedido.numero,
+        "lotes_analizados": len(analisis),
+        "lotes_pedido": len(lote_ids),
+        "costo": {
+            "insumos": float(costo_insumos),
+            "mano_obra": float(costo_mano_obra),
+            "energia": float(costo_energia),
+            "fijos": float(costo_fijos),
+            "otros": float(costo_otros),
+            "total": float(costo_total),
+        },
+        "ingreso": float(ingreso),
+        "ingreso_origen": "factura" if factura else "pedido",
+        "margen": float(margen),
+        "margen_porcentaje": round(margen_pct, 2),
+        "factura_numero": factura.numero_completo if factura else None,
+    }
+
+
 # ==================== PARAMETROS ====================
 
 @router.get("/parametros", response_model=List[ParametroCostoResponse])

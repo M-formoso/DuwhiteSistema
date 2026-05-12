@@ -301,9 +301,17 @@ def confirmar_liquidacion(
     if notas:
         liquidacion.notas = (liquidacion.notas or "") + f"\n[Confirmación] {notas}"
 
-    # Actualizar estado del pedido
-    if liquidacion.pedido:
-        liquidacion.pedido.estado = EstadoPedido.FACTURADO.value
+    # IMPORTANTE: la Liquidación es un "documento interno" (pre-factura) que
+    # NO tiene CAE ni validez fiscal. NO debe marcar el pedido como FACTURADO
+    # — solo lo hace la emisión de la factura real (factura_service.emitir).
+    # Si después se emite factura real sobre este pedido, el cargo de la
+    # liquidación se anula automáticamente (factura_service evita doble cargo).
+    if liquidacion.pedido and liquidacion.pedido.estado not in (
+        EstadoPedido.LISTO.value,
+        EstadoPedido.ENTREGADO.value,
+        EstadoPedido.FACTURADO.value,
+    ):
+        liquidacion.pedido.estado = EstadoPedido.LISTO.value
 
     db.commit()
     db.refresh(liquidacion)

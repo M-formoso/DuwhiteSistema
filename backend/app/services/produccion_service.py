@@ -548,9 +548,12 @@ class ProduccionService:
         self.db.refresh(lote)
 
         # Cuando el lote pasa a COMPLETADO, sincronizar estado del pedido
-        # (LISTO si todos los lotes del pedido están completados).
-        if estado == EstadoLote.COMPLETADO and lote.pedido_id:
-            self._sincronizar_estado_pedido_si_lotes_completos(lote.pedido_id)
+        # (LISTO si todos los lotes del pedido están completados) y calcular
+        # automáticamente el análisis de costos del lote.
+        if estado == EstadoLote.COMPLETADO:
+            self._calcular_costo_lote_auto(lote.id)
+            if lote.pedido_id:
+                self._sincronizar_estado_pedido_si_lotes_completos(lote.pedido_id)
 
         self.log_service.registrar(
             db=self.db,
@@ -564,6 +567,21 @@ class ProduccionService:
         )
 
         return lote
+
+    def _calcular_costo_lote_auto(self, lote_id: UUID) -> None:
+        """
+        Dispara el análisis de costo del lote al completarse. Defensivo: si
+        falla (ej: faltan parámetros de costo fijo), loguea y sigue — no
+        bloquea la operación de cierre del lote.
+        """
+        try:
+            from app.services.costo_service import CostoService
+            CostoService(self.db).calcular_costo_lote(lote_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudo calcular costo automático del lote %s al completar", lote_id
+            )
 
     def _sincronizar_estado_pedido_si_lotes_completos(self, pedido_id: UUID) -> None:
         """
