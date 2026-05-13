@@ -279,6 +279,29 @@ def facturar_pedidos_masivo(
     return FacturarMasivoResponse(**resultado)
 
 
+@router.get("/preview-mes-cliente")
+def preview_mes_cliente(
+    cliente_id: str,
+    mes: int,
+    anio: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Previsualiza qué pedidos entrarían en una factura mensual consolidada,
+    separando los incluibles de los excluidos (ya facturados, cancelados,
+    sin ítems). No crea nada en BD — solo informa.
+    """
+    verificar_permiso(current_user, "facturacion.ver")
+    from uuid import UUID as _UUID
+    return factura_service.preview_factura_mes_consolidado(
+        db=db,
+        cliente_id=_UUID(cliente_id),
+        mes=mes,
+        anio=anio,
+    )
+
+
 @router.post("/desde-mes-cliente")
 def facturar_mes_cliente(
     cliente_id: str,

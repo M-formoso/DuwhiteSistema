@@ -94,6 +94,46 @@ export const facturaService = {
     return response.data;
   },
 
+  async previewMesCliente(
+    clienteId: string,
+    mes: number,
+    anio: number,
+  ): Promise<{
+    cliente_id: string;
+    cliente_nombre: string;
+    mes: number;
+    anio: number;
+    periodo_label: string;
+    incluidos: Array<{
+      id: string;
+      numero: string;
+      fecha: string;
+      estado: string;
+      total: number;
+      cantidad_items: number;
+    }>;
+    excluidos: Array<{
+      id: string;
+      numero: string;
+      fecha: string;
+      estado: string;
+      total: number;
+      cantidad_items: number;
+      motivo_exclusion: string;
+    }>;
+    total_a_facturar: number;
+    cantidad_a_facturar: number;
+    cantidad_excluidos: number;
+  }> {
+    const params = new URLSearchParams({
+      cliente_id: clienteId,
+      mes: String(mes),
+      anio: String(anio),
+    });
+    const response = await api.get(`${BASE_URL}/preview-mes-cliente?${params.toString()}`);
+    return response.data;
+  },
+
   async facturarMesCliente(
     clienteId: string,
     mes: number,

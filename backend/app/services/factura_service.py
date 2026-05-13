@@ -452,6 +452,95 @@ def listar_pedidos_pendientes(
     return query.all(), total
 
 
+def preview_factura_mes_consolidado(
+    db: Session,
+    cliente_id: UUID,
+    mes: int,
+    anio: int,
+) -> dict:
+    """
+    Previsualiza qué pedidos entrarían en una factura consolidada del mes:
+    devuelve los pedidos incluidos (sin factura activa) y los excluidos (ya
+    facturados) por separado, con totales. NO crea nada en BD.
+    """
+    from datetime import date as _date
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.activo == True).first()
+    if not cliente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    desde = _date(anio, mes, 1)
+    if mes == 12:
+        hasta = _date(anio + 1, 1, 1)
+    else:
+        hasta = _date(anio, mes + 1, 1)
+
+    # Todos los pedidos del cliente en ese período (sin filtrar por factura)
+    todos = (
+        db.query(Pedido)
+        .filter(
+            Pedido.cliente_id == cliente_id,
+            Pedido.activo == True,
+            Pedido.fecha_pedido >= desde,
+            Pedido.fecha_pedido < hasta,
+        )
+        .order_by(Pedido.fecha_pedido.asc())
+        .all()
+    )
+
+    # IDs de pedidos que ya tienen factura activa (borrador/autorizada)
+    pedidos_con_factura = {
+        r[0]: (r[1], r[2])
+        for r in db.query(Factura.pedido_id, Factura.numero_completo, Factura.estado)
+        .filter(
+            Factura.activo == True,
+            Factura.pedido_id.in_([p.id for p in todos]) if todos else False,
+            Factura.estado.in_([EstadoFactura.BORRADOR.value, EstadoFactura.AUTORIZADA.value]),
+        )
+        .all()
+    } if todos else {}
+
+    incluidos = []
+    excluidos = []
+    total_incluido = Decimal("0")
+
+    for p in todos:
+        item = {
+            "id": str(p.id),
+            "numero": p.numero,
+            "fecha": p.fecha_pedido.isoformat(),
+            "estado": p.estado,
+            "total": float(p.total or 0),
+            "cantidad_items": len(p.detalles or []),
+        }
+        if p.id in pedidos_con_factura:
+            numero_fac, estado_fac = pedidos_con_factura[p.id]
+            item["motivo_exclusion"] = f"Ya facturado ({estado_fac}): {numero_fac or 'borrador'}"
+            excluidos.append(item)
+        elif p.estado in (EstadoPedido.CANCELADO.value, EstadoPedido.BORRADOR.value):
+            item["motivo_exclusion"] = f"Estado {p.estado}"
+            excluidos.append(item)
+        elif not p.detalles:
+            item["motivo_exclusion"] = "Sin ítems"
+            excluidos.append(item)
+        else:
+            incluidos.append(item)
+            total_incluido += Decimal(p.total or 0)
+
+    return {
+        "cliente_id": str(cliente.id),
+        "cliente_nombre": cliente.razon_social,
+        "mes": mes,
+        "anio": anio,
+        "periodo_label": f"{mes:02d}/{anio}",
+        "incluidos": incluidos,
+        "excluidos": excluidos,
+        "total_a_facturar": float(total_incluido),
+        "cantidad_a_facturar": len(incluidos),
+        "cantidad_excluidos": len(excluidos),
+    }
+
+
 def facturar_mes_consolidado(
     db: Session,
     cliente_id: UUID,
