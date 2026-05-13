@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 import EstadoArcaBanner from './EstadoArcaBanner';
+import FacturarMesClienteModal from './FacturarMesClienteModal';
 import { facturaService } from '@/services/facturaService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import {
@@ -48,6 +49,7 @@ const PAGE_SIZE = 20;
 export default function FacturasListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [showMesModal, setShowMesModal] = useState(false);
   const [tipo, setTipo] = useState<TipoComprobante | 'todos'>('todos');
   const [estado, setEstado] = useState<EstadoFactura | 'todos'>('todos');
   const [estadoPago, setEstadoPago] = useState<EstadoPago | 'todos'>('todos');
@@ -89,10 +91,17 @@ export default function FacturasListPage() {
           <h1 className="text-2xl font-bold text-text-primary">Facturación</h1>
           <p className="text-text-secondary">Pedidos listos para facturar y facturas emitidas</p>
         </div>
-        <Button onClick={() => navigate('/facturacion/manual')}>
-          + Factura manual
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowMesModal(true)}>
+            Factura mensual cliente
+          </Button>
+          <Button onClick={() => navigate('/facturacion/manual')}>
+            + Factura manual
+          </Button>
+        </div>
       </div>
+
+      <FacturarMesClienteModal open={showMesModal} onOpenChange={setShowMesModal} />
 
       {/* Banner con estado de la integración con ARCA */}
       <EstadoArcaBanner />

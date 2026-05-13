@@ -94,6 +94,22 @@ export const facturaService = {
     return response.data;
   },
 
+  async facturarMesCliente(
+    clienteId: string,
+    mes: number,
+    anio: number,
+    fechaEmision?: string,
+  ): Promise<{ factura_id: string; tipo: string; total: number; items: number; mensaje: string }> {
+    const params = new URLSearchParams({
+      cliente_id: clienteId,
+      mes: String(mes),
+      anio: String(anio),
+    });
+    if (fechaEmision) params.append('fecha_emision', fechaEmision);
+    const response = await api.post(`${BASE_URL}/desde-mes-cliente?${params.toString()}`);
+    return response.data;
+  },
+
   async estadoArca(): Promise<EstadoArcaResponse> {
     const response = await api.get(`${BASE_URL}/estado-arca`);
     return response.data;

@@ -53,6 +53,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 
 import { produccionService } from '@/services/produccionService';
+import LoteHistorialPanel from './LoteHistorialPanel';
 import { formatNumber, formatDate, formatDateTime } from '@/utils/formatters';
 import type { EstadoLote, PrioridadLote, LoteEtapa } from '@/types/produccion';
 import { TIPOS_SERVICIO, ESTADOS_LOTE, PRIORIDADES } from '@/types/produccion';
@@ -992,6 +993,9 @@ export default function LoteDetailPage() {
         }
         description="Ingrese su PIN para confirmar la operación"
       />
+
+      {/* Historial / Auditoría del lote */}
+      <LoteHistorialPanel loteId={String(id)} />
 
       {/* Modal de Confirmación de Eliminación */}
       <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
