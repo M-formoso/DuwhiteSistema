@@ -381,6 +381,54 @@ def crear_maquina(
 
 # ==================== LOTES ====================
 
+@router.get("/lotes/{lote_id}/historial")
+def get_historial_lote(
+    lote_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Historial de auditoría del lote: quién hizo cada transición de etapa,
+    cuándo, con qué máquinas, peso registrado, observaciones y notas.
+    """
+    from uuid import UUID as _UUID
+    from app.models.log_actividad import LogActividad
+    from app.models.lote_produccion import LoteEtapa
+    from app.models.usuario import Usuario as UsuarioModel
+    from sqlalchemy import or_, and_
+
+    lote_uuid = _UUID(lote_id)
+    etapa_ids = [r[0] for r in db.query(LoteEtapa.id).filter(LoteEtapa.lote_id == lote_uuid).all()]
+
+    cond_lote = and_(LogActividad.entidad_tipo == "LoteProduccion", LogActividad.entidad_id == lote_uuid)
+    cond_etapa = and_(LogActividad.entidad_tipo == "LoteEtapa", LogActividad.entidad_id.in_(etapa_ids))
+
+    eventos = (
+        db.query(LogActividad, UsuarioModel)
+        .outerjoin(UsuarioModel, UsuarioModel.id == LogActividad.usuario_id)
+        .filter(
+            LogActividad.modulo == "produccion",
+            or_(cond_lote, cond_etapa) if etapa_ids else cond_lote,
+        )
+        .order_by(LogActividad.created_at.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": str(log.id),
+            "fecha": log.created_at.isoformat(),
+            "accion": log.accion,
+            "entidad_tipo": log.entidad_tipo,
+            "entidad_id": str(log.entidad_id) if log.entidad_id else None,
+            "usuario_id": str(log.usuario_id),
+            "usuario_nombre": (f"{usr.nombre} {usr.apellido or ''}".strip() if usr else "—"),
+            "datos": log.datos_nuevos or {},
+        }
+        for log, usr in eventos
+    ]
+
+
 @router.get("/lotes", response_model=PaginatedResponse)
 def listar_lotes(
     skip: int = 0,

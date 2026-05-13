@@ -44,7 +44,7 @@ const detalleSchema = z.object({
   servicio_id: z.string().nullable().optional(),
   descripcion: z.string().nullable().optional(),
   cantidad: z.number().min(0.01, 'La cantidad debe ser mayor a 0'),
-  unidad: z.string().default('kg'),
+  unidad: z.string().default('unidad'),
   precio_unitario: z.number().min(0, 'El precio no puede ser negativo'),
   descuento_porcentaje: z.number().min(0).max(100).nullable().optional(),
   notas: z.string().nullable().optional(),
@@ -149,7 +149,7 @@ export default function PedidoForm() {
       return productosConPrecio.map((p) => ({
         servicio_id: p.producto_id,
         servicio_nombre: p.producto_nombre,
-        servicio_unidad_cobro: 'kg',
+        servicio_unidad_cobro: 'unidad',
         precio: Number(p.precio_unitario || 0),
         origen: p.tiene_precio ? ('lista' as const) : ('base' as const),
       }));
@@ -157,7 +157,7 @@ export default function PedidoForm() {
     return (productosTodos || []).map((p) => ({
       servicio_id: p.id,
       servicio_nombre: p.nombre,
-      servicio_unidad_cobro: 'kg',
+      servicio_unidad_cobro: 'unidad',
       precio: 0,
       origen: 'base' as const,
     }));
@@ -308,7 +308,7 @@ export default function PedidoForm() {
       servicio_id: null,
       descripcion: '',
       cantidad: 1,
-      unidad: 'kg',
+      unidad: 'unidad',
       precio_unitario: 0,
       descuento_porcentaje: null,
       notas: null,
@@ -320,7 +320,7 @@ export default function PedidoForm() {
     if (!item) return;
     setValue(`detalles.${index}.servicio_id`, servicioId);
     setValue(`detalles.${index}.precio_unitario`, item.precio);
-    setValue(`detalles.${index}.unidad`, item.servicio_unidad_cobro || 'kg');
+    setValue(`detalles.${index}.unidad`, item.servicio_unidad_cobro || 'unidad');
     // Solo autocompletar descripción si está vacía (preservar lo que el usuario haya escrito)
     if (!(watch(`detalles.${index}.descripcion`) || '').trim()) {
       setValue(`detalles.${index}.descripcion`, item.servicio_nombre || '');
@@ -641,7 +641,7 @@ export default function PedidoForm() {
                               ) : (
                                 serviciosDeLista.map((it: any) => (
                                   <SelectItem key={it.servicio_id} value={it.servicio_id}>
-                                    {it.servicio_nombre} — {formatCurrency(it.precio)} / {it.servicio_unidad_cobro || 'kg'}
+                                    {it.servicio_nombre} — {formatCurrency(it.precio)} / {it.servicio_unidad_cobro || 'unidad'}
                                     {it.origen === 'base' ? ' (precio base)' : ''}
                                   </SelectItem>
                                 ))
@@ -671,7 +671,7 @@ export default function PedidoForm() {
                         <div className="space-y-2">
                           <Label>Unidad</Label>
                           <Select
-                            value={watch(`detalles.${index}.unidad`) || 'kg'}
+                            value={watch(`detalles.${index}.unidad`) || 'unidad'}
                             onValueChange={(v) => setValue(`detalles.${index}.unidad`, v)}
                           >
                             <SelectTrigger>

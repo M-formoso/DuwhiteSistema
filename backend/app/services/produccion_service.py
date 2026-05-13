@@ -731,6 +731,32 @@ class ProduccionService:
         self.db.commit()
         self.db.refresh(lote_etapa)
 
+        # Auditoría: registrar quién inició esta etapa
+        try:
+            etapa_obj = self.get_etapa(etapa_id)
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="iniciar_etapa",
+                modulo="produccion",
+                entidad_tipo="LoteEtapa",
+                entidad_id=lote_etapa.id,
+                datos_nuevos={
+                    "lote_id": str(lote_id),
+                    "etapa_id": str(etapa_id),
+                    "etapa_nombre": etapa_obj.nombre if etapa_obj else str(etapa_id),
+                    "estado": "en_proceso",
+                    "responsable_id": str(lote_etapa.responsable_id) if lote_etapa.responsable_id else None,
+                    "maquinas_ids": [str(m) for m in maquinas_ids] if maquinas_ids else [],
+                    "peso_kg": float(data.peso_kg) if data.peso_kg else None,
+                    "observaciones": data.observaciones,
+                    "fecha_inicio": lote_etapa.fecha_inicio.isoformat() if lote_etapa.fecha_inicio else None,
+                },
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("No se pudo registrar log de iniciar_etapa")
+
         return lote_etapa
 
     def finalizar_etapa(
@@ -819,6 +845,31 @@ class ProduccionService:
 
         self.db.commit()
         self.db.refresh(lote_etapa)
+
+        # Auditoría: registrar quién finalizó esta etapa
+        try:
+            etapa_obj = etapa or self.get_etapa(etapa_id)
+            etapa_nombre = etapa_obj.nombre if etapa_obj else str(etapa_id)
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="finalizar_etapa",
+                modulo="produccion",
+                entidad_tipo="LoteEtapa",
+                entidad_id=lote_etapa.id,
+                datos_nuevos={
+                    "lote_id": str(lote_id),
+                    "etapa_id": str(etapa_id),
+                    "etapa_nombre": etapa_nombre,
+                    "estado": "completado",
+                    "peso_kg": float(data.peso_kg) if data.peso_kg else None,
+                    "observaciones": data.observaciones,
+                    "fecha_fin": lote_etapa.fecha_fin.isoformat() if lote_etapa.fecha_fin else None,
+                },
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("No se pudo registrar log de finalizar_etapa")
 
         return lote_etapa
 

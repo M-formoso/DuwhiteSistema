@@ -452,6 +452,139 @@ def listar_pedidos_pendientes(
     return query.all(), total
 
 
+def facturar_mes_consolidado(
+    db: Session,
+    cliente_id: UUID,
+    mes: int,
+    anio: int,
+    usuario_id: UUID,
+    punto_venta: int,
+    fecha_emision: Optional[date] = None,
+) -> Factura:
+    """
+    Genera UNA SOLA factura BORRADOR consolidando todos los pedidos del
+    cliente en el mes/año indicado que todavía no estén facturados.
+
+    Cada pedido aporta sus detalles como líneas adicionales de la factura.
+    Si no hay pedidos pendientes en ese período, levanta 404.
+    """
+    from datetime import date as _date
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.activo == True).first()
+    if not cliente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    desde = _date(anio, mes, 1)
+    if mes == 12:
+        hasta = _date(anio + 1, 1, 1)
+    else:
+        hasta = _date(anio, mes + 1, 1)
+
+    # Sub-query: pedidos ya facturados (borrador o autorizada)
+    subq_facturas_activas = (
+        db.query(Factura.pedido_id)
+        .filter(
+            Factura.activo == True,
+            Factura.pedido_id.isnot(None),
+            Factura.estado.in_([EstadoFactura.BORRADOR.value, EstadoFactura.AUTORIZADA.value]),
+        )
+        .subquery()
+    )
+
+    pedidos = (
+        db.query(Pedido)
+        .filter(
+            Pedido.cliente_id == cliente_id,
+            Pedido.activo == True,
+            Pedido.fecha_pedido >= desde,
+            Pedido.fecha_pedido < hasta,
+            Pedido.estado.in_(
+                [
+                    EstadoPedido.CONFIRMADO.value,
+                    EstadoPedido.EN_PROCESO.value,
+                    EstadoPedido.LISTO.value,
+                    EstadoPedido.ENTREGADO.value,
+                ]
+            ),
+            ~Pedido.id.in_(subq_facturas_activas),
+        )
+        .order_by(Pedido.fecha_pedido.asc())
+        .all()
+    )
+
+    if not pedidos:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"No hay pedidos pendientes de facturar para el cliente en {mes:02d}/{anio}",
+        )
+
+    pedidos_con_detalles = [p for p in pedidos if p.detalles]
+    if not pedidos_con_detalles:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Ningún pedido del período tiene ítems para facturar",
+        )
+
+    tipo = determinar_tipo_factura(cliente.condicion_iva)
+    snap = _snapshot_cliente(cliente)
+    iva_default = Decimal("21")
+
+    factura = Factura(
+        id=uuid.uuid4(),
+        tipo=tipo.value,
+        punto_venta=punto_venta,
+        cliente_id=cliente.id,
+        fecha_emision=fecha_emision or date.today(),
+        fecha_servicio_desde=desde,
+        fecha_servicio_hasta=min(hasta, date.today()),
+        concepto_afip=ConceptoAfip.SERVICIOS.value,
+        condicion_venta=CondicionVenta.CUENTA_CORRIENTE.value,
+        observaciones=f"Facturación consolidada {mes:02d}/{anio} — {len(pedidos_con_detalles)} pedidos",
+        estado=EstadoFactura.BORRADOR.value,
+        creado_por_id=usuario_id,
+        **snap,
+    )
+    db.add(factura)
+    db.flush()
+
+    for pedido in pedidos_con_detalles:
+        for det in pedido.detalles:
+            montos = calcular_linea(
+                precio_unitario_neto=det.precio_unitario,
+                cantidad=det.cantidad,
+                descuento_porcentaje=det.descuento_porcentaje or Decimal("0"),
+                iva_porcentaje=iva_default,
+            )
+            descripcion = (det.descripcion or f"Servicio pedido #{pedido.numero}")
+            descripcion = f"{descripcion} (Pedido #{pedido.numero})"
+            db.add(
+                FacturaDetalle(
+                    id=uuid.uuid4(),
+                    factura_id=factura.id,
+                    detalle_pedido_id=det.id,
+                    descripcion=descripcion[:255],
+                    cantidad=det.cantidad,
+                    unidad_medida=det.unidad or "unidad",
+                    precio_unitario_neto=det.precio_unitario,
+                    descuento_porcentaje=det.descuento_porcentaje or Decimal("0"),
+                    iva_porcentaje=iva_default,
+                    **montos,
+                )
+            )
+
+    db.flush()
+    db.refresh(factura)
+    _recalcular_y_persistir_totales(db, factura)
+
+    # Vincular el primer pedido como pedido_id de la factura (referencia,
+    # pero la factura abarca varios). Esto permite que el flujo de
+    # cuenta corriente y B3 (anular cargos previos) siga funcionando.
+    factura.pedido_id = pedidos_con_detalles[0].id
+    db.flush()
+
+    return factura
+
+
 def facturar_pedidos_masivo(
     db: Session,
     pedido_ids: List[UUID],

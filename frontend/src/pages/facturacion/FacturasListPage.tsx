@@ -89,6 +89,9 @@ export default function FacturasListPage() {
           <h1 className="text-2xl font-bold text-text-primary">Facturación</h1>
           <p className="text-text-secondary">Pedidos listos para facturar y facturas emitidas</p>
         </div>
+        <Button onClick={() => navigate('/facturacion/manual')}>
+          + Factura manual
+        </Button>
       </div>
 
       {/* Banner con estado de la integración con ARCA */}

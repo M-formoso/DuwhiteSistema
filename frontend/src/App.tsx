@@ -42,6 +42,7 @@ import { PedidosListPage, PedidoFormPage, PedidoDetailPage } from '@/pages/pedid
 // Finanzas - Solo CuentaCorrienteClientesPage (el resto migrado a Tesorería)
 import CuentaCorrienteClientesPage from '@/pages/finanzas/CuentaCorrienteClientesPage';
 import CobranzasDashboardPage from '@/pages/cobranzas/CobranzasDashboardPage';
+import FacturaManualPage from '@/pages/facturacion/FacturaManualPage';
 
 // Tesorería
 import TesoreriaPage from '@/pages/tesoreria/TesoreriaPage';
@@ -191,6 +192,7 @@ function App() {
 
         {/* Facturación (A/B + NC/ND) */}
         <Route path="/facturacion" element={<FacturasListPage />} />
+        <Route path="/facturacion/manual" element={<FacturaManualPage />} />
         <Route path="/facturacion/:id" element={<FacturaDetailPage />} />
         <Route path="/facturacion/:id/nota-credito" element={<NotaCreditoFormPage />} />
         <Route path="/facturacion/:id/nota-debito" element={<NotaDebitoFormPage />} />

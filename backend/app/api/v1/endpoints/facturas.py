@@ -279,6 +279,41 @@ def facturar_pedidos_masivo(
     return FacturarMasivoResponse(**resultado)
 
 
+@router.post("/desde-mes-cliente")
+def facturar_mes_cliente(
+    cliente_id: str,
+    mes: int,
+    anio: int,
+    fecha_emision: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Genera UNA factura BORRADOR consolidando todos los pedidos del cliente
+    en el mes/año dado que aún no están facturados. Cada pedido aporta sus
+    detalles. Después se emite a AFIP como cualquier factura.
+    """
+    verificar_permiso(current_user, "facturacion.crear")
+    from uuid import UUID as _UUID
+    factura = factura_service.facturar_mes_consolidado(
+        db=db,
+        cliente_id=_UUID(cliente_id),
+        mes=mes,
+        anio=anio,
+        usuario_id=current_user.id,
+        punto_venta=settings.AFIP_PUNTO_VENTA,
+        fecha_emision=fecha_emision,
+    )
+    db.commit()
+    return {
+        "factura_id": str(factura.id),
+        "tipo": factura.tipo,
+        "total": float(factura.total),
+        "items": len(factura.detalles),
+        "mensaje": "Factura BORRADOR creada. Revisá y emití a AFIP cuando esté lista.",
+    }
+
+
 # ==================== LISTADO Y DETALLE ====================
 
 
