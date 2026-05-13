@@ -55,6 +55,7 @@ import { useToast } from '@/hooks/use-toast';
 import { clienteService } from '@/services/clienteService';
 import { usuarioService, type Usuario } from '@/services/usuarioService';
 import { produccionService } from '@/services/produccionService';
+import { listaPreciosService } from '@/services/servicioService';
 import { formatNumber, formatDate } from '@/utils/formatters';
 import { TIPOS_CLIENTE, CONDICIONES_IVA, MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
@@ -81,6 +82,10 @@ export default function ClienteDetailPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showEliminarModal, setShowEliminarModal] = useState(false);
+
+  // Estado para asignar lista de precios desde el detalle
+  const [showListaPreciosModal, setShowListaPreciosModal] = useState(false);
+  const [listaPreciosSeleccionada, setListaPreciosSeleccionada] = useState<string>('');
 
   // Estados para lote directo
   const [showLoteDirectoModal, setShowLoteDirectoModal] = useState(false);
@@ -119,6 +124,34 @@ export default function ClienteDetailPage() {
     queryKey: ['cliente-pedidos', id],
     queryFn: () => clienteService.getPedidos({ cliente_id: id, limit: 5 }),
     enabled: Boolean(id),
+  });
+
+  // Listas de precios activas (para el selector rápido)
+  const { data: listasPreciosResp } = useQuery({
+    queryKey: ['listas-precios-activas'],
+    queryFn: () => listaPreciosService.listar({ activa: true, limit: 100 }),
+  });
+  const listasPrecios = listasPreciosResp?.items || [];
+  const listaPreciosActual = listasPrecios.find((l: any) => l.id === cliente?.lista_precios_id);
+
+  const asignarListaMutation = useMutation({
+    mutationFn: (listaId: string | null) =>
+      clienteService.updateCliente(id!, { lista_precios_id: listaId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cliente', id] });
+      toast({
+        title: 'Lista de precios actualizada',
+        description: 'Los pedidos, conteos y facturas manuales van a usar estos precios.',
+      });
+      setShowListaPreciosModal(false);
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la lista de precios.',
+        variant: 'destructive',
+      });
+    },
   });
 
   // Query de usuarios del cliente
@@ -598,6 +631,50 @@ export default function ClienteDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Lista de Precios asignada */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Lista de precios</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setListaPreciosSeleccionada(cliente.lista_precios_id || 'none');
+                    setShowListaPreciosModal(true);
+                  }}
+                >
+                  {listaPreciosActual ? 'Cambiar' : 'Asignar'}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {listaPreciosActual ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge className="bg-primary/10 text-primary">{listaPreciosActual.codigo || 'LISTA'}</Badge>
+                    <span className="font-semibold">{listaPreciosActual.nombre}</span>
+                    {listaPreciosActual.es_lista_base && (
+                      <Badge variant="outline" className="text-xs">Base</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Los conteos de producción y facturas manuales del cliente usan estos precios.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Este cliente todavía no tiene una lista de precios asignada.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Sin lista, los precios deben cargarse manualmente al crear pedidos o facturas.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Acceso al Sistema */}
           <Card>
             <CardHeader>
@@ -828,6 +905,51 @@ export default function ClienteDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Modal Asignar Lista de Precios */}
+      <Dialog open={showListaPreciosModal} onOpenChange={setShowListaPreciosModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Asignar lista de precios</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Lista de precios</Label>
+            <Select
+              value={listaPreciosSeleccionada}
+              onValueChange={setListaPreciosSeleccionada}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Elegí una lista" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin lista asignada</SelectItem>
+                {listasPrecios.map((l: any) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.nombre} {l.es_lista_base ? ' (base)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Al hacer un conteo final o una factura manual a este cliente,
+              los precios se autocompletan desde esta lista.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setShowListaPreciosModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => asignarListaMutation.mutate(
+                  listaPreciosSeleccionada === 'none' ? null : listaPreciosSeleccionada
+                )}
+                disabled={asignarListaMutation.isPending}
+              >
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Pago */}
       {showPagoModal && (

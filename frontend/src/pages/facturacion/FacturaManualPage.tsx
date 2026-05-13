@@ -23,11 +23,13 @@ import { useToast } from '@/components/ui/use-toast';
 
 import { facturaService } from '@/services/facturaService';
 import { clienteService } from '@/services/clienteService';
+import { productoLavadoService } from '@/services/productoLavadoService';
 import { getErrorMessage } from '@/services/api';
 import { formatCurrency } from '@/utils/formatters';
 import type { FacturaDetalleCreate } from '@/types/factura';
 
 interface ItemLocal {
+  producto_id?: string | null;
   descripcion: string;
   cantidad: number;
   unidad_medida: string;
@@ -36,6 +38,7 @@ interface ItemLocal {
 }
 
 const ITEM_VACIO: ItemLocal = {
+  producto_id: null,
   descripcion: '',
   cantidad: 1,
   unidad_medida: 'unidad',
@@ -56,6 +59,48 @@ export default function FacturaManualPage() {
     queryKey: ['clientes-lista'],
     queryFn: () => clienteService.getClientesLista(),
   });
+
+  const clienteElegido = (clientes || []).find((c: any) => c.id === clienteId);
+  const listaPreciosId = clienteElegido?.lista_precios_id;
+
+  // Productos con precios según la lista del cliente seleccionado
+  const { data: productosConPrecio } = useQuery({
+    queryKey: ['productos-con-precios', listaPreciosId],
+    queryFn: () => productoLavadoService.getProductosConPrecios(listaPreciosId!),
+    enabled: Boolean(listaPreciosId),
+  });
+
+  const { data: productosTodos } = useQuery({
+    queryKey: ['productos-lavado-activos'],
+    queryFn: () => productoLavadoService.getAll({ solo_activos: true }),
+  });
+
+  const productosDisponibles = (() => {
+    if (listaPreciosId && productosConPrecio) {
+      return productosConPrecio.map((p) => ({
+        id: p.producto_id,
+        nombre: p.producto_nombre,
+        precio: Number(p.precio_unitario || 0),
+        origen: p.tiene_precio ? 'lista' : 'base',
+      }));
+    }
+    return (productosTodos || []).map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      precio: 0,
+      origen: 'base' as const,
+    }));
+  })();
+
+  const seleccionarProducto = (idx: number, productoId: string) => {
+    const prod = productosDisponibles.find((p) => p.id === productoId);
+    if (!prod) return;
+    const v = [...items];
+    v[idx].producto_id = productoId;
+    v[idx].precio_unitario_neto = prod.precio;
+    if (!v[idx].descripcion.trim()) v[idx].descripcion = prod.nombre;
+    setItems(v);
+  };
 
   const subtotal = items.reduce(
     (s, i) => s + (Number(i.cantidad) || 0) * (Number(i.precio_unitario_neto) || 0),
@@ -175,7 +220,32 @@ export default function FacturaManualPage() {
               className="grid grid-cols-12 gap-2 items-end border rounded p-3 bg-muted/30"
             >
               <div className="col-span-12 md:col-span-4 space-y-1">
-                <Label className="text-xs">Descripción</Label>
+                <Label className="text-xs">Producto / Descripción</Label>
+                <Select
+                  value={it.producto_id || ''}
+                  onValueChange={(v) => seleccionarProducto(idx, v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        clienteId
+                          ? listaPreciosId
+                            ? 'Elegir producto (precio de la lista)'
+                            : 'Cliente sin lista — precios manuales'
+                          : 'Primero elegí cliente'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productosDisponibles.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nombre}
+                        {p.precio > 0 && ` — ${formatCurrency(p.precio)}`}
+                        {p.origen === 'base' && ' (sin precio)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   value={it.descripcion}
                   onChange={(e) => {
@@ -183,7 +253,8 @@ export default function FacturaManualPage() {
                     v[idx].descripcion = e.target.value;
                     setItems(v);
                   }}
-                  placeholder="Ej: Lavado especial 50 manteles"
+                  placeholder="Descripción libre (opcional)"
+                  className="text-xs"
                 />
               </div>
               <div className="col-span-4 md:col-span-1 space-y-1">
