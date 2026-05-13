@@ -31,6 +31,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import EstadoArcaBanner from './EstadoArcaBanner';
 import FacturarMesClienteModal from './FacturarMesClienteModal';
 import { facturaService } from '@/services/facturaService';
+import { clienteService } from '@/services/clienteService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import {
   TipoComprobante,
@@ -53,17 +54,24 @@ export default function FacturasListPage() {
   const [tipo, setTipo] = useState<TipoComprobante | 'todos'>('todos');
   const [estado, setEstado] = useState<EstadoFactura | 'todos'>('todos');
   const [estadoPago, setEstadoPago] = useState<EstadoPago | 'todos'>('todos');
+  const [clienteId, setClienteId] = useState<string>('todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [page, setPage] = useState(1);
 
+  const { data: clientesLista } = useQuery({
+    queryKey: ['clientes-lista'],
+    queryFn: () => clienteService.getClientesLista(),
+  });
+
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['facturas', { tipo, estado, estadoPago, fechaDesde, fechaHasta, search, page }],
+    queryKey: ['facturas', { tipo, estado, estadoPago, clienteId, fechaDesde, fechaHasta, search, page }],
     queryFn: () =>
       facturaService.listar({
         tipo: tipo === 'todos' ? undefined : tipo,
         estado: estado === 'todos' ? undefined : estado,
         estado_pago: estadoPago === 'todos' ? undefined : estadoPago,
+        cliente_id: clienteId === 'todos' ? undefined : clienteId,
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
         numero: search.trim() || undefined,
@@ -168,7 +176,27 @@ export default function FacturasListPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <Select
+                  value={clienteId}
+                  onValueChange={(v) => {
+                    setClienteId(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los clientes</SelectItem>
+                    {(clientesLista || []).map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nombre}{c.cuit ? ` · ${c.cuit}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Select
                   value={tipo}
                   onValueChange={(v) => {

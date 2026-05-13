@@ -15,6 +15,13 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -25,6 +32,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 
 import { facturaService } from '@/services/facturaService';
+import { clienteService } from '@/services/clienteService';
 import { getErrorMessage } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { TIPOS_COMPROBANTE_LABEL } from '@/types/factura';
@@ -51,21 +59,39 @@ export default function PedidosPendientesPanel() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [soloListos, setSoloListos] = useState(false);
+  const [clienteId, setClienteId] = useState<string>('todos');
+  const [busqueda, setBusqueda] = useState('');
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
 
+  const { data: clientesLista } = useQuery({
+    queryKey: ['clientes-lista'],
+    queryFn: () => clienteService.getClientesLista(),
+  });
+
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['pedidos-pendientes-facturar', { fechaDesde, fechaHasta, soloListos }],
+    queryKey: ['pedidos-pendientes-facturar', { fechaDesde, fechaHasta, soloListos, clienteId }],
     queryFn: () =>
       facturaService.listarPedidosPendientes({
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
+        cliente_id: clienteId === 'todos' ? undefined : clienteId,
         solo_listos: soloListos || undefined,
         page: 1,
         page_size: 100,
       }),
   });
 
-  const items = data?.items ?? [];
+  // Filtrado client-side por nro de pedido / cliente (texto libre)
+  const itemsRaw = data?.items ?? [];
+  const items = busqueda.trim()
+    ? itemsRaw.filter((p: any) => {
+        const q = busqueda.toLowerCase();
+        return (
+          String(p.numero || '').toLowerCase().includes(q) ||
+          (p.cliente_razon_social || '').toLowerCase().includes(q)
+        );
+      })
+    : itemsRaw;
   const totalSeleccionado = useMemo(
     () =>
       items
@@ -146,7 +172,27 @@ export default function PedidosPendientesPanel() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Input
+              placeholder="Buscar por número de pedido o cliente..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+            <Select value={clienteId} onValueChange={setClienteId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los clientes</SelectItem>
+                {(clientesLista || []).map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nombre}{c.cuit ? ` · ${c.cuit}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex gap-2">
               <Input
