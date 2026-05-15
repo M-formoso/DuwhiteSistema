@@ -2,7 +2,7 @@
  * Header principal de la aplicación
  */
 
-import { Bell, LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -100,15 +100,6 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
 
         {/* Acciones */}
         <div className="flex items-center gap-2">
-          {/* Notificaciones */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            {/* Badge de notificaciones */}
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-white flex items-center justify-center">
-              3
-            </span>
-          </Button>
-
           {/* Usuario */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
