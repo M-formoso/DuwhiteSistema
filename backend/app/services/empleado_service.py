@@ -143,6 +143,7 @@ class EmpleadoService:
             dias_trabajo=data.dias_trabajo,
             salario_base=data.salario_base,
             salario_hora=data.salario_hora,
+            valor_hora_extra=data.salario_hora,
             tipo_contratacion=data.tipo_contratacion,
             dia_pago=data.dia_pago,
             jornada_horas=data.jornada_horas,
@@ -173,6 +174,11 @@ class EmpleadoService:
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(empleado, field, value)
+
+        # Sincronizar valor_hora_extra con salario_hora si está vacío,
+        # así la columna $/Hora en jornales refleja lo del perfil.
+        if "salario_hora" in update_data and not empleado.valor_hora_extra:
+            empleado.valor_hora_extra = update_data["salario_hora"]
 
         self.db.commit()
         self.db.refresh(empleado)
@@ -1061,7 +1067,7 @@ class EmpleadoService:
         return {
             "empleado_id": str(empleado_id),
             "empleado_nombre": empleado.nombre_completo,
-            "valor_hora_extra": empleado.valor_hora_extra,
+            "valor_hora_extra": empleado.valor_hora_extra or empleado.salario_hora,
             "salario_base": salario_base,
             "periodo_mes": mes,
             "periodo_anio": anio,
