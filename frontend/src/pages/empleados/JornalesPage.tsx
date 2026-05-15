@@ -447,19 +447,18 @@ export default function JornalesPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Extras</CardTitle>
+              <CardTitle className="text-sm font-medium">Suma al sueldo</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold text-green-600">
                 {formatNumber(
-                  Number(resumen.total_monto_extras || 0) +
                   Number(resumen.total_monto_francos || 0) +
                   Number(resumen.total_monto_feriados || 0),
                   'currency'
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Suma al sueldo</p>
+              <p className="text-xs text-muted-foreground">Francos + Feriados</p>
             </CardContent>
           </Card>
 
@@ -472,7 +471,7 @@ export default function JornalesPage() {
               <div className={`text-xl font-bold ${resumen.total_general >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatNumber(resumen.total_general, 'currency')}
               </div>
-              <p className="text-xs text-muted-foreground">Extras - Adelantos</p>
+              <p className="text-xs text-muted-foreground">Francos + Feriados - Adelantos</p>
             </CardContent>
           </Card>
         </div>
@@ -579,7 +578,8 @@ export default function JornalesPage() {
                 </thead>
                 <tbody>
                   {resumen.empleados.map((emp) => {
-                    const totalSuma = Number(emp.total_monto_extras || 0) + Number(emp.total_monto_francos || 0) + Number(emp.total_monto_feriados || 0);
+                    // HS extras se pagan aparte, no se suman al sueldo final.
+                    const totalSuma = Number(emp.total_monto_francos || 0) + Number(emp.total_monto_feriados || 0);
                     return (
                       <React.Fragment key={emp.empleado_id}>
                         <tr
@@ -848,7 +848,6 @@ export default function JornalesPage() {
                     <td className="bg-green-200/50 px-3 py-4 text-center border-l border-green-200">
                       <span className="text-green-800 font-bold text-lg">
                         +{formatNumber(
-                          Number(resumen.total_monto_extras || 0) +
                           Number(resumen.total_monto_francos || 0) +
                           Number(resumen.total_monto_feriados || 0),
                           'currency'

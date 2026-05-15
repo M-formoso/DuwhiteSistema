@@ -940,8 +940,8 @@ class EmpleadoService:
             total_feriados_global += resumen_emp.get("total_feriados", Decimal("0"))
             total_monto_feriados_global += resumen_emp.get("total_monto_feriados", Decimal("0"))
 
-        # Total general: extras + francos + feriados - adelantos
-        total_suma = total_monto_extras_global + total_monto_francos_global + total_monto_feriados_global
+        # HS extras se pagan aparte al momento, no se suman al sueldo final.
+        total_suma = total_monto_francos_global + total_monto_feriados_global
         total_general = total_suma - total_adelantos_global
 
         return {
@@ -1054,9 +1054,9 @@ class EmpleadoService:
         total_monto_feriados = sum(s["total_monto_feriados"] for s in semanas)
 
         salario_base = empleado.salario_base or Decimal("0")
-        # Sueldo final = base + extras + francos + feriados - adelantos
-        total_extras = total_monto_extras + total_monto_francos + total_monto_feriados
-        sueldo_final = salario_base + total_extras - total_adelantos
+        # HS extras se pagan aparte al momento, no se suman al sueldo final.
+        total_a_sumar = total_monto_francos + total_monto_feriados
+        sueldo_final = salario_base + total_a_sumar - total_adelantos
 
         return {
             "empleado_id": str(empleado_id),
@@ -1073,7 +1073,7 @@ class EmpleadoService:
             "total_monto_francos": total_monto_francos,
             "total_feriados": total_feriados,
             "total_monto_feriados": total_monto_feriados,
-            "total_general": total_extras - total_adelantos,
+            "total_general": total_a_sumar - total_adelantos,
             "sueldo_final": sueldo_final,
         }
 
