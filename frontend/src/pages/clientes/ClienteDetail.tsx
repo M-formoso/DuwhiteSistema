@@ -363,16 +363,16 @@ export default function ClienteDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="flex-shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 break-words">
                 {cliente.nombre_fantasia || cliente.razon_social}
               </h1>
               <Badge variant="outline">{getTipoLabel(cliente.tipo)}</Badge>
@@ -384,28 +384,35 @@ export default function ClienteDetailPage() {
                 {cliente.activo ? 'Activo' : 'Inactivo'}
               </Badge>
             </div>
-            <p className="text-gray-500 font-mono">{cliente.codigo}</p>
+            <p className="text-sm text-gray-500 font-mono mt-1">{cliente.codigo}</p>
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 lg:flex-shrink-0">
           {cliente.activo && (
             <Button
               variant="outline"
-              className="text-red-600 border-red-300 hover:bg-red-50"
+              className="text-red-600 border-red-300 hover:bg-red-50 w-full sm:w-auto"
               onClick={() => setShowEliminarModal(true)}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Eliminar
+              <Trash2 className="h-4 w-4 sm:mr-2" />
+              <span className="ml-2 sm:ml-0">Eliminar</span>
             </Button>
           )}
-          <Button variant="outline" onClick={() => navigate(`/clientes/${id}/editar`)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Editar
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/clientes/${id}/editar`)}
+            className="w-full sm:w-auto"
+          >
+            <Edit className="h-4 w-4 sm:mr-2" />
+            <span className="ml-2 sm:ml-0">Editar</span>
           </Button>
-          <Button onClick={() => navigate(`/pedidos/nuevo?cliente=${id}`)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Pedido
+          <Button
+            onClick={() => navigate(`/pedidos/nuevo?cliente=${id}`)}
+            className="w-full sm:w-auto col-span-2 sm:col-span-1"
+          >
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="ml-2 sm:ml-0">Nuevo Pedido</span>
           </Button>
         </div>
       </div>
@@ -421,15 +428,15 @@ export default function ClienteDetailPage() {
                 Información General
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <div>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="min-w-0">
                 <p className="text-sm text-gray-500">Razón Social</p>
-                <p className="font-medium">{cliente.razon_social}</p>
+                <p className="font-medium break-words">{cliente.razon_social}</p>
               </div>
               {cliente.nombre_fantasia && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-500">Nombre Fantasía</p>
-                  <p className="font-medium">{cliente.nombre_fantasia}</p>
+                  <p className="font-medium break-words">{cliente.nombre_fantasia}</p>
                 </div>
               )}
               <div>
@@ -451,11 +458,14 @@ export default function ClienteDetailPage() {
                 Contacto
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {cliente.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-400" />
-                  <a href={`mailto:${cliente.email}`} className="text-primary hover:underline">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <a
+                    href={`mailto:${cliente.email}`}
+                    className="text-primary hover:underline truncate"
+                  >
                     {cliente.email}
                   </a>
                 </div>
@@ -507,7 +517,7 @@ export default function ClienteDetailPage() {
 
           {/* Últimos Pedidos */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 Últimos Pedidos
@@ -560,7 +570,7 @@ export default function ClienteDetailPage() {
               <div className="text-center py-4">
                 <p className="text-sm text-gray-500">Saldo Actual</p>
                 <p
-                  className={`text-3xl font-bold ${
+                  className={`text-2xl sm:text-3xl font-bold break-words ${
                     cliente.tiene_deuda ? 'text-red-600' : 'text-green-600'
                   }`}
                 >
@@ -634,7 +644,7 @@ export default function ClienteDetailPage() {
           {/* Lista de Precios asignada */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex flex-wrap items-center justify-between gap-2">
                 <span>Lista de precios</span>
                 <Button
                   variant="outline"
@@ -651,9 +661,9 @@ export default function ClienteDetailPage() {
             <CardContent>
               {listaPreciosActual ? (
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <Badge className="bg-primary/10 text-primary">{listaPreciosActual.codigo || 'LISTA'}</Badge>
-                    <span className="font-semibold">{listaPreciosActual.nombre}</span>
+                    <span className="font-semibold break-words">{listaPreciosActual.nombre}</span>
                     {listaPreciosActual.es_lista_base && (
                       <Badge variant="outline" className="text-xs">Base</Badge>
                     )}
@@ -869,7 +879,7 @@ export default function ClienteDetailPage() {
           {/* Movimientos Recientes */}
           {movimientos?.items && movimientos.items.length > 0 && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <CardTitle>Últimos Movimientos</CardTitle>
                 <Button
                   variant="ghost"
