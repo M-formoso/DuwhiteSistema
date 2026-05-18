@@ -112,17 +112,17 @@ export default function ClienteDetailPage() {
     enabled: Boolean(id),
   });
 
-  // Query de movimientos
+  // Query de movimientos (solo unos pocos, hay un "Ver más" al cuenta corriente)
   const { data: movimientos } = useQuery({
     queryKey: ['cliente-movimientos', id],
-    queryFn: () => clienteService.getMovimientosCuenta(id!, { limit: 10 }),
+    queryFn: () => clienteService.getMovimientosCuenta(id!, { limit: 5 }),
     enabled: Boolean(id),
   });
 
-  // Query de pedidos
+  // Query de pedidos (solo los últimos, hay un "Ver más" a la lista completa)
   const { data: pedidos } = useQuery({
     queryKey: ['cliente-pedidos', id],
-    queryFn: () => clienteService.getPedidos({ cliente_id: id, limit: 5 }),
+    queryFn: () => clienteService.getPedidos({ cliente_id: id, limit: 4 }),
     enabled: Boolean(id),
   });
 
@@ -417,7 +417,7 @@ export default function ClienteDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Columna principal */}
         <div className="lg:col-span-2 space-y-6">
           {/* Info General */}
@@ -523,7 +523,7 @@ export default function ClienteDetailPage() {
                 Últimos Pedidos
               </CardTitle>
               <Button variant="ghost" size="sm" onClick={() => navigate(`/pedidos?cliente=${id}`)}>
-                Ver todos
+                Ver más
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </CardHeader>
@@ -892,7 +892,7 @@ export default function ClienteDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {movimientos.items.slice(0, 5).map((mov) => (
+                  {movimientos.items.slice(0, 4).map((mov) => (
                     <div key={mov.id} className="flex justify-between text-sm">
                       <div>
                         <p className="font-medium">{mov.concepto}</p>
