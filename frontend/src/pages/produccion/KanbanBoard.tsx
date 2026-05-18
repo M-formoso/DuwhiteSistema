@@ -17,13 +17,24 @@ import {
   Play,
   CheckCircle,
   Settings2,
-  Truck,
   Box,
   RotateCcw,
   Scale,
   Calculator,
   Split,
+  LayoutGrid,
+  List,
+  Wrench,
 } from 'lucide-react';
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -102,6 +113,15 @@ interface KanbanCardProps {
   isEnProceso: boolean;
 }
 
+// Devuelve clases de color según el % de tiempo usado vs estimado.
+function tiempoColorClasses(minutos: number, estimado: number | null | undefined) {
+  if (!estimado || estimado <= 0) return 'text-gray-500';
+  const ratio = minutos / estimado;
+  if (ratio < 0.7) return 'text-emerald-600';
+  if (ratio < 1) return 'text-amber-600';
+  return 'text-red-600 font-semibold';
+}
+
 function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProceso }: KanbanCardProps) {
   const navigate = useNavigate();
 
@@ -111,12 +131,13 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProc
 
   const estaExcedido = columna.tiempo_estimado_minutos && tiempoMostrar > columna.tiempo_estimado_minutos;
   const esRelevado = lote.tipo_lote === 'relevado';
+  const tiempoColor = tiempoColorClasses(tiempoMostrar, columna.tiempo_estimado_minutos);
 
   return (
     <Card
-      className={`cursor-pointer hover:shadow-md transition-shadow ${
+      className={`cursor-pointer hover:shadow-md transition-shadow min-h-[180px] ${
         lote.esta_atrasado ? 'border-red-400 bg-red-50' : ''
-      } ${esRelevado ? 'border-l-4 border-l-purple-500' : ''}`}
+      } ${esRelevado ? 'border-l-4 border-l-purple-500' : ''} ${isEnProceso ? 'ring-1 ring-blue-200' : ''}`}
     >
       <CardContent className="p-3">
         <div
@@ -189,12 +210,28 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProc
             </div>
           )}
 
-          {/* Timer en tiempo real */}
+          {/* Operario + máquinas cuando la etapa está en proceso */}
+          {isEnProceso && (lote.responsable_nombre || (lote.maquinas_nombres && lote.maquinas_nombres.length > 0)) && (
+            <div className="mt-2 rounded bg-blue-50 border border-blue-100 p-2 space-y-1">
+              {lote.responsable_nombre && (
+                <div className="flex items-center gap-1.5 text-xs text-blue-800">
+                  <User className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate font-medium">{lote.responsable_nombre}</span>
+                </div>
+              )}
+              {lote.maquinas_nombres && lote.maquinas_nombres.length > 0 && (
+                <div className="flex items-start gap-1.5 text-xs text-blue-800">
+                  <Wrench className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                  <span className="break-words">{lote.maquinas_nombres.join(', ')}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Timer en tiempo real con color por umbral */}
           {tiempoMostrar > 0 && (
             <div className="mt-2">
-              <div className={`flex items-center gap-1 text-xs ${
-                estaExcedido ? 'text-orange-600 font-medium' : 'text-gray-500'
-              }`}>
+              <div className={`flex items-center gap-1 text-xs ${tiempoColor}`}>
                 <Clock className={`h-3 w-3 ${isEnProceso ? 'animate-pulse' : ''}`} />
                 <span>
                   {formatTiempo(tiempoMostrar)}
@@ -206,7 +243,7 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProc
                 </span>
               </div>
               {estaExcedido && (
-                <div className="text-xs text-orange-600 mt-1">
+                <div className="text-xs text-red-600 mt-1">
                   +{formatTiempo(tiempoMostrar - columna.tiempo_estimado_minutos!)} sobre estimado
                 </div>
               )}
@@ -307,10 +344,244 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProc
   );
 }
 
+// Vista de lista: tabla densa en md+, cards apiladas en mobile.
+// Aplana todos los lotes de todas las columnas y muestra la etapa actual de cada uno.
+interface KanbanListViewProps {
+  kanban: { columnas: KanbanColumna[] } | undefined;
+  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null, etapaCodigo?: string) => void;
+  onFinalizar: (loteId: string, etapaId: string) => void;
+}
+
+function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps) {
+  const navigate = useNavigate();
+
+  // Aplanar: cada item de lote queda emparejado con su columna (etapa actual)
+  const items = (kanban?.columnas || []).flatMap((col) =>
+    col.lotes.map((lote) => ({ lote, columna: col }))
+  );
+
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 text-gray-400 py-12">
+        <Package className="h-10 w-10 mb-2" />
+        <span>No hay lotes activos en producción</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto pb-2">
+      {/* Tabla densa en desktop */}
+      <Card className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Lote</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Etapa actual</TableHead>
+              <TableHead>Operario</TableHead>
+              <TableHead>Máquinas</TableHead>
+              <TableHead className="text-right">Peso</TableHead>
+              <TableHead>Tiempo</TableHead>
+              <TableHead>Compromiso</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map(({ lote, columna }) => {
+              const enProceso = lote.etapa_en_proceso;
+              const tColor = tiempoColorClasses(lote.tiempo_en_etapa_minutos, columna.tiempo_estimado_minutos);
+              return (
+                <TableRow
+                  key={lote.id}
+                  className={`cursor-pointer hover:bg-gray-50 ${lote.esta_atrasado ? 'bg-red-50' : ''}`}
+                  onClick={() => navigate(`/produccion/lotes/${lote.id}`)}
+                >
+                  <TableCell className="font-mono font-medium">
+                    <div className="flex items-center gap-2">
+                      {lote.numero}
+                      <Badge className={`text-[10px] ${PRIORIDAD_COLORS[lote.prioridad]}`}>
+                        {PRIORIDAD_LABELS[lote.prioridad]}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate">{lote.cliente_nombre || '-'}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      style={{ borderColor: columna.etapa_color }}
+                      className="font-medium"
+                    >
+                      {columna.etapa_nombre}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">{lote.responsable_nombre || (enProceso ? '-' : <span className="text-gray-400 text-xs">en espera</span>)}</TableCell>
+                  <TableCell className="text-sm max-w-[160px] truncate">
+                    {lote.maquinas_nombres && lote.maquinas_nombres.length > 0 ? lote.maquinas_nombres.join(', ') : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {lote.peso_entrada_kg ? `${formatNumber(Number(lote.peso_entrada_kg), 1)} kg` : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`text-sm ${tColor}`}>
+                      {lote.tiempo_en_etapa_minutos > 0 ? formatTiempo(lote.tiempo_en_etapa_minutos) : '-'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-500">
+                    {lote.fecha_compromiso ? formatDateAR(lote.fecha_compromiso) : '-'}
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {!enProceso ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.requiere_maquina, columna.tipo_maquina, columna.etapa_codigo)}
+                      >
+                        <Play className="h-3 w-3 mr-1" />
+                        Iniciar
+                      </Button>
+                    ) : columna.etapa_codigo === 'CONT' ? (
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
+                      >
+                        <Calculator className="h-3 w-3 mr-1" />
+                        Conteo
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => onFinalizar(lote.id, columna.etapa_id)}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Finalizar
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* Cards apiladas en mobile */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:hidden">
+        {items.map(({ lote, columna }) => {
+          const enProceso = lote.etapa_en_proceso;
+          const tColor = tiempoColorClasses(lote.tiempo_en_etapa_minutos, columna.tiempo_estimado_minutos);
+          return (
+            <Card
+              key={lote.id}
+              className={`cursor-pointer hover:shadow-md transition-shadow ${lote.esta_atrasado ? 'border-red-400 bg-red-50' : ''} ${enProceso ? 'ring-1 ring-blue-200' : ''}`}
+              onClick={() => navigate(`/produccion/lotes/${lote.id}`)}
+            >
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-start justify-between">
+                  <span className="font-mono font-semibold text-base">{lote.numero}</span>
+                  <Badge className={PRIORIDAD_COLORS[lote.prioridad]}>{PRIORIDAD_LABELS[lote.prioridad]}</Badge>
+                </div>
+                {lote.cliente_nombre && (
+                  <div className="text-sm text-gray-700 truncate">{lote.cliente_nombre}</div>
+                )}
+                <Badge
+                  variant="outline"
+                  style={{ borderColor: columna.etapa_color }}
+                  className="font-medium"
+                >
+                  {columna.etapa_nombre}
+                </Badge>
+                {enProceso && (lote.responsable_nombre || (lote.maquinas_nombres?.length || 0) > 0) && (
+                  <div className="rounded bg-blue-50 border border-blue-100 p-2 space-y-1 text-xs text-blue-800">
+                    {lote.responsable_nombre && (
+                      <div className="flex items-center gap-1.5">
+                        <User className="h-3 w-3" />
+                        <span className="truncate font-medium">{lote.responsable_nombre}</span>
+                      </div>
+                    )}
+                    {lote.maquinas_nombres && lote.maquinas_nombres.length > 0 && (
+                      <div className="flex items-start gap-1.5">
+                        <Wrench className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                        <span className="break-words">{lote.maquinas_nombres.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">
+                    {lote.peso_entrada_kg ? `${formatNumber(Number(lote.peso_entrada_kg), 1)} kg` : ''}
+                  </span>
+                  {lote.tiempo_en_etapa_minutos > 0 && (
+                    <span className={tColor}>
+                      <Clock className="inline h-3 w-3 mr-1" />
+                      {formatTiempo(lote.tiempo_en_etapa_minutos)}
+                    </span>
+                  )}
+                </div>
+                <div className="pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                  {!enProceso ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.requiere_maquina, columna.tipo_maquina, columna.etapa_codigo)}
+                    >
+                      <Play className="h-3 w-3 mr-1" />
+                      Iniciar etapa
+                    </Button>
+                  ) : columna.etapa_codigo === 'CONT' ? (
+                    <Button
+                      size="sm"
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
+                    >
+                      <Calculator className="h-3 w-3 mr-1" />
+                      Ir a Conteo
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => onFinalizar(lote.id, columna.etapa_id)}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Finalizar
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// localStorage key for viewMode preference
+const VIEW_MODE_KEY = 'duwhite:produccion:view-mode';
+type ViewMode = 'kanban' | 'list';
+
+function getInitialViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'kanban';
+  const stored = window.localStorage.getItem(VIEW_MODE_KEY);
+  if (stored === 'kanban' || stored === 'list') return stored as ViewMode;
+  // Mobile-first: en pantallas chicas arranca en lista (kanban horizontal es incómodo)
+  if (window.matchMedia('(max-width: 767px)').matches) return 'list';
+  return 'kanban';
+}
+
 export default function KanbanBoardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Vista actual (kanban | list) persistida en localStorage
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
+  useEffect(() => {
+    window.localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   // Estado para modal de PIN / Iniciar
   const [showPinModal, setShowPinModal] = useState(false);
@@ -502,12 +773,35 @@ export default function KanbanBoardPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             <span className="truncate">Actualizar</span>
           </Button>
-          <Button variant="outline" onClick={() => navigate('/produccion/lotes')}>
-            <span className="truncate">Ver Lista</span>
-          </Button>
           <Button onClick={() => navigate('/produccion/lotes/nuevo')}>
             <Plus className="h-4 w-4 mr-2" />
             <span className="truncate">Nuevo Lote</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Toggle Kanban / Lista */}
+      <div className="flex items-center justify-end mb-3">
+        <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+          <Button
+            type="button"
+            variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 px-3"
+            onClick={() => setViewMode('kanban')}
+          >
+            <LayoutGrid className="h-4 w-4 mr-1.5" />
+            Kanban
+          </Button>
+          <Button
+            type="button"
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-8 px-3"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="h-4 w-4 mr-1.5" />
+            Lista
           </Button>
         </div>
       </div>
@@ -529,8 +823,14 @@ export default function KanbanBoardPage() {
             Reintentar
           </Button>
         </div>
+      ) : viewMode === 'list' ? (
+        <KanbanListView
+          kanban={kanban}
+          onIniciar={handleIniciar}
+          onFinalizar={handleFinalizar}
+        />
       ) : (
-        <div className="flex gap-4 overflow-x-auto flex-1 pb-2">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto flex-1 pb-2 snap-x snap-mandatory md:snap-none">
           {/* Columnas de etapas del Kanban */}
           {kanban?.columnas.map((columna) => {
             // Calcular total kg de la columna
@@ -542,11 +842,11 @@ export default function KanbanBoardPage() {
             return (
             <div
               key={columna.etapa_id}
-              className="flex-shrink-0 w-[85vw] xs:w-72 sm:w-80 flex flex-col"
+              className="flex-shrink-0 w-[92vw] sm:w-[20rem] md:w-72 lg:w-80 flex flex-col snap-start"
             >
               <Card className="flex flex-col h-full">
                 <CardHeader
-                  className="py-3 px-4 flex-shrink-0"
+                  className="py-3 px-4 flex-shrink-0 sticky top-0 bg-white z-10 rounded-t-lg"
                   style={{ borderTopColor: columna.etapa_color, borderTopWidth: '4px' }}
                 >
                   <div className="flex items-center justify-between">

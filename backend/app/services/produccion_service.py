@@ -1058,11 +1058,24 @@ class ProduccionService:
 
                 tiempo_en_etapa = 0
                 etapa_en_proceso = False
+                responsable_nombre = None
+                maquinas_nombres = []
                 if lote_etapa and lote_etapa.fecha_inicio:
                     delta = datetime.utcnow() - lote_etapa.fecha_inicio
                     tiempo_en_etapa = int(delta.total_seconds() / 60)
                     # Está en proceso si tiene fecha_inicio pero no fecha_fin
                     etapa_en_proceso = lote_etapa.fecha_fin is None
+                    if etapa_en_proceso:
+                        if lote_etapa.responsable:
+                            r = lote_etapa.responsable
+                            responsable_nombre = (
+                                f"{r.nombre} {r.apellido}".strip()
+                                if hasattr(r, "apellido") and r.apellido
+                                else getattr(r, "nombre", None) or getattr(r, "username", None)
+                            )
+                        for m in (lote_etapa.maquinas_en_uso or []):
+                            if m and getattr(m, "nombre", None):
+                                maquinas_nombres.append(m.nombre)
 
                 # Obtener canastos asignados al lote (a través de la relación lote.canastos)
                 canastos_data = []
@@ -1098,6 +1111,8 @@ class ProduccionService:
                     tipo_lote=lote.tipo_lote or "normal",
                     lote_padre_numero=lote_padre_numero,
                     canastos=canastos_data,
+                    responsable_nombre=responsable_nombre,
+                    maquinas_nombres=maquinas_nombres,
                 ))
 
                 total_lotes += 1

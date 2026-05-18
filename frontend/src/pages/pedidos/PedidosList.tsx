@@ -2,7 +2,7 @@
  * Lista de Pedidos
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -16,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -35,7 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 import { clienteService } from '@/services/clienteService';
@@ -54,9 +56,23 @@ const ESTADO_COLORS: Record<EstadoPedido, string> = {
   cancelado: 'bg-red-100 text-red-700',
 };
 
+const PEDIDOS_VIEW_KEY = 'duwhite:pedidos:view-mode';
+
+function getInitialPedidosViewMode(): 'table' | 'cards' {
+  if (typeof window === 'undefined') return 'table';
+  const stored = window.localStorage.getItem(PEDIDOS_VIEW_KEY);
+  if (stored === 'table' || stored === 'cards') return stored as 'table' | 'cards';
+  if (window.matchMedia('(max-width: 767px)').matches) return 'cards';
+  return 'table';
+}
+
 export default function PedidosListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>(getInitialPedidosViewMode);
+  useEffect(() => {
+    window.localStorage.setItem(PEDIDOS_VIEW_KEY, viewMode);
+  }, [viewMode]);
 
   // Filtros desde URL
   const clienteId = searchParams.get('cliente');
@@ -114,14 +130,14 @@ export default function PedidosListPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-          <p className="text-gray-500">{total} pedidos en total</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Pedidos</h1>
+          <p className="text-sm text-gray-500">{total} pedidos en total</p>
         </div>
-        <Button onClick={() => navigate('/pedidos/nuevo')}>
+        <Button onClick={() => navigate('/pedidos/nuevo')} className="sm:flex-initial">
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Pedido
         </Button>
@@ -129,9 +145,9 @@ export default function PedidosListPage() {
 
       {/* Filtros */}
       <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
+        <CardContent className="py-3 sm:py-4">
+          <div className="flex flex-wrap gap-2 sm:gap-4 items-center">
+            <div className="hidden sm:flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
               <span className="text-sm font-medium text-gray-700">Filtros:</span>
             </div>
@@ -140,7 +156,7 @@ export default function PedidosListPage() {
               value={estado || 'all'}
               onValueChange={(v) => updateFilter('estado', v === 'all' ? null : v)}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full xs:w-36 sm:w-40">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -154,20 +170,20 @@ export default function PedidosListPage() {
             </Select>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Desde:</span>
+              <span className="text-sm text-gray-500 hidden xs:inline">Desde:</span>
               <Input
                 type="date"
-                className="w-40"
+                className="w-36 sm:w-40"
                 value={fechaDesde || ''}
                 onChange={(e) => updateFilter('desde', e.target.value || null)}
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Hasta:</span>
+              <span className="text-sm text-gray-500 hidden xs:inline">Hasta:</span>
               <Input
                 type="date"
-                className="w-40"
+                className="w-36 sm:w-40"
                 value={fechaHasta || ''}
                 onChange={(e) => updateFilter('hasta', e.target.value || null)}
               />
@@ -175,11 +191,29 @@ export default function PedidosListPage() {
 
             {(estado || fechaDesde || fechaHasta || clienteId) && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Limpiar filtros
+                Limpiar
               </Button>
             )}
 
-            <div className="ml-auto">
+            <div className="ml-auto flex gap-1 sm:gap-2">
+              <Button
+                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                size="icon"
+                className="hidden md:inline-flex"
+                onClick={() => setViewMode('table')}
+                title="Vista tabla"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
+                size="icon"
+                className="hidden md:inline-flex"
+                onClick={() => setViewMode('cards')}
+                title="Vista cards"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
               <Button variant="outline" size="icon" onClick={() => refetch()}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -188,13 +222,13 @@ export default function PedidosListPage() {
         </CardContent>
       </Card>
 
-      {/* Tabla */}
+      {/* Contenido */}
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <RefreshCw className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : (
-        <Card>
+      ) : viewMode === 'table' ? (
+        <Card className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -264,6 +298,71 @@ export default function PedidosListPage() {
             </TableBody>
           </Table>
         </Card>
+      ) : null}
+
+      {/* Cards: siempre en mobile, opcional en desktop */}
+      {!isLoading && (
+        <div
+          className={
+            viewMode === 'cards'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4'
+              : 'grid grid-cols-1 sm:grid-cols-2 gap-3 md:hidden'
+          }
+        >
+          {pedidos.length === 0 && (
+            <p className="col-span-full text-center text-gray-500 py-8">
+              No se encontraron pedidos
+            </p>
+          )}
+          {pedidos.map((pedido) => (
+            <Card
+              key={pedido.id}
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => navigate(`/pedidos/${pedido.id}`)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base font-mono">{pedido.numero}</CardTitle>
+                  <Badge className={ESTADO_COLORS[pedido.estado]}>
+                    {getEstadoLabel(pedido.estado)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {pedido.cliente_nombre && (
+                  <p className="text-sm font-medium text-gray-700 truncate">{pedido.cliente_nombre}</p>
+                )}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {formatDateAR(pedido.fecha_pedido)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Truck className="h-3 w-3" />
+                    {getTipoEntregaLabel(pedido.tipo_entrega)}
+                  </span>
+                </div>
+                {pedido.fecha_entrega_estimada && (
+                  <div className="text-xs text-gray-500">
+                    Entrega est.: {formatDateAR(pedido.fecha_entrega_estimada)}
+                  </div>
+                )}
+                <div className="flex items-end justify-between pt-2 border-t">
+                  <div>
+                    <p className="text-[10px] uppercase text-gray-400">Total</p>
+                    <p className="text-sm font-semibold">${formatNumber(pedido.total, 2)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase text-gray-400">Saldo</p>
+                    <p className={`text-sm font-semibold ${pedido.saldo_pendiente > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      ${formatNumber(pedido.saldo_pendiente, 2)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Paginación */}

@@ -236,6 +236,9 @@ class KanbanLote(BaseModel):
     tipo_lote: str = "normal"  # normal o relevado
     lote_padre_numero: Optional[str] = None  # Si es relevado, número del lote padre
     canastos: List[KanbanCanasto] = []  # Canastos asignados al lote
+    # Datos de la etapa actual en proceso (operario + máquinas usadas)
+    responsable_nombre: Optional[str] = None
+    maquinas_nombres: List[str] = []
 
     class Config:
         from_attributes = True

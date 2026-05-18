@@ -202,6 +202,9 @@ export interface KanbanLote {
   lote_padre_numero?: string | null;
   canastos?: KanbanCanasto[];
   fecha_inicio_etapa?: string | null; // Para timer en tiempo real
+  // Operario + máquinas en uso cuando la etapa está en proceso
+  responsable_nombre?: string | null;
+  maquinas_nombres?: string[];
 }
 
 export interface KanbanColumna {
