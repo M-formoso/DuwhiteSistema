@@ -201,16 +201,16 @@ export default function PedidoDetail() {
   const puedeEditar = ['borrador', 'confirmado'].includes(pedido.estado);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/pedidos')}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/pedidos')} className="flex-shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 break-all">
                 Pedido #{pedido.numero}
               </h1>
               <Badge className={ESTADO_COLORS[pedido.estado]}>
@@ -218,37 +218,40 @@ export default function PedidoDetail() {
                 <span className="ml-1">{getEstadoLabel(pedido.estado)}</span>
               </Badge>
             </div>
-            <p className="text-gray-500">
-              {pedido.cliente_nombre} - {formatDate(pedido.fecha_pedido)}
+            <p className="text-sm text-gray-500 truncate">
+              {pedido.cliente_nombre} · {formatDate(pedido.fecha_pedido)}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" />
-            Imprimir
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 lg:flex-shrink-0">
+          <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto">
+            <Printer className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Imprimir</span>
+            <span className="sm:hidden ml-2">Imprimir</span>
           </Button>
           {puedeEditar && (
             <Button
               variant="outline"
               onClick={() => navigate(`/pedidos/${id}/editar`)}
+              className="w-full sm:w-auto"
             >
-              <Pencil className="h-4 w-4 mr-2" />
-              Editar
+              <Pencil className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Editar</span>
+              <span className="sm:hidden ml-2">Editar</span>
             </Button>
           )}
           {pedido.estado !== 'cancelado' && pedido.estado !== 'facturado' && (
             <Button
               onClick={() => facturarMutation.mutate()}
               disabled={facturarMutation.isPending}
-              className="bg-primary hover:bg-primary-hover"
+              className="bg-primary hover:bg-primary-hover w-full sm:w-auto"
             >
               {facturarMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
               ) : (
-                <Receipt className="h-4 w-4 mr-2" />
+                <Receipt className="h-4 w-4 sm:mr-2" />
               )}
-              Facturar
+              <span className="ml-2 sm:ml-0">Facturar</span>
             </Button>
           )}
           {pedido.estado !== 'cancelado' && pedido.estado !== 'facturado' && (
@@ -256,13 +259,14 @@ export default function PedidoDetail() {
               variant="destructive"
               onClick={handleCancelar}
               disabled={cancelarMutation.isPending}
+              className="w-full sm:w-auto col-span-2 sm:col-span-1"
             >
               {cancelarMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Cancelar
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <span className="ml-2 sm:ml-0">Cancelar</span>
                 </>
               )}
             </Button>
@@ -368,12 +372,12 @@ export default function PedidoDetail() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <Select
                   value={cambioEstado || ''}
                   onValueChange={(v) => setCambioEstado(v as EstadoPedido)}
                 >
-                  <SelectTrigger className="w-64">
+                  <SelectTrigger className="w-full sm:w-64">
                     <SelectValue placeholder="Seleccionar nuevo estado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -387,6 +391,7 @@ export default function PedidoDetail() {
                 <Button
                   onClick={() => cambioEstado && cambiarEstadoMutation.mutate(cambioEstado)}
                   disabled={!cambioEstado || cambiarEstadoMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
                   {cambiarEstadoMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -406,48 +411,79 @@ export default function PedidoDetail() {
               Items del Pedido
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className="text-right">Cantidad</TableHead>
-                  <TableHead className="text-right">Precio Unit.</TableHead>
-                  <TableHead className="text-right">Descuento</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pedido.detalles.map((detalle) => (
-                  <TableRow key={detalle.id}>
-                    <TableCell>
-                      <p className="font-medium">{detalle.descripcion}</p>
-                      {detalle.notas && (
-                        <p className="text-sm text-muted-foreground">{detalle.notas}</p>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {detalle.cantidad} {detalle.unidad}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(detalle.precio_unitario)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {detalle.descuento_porcentaje
-                        ? `${detalle.descuento_porcentaje}%`
-                        : '-'}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(detalle.subtotal)}
-                    </TableCell>
+          <CardContent className="px-3 sm:px-6">
+            {/* Tabla — solo en md+ */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead className="text-right">Cantidad</TableHead>
+                    <TableHead className="text-right">Precio Unit.</TableHead>
+                    <TableHead className="text-right">Descuento</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {pedido.detalles.map((detalle) => (
+                    <TableRow key={detalle.id}>
+                      <TableCell>
+                        <p className="font-medium">{detalle.descripcion}</p>
+                        {detalle.notas && (
+                          <p className="text-sm text-muted-foreground">{detalle.notas}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {detalle.cantidad} {detalle.unidad}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(detalle.precio_unitario)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {detalle.descuento_porcentaje
+                          ? `${detalle.descuento_porcentaje}%`
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(detalle.subtotal)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Cards apiladas — solo en mobile */}
+            <div className="md:hidden space-y-3">
+              {pedido.detalles.map((detalle) => (
+                <div key={detalle.id} className="border rounded-lg p-3 space-y-2">
+                  <div>
+                    <p className="font-medium">{detalle.descripcion}</p>
+                    {detalle.notas && (
+                      <p className="text-xs text-muted-foreground mt-1">{detalle.notas}</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">Cantidad:</span>
+                    <span className="text-right">{detalle.cantidad} {detalle.unidad}</span>
+                    <span className="text-muted-foreground">Precio unit.:</span>
+                    <span className="text-right">{formatCurrency(detalle.precio_unitario)}</span>
+                    {detalle.descuento_porcentaje ? (
+                      <>
+                        <span className="text-muted-foreground">Descuento:</span>
+                        <span className="text-right">{detalle.descuento_porcentaje}%</span>
+                      </>
+                    ) : null}
+                    <span className="text-muted-foreground font-medium">Subtotal:</span>
+                    <span className="text-right font-semibold">{formatCurrency(detalle.subtotal)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             {/* Totales */}
-            <div className="mt-6 flex justify-end">
-              <div className="w-64 space-y-2">
+            <div className="mt-6 flex sm:justify-end">
+              <div className="w-full sm:w-64 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span>{formatCurrency(pedido.subtotal)}</span>
@@ -462,7 +498,7 @@ export default function PedidoDetail() {
                   <span className="text-muted-foreground">IVA (21%):</span>
                   <span>{formatCurrency(pedido.iva)}</span>
                 </div>
-                <div className="border-t pt-2 flex justify-between font-bold text-lg">
+                <div className="border-t pt-2 flex justify-between font-bold text-base sm:text-lg">
                   <span>Total:</span>
                   <span className="text-primary">{formatCurrency(pedido.total)}</span>
                 </div>
