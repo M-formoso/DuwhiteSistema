@@ -24,7 +24,7 @@ ROLES_VALIDOS = [
 class UsuarioBase(BaseModel):
     """Campos comunes de usuario."""
 
-    email: EmailStr
+    email: str = Field(..., min_length=1, max_length=255)
     nombre: str = Field(..., min_length=2, max_length=100)
     apellido: str = Field(..., min_length=2, max_length=100)
     rol: str = Field(default="operador")
@@ -77,7 +77,7 @@ class UsuarioCreateForClient(BaseModel):
     """Schema para crear usuario vinculado a un cliente."""
 
     cliente_id: UUID
-    email: EmailStr
+    email: str = Field(..., min_length=1, max_length=255)
     password: str = Field(..., min_length=8, max_length=100)
     nombre: Optional[str] = None  # Si no se provee, usa datos del cliente
     apellido: Optional[str] = None
@@ -93,7 +93,7 @@ class UsuarioCreateForClient(BaseModel):
 class UsuarioUpdate(BaseModel):
     """Schema para actualizar usuario."""
 
-    email: Optional[EmailStr] = None
+    email: Optional[str] = Field(default=None, min_length=1, max_length=255)
     nombre: Optional[str] = Field(default=None, min_length=2, max_length=100)
     apellido: Optional[str] = Field(default=None, min_length=2, max_length=100)
     telefono: Optional[str] = Field(default=None, max_length=50)

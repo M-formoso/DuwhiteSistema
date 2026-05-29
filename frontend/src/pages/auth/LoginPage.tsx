@@ -19,7 +19,7 @@ import { getErrorMessage } from '@/services/api';
 
 // Schema de validación
 const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
+  email: z.string().min(1, 'El nombre de usuario es requerido'),
   password: z.string().min(1, 'La contraseña es requerida'),
 });
 
@@ -91,14 +91,14 @@ export default function LoginPage() {
 
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Email */}
+            {/* Usuario */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Usuario</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="usuario@duwhite.com"
-                autoComplete="email"
+                type="text"
+                placeholder="Nombre de usuario"
+                autoComplete="username"
                 disabled={isLoading}
                 {...register('email')}
               />
@@ -157,7 +157,7 @@ export default function LoginPage() {
             <p>Sistema de Gestión Integral</p>
             <div className="mt-3 p-3 bg-gray-100 rounded-md text-left">
               <p className="font-semibold text-gray-700 mb-1">Credenciales de prueba:</p>
-              <p className="text-gray-600">Email: admin@duwhite.com</p>
+              <p className="text-gray-600">Usuario: admin@duwhite.com</p>
               <p className="text-gray-600">Password: admin123</p>
             </div>
           </div>

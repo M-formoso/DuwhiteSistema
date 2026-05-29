@@ -387,7 +387,7 @@ export default function UsuariosPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input
-                  placeholder="Buscar por nombre o email..."
+                  placeholder="Buscar por nombre o usuario..."
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
@@ -452,10 +452,10 @@ export default function UsuariosPage() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Usuario
+                    Nombre
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Email
+                    Usuario
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Rol
@@ -667,10 +667,12 @@ export default function UsuariosPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Usuario</Label>
               <Input
                 id="email"
-                type="email"
+                type="text"
+                autoComplete="username"
+                placeholder="Nombre de usuario"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
@@ -817,10 +819,12 @@ export default function UsuariosPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
+              <Label htmlFor="edit-email">Usuario</Label>
               <Input
                 id="edit-email"
-                type="email"
+                type="text"
+                autoComplete="username"
+                placeholder="Nombre de usuario"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
@@ -1012,7 +1016,7 @@ export default function UsuariosPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>Usuario</Label>
               <div className="flex items-center gap-2">
                 <Input value={selectedUser?.email || ''} readOnly className="font-mono" />
                 <Button

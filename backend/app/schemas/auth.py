@@ -12,7 +12,7 @@ from app.schemas.usuario import UsuarioResponse
 class LoginRequest(BaseModel):
     """Schema para login."""
 
-    email: EmailStr
+    email: str = Field(..., min_length=1)
     password: str = Field(..., min_length=1)
 
 

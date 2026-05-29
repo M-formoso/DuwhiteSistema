@@ -25,7 +25,7 @@ router = APIRouter()
     "/login",
     response_model=LoginResponse,
     summary="Iniciar sesión",
-    description="Autentica un usuario con email y contraseña. Retorna tokens JWT.",
+    description="Autentica un usuario con nombre de usuario y contraseña. Retorna tokens JWT.",
 )
 async def login(
     data: LoginRequest,
@@ -35,7 +35,7 @@ async def login(
     """
     Endpoint de login.
 
-    - **email**: Email del usuario
+    - **email**: Nombre de usuario
     - **password**: Contraseña
 
     Retorna el usuario autenticado y tokens JWT (access + refresh).
