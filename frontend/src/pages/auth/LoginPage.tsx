@@ -155,11 +155,6 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="mt-6 text-center text-sm text-muted-foreground">
             <p>Sistema de Gestión Integral</p>
-            <div className="mt-3 p-3 bg-gray-100 rounded-md text-left">
-              <p className="font-semibold text-gray-700 mb-1">Credenciales de prueba:</p>
-              <p className="text-gray-600">Usuario: admin@duwhite.com</p>
-              <p className="text-gray-600">Password: admin123</p>
-            </div>
           </div>
         </CardContent>
       </Card>
