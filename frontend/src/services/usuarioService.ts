@@ -31,8 +31,8 @@ export interface UsuarioCreate {
   password: string;
   nombre: string;
   apellido: string;
-  telefono?: string;
-  pin?: string;
+  telefono?: string | null;
+  pin?: string | null;
   rol: string;
   cliente_id?: string;
   permisos_modulos?: Record<string, boolean>;

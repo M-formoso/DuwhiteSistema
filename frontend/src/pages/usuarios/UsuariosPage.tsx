@@ -50,7 +50,12 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 
-import usuarioService, { Usuario, ROLES, MODULOS_LABELS } from '@/services/usuarioService';
+import usuarioService, {
+  Usuario,
+  UsuarioCreate,
+  ROLES,
+  MODULOS_LABELS,
+} from '@/services/usuarioService';
 import { formatDate } from '@/utils/formatters';
 
 export default function UsuariosPage() {
@@ -113,7 +118,7 @@ export default function UsuariosPage() {
 
   // Mutaciones
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => usuarioService.createUsuario(data),
+    mutationFn: (data: UsuarioCreate) => usuarioService.createUsuario(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['usuarios'] });
       toast({ title: 'Usuario creado', description: 'El usuario ha sido creado correctamente.' });
@@ -781,7 +786,13 @@ export default function UsuariosPage() {
               Cancelar
             </Button>
             <Button
-              onClick={() => createMutation.mutate(formData)}
+              onClick={() =>
+                createMutation.mutate({
+                  ...formData,
+                  telefono: formData.telefono || null,
+                  pin: formData.pin || null,
+                })
+              }
               disabled={createMutation.isPending}
             >
               {createMutation.isPending ? 'Creando...' : 'Crear Usuario'}
