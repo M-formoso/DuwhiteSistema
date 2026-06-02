@@ -70,9 +70,16 @@ class ClienteService:
 
         total = query.count()
 
-        # Aplicar ordenamiento
-        # Para nombre usamos COALESCE para ordenar por nombre_fantasia si existe, sino por razon_social
-        nombre_display = func.coalesce(Cliente.nombre_fantasia, Cliente.razon_social)
+        # Aplicar ordenamiento.
+        # El frontend muestra `nombre_fantasia || razon_social` (cae con string vacío también),
+        # así que el orden debe replicar lo mismo: NULLIF convierte '' en NULL para que el
+        # COALESCE caiga a razon_social. UPPER hace que el orden sea case-insensitive.
+        nombre_display = func.upper(
+            func.coalesce(
+                func.nullif(func.trim(Cliente.nombre_fantasia), ''),
+                Cliente.razon_social,
+            )
+        )
 
         if orden == "saldo_desc":
             query = query.order_by(Cliente.saldo_cuenta_corriente.desc(), nombre_display)
@@ -134,10 +141,16 @@ class ClienteService:
 
     def get_clientes_lista(self) -> List[dict]:
         """Obtiene lista simplificada para selectores."""
+        nombre_display = func.upper(
+            func.coalesce(
+                func.nullif(func.trim(Cliente.nombre_fantasia), ''),
+                Cliente.razon_social,
+            )
+        )
         clientes = (
             self.db.query(Cliente)
             .filter(Cliente.activo == True)
-            .order_by(Cliente.razon_social)
+            .order_by(nombre_display)
             .all()
         )
 
