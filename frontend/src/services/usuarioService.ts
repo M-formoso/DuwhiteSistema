@@ -20,6 +20,7 @@ export interface Usuario {
   cliente_nombre?: string;
   permisos_modulos?: Record<string, boolean>;
   permisos_efectivos?: Record<string, boolean>;
+  etapas_produccion_permitidas?: string[] | null;
   tiene_password_visible?: boolean;
   password_visible?: string;
   created_at: string;
@@ -36,6 +37,7 @@ export interface UsuarioCreate {
   rol: string;
   cliente_id?: string;
   permisos_modulos?: Record<string, boolean>;
+  etapas_produccion_permitidas?: string[] | null;
   guardar_password_visible?: boolean;
 }
 
@@ -56,6 +58,7 @@ export interface UsuarioUpdate {
   rol?: string;
   cliente_id?: string;
   permisos_modulos?: Record<string, boolean>;
+  etapas_produccion_permitidas?: string[] | null;
   activo?: boolean;
   debe_cambiar_password?: boolean;
 }

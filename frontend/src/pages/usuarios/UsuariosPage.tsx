@@ -18,6 +18,7 @@ import {
   Shield,
   Copy,
   Check,
+  Factory,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ import usuarioService, {
   ROLES,
   MODULOS_LABELS,
 } from '@/services/usuarioService';
+import { produccionService } from '@/services/produccionService';
 import { formatDate } from '@/utils/formatters';
 
 export default function UsuariosPage() {
@@ -88,10 +90,13 @@ export default function UsuariosPage() {
     rol: 'operador',
     guardar_password_visible: false,
     permisos_modulos: undefined as Record<string, boolean> | undefined,
+    etapas_produccion_permitidas: [] as string[],
   });
 
   // Para controlar si se personalizan los permisos
   const [personalizarPermisos, setPersonalizarPermisos] = useState(false);
+  // Restringir etapas (true = solo las marcadas, false = todas)
+  const [restringirEtapas, setRestringirEtapas] = useState(false);
 
   const [newPassword, setNewPassword] = useState('');
   const [guardarPasswordVisible, setGuardarPasswordVisible] = useState(false);
@@ -114,6 +119,12 @@ export default function UsuariosPage() {
   const { data: modulosData } = useQuery({
     queryKey: ['modulos-permisos'],
     queryFn: () => usuarioService.getModulosPermisos(),
+  });
+
+  // Cargar etapas de producción para selector de permisos
+  const { data: etapasProduccion } = useQuery({
+    queryKey: ['etapas-produccion', 'activas'],
+    queryFn: () => produccionService.getEtapas(true),
   });
 
   // Mutaciones
@@ -270,8 +281,33 @@ export default function UsuariosPage() {
       rol: 'operador',
       guardar_password_visible: false,
       permisos_modulos: undefined,
+      etapas_produccion_permitidas: [],
     });
     setPersonalizarPermisos(false);
+    setRestringirEtapas(false);
+  };
+
+  // Verifica si el rol seleccionado (con sus permisos personalizados o por defecto)
+  // tiene acceso al módulo de producción.
+  const tieneAccesoProduccion = (
+    rol: string,
+    permisosPersonalizados?: Record<string, boolean>
+  ): boolean => {
+    if (rol === 'cliente') return false;
+    if (permisosPersonalizados && Object.keys(permisosPersonalizados).length > 0) {
+      return permisosPersonalizados.produccion === true;
+    }
+    const porRol = modulosData?.permisos_por_rol?.[rol];
+    return porRol ? porRol.produccion === true : false;
+  };
+
+  const toggleEtapaPermitida = (etapaId: string, checked: boolean) => {
+    setFormData((prev) => {
+      const set = new Set(prev.etapas_produccion_permitidas);
+      if (checked) set.add(etapaId);
+      else set.delete(etapaId);
+      return { ...prev, etapas_produccion_permitidas: Array.from(set) };
+    });
   };
 
   // Obtener permisos por defecto del rol seleccionado
@@ -325,6 +361,8 @@ export default function UsuariosPage() {
     setSelectedUser(usuario);
     const tienePermisosPersonalizados = !!(usuario.permisos_modulos && Object.keys(usuario.permisos_modulos).length > 0);
     setPersonalizarPermisos(tienePermisosPersonalizados);
+    const etapasGuardadas = usuario.etapas_produccion_permitidas || [];
+    setRestringirEtapas(etapasGuardadas.length > 0);
     setFormData({
       email: usuario.email,
       password: '',
@@ -335,6 +373,7 @@ export default function UsuariosPage() {
       rol: usuario.rol,
       guardar_password_visible: false,
       permisos_modulos: tienePermisosPersonalizados ? usuario.permisos_modulos : undefined,
+      etapas_produccion_permitidas: etapasGuardadas,
     });
     setShowEditModal(true);
   };
@@ -645,7 +684,7 @@ export default function UsuariosPage() {
 
       {/* Modal Crear Usuario */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo Usuario</DialogTitle>
             <DialogDescription>
@@ -780,6 +819,69 @@ export default function UsuariosPage() {
                 </p>
               )}
             </div>
+
+            {/* Sección de etapas de producción permitidas */}
+            {tieneAccesoProduccion(formData.rol, formData.permisos_modulos) && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Factory className="h-4 w-4" />
+                    Postas de Producción (columnas del Kanban)
+                  </Label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={restringirEtapas}
+                      onCheckedChange={(checked) => {
+                        setRestringirEtapas(checked === true);
+                        if (checked !== true) {
+                          setFormData((prev) => ({ ...prev, etapas_produccion_permitidas: [] }));
+                        }
+                      }}
+                    />
+                    Limitar a postas específicas
+                  </label>
+                </div>
+
+                {restringirEtapas ? (
+                  <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-gray-50">
+                    <p className="text-xs text-gray-500 mb-2">
+                      El usuario solo verá lotes en las columnas marcadas:
+                    </p>
+                    {etapasProduccion && etapasProduccion.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {etapasProduccion
+                          .slice()
+                          .sort((a, b) => a.orden - b.orden)
+                          .map((etapa) => (
+                            <label
+                              key={etapa.id}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <Checkbox
+                                checked={formData.etapas_produccion_permitidas.includes(etapa.id)}
+                                onCheckedChange={(checked) =>
+                                  toggleEtapaPermitida(etapa.id, checked === true)
+                                }
+                              />
+                              <span
+                                className="inline-block w-2 h-2 rounded-full"
+                                style={{ backgroundColor: etapa.color }}
+                              />
+                              {etapa.nombre}
+                            </label>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">Cargando etapas…</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Verá todas las columnas del Kanban de producción.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>
@@ -791,6 +893,9 @@ export default function UsuariosPage() {
                   ...formData,
                   telefono: formData.telefono || null,
                   pin: formData.pin || null,
+                  etapas_produccion_permitidas: restringirEtapas
+                    ? formData.etapas_produccion_permitidas
+                    : null,
                 })
               }
               disabled={createMutation.isPending}
@@ -803,7 +908,7 @@ export default function UsuariosPage() {
 
       {/* Modal Editar Usuario */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Usuario</DialogTitle>
             <DialogDescription>
@@ -926,6 +1031,69 @@ export default function UsuariosPage() {
                 </p>
               )}
             </div>
+
+            {/* Sección de etapas de producción permitidas */}
+            {tieneAccesoProduccion(formData.rol, formData.permisos_modulos) && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Factory className="h-4 w-4" />
+                    Postas de Producción (columnas del Kanban)
+                  </Label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={restringirEtapas}
+                      onCheckedChange={(checked) => {
+                        setRestringirEtapas(checked === true);
+                        if (checked !== true) {
+                          setFormData((prev) => ({ ...prev, etapas_produccion_permitidas: [] }));
+                        }
+                      }}
+                    />
+                    Limitar a postas específicas
+                  </label>
+                </div>
+
+                {restringirEtapas ? (
+                  <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-gray-50">
+                    <p className="text-xs text-gray-500 mb-2">
+                      El usuario solo verá lotes en las columnas marcadas:
+                    </p>
+                    {etapasProduccion && etapasProduccion.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {etapasProduccion
+                          .slice()
+                          .sort((a, b) => a.orden - b.orden)
+                          .map((etapa) => (
+                            <label
+                              key={etapa.id}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <Checkbox
+                                checked={formData.etapas_produccion_permitidas.includes(etapa.id)}
+                                onCheckedChange={(checked) =>
+                                  toggleEtapaPermitida(etapa.id, checked === true)
+                                }
+                              />
+                              <span
+                                className="inline-block w-2 h-2 rounded-full"
+                                style={{ backgroundColor: etapa.color }}
+                              />
+                              {etapa.nombre}
+                            </label>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">Cargando etapas…</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Verá todas las columnas del Kanban de producción.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditModal(false)}>
@@ -944,6 +1112,9 @@ export default function UsuariosPage() {
                       pin: formData.pin || null,
                       rol: formData.rol,
                       permisos_modulos: formData.permisos_modulos,
+                      etapas_produccion_permitidas: restringirEtapas
+                        ? formData.etapas_produccion_permitidas
+                        : null,
                     },
                   });
                 }

@@ -1012,9 +1012,17 @@ class ProduccionService:
 
     # ==================== KANBAN ====================
 
-    def get_kanban_board(self) -> KanbanBoard:
-        """Obtiene el tablero Kanban completo."""
+    def get_kanban_board(self, etapas_permitidas: Optional[List[str]] = None) -> KanbanBoard:
+        """
+        Obtiene el tablero Kanban.
+
+        Si `etapas_permitidas` es una lista no vacía, filtra las columnas
+        a solo esas etapas (por id como string). Lista vacía o None = todas.
+        """
         etapas = self.get_etapas(solo_activas=True)
+        if etapas_permitidas:
+            ids_set = set(etapas_permitidas)
+            etapas = [e for e in etapas if str(e.id) in ids_set]
 
         columnas = []
         total_lotes = 0

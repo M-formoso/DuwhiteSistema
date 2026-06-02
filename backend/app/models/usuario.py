@@ -124,6 +124,11 @@ class Usuario(Base, BaseModelMixin):
     # Si es null, usa permisos por defecto según rol
     permisos_modulos = Column(JSON, nullable=True)
 
+    # Etapas de producción permitidas (JSON: lista de UUIDs como string)
+    # Si es null o lista vacía, el usuario ve TODAS las etapas/columnas del Kanban.
+    # Si tiene IDs, solo ve esas columnas/lotes en esas etapas.
+    etapas_produccion_permitidas = Column(JSON, nullable=True)
+
     # Vinculación con cliente (para usuarios tipo "cliente")
     cliente_id = Column(
         UUID(as_uuid=True),
@@ -165,3 +170,16 @@ class Usuario(Base, BaseModelMixin):
         """Verifica si el usuario tiene acceso a un módulo."""
         permisos = self.get_permisos()
         return permisos.get(modulo, False)
+
+    def get_etapas_permitidas(self) -> list:
+        """Retorna lista de IDs (str) de etapas permitidas. Lista vacía = todas."""
+        # superadmin y administrador ven todo siempre
+        if self.rol in ("superadmin", "administrador"):
+            return []
+        if not self.etapas_produccion_permitidas:
+            return []
+        return [str(e) for e in self.etapas_produccion_permitidas if e]
+
+    def tiene_restriccion_etapas(self) -> bool:
+        """Indica si el usuario tiene restricción de etapas en producción."""
+        return len(self.get_etapas_permitidas()) > 0

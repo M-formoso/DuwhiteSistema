@@ -131,6 +131,11 @@ class UsuarioService:
             rol=data.rol,
             cliente_id=data.cliente_id,
             permisos_modulos=data.permisos_modulos,
+            etapas_produccion_permitidas=(
+                [str(e) for e in data.etapas_produccion_permitidas]
+                if data.etapas_produccion_permitidas
+                else None
+            ),
             debe_cambiar_password=True,
         )
 
@@ -286,6 +291,11 @@ class UsuarioService:
 
         # Actualizar campos proporcionados
         update_data = data.model_dump(exclude_unset=True)
+        if "etapas_produccion_permitidas" in update_data:
+            valor = update_data["etapas_produccion_permitidas"]
+            update_data["etapas_produccion_permitidas"] = (
+                [str(e) for e in valor] if valor else None
+            )
         for field, value in update_data.items():
             setattr(usuario, field, value)
 

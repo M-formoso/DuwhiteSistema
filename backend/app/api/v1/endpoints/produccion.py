@@ -102,9 +102,10 @@ def obtener_kanban(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    """Obtiene el tablero Kanban completo."""
+    """Obtiene el tablero Kanban filtrado por etapas permitidas del usuario."""
     service = ProduccionService(db)
-    return service.get_kanban_board()
+    etapas_permitidas = current_user.get_etapas_permitidas()
+    return service.get_kanban_board(etapas_permitidas=etapas_permitidas)
 
 
 @router.get("/pedidos-en-camino", response_model=List[Dict[str, Any]])

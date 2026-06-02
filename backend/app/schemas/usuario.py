@@ -3,7 +3,7 @@ Schemas de Usuario para validación y serialización.
 """
 
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -46,6 +46,7 @@ class UsuarioCreate(UsuarioBase):
     empleado_id: Optional[UUID] = None
     cliente_id: Optional[UUID] = None
     permisos_modulos: Optional[Dict[str, bool]] = None
+    etapas_produccion_permitidas: Optional[List[UUID]] = None
     guardar_password_visible: bool = False  # Si es True, guarda password en texto plano
 
     @field_validator("password")
@@ -103,6 +104,7 @@ class UsuarioUpdate(BaseModel):
     empleado_id: Optional[UUID] = None
     cliente_id: Optional[UUID] = None
     permisos_modulos: Optional[Dict[str, bool]] = None
+    etapas_produccion_permitidas: Optional[List[UUID]] = None
     activo: Optional[bool] = None
     debe_cambiar_password: Optional[bool] = None
 
@@ -152,6 +154,7 @@ class UsuarioResponse(BaseModel):
     cliente_nombre: Optional[str] = None
     permisos_modulos: Optional[Dict[str, bool]] = None
     permisos_efectivos: Dict[str, bool] = {}
+    etapas_produccion_permitidas: Optional[List[UUID]] = None
     activo: bool
     created_at: datetime
     updated_at: datetime
