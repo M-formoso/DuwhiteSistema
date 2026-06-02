@@ -25,6 +25,7 @@ import {
   LayoutGrid,
   List,
   Wrench,
+  Pencil,
 } from 'lucide-react';
 
 import {
@@ -44,8 +45,10 @@ import { useToast } from '@/hooks/use-toast';
 import { PinValidationModal } from '@/components/produccion/PinValidationModal';
 import { IniciarEtapaModal } from '@/components/produccion/IniciarEtapaModal';
 import { DividirLoteModal } from '@/components/produccion/DividirLoteModal';
+import { CorregirEtapaModal } from '@/components/produccion/CorregirEtapaModal';
 import { produccionService } from '@/services/produccionService';
 import { clienteService } from '@/services/clienteService';
+import { useAuthStore } from '@/stores/authStore';
 import { formatNumber, formatCurrency } from '@/utils/formatters';
 import { formatDateAR } from '@/lib/utils';
 import type { KanbanLote, PrioridadLote, KanbanColumna, KanbanCanasto } from '@/types/produccion';
@@ -110,6 +113,7 @@ interface KanbanCardProps {
   onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null, etapaCodigo?: string) => void;
   onFinalizar: (loteId: string, etapaId: string) => void;
   onDividir: (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => void;
+  onCorregir: (lote: KanbanLote, columna: KanbanColumna) => void;
   isEnProceso: boolean;
 }
 
@@ -122,7 +126,7 @@ function tiempoColorClasses(minutos: number, estimado: number | null | undefined
   return 'text-red-600 font-semibold';
 }
 
-function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProceso }: KanbanCardProps) {
+function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorregir, isEnProceso }: KanbanCardProps) {
   const navigate = useNavigate();
 
   // Timer en tiempo real
@@ -150,7 +154,20 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, isEnProc
               <GripVertical className="h-4 w-4 text-gray-400" />
               <span className="font-mono font-medium text-sm">{lote.numero}</span>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 items-center">
+              {isEnProceso && (
+                <button
+                  type="button"
+                  title="Corregir peso o máquina"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCorregir(lote, columna);
+                  }}
+                  className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
               {esRelevado && (
                 <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-[10px] px-1">
                   <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
@@ -576,6 +593,14 @@ export default function KanbanBoardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const user = useAuthStore((s) => s.user);
+
+  // Operarios entran directo al Panel de Operarios
+  useEffect(() => {
+    if (user?.rol === 'operador') {
+      navigate('/produccion/panel', { replace: true });
+    }
+  }, [user, navigate]);
 
   // Vista actual (kanban | list) persistida en localStorage
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
@@ -603,6 +628,16 @@ export default function KanbanBoardPage() {
     etapaId: string;
     etapaNombre: string;
     pesoKg: number;
+  } | null>(null);
+  const [corregirData, setCorregirData] = useState<{
+    loteId: string;
+    etapaId: string;
+    loteNumero: string;
+    etapaNombre: string;
+    pesoActualKg: number | null;
+    requiereMaquina: boolean;
+    tipoMaquina: string | null;
+    maquinasActuales: string[];
   } | null>(null);
 
   // Cargar tablero Kanban - refetch cada 10 segundos para mantener actualizado
@@ -686,6 +721,21 @@ export default function KanbanBoardPage() {
   const handleDividir = (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => {
     setDividirData({ loteId, loteNumero, etapaId, etapaNombre, pesoKg });
     setShowDividirModal(true);
+  };
+
+  const handleCorregir = (lote: KanbanLote, columna: KanbanColumna) => {
+    setCorregirData({
+      loteId: lote.id,
+      etapaId: columna.etapa_id,
+      loteNumero: lote.numero,
+      etapaNombre: columna.etapa_nombre,
+      pesoActualKg: lote.peso_entrada_kg !== null && lote.peso_entrada_kg !== undefined
+        ? Number(lote.peso_entrada_kg)
+        : null,
+      requiereMaquina: !!columna.requiere_maquina,
+      tipoMaquina: columna.tipo_maquina ?? null,
+      maquinasActuales: lote.maquinas_ids || [],
+    });
   };
 
   const handleIniciarConfirm = (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => {
@@ -888,6 +938,7 @@ export default function KanbanBoardPage() {
                         onIniciar={handleIniciar}
                         onFinalizar={handleFinalizar}
                         onDividir={handleDividir}
+                        onCorregir={handleCorregir}
                         isEnProceso={isLoteEnProceso(lote)}
                       />
                     ))
@@ -970,6 +1021,22 @@ export default function KanbanBoardPage() {
           etapaId={dividirData.etapaId}
           etapaNombre={dividirData.etapaNombre}
           pesoTotalKg={dividirData.pesoKg}
+        />
+      )}
+
+      {/* Modal para corregir lote en proceso */}
+      {corregirData && (
+        <CorregirEtapaModal
+          open={true}
+          onClose={() => setCorregirData(null)}
+          loteId={corregirData.loteId}
+          etapaId={corregirData.etapaId}
+          loteNumero={corregirData.loteNumero}
+          etapaNombre={corregirData.etapaNombre}
+          pesoActualKg={corregirData.pesoActualKg}
+          requiereMaquina={corregirData.requiereMaquina}
+          tipoMaquina={corregirData.tipoMaquina}
+          maquinasActuales={corregirData.maquinasActuales}
         />
       )}
     </div>

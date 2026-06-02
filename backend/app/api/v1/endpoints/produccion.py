@@ -35,6 +35,7 @@ from app.schemas.lote_produccion import (
     ConsumoInsumoLoteResponse,
     IniciarEtapaRequest,
     FinalizarEtapaRequest,
+    CorregirEtapaRequest,
     MoverLoteRequest,
     CambiarEstadoLoteRequest,
     KanbanBoard,
@@ -833,6 +834,49 @@ def iniciar_etapa_lote(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+    if not lote_etapa:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Etapa de lote no encontrada",
+        )
+
+    return LoteEtapaResponse(
+        id=lote_etapa.id,
+        lote_id=lote_etapa.lote_id,
+        etapa_id=lote_etapa.etapa_id,
+        orden=lote_etapa.orden,
+        estado=lote_etapa.estado,
+        fecha_inicio=lote_etapa.fecha_inicio,
+        fecha_fin=lote_etapa.fecha_fin,
+        responsable_id=lote_etapa.responsable_id,
+        maquina_id=lote_etapa.maquina_id,
+        peso_kg=lote_etapa.peso_kg,
+        observaciones=lote_etapa.observaciones,
+        created_at=lote_etapa.created_at,
+        etapa_codigo=lote_etapa.etapa.codigo if lote_etapa.etapa else None,
+        etapa_nombre=lote_etapa.etapa.nombre if lote_etapa.etapa else None,
+        etapa_color=lote_etapa.etapa.color if lote_etapa.etapa else None,
+        responsable_nombre=lote_etapa.responsable.nombre_completo if lote_etapa.responsable else None,
+        maquina_nombre=lote_etapa.maquina.nombre if lote_etapa.maquina else None,
+        duracion_minutos=lote_etapa.duracion_minutos,
+    )
+
+
+@router.patch("/lotes/{lote_id}/etapas/{etapa_id}/corregir", response_model=LoteEtapaResponse)
+def corregir_etapa_lote(
+    lote_id: UUID,
+    etapa_id: UUID,
+    data: CorregirEtapaRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador")),
+):
+    """Corrige peso de entrada y/o máquinas asignadas en una etapa en proceso."""
+    service = ProduccionService(db)
+    try:
+        lote_etapa = service.corregir_etapa_en_proceso(lote_id, etapa_id, data, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     if not lote_etapa:
         raise HTTPException(

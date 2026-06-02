@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ArrowLeft, Save, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,6 +26,14 @@ const loteSchema = z.object({
   cliente_id: z.string().min(1, 'Debe seleccionar un cliente'),
   pedido_id: z.string().nullable().optional(),
   descripcion: z.string().nullable().optional(),
+  peso_entrada_kg: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => {
+      if (v === '' || v === undefined || v === null) return null;
+      const n = typeof v === 'number' ? v : parseFloat(v);
+      return Number.isFinite(n) ? n : null;
+    }),
 });
 
 type LoteFormData = z.infer<typeof loteSchema>;
@@ -87,6 +96,7 @@ export default function LoteFormPage() {
         cliente_id: lote.cliente_id || '',
         pedido_id: lote.pedido_id,
         descripcion: lote.descripcion,
+        peso_entrada_kg: lote.peso_entrada_kg ?? null,
       });
     }
   }, [lote, reset]);
@@ -153,6 +163,7 @@ export default function LoteFormPage() {
       cliente_id: data.cliente_id,
       pedido_id: data.pedido_id || null,
       descripcion: data.descripcion || null,
+      peso_entrada_kg: data.peso_entrada_kg ?? null,
     } as LoteProduccionCreate;
 
     if (isEditing) {
@@ -209,6 +220,22 @@ export default function LoteFormPage() {
               {errors.cliente_id && (
                 <p className="text-sm text-red-500">{errors.cliente_id.message}</p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="peso_entrada_kg">Peso de entrada (kg)</Label>
+              <Input
+                id="peso_entrada_kg"
+                type="number"
+                step="0.1"
+                min="0"
+                inputMode="decimal"
+                placeholder="Ej: 45.5"
+                {...register('peso_entrada_kg')}
+              />
+              <p className="text-xs text-gray-500">
+                Peso que marca la balanza al recibir el lote. Se puede corregir más tarde si hay un error.
+              </p>
             </div>
 
             <div className="space-y-2">

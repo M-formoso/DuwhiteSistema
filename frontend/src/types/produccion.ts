@@ -205,6 +205,7 @@ export interface KanbanLote {
   // Operario + máquinas en uso cuando la etapa está en proceso
   responsable_nombre?: string | null;
   maquinas_nombres?: string[];
+  maquinas_ids?: string[];
 }
 
 export interface KanbanColumna {

@@ -259,6 +259,22 @@ export async function finalizarEtapa(
   return response.data;
 }
 
+export async function corregirEtapaEnProceso(
+  loteId: string,
+  etapaId: string,
+  data: {
+    peso_entrada_kg?: number | null;
+    maquinas_ids?: string[];
+    observaciones?: string;
+  }
+): Promise<LoteEtapa> {
+  const response = await api.patch(
+    `/produccion/lotes/${loteId}/etapas/${etapaId}/corregir`,
+    data
+  );
+  return response.data;
+}
+
 // ==================== CONSUMOS ====================
 
 export async function getConsumosLote(loteId: string): Promise<ConsumoInsumoLote[]> {
@@ -379,6 +395,7 @@ export const produccionService = {
   // Etapas de lote
   iniciarEtapa,
   finalizarEtapa,
+  corregirEtapaEnProceso,
   // Consumos
   getConsumosLote,
   registrarConsumo,

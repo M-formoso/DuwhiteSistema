@@ -759,6 +759,118 @@ class ProduccionService:
 
         return lote_etapa
 
+    def corregir_etapa_en_proceso(
+        self,
+        lote_id: UUID,
+        etapa_id: UUID,
+        data,  # CorregirEtapaRequest (import circular si la tipamos)
+        usuario_id: UUID,
+    ) -> Optional[LoteEtapa]:
+        """
+        Corrige datos de una etapa en proceso: peso del lote y/o máquinas asignadas.
+
+        Si se pasa `maquinas_ids`, libera las máquinas activas actuales y asigna las nuevas.
+        Si se pasa `peso_entrada_kg`, actualiza el peso del lote.
+        """
+        lote_etapa = (
+            self.db.query(LoteEtapa)
+            .filter(LoteEtapa.lote_id == lote_id, LoteEtapa.etapa_id == etapa_id)
+            .first()
+        )
+        if not lote_etapa:
+            return None
+        if lote_etapa.estado != "en_proceso":
+            raise ValueError("Solo se puede corregir una etapa en proceso")
+
+        lote = self.get_lote(lote_id)
+        if not lote:
+            return None
+
+        cambios: dict = {}
+
+        # Actualizar peso del lote
+        if data.peso_entrada_kg is not None:
+            cambios["peso_entrada_kg_anterior"] = (
+                float(lote.peso_entrada_kg) if lote.peso_entrada_kg else None
+            )
+            lote.peso_entrada_kg = data.peso_entrada_kg
+            cambios["peso_entrada_kg"] = float(data.peso_entrada_kg)
+
+        # Reemplazar máquinas si vinieron en el request
+        if data.maquinas_ids is not None:
+            nuevas_ids = [str(m) for m in data.maquinas_ids]
+            # Liberar máquinas actualmente activas en esta etapa
+            asignadas_activas = (
+                self.db.query(LoteEtapaMaquina)
+                .filter(
+                    LoteEtapaMaquina.lote_etapa_id == lote_etapa.id,
+                    LoteEtapaMaquina.fecha_liberacion.is_(None),
+                )
+                .all()
+            )
+            actuales_ids = {str(lem.maquina_id) for lem in asignadas_activas}
+
+            for lem in asignadas_activas:
+                if str(lem.maquina_id) not in nuevas_ids:
+                    lem.fecha_liberacion = datetime.utcnow()
+                    m = self.get_maquina(lem.maquina_id)
+                    if m:
+                        m.estado = "disponible"
+
+            # Validar y asignar las nuevas (las que no estaban ya)
+            for maq_id in data.maquinas_ids:
+                if str(maq_id) in actuales_ids:
+                    continue
+                if not self.is_maquina_disponible(maq_id):
+                    info = self.get_maquina(maq_id)
+                    codigo = info.codigo if info else str(maq_id)
+                    raise ValueError(f"La máquina {codigo} no está disponible")
+                self.db.add(
+                    LoteEtapaMaquina(
+                        lote_etapa_id=lote_etapa.id,
+                        maquina_id=maq_id,
+                        fecha_asignacion=datetime.utcnow(),
+                    )
+                )
+                m = self.get_maquina(maq_id)
+                if m:
+                    m.estado = "en_uso"
+
+            # Compatibilidad con campo legacy lote_etapa.maquina_id
+            lote_etapa.maquina_id = data.maquinas_ids[0] if data.maquinas_ids else None
+            cambios["maquinas_ids"] = nuevas_ids
+
+        if data.observaciones:
+            lote_etapa.observaciones = (
+                (lote_etapa.observaciones or "") + f"\n[Corrección] {data.observaciones}"
+            )
+            cambios["observaciones"] = data.observaciones
+
+        self.db.commit()
+        self.db.refresh(lote_etapa)
+
+        try:
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="corregir_etapa",
+                modulo="produccion",
+                entidad_tipo="LoteEtapa",
+                entidad_id=lote_etapa.id,
+                datos_nuevos={
+                    "lote_id": str(lote_id),
+                    "etapa_id": str(etapa_id),
+                    **cambios,
+                },
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "No se pudo registrar log de corregir_etapa"
+            )
+
+        return lote_etapa
+
     def finalizar_etapa(
         self,
         lote_id: UUID,
@@ -1068,6 +1180,7 @@ class ProduccionService:
                 etapa_en_proceso = False
                 responsable_nombre = None
                 maquinas_nombres = []
+                maquinas_ids = []
                 if lote_etapa and lote_etapa.fecha_inicio:
                     delta = datetime.utcnow() - lote_etapa.fecha_inicio
                     tiempo_en_etapa = int(delta.total_seconds() / 60)
@@ -1084,6 +1197,7 @@ class ProduccionService:
                         for m in (lote_etapa.maquinas_en_uso or []):
                             if m and getattr(m, "nombre", None):
                                 maquinas_nombres.append(m.nombre)
+                                maquinas_ids.append(str(m.id))
 
                 # Obtener canastos asignados al lote (a través de la relación lote.canastos)
                 canastos_data = []
@@ -1121,6 +1235,7 @@ class ProduccionService:
                     canastos=canastos_data,
                     responsable_nombre=responsable_nombre,
                     maquinas_nombres=maquinas_nombres,
+                    maquinas_ids=maquinas_ids,
                 ))
 
                 total_lotes += 1

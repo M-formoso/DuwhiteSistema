@@ -239,6 +239,7 @@ class KanbanLote(BaseModel):
     # Datos de la etapa actual en proceso (operario + máquinas usadas)
     responsable_nombre: Optional[str] = None
     maquinas_nombres: List[str] = []
+    maquinas_ids: List[str] = []  # IDs de máquinas en uso (para corrección)
 
     class Config:
         from_attributes = True
@@ -280,6 +281,18 @@ class IniciarEtapaRequest(BaseModel):
     peso_kg: Optional[Decimal] = Field(None, ge=0)
     # Canastos asignados (para etapas LAV, SEC)
     canastos_ids: Optional[List[UUID]] = None
+
+
+class CorregirEtapaRequest(BaseModel):
+    """
+    Schema para corregir datos de una etapa en proceso.
+
+    Permite ajustar el peso de entrada del lote y/o cambiar las máquinas
+    asignadas a la etapa en curso (por error de registro inicial).
+    """
+    peso_entrada_kg: Optional[Decimal] = Field(None, ge=0)
+    maquinas_ids: Optional[List[UUID]] = None
+    observaciones: Optional[str] = None
 
 
 class FinalizarEtapaRequest(BaseModel):

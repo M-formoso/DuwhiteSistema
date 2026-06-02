@@ -21,6 +21,8 @@ import {
   Lock,
   Shirt,
   Scale,
+  Split,
+  Pencil,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,9 @@ import { produccionService } from '@/services/produccionService';
 import { canastoService } from '@/services/canastoService';
 import { formatDate } from '@/utils/formatters';
 import type { KanbanLote, KanbanColumna, PrioridadLote } from '@/types/produccion';
+import { useAuthStore } from '@/stores/authStore';
+import { DividirLoteModal } from '@/components/produccion/DividirLoteModal';
+import { CorregirEtapaModal } from '@/components/produccion/CorregirEtapaModal';
 
 // Tipo local para máquinas disponibles
 interface MaquinaDisponible {
@@ -93,12 +98,16 @@ function LoteCard({
   columna,
   onIniciar,
   onFinalizar,
+  onDividir,
+  onCorregir,
   enProceso,
 }: {
   lote: KanbanLote;
   columna: KanbanColumna;
   onIniciar: () => void;
   onFinalizar: () => void;
+  onDividir: () => void;
+  onCorregir: () => void;
   enProceso: boolean;
 }) {
   const prioridad = PRIORIDAD_CONFIG[lote.prioridad];
@@ -146,9 +155,21 @@ function LoteCard({
         {/* Número de lote */}
         <div className="flex items-center justify-between mb-2 gap-2">
           <h3 className="text-base sm:text-lg font-bold font-mono tracking-wide truncate">{lote.numero}</h3>
-          {lote.tiempo_en_etapa_minutos > 0 && (
-            <TiempoEnVivo minutos={lote.tiempo_en_etapa_minutos} />
-          )}
+          <div className="flex items-center gap-2">
+            {enProceso && (
+              <button
+                type="button"
+                title="Corregir peso o máquina"
+                onClick={onCorregir}
+                className="p-1.5 rounded-full bg-white border border-gray-200 text-gray-600 hover:text-primary hover:border-primary"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {lote.tiempo_en_etapa_minutos > 0 && (
+              <TiempoEnVivo minutos={lote.tiempo_en_etapa_minutos} />
+            )}
+          </div>
         </div>
 
         {/* Cliente */}
@@ -223,6 +244,28 @@ function LoteCard({
             <Play className="h-4 w-4" />
             INICIAR ETAPA
           </button>
+        ) : columna.permite_bifurcacion ? (
+          <div className="flex gap-2">
+            <button
+              onClick={onDividir}
+              className="flex-1 py-2.5 rounded-xl border-2 border-purple-500 bg-white text-purple-700
+                         text-sm font-bold flex items-center justify-center gap-2
+                         hover:bg-purple-50 active:scale-98 transition-all"
+            >
+              <Split className="h-4 w-4" />
+              DIVIDIR
+            </button>
+            <button
+              onClick={onFinalizar}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600
+                         text-white text-sm font-bold flex items-center justify-center gap-2
+                         hover:from-blue-600 hover:to-blue-700 active:scale-98
+                         transition-all shadow-md shadow-blue-100"
+            >
+              <CheckCircle className="h-4 w-4" />
+              FINALIZAR
+            </button>
+          </div>
         ) : (
           <button
             onClick={onFinalizar}
@@ -245,11 +288,15 @@ function EtapaColumna({
   columna,
   onIniciar,
   onFinalizar,
+  onDividir,
+  onCorregir,
   getLoteEnProceso,
 }: {
   columna: KanbanColumna;
   onIniciar: (lote: KanbanLote, columna: KanbanColumna) => void;
   onFinalizar: (lote: KanbanLote, columna: KanbanColumna) => void;
+  onDividir: (lote: KanbanLote, columna: KanbanColumna) => void;
+  onCorregir: (lote: KanbanLote, columna: KanbanColumna) => void;
   getLoteEnProceso: (lote: KanbanLote) => boolean;
 }) {
   const lotesAtrasados = columna.lotes.filter((l) => l.esta_atrasado).length;
@@ -313,6 +360,8 @@ function EtapaColumna({
               columna={columna}
               onIniciar={() => onIniciar(lote, columna)}
               onFinalizar={() => onFinalizar(lote, columna)}
+              onDividir={() => onDividir(lote, columna)}
+              onCorregir={() => onCorregir(lote, columna)}
               enProceso={getLoteEnProceso(lote)}
             />
           ))
@@ -357,8 +406,8 @@ function PinModalGrande({
 
   // Determinar si requiere peso (REC - Recepción y Pesaje)
   const requierePeso = accion === 'iniciar' && etapaCodigo === 'REC';
-  // Determinar si requiere canastos (REC, LAV, SEC)
-  const requiereCanastos = accion === 'iniciar' && ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
+  // En la vista de operario los canastos son opcionales (no se exigen).
+  const requiereCanastos = false;
 
   const { data: operarios } = useQuery({
     queryKey: ['operarios-pin'],
@@ -706,6 +755,8 @@ export default function PanelOperariosPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const user = useAuthStore((s) => s.user);
+  const esOperario = user?.rol === 'operador';
 
   const [fullscreen, setFullscreen] = useState(false);
   const [pinModal, setPinModal] = useState<{
@@ -714,6 +765,27 @@ export default function PanelOperariosPage() {
     lote?: KanbanLote;
     columna?: KanbanColumna;
   }>({ open: false, accion: 'iniciar' });
+
+  // Estado para el modal de Dividir lote (bifurcación)
+  const [dividirData, setDividirData] = useState<{
+    loteId: string;
+    loteNumero: string;
+    etapaId: string;
+    etapaNombre: string;
+    pesoKg: number;
+  } | null>(null);
+
+  // Estado para el modal de Corrección (peso/máquinas) del lote en proceso
+  const [corregirData, setCorregirData] = useState<{
+    loteId: string;
+    etapaId: string;
+    loteNumero: string;
+    etapaNombre: string;
+    pesoActualKg: number | null;
+    requiereMaquina: boolean;
+    tipoMaquina: string | null;
+    maquinasActuales: string[];
+  } | null>(null);
 
   // Cargar Kanban - refetch cada 10 segundos para mantener sincronizado
   const { data: kanban, isLoading, refetch } = useQuery({
@@ -771,6 +843,32 @@ export default function PanelOperariosPage() {
 
   const handleFinalizar = (lote: KanbanLote, columna: KanbanColumna) => {
     setPinModal({ open: true, accion: 'finalizar', lote, columna });
+  };
+
+  const handleDividir = (lote: KanbanLote, columna: KanbanColumna) => {
+    setDividirData({
+      loteId: lote.id,
+      loteNumero: lote.numero,
+      etapaId: columna.etapa_id,
+      etapaNombre: columna.etapa_nombre,
+      pesoKg: Number(lote.peso_entrada_kg) || 0,
+    });
+  };
+
+  const handleCorregir = (lote: KanbanLote, columna: KanbanColumna) => {
+    setCorregirData({
+      loteId: lote.id,
+      etapaId: columna.etapa_id,
+      loteNumero: lote.numero,
+      etapaNombre: columna.etapa_nombre,
+      pesoActualKg:
+        lote.peso_entrada_kg !== null && lote.peso_entrada_kg !== undefined
+          ? Number(lote.peso_entrada_kg)
+          : null,
+      requiereMaquina: !!columna.requiere_maquina,
+      tipoMaquina: columna.tipo_maquina ?? null,
+      maquinasActuales: lote.maquinas_ids || [],
+    });
   };
 
   const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => {
@@ -901,14 +999,16 @@ export default function PanelOperariosPage() {
             >
               <Maximize2 className="h-5 w-5" />
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate('/produccion')}
-              className="h-10 sm:h-12 flex-1 xl:flex-initial"
-            >
-              <span className="text-sm sm:text-base">Vista Admin</span>
-              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 ml-1" />
-            </Button>
+            {!esOperario && (
+              <Button
+                variant="outline"
+                onClick={() => navigate('/produccion')}
+                className="h-10 sm:h-12 flex-1 xl:flex-initial"
+              >
+                <span className="text-sm sm:text-base">Vista Admin</span>
+                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 ml-1" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -922,6 +1022,8 @@ export default function PanelOperariosPage() {
               columna={columna}
               onIniciar={handleIniciar}
               onFinalizar={handleFinalizar}
+              onDividir={handleDividir}
+              onCorregir={handleCorregir}
               getLoteEnProceso={getLoteEnProceso}
             />
           ))}
@@ -941,6 +1043,35 @@ export default function PanelOperariosPage() {
         requiereMaquina={pinModal.columna?.requiere_maquina}
         tipoMaquina={pinModal.columna?.tipo_maquina}
       />
+
+      {/* Modal Dividir lote (bifurcación: Estirado, Planchado/Secado) */}
+      {dividirData && (
+        <DividirLoteModal
+          open={true}
+          onClose={() => setDividirData(null)}
+          loteId={dividirData.loteId}
+          loteNumero={dividirData.loteNumero}
+          etapaId={dividirData.etapaId}
+          etapaNombre={dividirData.etapaNombre}
+          pesoTotalKg={dividirData.pesoKg}
+        />
+      )}
+
+      {/* Modal Corregir lote en proceso */}
+      {corregirData && (
+        <CorregirEtapaModal
+          open={true}
+          onClose={() => setCorregirData(null)}
+          loteId={corregirData.loteId}
+          etapaId={corregirData.etapaId}
+          loteNumero={corregirData.loteNumero}
+          etapaNombre={corregirData.etapaNombre}
+          pesoActualKg={corregirData.pesoActualKg}
+          requiereMaquina={corregirData.requiereMaquina}
+          tipoMaquina={corregirData.tipoMaquina}
+          maquinasActuales={corregirData.maquinasActuales}
+        />
+      )}
     </div>
   );
 }
