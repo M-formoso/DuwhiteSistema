@@ -1,5 +1,6 @@
 /**
- * Analíticas de Producción en tiempo real.
+ * Sección de Analíticas de Producción para insertar dentro del módulo
+ * de Reportes (tab "Producción").
  *
  * - Sumatorias del día (kg en proceso, kg finalizados hoy, lotes activos / finalizados)
  * - Grid por posta con dos columnas: en proceso y finalizados hoy
@@ -195,7 +196,7 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
   );
 }
 
-export default function AnaliticasProduccionPage() {
+export function AnaliticasProduccionSection() {
   const [diasAtras, setDiasAtras] = useState<number>(30);
 
   const {
@@ -218,23 +219,23 @@ export default function AnaliticasProduccionPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Sub-header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Gauge className="h-6 w-6 text-primary" />
-            Analíticas de Producción
-          </h1>
-          <p className="text-sm text-gray-500">
-            Actividad en tiempo real por posta · rendimiento por producto
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Gauge className="h-5 w-5 text-primary" />
+            Tiempo real por posta
+          </h2>
+          <p className="text-xs text-gray-500">
+            Actividad ahora mismo y consolidado del día
             {dataUpdatedAt > 0 && (
-              <span className="text-xs text-gray-400 ml-2">
+              <span className="text-gray-400 ml-2">
                 · actualizado {new Date(dataUpdatedAt).toLocaleTimeString('es-AR')}
               </span>
             )}
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetchAnalitica()}>
+        <Button variant="outline" size="sm" onClick={() => refetchAnalitica()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Actualizar
         </Button>

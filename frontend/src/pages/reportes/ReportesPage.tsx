@@ -56,6 +56,7 @@ import {
 
 import { reporteService, type Agrupacion } from '@/services/reporteService';
 import { getLocalDateString } from '@/utils/formatters';
+import { AnaliticasProduccionSection } from '@/pages/reportes/AnaliticasProduccionSection';
 
 const COLORS = ['#00BCD4', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -684,6 +685,9 @@ export default function ReportesPage() {
 
         {/* Tab: Producción */}
         <TabsContent value="produccion" className="space-y-6">
+          {/* Analíticas en tiempo real + rendimiento por producto */}
+          <AnaliticasProduccionSection />
+
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Producción por Período */}
             <Card>
