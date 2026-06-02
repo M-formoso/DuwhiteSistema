@@ -24,6 +24,7 @@ import {
   Split,
   Pencil,
   Calculator,
+  Plus,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -1005,6 +1006,13 @@ export default function PanelOperariosPage() {
 
           {/* Acciones */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <Button
+              onClick={() => navigate('/produccion/lotes/nuevo')}
+              className="h-10 sm:h-12 flex-1 xl:flex-initial bg-primary hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+              <span className="hidden sm:inline">Nuevo Lote</span>
+            </Button>
             <Button
               variant="outline"
               onClick={() => refetch()}
