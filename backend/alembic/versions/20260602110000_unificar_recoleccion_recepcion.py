@@ -5,7 +5,7 @@ Revises: 20260602100000
 Create Date: 2026-06-02
 
 - Mueve lotes activos en etapa CAM a la etapa REC (preservando fecha_inicio_etapa).
-- Marca como saltadas las lote_etapas pendientes de CAM (estado='omitida').
+- Marca como saltadas las lotes_etapas pendientes de CAM (estado='omitida').
 - Renombra REC a "Recolección y Recepción", la deja como única etapa inicial (orden=1).
 - Desactiva CAM (activo=false, es_inicial=false).
 """
@@ -29,10 +29,10 @@ def upgrade() -> None:
         """
     )
 
-    # 2) Marcar como 'omitida' las lote_etapas pendientes de CAM (no se procesarán).
+    # 2) Marcar como 'omitida' las lotes_etapas pendientes de CAM (no se procesarán).
     op.execute(
         """
-        UPDATE lote_etapas le
+        UPDATE lotes_etapas le
            SET estado = 'omitida'
          WHERE le.etapa_id IN (SELECT id FROM etapas_produccion WHERE codigo = 'CAM')
            AND le.estado = 'pendiente'
