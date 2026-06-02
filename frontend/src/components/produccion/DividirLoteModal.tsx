@@ -1,16 +1,18 @@
 /**
- * Modal para dividir un lote en la etapa de Estirado (bifurcación)
- * Permite seleccionar qué productos van a Secado y cuáles a Planchado
+ * Modal para dividir un lote en una etapa con bifurcación (ej. Estirado).
+ *
+ * Versión simplificada: un slider de % decide cuánto peso del lote se
+ * deriva al destino alternativo. El resto sigue al destino principal.
+ * No se piden productos ni kg manuales.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Split, ArrowRight, Loader2, Info, AlertTriangle, Package, Check } from 'lucide-react';
+import { Split, ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -20,12 +22,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
-import api from '@/services/api';
 
 interface EtapaBifurcacionInfo {
   permite_bifurcacion: boolean;
@@ -33,14 +34,6 @@ interface EtapaBifurcacionInfo {
   etapa_destino_principal_nombre: string | null;
   etapa_destino_alternativa_id: string | null;
   etapa_destino_alternativa_nombre: string | null;
-}
-
-interface ProductoLavado {
-  id: string;
-  codigo: string;
-  nombre: string;
-  categoria: string;
-  peso_promedio_kg: number | null;
 }
 
 interface DividirLoteModalProps {
@@ -52,8 +45,6 @@ interface DividirLoteModalProps {
   etapaNombre: string;
   pesoTotalKg: number;
 }
-
-type DestinoProducto = 'principal' | 'alternativo';
 
 export function DividirLoteModal({
   open,
@@ -67,10 +58,9 @@ export function DividirLoteModal({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Estado: productos seleccionados para cada destino
-  const [productosDestino, setProductosDestino] = useState<Record<string, DestinoProducto>>({});
-  const [observacionesPrincipal, setObservacionesPrincipal] = useState('');
-  const [observacionesAlternativo, setObservacionesAlternativo] = useState('');
+  // % del peso que se deriva al destino ALTERNATIVO (el resto va al principal)
+  const [pctAlternativo, setPctAlternativo] = useState<number>(50);
+  const [observaciones, setObservaciones] = useState('');
 
   // Cargar info de bifurcación de la etapa
   const { data: bifurcacionInfo, isLoading: loadingInfo } = useQuery<EtapaBifurcacionInfo>({
@@ -79,108 +69,25 @@ export function DividirLoteModal({
     enabled: open && !!etapaId,
   });
 
-  // Cargar productos de lavado
-  const { data: productos = [], isLoading: loadingProductos } = useQuery<ProductoLavado[]>({
-    queryKey: ['productos-lavado'],
-    queryFn: async () => {
-      const response = await api.get('/produccion/productos-lavado', { params: { solo_activos: true } });
-      return response.data || [];
-    },
-    enabled: open,
-  });
-
-  // Reset cuando se abre el modal
+  // Reset cuando se abre
   useEffect(() => {
     if (open) {
-      // Por defecto todos los productos van al destino principal (Secado)
-      const defaultDestinos: Record<string, DestinoProducto> = {};
-      productos.forEach(p => {
-        defaultDestinos[p.id] = 'principal';
-      });
-      setProductosDestino(defaultDestinos);
-      setObservacionesPrincipal('');
-      setObservacionesAlternativo('');
+      setPctAlternativo(50);
+      setObservaciones('');
     }
-  }, [open, productos]);
+  }, [open]);
 
-  // Agrupar productos por categoría
-  const productosPorCategoria = useMemo(() => {
-    const grouped: Record<string, ProductoLavado[]> = {};
-    productos.forEach(p => {
-      const cat = p.categoria || 'otros';
-      if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(p);
-    });
-    return grouped;
-  }, [productos]);
+  const pesoBase = Number.isFinite(pesoTotalKg) && pesoTotalKg > 0 ? pesoTotalKg : 0;
+  const pesoAlternativo = Math.round((pesoBase * pctAlternativo) / 100 * 10) / 10;
+  const pesoPrincipal = Math.round((pesoBase - pesoAlternativo) * 10) / 10;
 
-  // Contar productos por destino
-  const conteos = useMemo(() => {
-    let principal = 0;
-    let alternativo = 0;
-    Object.values(productosDestino).forEach(destino => {
-      if (destino === 'principal') principal++;
-      else alternativo++;
-    });
-    return { principal, alternativo };
-  }, [productosDestino]);
-
-  // Obtener nombres de productos por destino para las observaciones
-  const productosNombres = useMemo(() => {
-    const principal: string[] = [];
-    const alternativo: string[] = [];
-    productos.forEach(p => {
-      if (productosDestino[p.id] === 'principal') {
-        principal.push(p.nombre);
-      } else if (productosDestino[p.id] === 'alternativo') {
-        alternativo.push(p.nombre);
-      }
-    });
-    return { principal, alternativo };
-  }, [productos, productosDestino]);
-
-  // Cambiar destino de un producto
-  const toggleProductoDestino = (productoId: string, destino: DestinoProducto) => {
-    setProductosDestino(prev => ({
-      ...prev,
-      [productoId]: destino,
-    }));
-  };
-
-  // Seleccionar todos de una categoría
-  const seleccionarCategoria = (categoria: string, destino: DestinoProducto) => {
-    const nuevosDestinos = { ...productosDestino };
-    productosPorCategoria[categoria]?.forEach(p => {
-      nuevosDestinos[p.id] = destino;
-    });
-    setProductosDestino(nuevosDestinos);
-  };
-
-  // Mutation para dividir el lote
   const dividirMutation = useMutation({
     mutationFn: () => {
-      // Calcular peso aproximado basado en proporción de productos
-      const totalProductos = conteos.principal + conteos.alternativo;
-      const proporcionPrincipal = totalProductos > 0 ? conteos.principal / totalProductos : 1;
-      const pesoPrincipal = Math.round(pesoTotalKg * proporcionPrincipal * 10) / 10;
-      const pesoAlternativo = Math.round((pesoTotalKg - pesoPrincipal) * 10) / 10;
-
-      // Agregar lista de productos a las observaciones
-      const obsPrincipal = [
-        observacionesPrincipal,
-        `Productos: ${productosNombres.principal.join(', ') || 'Todos'}`,
-      ].filter(Boolean).join('\n');
-
-      const obsAlternativo = conteos.alternativo > 0 ? [
-        observacionesAlternativo,
-        `Productos: ${productosNombres.alternativo.join(', ')}`,
-      ].filter(Boolean).join('\n') : undefined;
-
       return produccionService.dividirLote(loteId, etapaId, {
         peso_destino_principal_kg: pesoPrincipal,
         peso_destino_alternativo_kg: pesoAlternativo,
-        observaciones_principal: obsPrincipal,
-        observaciones_alternativo: obsAlternativo,
+        observaciones_principal: observaciones || undefined,
+        observaciones_alternativo: observaciones || undefined,
       });
     },
     onSuccess: (data) => {
@@ -194,39 +101,36 @@ export function DividirLoteModal({
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
       const detail = error.response?.data?.detail || 'Error al dividir el lote';
-      toast({
-        title: 'Error',
-        description: detail,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: detail, variant: 'destructive' });
     },
   });
 
-  const handleSubmit = () => {
-    if (conteos.principal === 0 && conteos.alternativo === 0) {
-      toast({
-        title: 'Error',
-        description: 'Debes seleccionar al menos un producto',
-        variant: 'destructive',
-      });
-      return;
-    }
-    dividirMutation.mutate();
-  };
-
-  const isLoading = loadingInfo || loadingProductos;
-
-  if (!bifurcacionInfo?.permite_bifurcacion && !isLoading) {
+  if (loadingInfo) {
     return (
-      <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent>
+      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Dividir lote</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (!bifurcacionInfo?.permite_bifurcacion) {
+    return (
+      <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Etapa sin bifurcación</DialogTitle>
           </DialogHeader>
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              La etapa "{etapaNombre}" no permite bifurcación de lotes.
+              La etapa "{etapaNombre}" no permite dividir el lote.
             </AlertDescription>
           </Alert>
           <DialogFooter>
@@ -237,214 +141,118 @@ export function DividirLoteModal({
     );
   }
 
-  const destinoPrincipalNombre = bifurcacionInfo?.etapa_destino_principal_nombre || 'Secado';
-  const destinoAlternativoNombre = bifurcacionInfo?.etapa_destino_alternativa_nombre || 'Planchado';
+  const destinoPrincipalNombre = bifurcacionInfo.etapa_destino_principal_nombre || 'Principal';
+  const destinoAlternativoNombre = bifurcacionInfo.etapa_destino_alternativa_nombre || 'Alternativo';
 
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[800px] w-[95vw] max-h-[90vh] flex flex-col p-4 sm:p-6">
-        <DialogHeader className="flex-shrink-0">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Split className="h-5 w-5 text-primary" />
-            Dividir Lote - {loteNumero}
+            Dividir lote {loteNumero}
           </DialogTitle>
           <DialogDescription>
-            Selecciona qué productos van a {destinoPrincipalNombre} y cuáles a {destinoAlternativoNombre}
+            Elegí qué porcentaje del lote se deriva a <strong>{destinoAlternativoNombre}</strong>.
+            El resto sigue a <strong>{destinoPrincipalNombre}</strong>.
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8 flex-1">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="space-y-4 py-2">
+          {/* Peso total */}
+          <div className="text-sm text-gray-600">
+            Peso total del lote:{' '}
+            <span className="font-mono font-bold text-gray-900">
+              {pesoBase.toFixed(1)} kg
+            </span>
           </div>
-        ) : (
-          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-            {/* Resumen de selección */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <Card className="border-green-200 bg-green-50">
-                <CardContent className="pt-4 pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ArrowRight className="h-4 w-4 text-green-600" />
-                      <Badge className="bg-green-600">{destinoPrincipalNombre}</Badge>
-                    </div>
-                    <span className="text-2xl font-bold text-green-700">{conteos.principal}</span>
-                  </div>
-                  <p className="text-xs text-green-600 mt-1">productos seleccionados</p>
-                </CardContent>
-              </Card>
 
-              <Card className={`border-orange-200 ${conteos.alternativo > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
-                <CardContent className="pt-4 pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ArrowRight className="h-4 w-4 text-orange-600" />
-                      <Badge className="bg-orange-500">{destinoAlternativoNombre}</Badge>
-                    </div>
-                    <span className="text-2xl font-bold text-orange-700">{conteos.alternativo}</span>
-                  </div>
-                  <p className="text-xs text-orange-600 mt-1">productos seleccionados</p>
-                </CardContent>
-              </Card>
+          {/* Slider de % al alternativo */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="pct-alternativo">
+                A {destinoAlternativoNombre}
+              </Label>
+              <span className="font-mono font-bold text-orange-600">{pctAlternativo}%</span>
             </div>
-
-            {/* Lista de productos por categoría */}
-            <div className="border rounded-lg">
-              <div className="bg-gray-50 px-4 py-2 border-b flex items-center justify-between">
-                <Label className="font-medium flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  Seleccionar productos por destino
-                </Label>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs border-green-300 text-green-700 hover:bg-green-50"
-                    onClick={() => {
-                      const todos: Record<string, DestinoProducto> = {};
-                      productos.forEach(p => { todos[p.id] = 'principal'; });
-                      setProductosDestino(todos);
-                    }}
-                  >
-                    Todos a {destinoPrincipalNombre}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
-                    onClick={() => {
-                      const todos: Record<string, DestinoProducto> = {};
-                      productos.forEach(p => { todos[p.id] = 'alternativo'; });
-                      setProductosDestino(todos);
-                    }}
-                  >
-                    Todos a {destinoAlternativoNombre}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="h-[300px] overflow-y-auto">
-                <div className="p-4 space-y-4">
-                  {Object.entries(productosPorCategoria).map(([categoria, prods]) => (
-                    <div key={categoria} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-semibold capitalize text-gray-700">
-                          {categoria.replace(/_/g, ' ')}
-                        </Label>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-xs text-green-600 hover:bg-green-50"
-                            onClick={() => seleccionarCategoria(categoria, 'principal')}
-                          >
-                            → {destinoPrincipalNombre}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-xs text-orange-600 hover:bg-orange-50"
-                            onClick={() => seleccionarCategoria(categoria, 'alternativo')}
-                          >
-                            → {destinoAlternativoNombre}
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        {prods.map(producto => {
-                          const destino = productosDestino[producto.id] || 'principal';
-                          const esPrincipal = destino === 'principal';
-
-                          return (
-                            <div
-                              key={producto.id}
-                              className="flex items-center justify-between p-2 rounded border bg-white hover:bg-gray-50"
-                            >
-                              <span className="text-sm font-medium">{producto.nombre}</span>
-                              <div className="flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleProductoDestino(producto.id, 'principal')}
-                                  className={`
-                                    px-3 py-1 text-xs font-medium rounded-full transition-all
-                                    ${esPrincipal
-                                      ? 'bg-green-500 text-white shadow-sm'
-                                      : 'text-gray-500 hover:text-green-600'
-                                    }
-                                  `}
-                                >
-                                  {destinoPrincipalNombre}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleProductoDestino(producto.id, 'alternativo')}
-                                  className={`
-                                    px-3 py-1 text-xs font-medium rounded-full transition-all
-                                    ${!esPrincipal
-                                      ? 'bg-orange-500 text-white shadow-sm'
-                                      : 'text-gray-500 hover:text-orange-600'
-                                    }
-                                  `}
-                                >
-                                  {destinoAlternativoNombre}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <input
+              id="pct-alternativo"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={pctAlternativo}
+              onChange={(e) => setPctAlternativo(parseInt(e.target.value, 10))}
+              className="w-full h-2 bg-gradient-to-r from-green-200 to-orange-300 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
             </div>
-
-            {/* Observaciones */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-green-700">Observaciones {destinoPrincipalNombre}</Label>
-                <Textarea
-                  value={observacionesPrincipal}
-                  onChange={(e) => setObservacionesPrincipal(e.target.value)}
-                  placeholder="Opcional..."
-                  rows={2}
-                  className="text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-orange-700">Observaciones {destinoAlternativoNombre}</Label>
-                <Textarea
-                  value={observacionesAlternativo}
-                  onChange={(e) => setObservacionesAlternativo(e.target.value)}
-                  placeholder="Opcional..."
-                  rows={2}
-                  className="text-xs"
-                  disabled={conteos.alternativo === 0}
-                />
-              </div>
-            </div>
-
-            {/* Mensaje informativo */}
-            {conteos.alternativo > 0 && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  Se creará un <strong>sub-lote ({loteNumero}-B)</strong> con los {conteos.alternativo} productos
-                  seleccionados para <strong>{destinoAlternativoNombre}</strong>
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
-        )}
 
-        <DialogFooter className="flex-shrink-0 pt-3 sm:pt-4 border-t flex-col-reverse sm:flex-row gap-2">
-          <Button variant="outline" onClick={onClose} disabled={dividirMutation.isPending} className="w-full sm:w-auto">
+          {/* Resumen de pesos */}
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <ArrowRight className="h-4 w-4 text-green-600" />
+                  <Badge className="bg-green-600">{destinoPrincipalNombre}</Badge>
+                </div>
+                <div className="text-2xl font-bold font-mono text-green-700">
+                  {pesoPrincipal.toFixed(1)} kg
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <ArrowRight className="h-4 w-4 text-orange-600" />
+                  <Badge className="bg-orange-500">{destinoAlternativoNombre}</Badge>
+                </div>
+                <div className="text-2xl font-bold font-mono text-orange-700">
+                  {pesoAlternativo.toFixed(1)} kg
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Observaciones opcionales */}
+          <div className="space-y-1">
+            <Label htmlFor="observaciones-div" className="text-xs text-gray-600">
+              Observaciones (opcional)
+            </Label>
+            <Textarea
+              id="observaciones-div"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              placeholder="Por ejemplo: separar manteles de toallas"
+              rows={2}
+              className="text-sm"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={dividirMutation.isPending}
+            className="w-full sm:w-auto"
+          >
             Cancelar
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => dividirMutation.mutate()}
+            disabled={
+              dividirMutation.isPending ||
+              pctAlternativo === 0 ||
+              pctAlternativo === 100 ||
+              pesoBase === 0
+            }
             className="w-full sm:w-auto"
-            disabled={dividirMutation.isPending || isLoading}
           >
             {dividirMutation.isPending ? (
               <>
@@ -454,7 +262,7 @@ export function DividirLoteModal({
             ) : (
               <>
                 <Split className="h-4 w-4 mr-2" />
-                Dividir Lote
+                Dividir
               </>
             )}
           </Button>
