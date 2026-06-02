@@ -202,6 +202,83 @@ export async function getProduccionPorEtapa(
   return response.data;
 }
 
+export interface AnaliticaLoteEnProceso {
+  lote_id: string;
+  lote_numero: string;
+  cliente_nombre: string | null;
+  kg: number;
+  minutos_en_etapa: number;
+  responsable: string | null;
+}
+
+export interface AnaliticaLoteFinalizado {
+  lote_id: string;
+  lote_numero: string;
+  cliente_nombre: string | null;
+  kg: number;
+  duracion_minutos: number;
+  fecha_fin: string | null;
+}
+
+export interface AnaliticaPosta {
+  etapa_id: string;
+  etapa_codigo: string;
+  etapa_nombre: string;
+  etapa_color: string;
+  orden: number;
+  tiempo_estimado_minutos: number | null;
+  lotes_en_proceso: AnaliticaLoteEnProceso[];
+  lotes_finalizados_hoy: AnaliticaLoteFinalizado[];
+  kg_en_proceso: number;
+  kg_finalizado_hoy: number;
+  minutos_activos_hoy: number;
+  throughput_kg_hora: number;
+}
+
+export interface AnaliticaProduccion {
+  generado_en: string;
+  totales: {
+    kg_en_proceso: number;
+    kg_finalizado_hoy: number;
+    lotes_en_proceso: number;
+    lotes_finalizados_hoy: number;
+    horas_planta_hoy: number;
+  };
+  postas: AnaliticaPosta[];
+}
+
+export interface RendimientoProducto {
+  producto_id: string;
+  codigo: string;
+  nombre: string;
+  categoria: string;
+  peso_promedio_kg: number | null;
+  unidades_totales: number;
+  kg_estimados: number | null;
+  unidades_por_hora: number;
+  proyeccion_8h: number;
+}
+
+export interface RendimientoProductosResponse {
+  periodo_dias: number;
+  horas_planta: number;
+  productos: RendimientoProducto[];
+}
+
+export async function getAnaliticaProduccion(): Promise<AnaliticaProduccion> {
+  const response = await api.get('/reportes/produccion/analitica');
+  return response.data;
+}
+
+export async function getRendimientoProductos(
+  diasAtras: number = 30
+): Promise<RendimientoProductosResponse> {
+  const response = await api.get('/reportes/produccion/rendimiento-productos', {
+    params: { dias_atras: diasAtras },
+  });
+  return response.data;
+}
+
 // Finanzas
 export async function getFlujoCaja(
   params: FiltroFechas & { agrupacion?: Agrupacion }

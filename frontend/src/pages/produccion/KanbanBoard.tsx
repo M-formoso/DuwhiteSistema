@@ -26,6 +26,7 @@ import {
   List,
   Wrench,
   Pencil,
+  Gauge,
 } from 'lucide-react';
 
 import {
@@ -818,6 +819,10 @@ export default function KanbanBoardPage() {
           <Button variant="outline" onClick={() => navigate('/produccion/recursos')} className="border-green-500 text-green-600 hover:bg-green-50">
             <Box className="h-4 w-4 mr-2" />
             <span className="truncate">Recursos</span>
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/produccion/analiticas')} className="border-primary text-primary hover:bg-primary/10">
+            <Gauge className="h-4 w-4 mr-2" />
+            <span className="truncate">Analíticas</span>
           </Button>
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />

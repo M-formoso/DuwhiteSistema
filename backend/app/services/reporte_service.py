@@ -18,6 +18,9 @@ from app.models.insumo import Insumo
 from app.models.movimiento_stock import MovimientoStock
 from app.models.empleado import Empleado, JornadaLaboral
 from app.models.lista_precios import Servicio
+from app.models.etapa_produccion import EtapaProduccion
+from app.models.producto_lavado import ProductoLavado
+from app.models.remito import Remito, DetalleRemito, EstadoRemito
 
 
 # ==================== REPORTES DE VENTAS ====================
@@ -224,6 +227,236 @@ def get_produccion_por_etapa(
         }
         for row in result
     ]
+
+
+def get_analitica_produccion(db: Session) -> Dict[str, Any]:
+    """
+    Analítica de producción en tiempo real.
+
+    Para cada posta activa devuelve:
+    - lotes_en_proceso: lista con número, cliente, operario, kg, minutos en curso
+    - lotes_finalizados_hoy: lista resumida con kg, minutos que tomó la etapa
+    - kg_en_proceso / kg_finalizado_hoy
+    - minutos_activos_hoy: suma de minutos que la posta estuvo trabajando hoy
+    - throughput_kg_hora: kg finalizados / horas activas (sólo si hay actividad)
+
+    También entrega un bloque `totales` con sumatorias globales del día.
+    """
+    hoy = date.today()
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    ahora = datetime.utcnow()
+
+    etapas = (
+        db.query(EtapaProduccion)
+        .filter(EtapaProduccion.activo == True)
+        .order_by(EtapaProduccion.orden)
+        .all()
+    )
+
+    total_kg_en_proceso = 0.0
+    total_kg_finalizado_hoy = 0.0
+    total_lotes_en_proceso = 0
+    total_lotes_finalizados_hoy = 0
+    total_minutos_activos = 0.0
+
+    postas_data: List[Dict[str, Any]] = []
+
+    for etapa in etapas:
+        # Lotes en proceso ahora (fecha_inicio sin fecha_fin)
+        en_proceso = (
+            db.query(LoteEtapa)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+            .filter(
+                LoteEtapa.etapa_id == etapa.id,
+                LoteEtapa.fecha_inicio.isnot(None),
+                LoteEtapa.fecha_fin.is_(None),
+                LoteProduccion.activo == True,
+            )
+            .all()
+        )
+
+        # Lotes finalizados hoy en esta etapa
+        finalizados_hoy = (
+            db.query(LoteEtapa)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+            .filter(
+                LoteEtapa.etapa_id == etapa.id,
+                LoteEtapa.fecha_fin >= inicio_hoy,
+                LoteProduccion.activo == True,
+            )
+            .all()
+        )
+
+        # Construir payload de lotes en proceso
+        lotes_en_proceso_data = []
+        kg_en_proceso = 0.0
+        for le in en_proceso:
+            lote = le.lote
+            kg = float(lote.peso_entrada_kg or 0)
+            kg_en_proceso += kg
+            minutos = int((ahora - le.fecha_inicio).total_seconds() / 60) if le.fecha_inicio else 0
+            responsable = None
+            if le.responsable:
+                responsable = f"{le.responsable.nombre} {le.responsable.apellido or ''}".strip()
+            lotes_en_proceso_data.append({
+                "lote_id": str(lote.id),
+                "lote_numero": lote.numero,
+                "cliente_nombre": lote.cliente.razon_social if lote.cliente else None,
+                "kg": kg,
+                "minutos_en_etapa": minutos,
+                "responsable": responsable,
+            })
+
+        # Lotes finalizados hoy
+        lotes_finalizados_data = []
+        kg_finalizado_hoy = 0.0
+        minutos_etapa_hoy = 0.0
+        for le in finalizados_hoy:
+            lote = le.lote
+            kg = float(lote.peso_entrada_kg or 0)
+            kg_finalizado_hoy += kg
+            if le.fecha_inicio and le.fecha_fin:
+                # Solo cuenta el tramo del trabajo dentro del día
+                ini = max(le.fecha_inicio, inicio_hoy)
+                fin = le.fecha_fin
+                minutos = max(0, (fin - ini).total_seconds() / 60)
+                minutos_etapa_hoy += minutos
+                duracion_total = int((le.fecha_fin - le.fecha_inicio).total_seconds() / 60)
+            else:
+                duracion_total = 0
+            lotes_finalizados_data.append({
+                "lote_id": str(lote.id),
+                "lote_numero": lote.numero,
+                "cliente_nombre": lote.cliente.razon_social if lote.cliente else None,
+                "kg": kg,
+                "duracion_minutos": duracion_total,
+                "fecha_fin": le.fecha_fin.isoformat() if le.fecha_fin else None,
+            })
+
+        horas_activas = minutos_etapa_hoy / 60 if minutos_etapa_hoy > 0 else 0.0
+        throughput_kg_h = (kg_finalizado_hoy / horas_activas) if horas_activas > 0 else 0.0
+
+        total_kg_en_proceso += kg_en_proceso
+        total_kg_finalizado_hoy += kg_finalizado_hoy
+        total_lotes_en_proceso += len(lotes_en_proceso_data)
+        total_lotes_finalizados_hoy += len(lotes_finalizados_data)
+        total_minutos_activos += minutos_etapa_hoy
+
+        postas_data.append({
+            "etapa_id": str(etapa.id),
+            "etapa_codigo": etapa.codigo,
+            "etapa_nombre": etapa.nombre,
+            "etapa_color": etapa.color,
+            "orden": etapa.orden,
+            "tiempo_estimado_minutos": etapa.tiempo_estimado_minutos,
+            "lotes_en_proceso": lotes_en_proceso_data,
+            "lotes_finalizados_hoy": lotes_finalizados_data,
+            "kg_en_proceso": round(kg_en_proceso, 1),
+            "kg_finalizado_hoy": round(kg_finalizado_hoy, 1),
+            "minutos_activos_hoy": round(minutos_etapa_hoy, 1),
+            "throughput_kg_hora": round(throughput_kg_h, 1),
+        })
+
+    # Throughput global hoy = kg finalizado / horas activas promedio (no es la suma de minutos
+    # porque distintas postas trabajan en paralelo; uso el máximo como proxy del tiempo de planta).
+    horas_planta_hoy = (total_minutos_activos / 60) if total_minutos_activos > 0 else 0.0
+
+    return {
+        "generado_en": ahora.isoformat(),
+        "totales": {
+            "kg_en_proceso": round(total_kg_en_proceso, 1),
+            "kg_finalizado_hoy": round(total_kg_finalizado_hoy, 1),
+            "lotes_en_proceso": total_lotes_en_proceso,
+            "lotes_finalizados_hoy": total_lotes_finalizados_hoy,
+            "horas_planta_hoy": round(horas_planta_hoy, 2),
+        },
+        "postas": postas_data,
+    }
+
+
+def get_rendimiento_productos(
+    db: Session,
+    dias_atras: int = 30,
+) -> Dict[str, Any]:
+    """
+    Rendimiento por producto basado en histórico de remitos emitidos.
+
+    Para cada producto retorna:
+    - unidades_totales: suma de unidades en remitos emitidos en el periodo
+    - peso_promedio_kg: peso unitario configurado en el producto
+    - kg_estimados: unidades × peso promedio (si el producto tiene peso)
+    - unidades_por_hora: unidades / horas activas de planta en el periodo
+    - proyeccion_8h: unidades_por_hora × 8
+
+    También devuelve resumen general (horas planta del periodo).
+    """
+    hoy = date.today()
+    desde = hoy - timedelta(days=dias_atras)
+    inicio_periodo = datetime.combine(desde, datetime.min.time())
+
+    # Horas de planta del periodo: suma de duración de lote_etapas finalizadas
+    minutos_planta = db.query(
+        func.coalesce(
+            func.sum(extract('epoch', LoteEtapa.fecha_fin - LoteEtapa.fecha_inicio) / 60),
+            0,
+        )
+    ).filter(
+        LoteEtapa.fecha_inicio.isnot(None),
+        LoteEtapa.fecha_fin.isnot(None),
+        LoteEtapa.fecha_fin >= inicio_periodo,
+    ).scalar() or 0
+
+    horas_planta = float(minutos_planta) / 60 if minutos_planta else 0.0
+
+    rows = (
+        db.query(
+            ProductoLavado.id,
+            ProductoLavado.codigo,
+            ProductoLavado.nombre,
+            ProductoLavado.categoria,
+            ProductoLavado.peso_promedio_kg,
+            func.sum(DetalleRemito.cantidad).label("unidades_totales"),
+        )
+        .join(DetalleRemito, DetalleRemito.producto_id == ProductoLavado.id)
+        .join(Remito, DetalleRemito.remito_id == Remito.id)
+        .filter(
+            Remito.estado == EstadoRemito.EMITIDO.value,
+            Remito.fecha_emision >= desde,
+            ProductoLavado.activo == True,
+        )
+        .group_by(
+            ProductoLavado.id,
+            ProductoLavado.codigo,
+            ProductoLavado.nombre,
+            ProductoLavado.categoria,
+            ProductoLavado.peso_promedio_kg,
+        )
+        .order_by(func.sum(DetalleRemito.cantidad).desc())
+        .all()
+    )
+
+    productos: List[Dict[str, Any]] = []
+    for r in rows:
+        unidades = float(r.unidades_totales or 0)
+        peso_prom = float(r.peso_promedio_kg) if r.peso_promedio_kg else None
+        u_por_hora = (unidades / horas_planta) if horas_planta > 0 else 0.0
+        productos.append({
+            "producto_id": str(r.id),
+            "codigo": r.codigo,
+            "nombre": r.nombre,
+            "categoria": r.categoria,
+            "peso_promedio_kg": peso_prom,
+            "unidades_totales": int(unidades),
+            "kg_estimados": round(unidades * peso_prom, 1) if peso_prom else None,
+            "unidades_por_hora": round(u_por_hora, 2),
+            "proyeccion_8h": int(round(u_por_hora * 8)),
+        })
+
+    return {
+        "periodo_dias": dias_atras,
+        "horas_planta": round(horas_planta, 2),
+        "productos": productos,
+    }
 
 
 # ==================== REPORTES FINANCIEROS ====================
