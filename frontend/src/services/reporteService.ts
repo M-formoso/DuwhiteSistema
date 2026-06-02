@@ -235,8 +235,20 @@ export interface AnaliticaPosta {
   throughput_kg_hora: number;
 }
 
+export interface AnaliticaCicloLotes {
+  lotes_completados: number;
+  kg_total_completado: number;
+  duracion_promedio_minutos: number;
+  duracion_min_minutos: number | null;
+  duracion_max_minutos: number | null;
+}
+
 export interface AnaliticaProduccion {
   generado_en: string;
+  rango?: {
+    fecha_desde: string;
+    fecha_hasta: string;
+  };
   totales: {
     kg_en_proceso: number;
     kg_finalizado_hoy: number;
@@ -244,6 +256,7 @@ export interface AnaliticaProduccion {
     lotes_finalizados_hoy: number;
     horas_planta_hoy: number;
   };
+  ciclo_lotes?: AnaliticaCicloLotes;
   postas: AnaliticaPosta[];
 }
 
@@ -261,20 +274,27 @@ export interface RendimientoProducto {
 
 export interface RendimientoProductosResponse {
   periodo_dias: number;
+  fecha_desde?: string;
+  fecha_hasta?: string;
   horas_planta: number;
   productos: RendimientoProducto[];
 }
 
-export async function getAnaliticaProduccion(): Promise<AnaliticaProduccion> {
-  const response = await api.get('/reportes/produccion/analitica');
+export async function getAnaliticaProduccion(params?: {
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}): Promise<AnaliticaProduccion> {
+  const response = await api.get('/reportes/produccion/analitica', { params });
   return response.data;
 }
 
-export async function getRendimientoProductos(
-  diasAtras: number = 30
-): Promise<RendimientoProductosResponse> {
+export async function getRendimientoProductos(params?: {
+  dias_atras?: number;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}): Promise<RendimientoProductosResponse> {
   const response = await api.get('/reportes/produccion/rendimiento-productos', {
-    params: { dias_atras: diasAtras },
+    params,
   });
   return response.data;
 }

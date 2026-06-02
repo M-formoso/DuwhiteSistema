@@ -686,7 +686,10 @@ export default function ReportesPage() {
         {/* Tab: Producción */}
         <TabsContent value="produccion" className="space-y-6">
           {/* Analíticas en tiempo real + rendimiento por producto */}
-          <AnaliticasProduccionSection />
+          <AnaliticasProduccionSection
+            fechaDesde={fechaDesde}
+            fechaHasta={fechaHasta}
+          />
 
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Producción por Período */}

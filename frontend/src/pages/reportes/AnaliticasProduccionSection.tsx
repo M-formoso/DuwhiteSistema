@@ -100,7 +100,7 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
             </div>
           </div>
           <div className="bg-emerald-50 rounded p-2">
-            <div className="text-[10px] text-emerald-700 uppercase">Hoy</div>
+            <div className="text-[10px] text-emerald-700 uppercase">Finalizado</div>
             <div className="text-sm font-bold text-emerald-700">
               {formatNumber(posta.kg_finalizado_hoy, 1)} kg
             </div>
@@ -162,13 +162,13 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
         <div className="flex flex-col min-h-0 flex-1">
           <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 uppercase mb-1 flex-shrink-0">
             <CheckCircle className="h-3 w-3 text-emerald-500" />
-            Finalizados hoy
+            Finalizados
             <span className="text-gray-400 normal-case font-normal">
               ({posta.lotes_finalizados_hoy.length})
             </span>
           </div>
           {posta.lotes_finalizados_hoy.length === 0 ? (
-            <p className="text-xs text-gray-400 italic px-1">Aún sin movimiento hoy</p>
+            <p className="text-xs text-gray-400 italic px-1">Sin movimiento en el rango</p>
           ) : (
             <ul className="space-y-1 overflow-y-auto pr-1 flex-1">
               {posta.lotes_finalizados_hoy.map((l) => (
@@ -196,7 +196,17 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
   );
 }
 
-export function AnaliticasProduccionSection() {
+interface AnaliticasProduccionSectionProps {
+  fechaDesde?: string;
+  fechaHasta?: string;
+}
+
+export function AnaliticasProduccionSection({
+  fechaDesde,
+  fechaHasta,
+}: AnaliticasProduccionSectionProps = {}) {
+  // Si la página exterior pasa fechas las usamos; si no caemos a "hoy" + ventana móvil.
+  const tieneRangoExterno = Boolean(fechaDesde && fechaHasta);
   const [diasAtras, setDiasAtras] = useState<number>(30);
 
   const {
@@ -205,17 +215,37 @@ export function AnaliticasProduccionSection() {
     refetch: refetchAnalitica,
     dataUpdatedAt,
   } = useQuery({
-    queryKey: ['analitica-produccion'],
-    queryFn: () => getAnaliticaProduccion(),
+    queryKey: ['analitica-produccion', fechaDesde, fechaHasta],
+    queryFn: () =>
+      getAnaliticaProduccion(
+        tieneRangoExterno
+          ? { fecha_desde: fechaDesde, fecha_hasta: fechaHasta }
+          : undefined
+      ),
     refetchInterval: 10_000,
   });
 
   const { data: rendimiento, isLoading: loadingRendimiento } = useQuery({
-    queryKey: ['rendimiento-productos', diasAtras],
-    queryFn: () => getRendimientoProductos(diasAtras),
+    queryKey: ['rendimiento-productos', fechaDesde, fechaHasta, diasAtras],
+    queryFn: () =>
+      tieneRangoExterno
+        ? getRendimientoProductos({
+            fecha_desde: fechaDesde,
+            fecha_hasta: fechaHasta,
+          })
+        : getRendimientoProductos({ dias_atras: diasAtras }),
   });
 
   const totales = analitica?.totales;
+  const rangoLabel = (() => {
+    if (!fechaDesde || !fechaHasta) return 'Hoy';
+    if (fechaDesde === fechaHasta) {
+      return new Date(fechaDesde).toLocaleDateString('es-AR');
+    }
+    return `${new Date(fechaDesde).toLocaleDateString('es-AR')} → ${new Date(
+      fechaHasta
+    ).toLocaleDateString('es-AR')}`;
+  })();
 
   return (
     <div className="space-y-6">
@@ -225,9 +255,12 @@ export function AnaliticasProduccionSection() {
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Gauge className="h-5 w-5 text-primary" />
             Tiempo real por posta
+            <Badge variant="outline" className="font-normal">
+              {rangoLabel}
+            </Badge>
           </h2>
           <p className="text-xs text-gray-500">
-            Actividad ahora mismo y consolidado del día
+            "En proceso" siempre es ahora; los kg / lotes finalizados y kg/h corresponden al rango.
             {dataUpdatedAt > 0 && (
               <span className="text-gray-400 ml-2">
                 · actualizado {new Date(dataUpdatedAt).toLocaleTimeString('es-AR')}
@@ -273,7 +306,7 @@ export function AnaliticasProduccionSection() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase">Lotes finalizados hoy</p>
+                <p className="text-xs text-gray-500 uppercase">Lotes finalizados</p>
                 <p className="text-2xl font-bold text-emerald-600">
                   {totales?.lotes_finalizados_hoy ?? '–'}
                 </p>
@@ -286,7 +319,7 @@ export function AnaliticasProduccionSection() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase">kg finalizados hoy</p>
+                <p className="text-xs text-gray-500 uppercase">kg finalizados</p>
                 <p className="text-2xl font-bold text-emerald-700">
                   {formatNumber(totales?.kg_finalizado_hoy || 0, 1)}
                 </p>
@@ -299,7 +332,7 @@ export function AnaliticasProduccionSection() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 uppercase">Horas planta hoy</p>
+                <p className="text-xs text-gray-500 uppercase">Horas planta</p>
                 <p className="text-2xl font-bold text-purple-700">
                   {formatNumber(totales?.horas_planta_hoy || 0, 1)} h
                 </p>
@@ -309,6 +342,59 @@ export function AnaliticasProduccionSection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Ciclo de lotes completados (entrada → salida) */}
+      {analitica?.ciclo_lotes && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Ciclo de lotes completados en el rango
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="bg-blue-50 rounded p-3 text-center">
+                <p className="text-[10px] text-blue-700 uppercase">Lotes</p>
+                <p className="text-xl font-bold text-blue-700">
+                  {analitica.ciclo_lotes.lotes_completados}
+                </p>
+              </div>
+              <div className="bg-emerald-50 rounded p-3 text-center">
+                <p className="text-[10px] text-emerald-700 uppercase">kg producidos</p>
+                <p className="text-xl font-bold text-emerald-700">
+                  {formatNumber(analitica.ciclo_lotes.kg_total_completado, 1)}
+                </p>
+              </div>
+              <div className="bg-purple-50 rounded p-3 text-center">
+                <p className="text-[10px] text-purple-700 uppercase">Duración promedio</p>
+                <p className="text-xl font-bold text-purple-700">
+                  {formatMinutos(analitica.ciclo_lotes.duracion_promedio_minutos)}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded p-3 text-center">
+                <p className="text-[10px] text-gray-600 uppercase">Más rápido</p>
+                <p className="text-lg font-bold text-gray-700">
+                  {analitica.ciclo_lotes.duracion_min_minutos != null
+                    ? formatMinutos(analitica.ciclo_lotes.duracion_min_minutos)
+                    : '–'}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded p-3 text-center">
+                <p className="text-[10px] text-gray-600 uppercase">Más lento</p>
+                <p className="text-lg font-bold text-gray-700">
+                  {analitica.ciclo_lotes.duracion_max_minutos != null
+                    ? formatMinutos(analitica.ciclo_lotes.duracion_max_minutos)
+                    : '–'}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              Medido desde la primera etapa iniciada hasta la última finalizada.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Grid por posta */}
       {loadingAnalitica ? (
@@ -338,24 +424,30 @@ export function AnaliticasProduccionSection() {
               <TrendingUp className="h-5 w-5 text-primary" />
               Rendimiento por producto
             </span>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">Histórico:</span>
-              <Select
-                value={String(diasAtras)}
-                onValueChange={(v) => setDiasAtras(parseInt(v, 10))}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Últimos 7 días</SelectItem>
-                  <SelectItem value="14">Últimos 14 días</SelectItem>
-                  <SelectItem value="30">Últimos 30 días</SelectItem>
-                  <SelectItem value="60">Últimos 60 días</SelectItem>
-                  <SelectItem value="90">Últimos 90 días</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {tieneRangoExterno ? (
+              <Badge variant="outline" className="font-normal text-xs">
+                {rangoLabel}
+              </Badge>
+            ) : (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-500">Histórico:</span>
+                <Select
+                  value={String(diasAtras)}
+                  onValueChange={(v) => setDiasAtras(parseInt(v, 10))}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Últimos 7 días</SelectItem>
+                    <SelectItem value="14">Últimos 14 días</SelectItem>
+                    <SelectItem value="30">Últimos 30 días</SelectItem>
+                    <SelectItem value="60">Últimos 60 días</SelectItem>
+                    <SelectItem value="90">Últimos 90 días</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>

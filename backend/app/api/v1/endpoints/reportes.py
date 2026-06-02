@@ -114,21 +114,32 @@ def get_produccion_por_etapa(
 
 @router.get("/produccion/analitica")
 def get_analitica_produccion(
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    """Analítica de producción en tiempo real por posta."""
-    return reporte_service.get_analitica_produccion(db=db)
+    """Analítica de producción en tiempo real + finalizados en el rango."""
+    return reporte_service.get_analitica_produccion(
+        db=db, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
 
 
 @router.get("/produccion/rendimiento-productos")
 def get_rendimiento_productos(
-    dias_atras: int = Query(30, ge=1, le=365),
+    dias_atras: Optional[int] = Query(None, ge=1, le=365),
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    """Rendimiento por producto + proyección a 8h, calculado sobre los últimos N días."""
-    return reporte_service.get_rendimiento_productos(db=db, dias_atras=dias_atras)
+    """Rendimiento por producto + proyección a 8h. Acepta dias_atras o rango explícito."""
+    return reporte_service.get_rendimiento_productos(
+        db=db,
+        dias_atras=dias_atras,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+    )
 
 
 # ==================== REPORTES FINANCIEROS ====================

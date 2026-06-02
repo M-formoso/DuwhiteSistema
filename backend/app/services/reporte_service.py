@@ -229,21 +229,32 @@ def get_produccion_por_etapa(
     ]
 
 
-def get_analitica_produccion(db: Session) -> Dict[str, Any]:
+def get_analitica_produccion(
+    db: Session,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> Dict[str, Any]:
     """
-    Analítica de producción en tiempo real.
+    Analítica de producción en tiempo real + finalizados en un rango.
+
+    - "En proceso" es siempre el estado actual (no se filtra por fecha).
+    - "Finalizados" / kg / horas planta se calculan dentro del rango
+      [fecha_desde, fecha_hasta]. Default = hoy.
 
     Para cada posta activa devuelve:
     - lotes_en_proceso: lista con número, cliente, operario, kg, minutos en curso
-    - lotes_finalizados_hoy: lista resumida con kg, minutos que tomó la etapa
-    - kg_en_proceso / kg_finalizado_hoy
-    - minutos_activos_hoy: suma de minutos que la posta estuvo trabajando hoy
+    - lotes_finalizados: lista de etapas finalizadas en el rango
+    - kg_en_proceso / kg_finalizado_rango
+    - minutos_activos_rango: minutos que la posta estuvo trabajando en el rango
     - throughput_kg_hora: kg finalizados / horas activas (sólo si hay actividad)
 
-    También entrega un bloque `totales` con sumatorias globales del día.
+    Y un bloque `totales` con sumatorias globales del rango.
     """
     hoy = date.today()
-    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    desde = fecha_desde or hoy
+    hasta = fecha_hasta or hoy
+    inicio_rango = datetime.combine(desde, datetime.min.time())
+    fin_rango = datetime.combine(hasta, datetime.max.time())
     ahora = datetime.utcnow()
 
     etapas = (
@@ -254,9 +265,9 @@ def get_analitica_produccion(db: Session) -> Dict[str, Any]:
     )
 
     total_kg_en_proceso = 0.0
-    total_kg_finalizado_hoy = 0.0
+    total_kg_finalizado_rango = 0.0
     total_lotes_en_proceso = 0
-    total_lotes_finalizados_hoy = 0
+    total_lotes_finalizados_rango = 0
     total_minutos_activos = 0.0
 
     postas_data: List[Dict[str, Any]] = []
@@ -275,13 +286,14 @@ def get_analitica_produccion(db: Session) -> Dict[str, Any]:
             .all()
         )
 
-        # Lotes finalizados hoy en esta etapa
-        finalizados_hoy = (
+        # Lotes finalizados en el rango en esta etapa
+        finalizados_rango = (
             db.query(LoteEtapa)
             .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
             .filter(
                 LoteEtapa.etapa_id == etapa.id,
-                LoteEtapa.fecha_fin >= inicio_hoy,
+                LoteEtapa.fecha_fin >= inicio_rango,
+                LoteEtapa.fecha_fin <= fin_rango,
                 LoteProduccion.activo == True,
             )
             .all()
@@ -307,20 +319,20 @@ def get_analitica_produccion(db: Session) -> Dict[str, Any]:
                 "responsable": responsable,
             })
 
-        # Lotes finalizados hoy
+        # Lotes finalizados en el rango
         lotes_finalizados_data = []
-        kg_finalizado_hoy = 0.0
-        minutos_etapa_hoy = 0.0
-        for le in finalizados_hoy:
+        kg_finalizado_rango = 0.0
+        minutos_etapa_rango = 0.0
+        for le in finalizados_rango:
             lote = le.lote
             kg = float(lote.peso_entrada_kg or 0)
-            kg_finalizado_hoy += kg
+            kg_finalizado_rango += kg
             if le.fecha_inicio and le.fecha_fin:
-                # Solo cuenta el tramo del trabajo dentro del día
-                ini = max(le.fecha_inicio, inicio_hoy)
-                fin = le.fecha_fin
+                # Solo cuenta el tramo del trabajo dentro del rango
+                ini = max(le.fecha_inicio, inicio_rango)
+                fin = min(le.fecha_fin, fin_rango)
                 minutos = max(0, (fin - ini).total_seconds() / 60)
-                minutos_etapa_hoy += minutos
+                minutos_etapa_rango += minutos
                 duracion_total = int((le.fecha_fin - le.fecha_inicio).total_seconds() / 60)
             else:
                 duracion_total = 0
@@ -333,14 +345,14 @@ def get_analitica_produccion(db: Session) -> Dict[str, Any]:
                 "fecha_fin": le.fecha_fin.isoformat() if le.fecha_fin else None,
             })
 
-        horas_activas = minutos_etapa_hoy / 60 if minutos_etapa_hoy > 0 else 0.0
-        throughput_kg_h = (kg_finalizado_hoy / horas_activas) if horas_activas > 0 else 0.0
+        horas_activas = minutos_etapa_rango / 60 if minutos_etapa_rango > 0 else 0.0
+        throughput_kg_h = (kg_finalizado_rango / horas_activas) if horas_activas > 0 else 0.0
 
         total_kg_en_proceso += kg_en_proceso
-        total_kg_finalizado_hoy += kg_finalizado_hoy
+        total_kg_finalizado_rango += kg_finalizado_rango
         total_lotes_en_proceso += len(lotes_en_proceso_data)
-        total_lotes_finalizados_hoy += len(lotes_finalizados_data)
-        total_minutos_activos += minutos_etapa_hoy
+        total_lotes_finalizados_rango += len(lotes_finalizados_data)
+        total_minutos_activos += minutos_etapa_rango
 
         postas_data.append({
             "etapa_id": str(etapa.id),
@@ -350,25 +362,70 @@ def get_analitica_produccion(db: Session) -> Dict[str, Any]:
             "orden": etapa.orden,
             "tiempo_estimado_minutos": etapa.tiempo_estimado_minutos,
             "lotes_en_proceso": lotes_en_proceso_data,
-            "lotes_finalizados_hoy": lotes_finalizados_data,
+            "lotes_finalizados_hoy": lotes_finalizados_data,  # nombre conservado por compatibilidad
             "kg_en_proceso": round(kg_en_proceso, 1),
-            "kg_finalizado_hoy": round(kg_finalizado_hoy, 1),
-            "minutos_activos_hoy": round(minutos_etapa_hoy, 1),
+            "kg_finalizado_hoy": round(kg_finalizado_rango, 1),
+            "minutos_activos_hoy": round(minutos_etapa_rango, 1),
             "throughput_kg_hora": round(throughput_kg_h, 1),
         })
 
-    # Throughput global hoy = kg finalizado / horas activas promedio (no es la suma de minutos
-    # porque distintas postas trabajan en paralelo; uso el máximo como proxy del tiempo de planta).
-    horas_planta_hoy = (total_minutos_activos / 60) if total_minutos_activos > 0 else 0.0
+    horas_planta = (total_minutos_activos / 60) if total_minutos_activos > 0 else 0.0
+
+    # Ciclo completo de lotes finalizados dentro del rango.
+    # Se mide desde fecha_inicio_proceso (cuando arrancó la primera etapa)
+    # hasta fecha_fin_proceso (cuando terminó la última etapa).
+    lotes_completados = (
+        db.query(LoteProduccion)
+        .filter(
+            LoteProduccion.activo == True,
+            LoteProduccion.fecha_fin_proceso.isnot(None),
+            LoteProduccion.fecha_inicio_proceso.isnot(None),
+            LoteProduccion.fecha_fin_proceso >= inicio_rango,
+            LoteProduccion.fecha_fin_proceso <= fin_rango,
+        )
+        .all()
+    )
+
+    kg_total_completado = 0.0
+    duraciones_minutos: List[float] = []
+    duracion_min_lote: Optional[float] = None
+    duracion_max_lote: Optional[float] = None
+    for lote in lotes_completados:
+        kg = float(lote.peso_entrada_kg or 0)
+        kg_total_completado += kg
+        if lote.fecha_inicio_proceso and lote.fecha_fin_proceso:
+            d = (lote.fecha_fin_proceso - lote.fecha_inicio_proceso).total_seconds() / 60
+            if d >= 0:
+                duraciones_minutos.append(d)
+                if duracion_min_lote is None or d < duracion_min_lote:
+                    duracion_min_lote = d
+                if duracion_max_lote is None or d > duracion_max_lote:
+                    duracion_max_lote = d
+
+    cantidad_completados = len(duraciones_minutos)
+    duracion_promedio = (
+        sum(duraciones_minutos) / cantidad_completados if cantidad_completados > 0 else 0.0
+    )
 
     return {
         "generado_en": ahora.isoformat(),
+        "rango": {
+            "fecha_desde": desde.isoformat(),
+            "fecha_hasta": hasta.isoformat(),
+        },
         "totales": {
             "kg_en_proceso": round(total_kg_en_proceso, 1),
-            "kg_finalizado_hoy": round(total_kg_finalizado_hoy, 1),
+            "kg_finalizado_hoy": round(total_kg_finalizado_rango, 1),
             "lotes_en_proceso": total_lotes_en_proceso,
-            "lotes_finalizados_hoy": total_lotes_finalizados_hoy,
-            "horas_planta_hoy": round(horas_planta_hoy, 2),
+            "lotes_finalizados_hoy": total_lotes_finalizados_rango,
+            "horas_planta_hoy": round(horas_planta, 2),
+        },
+        "ciclo_lotes": {
+            "lotes_completados": cantidad_completados,
+            "kg_total_completado": round(kg_total_completado, 1),
+            "duracion_promedio_minutos": round(duracion_promedio, 1),
+            "duracion_min_minutos": round(duracion_min_lote, 1) if duracion_min_lote else None,
+            "duracion_max_minutos": round(duracion_max_lote, 1) if duracion_max_lote else None,
         },
         "postas": postas_data,
     }
@@ -376,10 +433,16 @@ def get_analitica_produccion(db: Session) -> Dict[str, Any]:
 
 def get_rendimiento_productos(
     db: Session,
-    dias_atras: int = 30,
+    dias_atras: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
 ) -> Dict[str, Any]:
     """
     Rendimiento por producto basado en histórico de remitos emitidos.
+
+    Se puede filtrar por:
+    - dias_atras: ventana móvil (ej. últimos 30 días).
+    - fecha_desde / fecha_hasta: rango explícito (tiene prioridad si está completo).
 
     Para cada producto retorna:
     - unidades_totales: suma de unidades en remitos emitidos en el periodo
@@ -391,8 +454,15 @@ def get_rendimiento_productos(
     También devuelve resumen general (horas planta del periodo).
     """
     hoy = date.today()
-    desde = hoy - timedelta(days=dias_atras)
+    if fecha_desde and fecha_hasta:
+        desde = fecha_desde
+        hasta = fecha_hasta
+    else:
+        n = dias_atras if dias_atras is not None else 30
+        hasta = hoy
+        desde = hoy - timedelta(days=n)
     inicio_periodo = datetime.combine(desde, datetime.min.time())
+    fin_periodo = datetime.combine(hasta, datetime.max.time())
 
     # Horas de planta del periodo: suma de duración de lote_etapas finalizadas
     minutos_planta = db.query(
@@ -404,6 +474,7 @@ def get_rendimiento_productos(
         LoteEtapa.fecha_inicio.isnot(None),
         LoteEtapa.fecha_fin.isnot(None),
         LoteEtapa.fecha_fin >= inicio_periodo,
+        LoteEtapa.fecha_fin <= fin_periodo,
     ).scalar() or 0
 
     horas_planta = float(minutos_planta) / 60 if minutos_planta else 0.0
@@ -422,6 +493,7 @@ def get_rendimiento_productos(
         .filter(
             Remito.estado == EstadoRemito.EMITIDO.value,
             Remito.fecha_emision >= desde,
+            Remito.fecha_emision <= hasta,
             ProductoLavado.activo == True,
         )
         .group_by(
@@ -452,8 +524,11 @@ def get_rendimiento_productos(
             "proyeccion_8h": int(round(u_por_hora * 8)),
         })
 
+    dias_periodo = (hasta - desde).days + 1
     return {
-        "periodo_dias": dias_atras,
+        "periodo_dias": dias_periodo,
+        "fecha_desde": desde.isoformat(),
+        "fecha_hasta": hasta.isoformat(),
         "horas_planta": round(horas_planta, 2),
         "productos": productos,
     }
