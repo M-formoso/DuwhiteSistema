@@ -630,7 +630,7 @@ def get_movimientos_stock(
     query = db.query(
         MovimientoStock.insumo_id,
         Insumo.nombre,
-        Insumo.unidad_medida,
+        Insumo.unidad.label('unidad_medida'),
         func.sum(
             case(
                 (MovimientoStock.tipo == 'entrada', MovimientoStock.cantidad),
@@ -653,7 +653,7 @@ def get_movimientos_stock(
     if insumo_id:
         query = query.filter(MovimientoStock.insumo_id == insumo_id)
 
-    query = query.group_by(MovimientoStock.insumo_id, Insumo.nombre, Insumo.unidad_medida)
+    query = query.group_by(MovimientoStock.insumo_id, Insumo.nombre, Insumo.unidad)
 
     result = query.all()
 
@@ -682,7 +682,7 @@ def get_stock_bajo_minimo(db: Session) -> List[Dict[str, Any]]:
             "insumo_id": str(i.id),
             "codigo": i.codigo,
             "nombre": i.nombre,
-            "unidad_medida": i.unidad_medida,
+            "unidad_medida": i.unidad,
             "stock_actual": float(i.stock_actual),
             "stock_minimo": float(i.stock_minimo),
             "diferencia": float(i.stock_minimo - i.stock_actual),
@@ -711,12 +711,12 @@ def get_stock_actual(db: Session) -> List[Dict[str, Any]]:
             "codigo": row.Insumo.codigo,
             "nombre": row.Insumo.nombre,
             "categoria": row.categoria_nombre,
-            "unidad_medida": row.Insumo.unidad_medida,
+            "unidad_medida": row.Insumo.unidad,
             "stock_actual": float(row.Insumo.stock_actual),
             "stock_minimo": float(row.Insumo.stock_minimo),
             "stock_maximo": float(row.Insumo.stock_maximo) if row.Insumo.stock_maximo else None,
-            "precio_unitario": float(row.Insumo.precio_unitario) if row.Insumo.precio_unitario else 0,
-            "valor_total": float(row.Insumo.stock_actual * (row.Insumo.precio_unitario or 0)),
+            "precio_unitario": float(row.Insumo.precio_unitario_costo or 0),
+            "valor_total": float(row.Insumo.stock_actual * (row.Insumo.precio_unitario_costo or 0)),
             "estado": "critico" if row.Insumo.stock_actual < row.Insumo.stock_minimo else
                      "bajo" if row.Insumo.stock_actual < row.Insumo.stock_minimo * 1.5 else "ok"
         }

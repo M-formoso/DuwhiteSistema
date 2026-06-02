@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EtapaProduccionBase(BaseModel):
@@ -26,6 +26,24 @@ class EtapaProduccionBase(BaseModel):
     permite_bifurcacion: bool = False
     etapa_destino_principal_id: Optional[UUID] = None
     etapa_destino_alternativa_id: Optional[UUID] = None
+
+    # Tolerar valores NULL en la DB (legacy / migraciones que no backfillearon).
+    @field_validator(
+        "es_inicial",
+        "es_final",
+        "requiere_peso",
+        "requiere_maquina",
+        "permite_bifurcacion",
+        mode="before",
+    )
+    @classmethod
+    def _bool_none_a_false(cls, v):
+        return False if v is None else v
+
+    @field_validator("activo", mode="before")
+    @classmethod
+    def _activo_none_a_true(cls, v):
+        return True if v is None else v
 
 
 class EtapaProduccionCreate(EtapaProduccionBase):
