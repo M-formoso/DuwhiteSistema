@@ -21,11 +21,23 @@ class CanastoBase(BaseModel):
 
 
 class CanastoCreate(BaseModel):
-    """Schema para crear canasto (normalmente no se usa, ya vienen precargados)."""
-    numero: int = Field(..., ge=1, le=50)
+    """Schema para crear canasto individual."""
+    numero: int = Field(..., ge=1)
     codigo: Optional[str] = None
     ubicacion: Optional[str] = None
     notas: Optional[str] = None
+
+
+class CanastosBulkCreateRequest(BaseModel):
+    """Schema para crear varios canastos consecutivos."""
+    cantidad: int = Field(..., ge=1, le=200)
+    ubicacion: Optional[str] = Field(None, max_length=100)
+
+
+class CanastosBulkCreateResponse(BaseModel):
+    """Respuesta de creación masiva."""
+    creados: int
+    numeros: List[int]
 
 
 class CanastoUpdate(BaseModel):

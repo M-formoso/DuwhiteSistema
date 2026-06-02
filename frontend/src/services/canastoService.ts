@@ -140,6 +140,17 @@ export const canastoService = {
     const response = await api.get(`${BASE_URL}/estados`);
     return response.data;
   },
+
+  /**
+   * Crea N canastos nuevos con numeración consecutiva.
+   */
+  async crearBulk(cantidad: number, ubicacion?: string): Promise<{
+    creados: number;
+    numeros: number[];
+  }> {
+    const response = await api.post(`${BASE_URL}/bulk`, { cantidad, ubicacion });
+    return response.data;
+  },
 };
 
 export default canastoService;

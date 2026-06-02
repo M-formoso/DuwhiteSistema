@@ -19,6 +19,8 @@ from app.schemas.canasto import (
     AsignarCanastosRequest,
     LiberarCanastosRequest,
     LoteCanastoResponse,
+    CanastosBulkCreateRequest,
+    CanastosBulkCreateResponse,
     ESTADOS_CANASTO,
 )
 from app.services.canasto_service import CanastoService
@@ -63,6 +65,20 @@ def listar_canastos(
         ))
 
     return result
+
+
+@router.post("/bulk", response_model=CanastosBulkCreateResponse, status_code=201)
+def crear_canastos_bulk(
+    data: CanastosBulkCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Crea N canastos nuevos con numeración consecutiva a partir del máximo actual."""
+    creados = CanastoService.create_bulk(db, cantidad=data.cantidad, ubicacion=data.ubicacion)
+    return CanastosBulkCreateResponse(
+        creados=len(creados),
+        numeros=[c.numero for c in creados],
+    )
 
 
 @router.get("/grid", response_model=CanastosGridResponse)

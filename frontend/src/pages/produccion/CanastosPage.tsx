@@ -5,8 +5,9 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Info, Clock, Package } from 'lucide-react';
+import { RefreshCw, Info, Clock, Package, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -41,6 +42,8 @@ export default function CanastosPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEstadoModal, setShowEstadoModal] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState<EstadoCanasto>('disponible');
+  const [showAgregarModal, setShowAgregarModal] = useState(false);
+  const [cantidadAgregar, setCantidadAgregar] = useState<string>('1');
 
   // Query: Grid de canastos
   const { data: gridData, isLoading, refetch } = useQuery<CanastosGridResponse>({
@@ -54,6 +57,20 @@ export default function CanastosPage() {
     queryKey: ['canasto-historial', selectedCanasto?.id],
     queryFn: () => canastoService.getHistorial(selectedCanasto!.id, 10),
     enabled: !!selectedCanasto && showDetailModal,
+  });
+
+  // Mutation: Crear canastos en bulk
+  const crearBulkMutation = useMutation({
+    mutationFn: (cantidad: number) => canastoService.crearBulk(cantidad),
+    onSuccess: (data) => {
+      toast.success(`${data.creados} canasto(s) creado(s)`);
+      queryClient.invalidateQueries({ queryKey: ['canastos-grid'] });
+      setShowAgregarModal(false);
+      setCantidadAgregar('1');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al crear canastos');
+    },
   });
 
   // Mutation: Cambiar estado
@@ -140,10 +157,16 @@ export default function CanastosPage() {
             50 canastos disponibles para el proceso de lavado
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()} className="w-full sm:w-auto">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Actualizar
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button onClick={() => setShowAgregarModal(true)} className="flex-1 sm:flex-initial">
+            <Plus className="h-4 w-4 mr-2" />
+            Agregar Canastos
+          </Button>
+          <Button variant="outline" onClick={() => refetch()} className="flex-1 sm:flex-initial">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualizar
+          </Button>
+        </div>
       </div>
 
       {/* Resumen */}
@@ -332,6 +355,53 @@ export default function CanastosPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Agregar Canastos */}
+      <Dialog open={showAgregarModal} onOpenChange={setShowAgregarModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Agregar canastos</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cantidad-agregar">¿Cuántos canastos querés agregar?</Label>
+              <Input
+                id="cantidad-agregar"
+                type="number"
+                min={1}
+                max={200}
+                value={cantidadAgregar}
+                onChange={(e) => setCantidadAgregar(e.target.value)}
+                placeholder="Ej: 10"
+              />
+              <p className="text-xs text-gray-500">
+                Se crean con numeración consecutiva a partir del último canasto existente.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  const n = parseInt(cantidadAgregar, 10);
+                  if (!Number.isFinite(n) || n < 1) {
+                    toast.error('Ingresá una cantidad válida');
+                    return;
+                  }
+                  crearBulkMutation.mutate(n);
+                }}
+                disabled={crearBulkMutation.isPending}
+                className="flex-1"
+              >
+                {crearBulkMutation.isPending ? 'Creando...' : 'Crear'}
+              </Button>
+              <Button variant="outline" onClick={() => setShowAgregarModal(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

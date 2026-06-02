@@ -47,7 +47,16 @@ class CanastoService:
             query = query.filter(Canasto.estado == estado)
 
         if solo_disponibles:
-            query = query.filter(Canasto.estado == EstadoCanasto.DISPONIBLE.value)
+            # "Disponibles" en sentido amplio: cualquier canasto asignable
+            # (excluye los que están fuera de servicio o en mantenimiento).
+            query = query.filter(
+                Canasto.estado.notin_(
+                    [
+                        EstadoCanasto.FUERA_SERVICIO.value,
+                        EstadoCanasto.MANTENIMIENTO.value,
+                    ]
+                )
+            )
 
         return query.order_by(Canasto.numero).all()
 
@@ -65,6 +74,34 @@ class CanastoService:
     def get_by_codigo(db: Session, codigo: str) -> Optional[Canasto]:
         """Obtiene un canasto por código."""
         return db.query(Canasto).filter(Canasto.codigo == codigo).first()
+
+    @staticmethod
+    def create_bulk(db: Session, cantidad: int, ubicacion: Optional[str] = None) -> List[Canasto]:
+        """
+        Crea `cantidad` canastos nuevos con números consecutivos a partir
+        del máximo actual. Código C-XX zero-padded a 2 dígitos.
+        """
+        max_numero = db.query(Canasto.numero).order_by(Canasto.numero.desc()).first()
+        siguiente = (max_numero[0] + 1) if max_numero else 1
+
+        creados: List[Canasto] = []
+        for i in range(cantidad):
+            numero = siguiente + i
+            codigo = f"C-{numero:02d}"
+            canasto = Canasto(
+                numero=numero,
+                codigo=codigo,
+                estado=EstadoCanasto.DISPONIBLE.value,
+                ubicacion=ubicacion,
+                activo=True,
+            )
+            db.add(canasto)
+            creados.append(canasto)
+
+        db.commit()
+        for c in creados:
+            db.refresh(c)
+        return creados
 
     @staticmethod
     def update(
@@ -254,11 +291,17 @@ class CanastoService:
                     detail=f"Canasto {canasto_id} no encontrado"
                 )
 
-            # Verificar disponibilidad
-            if not canasto.esta_disponible:
+            # Solo rechazar si está fuera de servicio o en mantenimiento.
+            # Los canastos en uso se permiten (un mismo canasto puede asignarse a
+            # otro lote si el operario lo decide; las asignaciones previas siguen
+            # vigentes hasta que se liberen).
+            if canasto.estado in (
+                EstadoCanasto.FUERA_SERVICIO.value,
+                EstadoCanasto.MANTENIMIENTO.value,
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Canasto {canasto.codigo} no está disponible (estado: {canasto.estado})"
+                    detail=f"Canasto {canasto.codigo} no se puede asignar (estado: {canasto.estado})"
                 )
 
             # Crear asignación

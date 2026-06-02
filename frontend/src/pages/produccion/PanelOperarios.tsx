@@ -23,6 +23,7 @@ import {
   Scale,
   Split,
   Pencil,
+  Calculator,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ function LoteCard({
   onFinalizar,
   onDividir,
   onCorregir,
+  onIrConteo,
   enProceso,
 }: {
   lote: KanbanLote;
@@ -108,6 +110,7 @@ function LoteCard({
   onFinalizar: () => void;
   onDividir: () => void;
   onCorregir: () => void;
+  onIrConteo: () => void;
   enProceso: boolean;
 }) {
   const prioridad = PRIORIDAD_CONFIG[lote.prioridad];
@@ -244,6 +247,17 @@ function LoteCard({
             <Play className="h-4 w-4" />
             INICIAR ETAPA
           </button>
+        ) : columna.etapa_codigo === 'CONT' ? (
+          <button
+            onClick={onIrConteo}
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
+                       text-white text-sm font-bold flex items-center justify-center gap-2
+                       hover:from-emerald-600 hover:to-emerald-700 active:scale-98
+                       transition-all shadow-md shadow-emerald-100"
+          >
+            <Calculator className="h-4 w-4" />
+            IR A CONTEO
+          </button>
         ) : columna.permite_bifurcacion ? (
           <div className="flex gap-2">
             <button
@@ -290,6 +304,7 @@ function EtapaColumna({
   onFinalizar,
   onDividir,
   onCorregir,
+  onIrConteo,
   getLoteEnProceso,
 }: {
   columna: KanbanColumna;
@@ -297,6 +312,7 @@ function EtapaColumna({
   onFinalizar: (lote: KanbanLote, columna: KanbanColumna) => void;
   onDividir: (lote: KanbanLote, columna: KanbanColumna) => void;
   onCorregir: (lote: KanbanLote, columna: KanbanColumna) => void;
+  onIrConteo: (lote: KanbanLote, columna: KanbanColumna) => void;
   getLoteEnProceso: (lote: KanbanLote) => boolean;
 }) {
   const lotesAtrasados = columna.lotes.filter((l) => l.esta_atrasado).length;
@@ -362,6 +378,7 @@ function EtapaColumna({
               onFinalizar={() => onFinalizar(lote, columna)}
               onDividir={() => onDividir(lote, columna)}
               onCorregir={() => onCorregir(lote, columna)}
+              onIrConteo={() => onIrConteo(lote, columna)}
               enProceso={getLoteEnProceso(lote)}
             />
           ))
@@ -855,6 +872,10 @@ export default function PanelOperariosPage() {
     });
   };
 
+  const handleIrConteo = (lote: KanbanLote) => {
+    navigate(`/produccion/lotes/${lote.id}/conteo`);
+  };
+
   const handleCorregir = (lote: KanbanLote, columna: KanbanColumna) => {
     setCorregirData({
       loteId: lote.id,
@@ -1024,6 +1045,7 @@ export default function PanelOperariosPage() {
               onFinalizar={handleFinalizar}
               onDividir={handleDividir}
               onCorregir={handleCorregir}
+              onIrConteo={handleIrConteo}
               getLoteEnProceso={getLoteEnProceso}
             />
           ))}
