@@ -64,7 +64,7 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
     min > (posta.tiempo_estimado_minutos as number);
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col h-[460px]">
       <div
         className="rounded-t-xl px-4 py-3 text-white"
         style={{ backgroundColor: posta.etapa_color }}
@@ -90,9 +90,9 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
         </div>
       </div>
 
-      <CardContent className="pt-3 space-y-3 flex-1">
+      <CardContent className="pt-3 flex flex-col flex-1 min-h-0 space-y-3">
         {/* Métricas de la posta */}
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-3 gap-2 text-center flex-shrink-0">
           <div className="bg-blue-50 rounded p-2">
             <div className="text-[10px] text-blue-700 uppercase">En proceso</div>
             <div className="text-sm font-bold text-blue-700">
@@ -114,8 +114,8 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
         </div>
 
         {/* Lotes en proceso */}
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 uppercase mb-1">
+        <div className="flex flex-col min-h-0 flex-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 uppercase mb-1 flex-shrink-0">
             <Activity className="h-3 w-3 text-blue-500 animate-pulse" />
             Procesando
             <span className="text-gray-400 normal-case font-normal">
@@ -125,7 +125,7 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
           {posta.lotes_en_proceso.length === 0 ? (
             <p className="text-xs text-gray-400 italic px-1">Sin lotes en curso</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-1 overflow-y-auto pr-1 flex-1">
               {posta.lotes_en_proceso.map((l) => (
                 <li
                   key={l.lote_id}
@@ -159,8 +159,8 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
         </div>
 
         {/* Lotes finalizados hoy */}
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 uppercase mb-1">
+        <div className="flex flex-col min-h-0 flex-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 uppercase mb-1 flex-shrink-0">
             <CheckCircle className="h-3 w-3 text-emerald-500" />
             Finalizados hoy
             <span className="text-gray-400 normal-case font-normal">
@@ -170,7 +170,7 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
           {posta.lotes_finalizados_hoy.length === 0 ? (
             <p className="text-xs text-gray-400 italic px-1">Aún sin movimiento hoy</p>
           ) : (
-            <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
+            <ul className="space-y-1 overflow-y-auto pr-1 flex-1">
               {posta.lotes_finalizados_hoy.map((l) => (
                 <li
                   key={l.lote_id}
