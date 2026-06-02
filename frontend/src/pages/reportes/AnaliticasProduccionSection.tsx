@@ -16,14 +16,29 @@ import {
   CheckCircle,
   Clock,
   Factory,
+  Flame,
   Gauge,
+  Hourglass,
   Loader2,
   Package,
   RefreshCw,
   Scale,
   TrendingUp,
   User,
+  Users,
 } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -412,6 +427,300 @@ export function AnaliticasProduccionSection({
           <CardContent className="pt-6 text-center text-gray-500">
             <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-2" />
             <p>No hay postas activas para mostrar.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Gráficos visuales por posta */}
+      {analitica && analitica.postas.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Bar chart kg por posta */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Factory className="h-4 w-4 text-primary" />
+                Kg por posta
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={analitica.postas.map((p) => ({
+                      nombre:
+                        p.etapa_nombre.length > 12
+                          ? p.etapa_nombre.slice(0, 12) + '…'
+                          : p.etapa_nombre,
+                      'En proceso': p.kg_en_proceso,
+                      Finalizado: p.kg_finalizado_hoy,
+                      color: p.etapa_color,
+                    }))}
+                    margin={{ top: 6, right: 10, left: -10, bottom: 0 }}
+                  >
+                    <XAxis dataKey="nombre" fontSize={11} />
+                    <YAxis fontSize={11} />
+                    <Tooltip
+                      formatter={(v: number) => [`${formatNumber(v, 1)} kg`, '']}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="En proceso" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Finalizado" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pie de distribución de kg finalizados */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Scale className="h-4 w-4 text-primary" />
+                Distribución de kg finalizados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analitica.postas
+                        .filter((p) => p.kg_finalizado_hoy > 0)
+                        .map((p) => ({
+                          name: p.etapa_nombre,
+                          value: p.kg_finalizado_hoy,
+                          fill: p.etapa_color,
+                        }))}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={2}
+                    >
+                      {analitica.postas
+                        .filter((p) => p.kg_finalizado_hoy > 0)
+                        .map((p) => (
+                          <Cell key={p.etapa_id} fill={p.etapa_color} />
+                        ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v: number) => `${formatNumber(v, 1)} kg`}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Cuellos de botella + Tiempo de espera */}
+      {analitica && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Cuellos de botella */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Flame className="h-4 w-4 text-orange-500" />
+                Cuellos de botella
+              </CardTitle>
+              <p className="text-xs text-gray-500">
+                Tiempo estimado para drenar lo acumulado al ritmo actual.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {!analitica.cuellos_de_botella || analitica.cuellos_de_botella.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">Sin datos suficientes.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {(() => {
+                    const max = Math.max(
+                      ...analitica.cuellos_de_botella.map((c) => c.saturacion_minutos),
+                      1,
+                    );
+                    return analitica.cuellos_de_botella.slice(0, 8).map((c) => {
+                      const pct = (c.saturacion_minutos / max) * 100;
+                      return (
+                        <li key={c.etapa_id} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 truncate font-medium">
+                              <span
+                                className="inline-block w-2 h-2 rounded-full"
+                                style={{ backgroundColor: c.etapa_color }}
+                              />
+                              {c.etapa_nombre}
+                            </span>
+                            <span className="font-mono text-gray-700">
+                              {c.saturacion_minutos > 0
+                                ? formatMinutos(c.saturacion_minutos)
+                                : '–'}
+                              <span className="text-gray-400 ml-1">
+                                · {formatNumber(c.kg_en_proceso, 0)} kg
+                              </span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded">
+                            <div
+                              className="h-1.5 rounded"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: c.etapa_color,
+                                opacity: pct > 0 ? 0.85 : 0,
+                              }}
+                            />
+                          </div>
+                        </li>
+                      );
+                    });
+                  })()}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tiempo de espera entre postas */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Hourglass className="h-4 w-4 text-amber-500" />
+                Tiempo de espera entre postas
+              </CardTitle>
+              <p className="text-xs text-gray-500">
+                Tiempo promedio del lote desde que termina una etapa hasta que
+                arranca la siguiente.
+                {typeof analitica.espera_global_promedio_minutos === 'number' && (
+                  <>
+                    {' · '}global:{' '}
+                    <strong>
+                      {formatMinutos(analitica.espera_global_promedio_minutos)}
+                    </strong>
+                  </>
+                )}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {!analitica.tiempos_espera_postas ||
+              analitica.tiempos_espera_postas.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">
+                  Sin transiciones registradas en el rango.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {(() => {
+                    const arr = analitica.tiempos_espera_postas.filter(
+                      (t) => t.muestras > 0,
+                    );
+                    if (arr.length === 0) {
+                      return (
+                        <li className="text-sm text-gray-400 italic">
+                          Sin transiciones registradas en el rango.
+                        </li>
+                      );
+                    }
+                    const max = Math.max(
+                      ...arr.map((c) => c.espera_promedio_minutos),
+                      1,
+                    );
+                    return arr.map((c) => {
+                      const pct = (c.espera_promedio_minutos / max) * 100;
+                      return (
+                        <li key={c.etapa_id} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 truncate font-medium">
+                              <span
+                                className="inline-block w-2 h-2 rounded-full"
+                                style={{ backgroundColor: c.etapa_color }}
+                              />
+                              {c.etapa_nombre} →
+                            </span>
+                            <span className="font-mono text-gray-700">
+                              {formatMinutos(c.espera_promedio_minutos)}
+                              <span className="text-gray-400 ml-1">
+                                · {c.muestras} muestras
+                              </span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded">
+                            <div
+                              className="h-1.5 rounded bg-amber-400"
+                              style={{ width: `${pct}%`, opacity: 0.8 }}
+                            />
+                          </div>
+                        </li>
+                      );
+                    });
+                  })()}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Productividad por operario */}
+      {analitica?.productividad_operarios && analitica.productividad_operarios.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Productividad por operario
+            </CardTitle>
+            <p className="text-xs text-gray-500">
+              kg procesados, lotes intervenidos y horas trabajadas dentro del rango.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Operario</TableHead>
+                    <TableHead className="text-right">Etapas</TableHead>
+                    <TableHead className="text-right">Lotes</TableHead>
+                    <TableHead className="text-right">Horas</TableHead>
+                    <TableHead className="text-right">kg procesados</TableHead>
+                    <TableHead className="text-right bg-primary/5">kg/h</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {analitica.productividad_operarios.map((op) => (
+                    <TableRow key={op.user_id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                            {op.nombre
+                              .split(' ')
+                              .map((n) => n.charAt(0))
+                              .slice(0, 2)
+                              .join('')
+                              .toUpperCase()}
+                          </div>
+                          <span className="font-medium">{op.nombre}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {op.cantidad_etapas}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {op.lotes_distintos}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {formatNumber(op.horas_trabajadas, 1)} h
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatNumber(op.kg_procesados, 1)} kg
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-primary bg-primary/5">
+                        {formatNumber(op.kg_por_hora, 1)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -243,6 +243,36 @@ export interface AnaliticaCicloLotes {
   duracion_max_minutos: number | null;
 }
 
+export interface AnaliticaCuelloBotella {
+  etapa_id: string;
+  etapa_codigo: string;
+  etapa_nombre: string;
+  etapa_color: string;
+  kg_en_proceso: number;
+  throughput_kg_hora: number;
+  saturacion_minutos: number;
+  lotes_en_proceso: number;
+}
+
+export interface AnaliticaTiempoEspera {
+  etapa_id: string;
+  etapa_nombre: string;
+  etapa_color: string;
+  espera_promedio_minutos: number;
+  muestras: number;
+}
+
+export interface AnaliticaOperario {
+  user_id: string;
+  nombre: string;
+  cantidad_etapas: number;
+  lotes_distintos: number;
+  minutos_trabajados: number;
+  horas_trabajadas: number;
+  kg_procesados: number;
+  kg_por_hora: number;
+}
+
 export interface AnaliticaProduccion {
   generado_en: string;
   rango?: {
@@ -257,6 +287,10 @@ export interface AnaliticaProduccion {
     horas_planta_hoy: number;
   };
   ciclo_lotes?: AnaliticaCicloLotes;
+  cuellos_de_botella?: AnaliticaCuelloBotella[];
+  tiempos_espera_postas?: AnaliticaTiempoEspera[];
+  espera_global_promedio_minutos?: number;
+  productividad_operarios?: AnaliticaOperario[];
   postas: AnaliticaPosta[];
 }
 

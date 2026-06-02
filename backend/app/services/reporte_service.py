@@ -407,6 +407,140 @@ def get_analitica_produccion(
         sum(duraciones_minutos) / cantidad_completados if cantidad_completados > 0 else 0.0
     )
 
+    # ============================================================
+    # Cuellos de botella + tiempo de espera entre postas
+    # ============================================================
+    cuellos_data: List[Dict[str, Any]] = []
+    for p in postas_data:
+        kg_acum = p["kg_en_proceso"]
+        thr = p["throughput_kg_hora"]
+        if kg_acum > 0 and thr > 0:
+            saturacion_minutos = (kg_acum / thr) * 60.0
+        else:
+            saturacion_minutos = 0.0
+        cuellos_data.append({
+            "etapa_id": p["etapa_id"],
+            "etapa_codigo": p["etapa_codigo"],
+            "etapa_nombre": p["etapa_nombre"],
+            "etapa_color": p["etapa_color"],
+            "kg_en_proceso": kg_acum,
+            "throughput_kg_hora": thr,
+            "saturacion_minutos": round(saturacion_minutos, 1),
+            "lotes_en_proceso": len(p["lotes_en_proceso"]),
+        })
+    cuellos_data.sort(key=lambda x: x["saturacion_minutos"], reverse=True)
+
+    # Tiempo promedio de espera entre etapas dentro del rango.
+    # Para cada par (etapa N que terminó en el rango, etapa N+1 que empezó después
+    # en el mismo lote): waiting = inicio(N+1) - fin(N).
+    todas_etapas_lote = (
+        db.query(LoteEtapa)
+        .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+        .filter(
+            LoteProduccion.activo == True,
+            LoteEtapa.fecha_fin.isnot(None),
+            LoteEtapa.fecha_fin >= inicio_rango,
+            LoteEtapa.fecha_fin <= fin_rango,
+        )
+        .all()
+    )
+    # Agrupar por lote
+    etapas_por_lote: Dict[Any, List[LoteEtapa]] = {}
+    for le in todas_etapas_lote:
+        etapas_por_lote.setdefault(le.lote_id, []).append(le)
+
+    esperas_por_etapa: Dict[Any, List[float]] = {}
+    for lote_id, lista in etapas_por_lote.items():
+        # Necesito también la siguiente etapa (que arrancó después) — la buscamos en la BD
+        # más eficientemente: ordeno por orden y miro la siguiente del mismo lote.
+        lista_ord = sorted(lista, key=lambda x: x.orden)
+        for le in lista_ord:
+            siguiente = (
+                db.query(LoteEtapa)
+                .filter(
+                    LoteEtapa.lote_id == lote_id,
+                    LoteEtapa.orden > le.orden,
+                    LoteEtapa.fecha_inicio.isnot(None),
+                )
+                .order_by(LoteEtapa.orden)
+                .first()
+            )
+            if siguiente and siguiente.fecha_inicio and le.fecha_fin:
+                delta_min = (siguiente.fecha_inicio - le.fecha_fin).total_seconds() / 60
+                if delta_min >= 0:
+                    esperas_por_etapa.setdefault(str(le.etapa_id), []).append(delta_min)
+
+    tiempos_espera: List[Dict[str, Any]] = []
+    total_esperas: List[float] = []
+    for p in postas_data:
+        ets = esperas_por_etapa.get(p["etapa_id"], [])
+        if ets:
+            promedio = sum(ets) / len(ets)
+            total_esperas.extend(ets)
+        else:
+            promedio = 0.0
+        tiempos_espera.append({
+            "etapa_id": p["etapa_id"],
+            "etapa_nombre": p["etapa_nombre"],
+            "etapa_color": p["etapa_color"],
+            "espera_promedio_minutos": round(promedio, 1),
+            "muestras": len(ets),
+        })
+    espera_global_prom = (
+        round(sum(total_esperas) / len(total_esperas), 1) if total_esperas else 0.0
+    )
+
+    # ============================================================
+    # Productividad por operario
+    # ============================================================
+    from app.models.usuario import Usuario as _Usuario
+
+    rows_op = (
+        db.query(
+            LoteEtapa.responsable_id.label("user_id"),
+            _Usuario.nombre.label("nombre"),
+            _Usuario.apellido.label("apellido"),
+            func.count(LoteEtapa.id).label("cantidad_etapas"),
+            func.count(func.distinct(LoteEtapa.lote_id)).label("lotes"),
+            func.coalesce(
+                func.sum(
+                    extract("epoch", LoteEtapa.fecha_fin - LoteEtapa.fecha_inicio) / 60
+                ),
+                0,
+            ).label("minutos"),
+            func.coalesce(func.sum(LoteProduccion.peso_entrada_kg), 0).label("kg"),
+        )
+        .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+        .join(_Usuario, _Usuario.id == LoteEtapa.responsable_id)
+        .filter(
+            LoteEtapa.responsable_id.isnot(None),
+            LoteEtapa.fecha_inicio.isnot(None),
+            LoteEtapa.fecha_fin.isnot(None),
+            LoteEtapa.fecha_fin >= inicio_rango,
+            LoteEtapa.fecha_fin <= fin_rango,
+            LoteProduccion.activo == True,
+        )
+        .group_by(LoteEtapa.responsable_id, _Usuario.nombre, _Usuario.apellido)
+        .order_by(func.sum(LoteProduccion.peso_entrada_kg).desc().nullslast())
+        .all()
+    )
+
+    operarios_data: List[Dict[str, Any]] = []
+    for r in rows_op:
+        minutos = float(r.minutos or 0)
+        horas = minutos / 60 if minutos else 0.0
+        kg = float(r.kg or 0)
+        operarios_data.append({
+            "user_id": str(r.user_id),
+            "nombre": f"{r.nombre} {r.apellido or ''}".strip(),
+            "cantidad_etapas": int(r.cantidad_etapas or 0),
+            "lotes_distintos": int(r.lotes or 0),
+            "minutos_trabajados": round(minutos, 1),
+            "horas_trabajadas": round(horas, 2),
+            "kg_procesados": round(kg, 1),
+            "kg_por_hora": round(kg / horas, 1) if horas > 0 else 0.0,
+        })
+
     return {
         "generado_en": ahora.isoformat(),
         "rango": {
@@ -427,6 +561,10 @@ def get_analitica_produccion(
             "duracion_min_minutos": round(duracion_min_lote, 1) if duracion_min_lote else None,
             "duracion_max_minutos": round(duracion_max_lote, 1) if duracion_max_lote else None,
         },
+        "cuellos_de_botella": cuellos_data,
+        "tiempos_espera_postas": tiempos_espera,
+        "espera_global_promedio_minutos": espera_global_prom,
+        "productividad_operarios": operarios_data,
         "postas": postas_data,
     }
 
