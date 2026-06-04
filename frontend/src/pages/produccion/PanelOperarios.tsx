@@ -404,7 +404,7 @@ function PinModalGrande({
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => void;
+  onConfirm: (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => void;
   title: string;
   loteNumero?: string;
   etapaNombre?: string;
@@ -414,7 +414,7 @@ function PinModalGrande({
   tipoMaquina?: string | null;
 }) {
   const [selectedOperario, setSelectedOperario] = useState('');
-  const [selectedMaquina, setSelectedMaquina] = useState('');
+  const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [pesoKg, setPesoKg] = useState('');
   const [pin, setPin] = useState('');
@@ -451,13 +451,19 @@ function PinModalGrande({
   useEffect(() => {
     if (open) {
       setSelectedOperario('');
-      setSelectedMaquina('');
+      setSelectedMaquinas([]);
       setSelectedCanastos([]);
       setPesoKg('');
       setPin('');
       setError('');
     }
   }, [open]);
+
+  const toggleMaquina = (id: string) => {
+    setSelectedMaquinas((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
 
   // Focus en PIN cuando se selecciona operario
   useEffect(() => {
@@ -476,8 +482,8 @@ function PinModalGrande({
       return;
     }
     // Validar máquina si es requerida
-    if (accion === 'iniciar' && requiereMaquina && !selectedMaquina) {
-      setError('Debe seleccionar una máquina');
+    if (accion === 'iniciar' && requiereMaquina && selectedMaquinas.length === 0) {
+      setError('Debe seleccionar al menos una máquina');
       return;
     }
     // Validar peso si es requerido
@@ -500,13 +506,13 @@ function PinModalGrande({
         onConfirm(
           result.operario_id,
           result.operario_nombre,
-          selectedMaquina || undefined,
+          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
           selectedCanastos.length > 0 ? selectedCanastos : undefined,
           pesoKg ? parseFloat(pesoKg) : undefined
         );
         setPin('');
         setSelectedOperario('');
-        setSelectedMaquina('');
+        setSelectedMaquinas([]);
         setSelectedCanastos([]);
         setPesoKg('');
       } else {
@@ -681,14 +687,19 @@ function PinModalGrande({
             </div>
           )}
 
-          {/* Selector de máquina (solo para iniciar y si requiere) */}
+          {/* Selector de máquinas (multi-select, solo para iniciar y si requiere) */}
           {accion === 'iniciar' && requiereMaquina && (
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                Máquina <span className="text-red-500">*</span>
+                Máquinas <span className="text-red-500">*</span>
                 {tipoMaquina && (
                   <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded text-xs uppercase">
                     {tipoMaquina}
+                  </span>
+                )}
+                {selectedMaquinas.length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">
+                    {selectedMaquinas.length} seleccionada{selectedMaquinas.length !== 1 ? 's' : ''}
                   </span>
                 )}
               </label>
@@ -700,25 +711,41 @@ function PinModalGrande({
                   </div>
                 </div>
               ) : (
-                <Select value={selectedMaquina || 'none'} onValueChange={(v) => setSelectedMaquina(v === 'none' ? '' : v)}>
-                  <SelectTrigger className={!selectedMaquina ? 'border-orange-400' : ''}>
-                    <SelectValue placeholder="Seleccionar máquina..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {maquinas.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono">{m.codigo}</span>
-                          <span className="text-gray-500">{m.nombre}</span>
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
+                    {maquinas.map((m) => {
+                      const sel = selectedMaquinas.includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => toggleMaquina(m.id)}
+                          className={`
+                            text-left p-2 rounded-lg border-2 transition-colors text-xs
+                            ${sel
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-white border-gray-200 hover:border-primary/50 text-gray-700'
+                            }
+                          `}
+                        >
+                          <div className="font-mono font-bold text-sm">{m.codigo}</div>
+                          <div className={`truncate ${sel ? 'text-white/90' : 'text-gray-500'}`}>
+                            {m.nombre}
+                          </div>
                           {m.capacidad_kg && (
-                            <span className="text-xs text-gray-400">({m.capacidad_kg} kg)</span>
+                            <div className={`text-[10px] ${sel ? 'text-white/70' : 'text-gray-400'}`}>
+                              {m.capacidad_kg} kg
+                            </div>
                           )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
+              <p className="text-xs text-gray-500">
+                Tocá para seleccionar/deseleccionar. Podés elegir varias.
+              </p>
             </div>
           )}
 
@@ -746,7 +773,7 @@ function PinModalGrande({
               loading ||
               !selectedOperario ||
               pin.length < 4 ||
-              (accion === 'iniciar' && requiereMaquina && (!selectedMaquina || maquinas.length === 0)) ||
+              (accion === 'iniciar' && requiereMaquina && (selectedMaquinas.length === 0 || maquinas.length === 0)) ||
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
               (requiereCanastos && selectedCanastos.length === 0)
             }
@@ -814,17 +841,17 @@ export default function PanelOperariosPage() {
 
   // Mutations
   const iniciarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId, operarioId, maquinaId, canastosIds, pesoKg }: {
+    mutationFn: ({ loteId, etapaId, operarioId, maquinasIds, canastosIds, pesoKg }: {
       loteId: string;
       etapaId: string;
       operarioId: string;
-      maquinaId?: string;
+      maquinasIds?: string[];
       canastosIds?: string[];
       pesoKg?: number;
     }) =>
       produccionService.iniciarEtapa(loteId, etapaId, {
         responsable_id: operarioId,
-        maquina_id: maquinaId,
+        maquinas_ids: maquinasIds,
         canastos_ids: canastosIds,
         peso_kg: pesoKg
       }),
@@ -893,7 +920,7 @@ export default function PanelOperariosPage() {
     });
   };
 
-  const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinaId?: string, canastosIds?: string[], pesoKg?: number) => {
+  const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => {
     const { accion, lote, columna } = pinModal;
 
     if (!lote || !columna) return;
@@ -905,7 +932,7 @@ export default function PanelOperariosPage() {
         loteId: lote.id,
         etapaId: columna.etapa_id,
         operarioId,
-        maquinaId,
+        maquinasIds,
         canastosIds,
         pesoKg,
       });
