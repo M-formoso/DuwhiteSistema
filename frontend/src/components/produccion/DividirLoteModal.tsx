@@ -1,12 +1,20 @@
 /**
- * Modal de Dividir (router) en una etapa con bifurcación (ej. Estirado).
+ * Modal de Dividir en una etapa con bifurcación (ej. Estirado).
  *
- * Versión simplificada: dos botones grandes, uno por destino. El lote
- * completo se enruta a la etapa elegida — no se piden productos ni kg.
+ * Tres opciones grandes y táctiles:
+ *  - Mandar todo el lote al destino principal (mover)
+ *  - Mandar todo el lote al destino alternativo (mover)
+ *  - Dividir el lote 50/50 y mandar a ambas postas en paralelo
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Split, ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
+import {
+  Split,
+  ArrowRight,
+  Loader2,
+  AlertTriangle,
+  GitBranch,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -48,6 +56,7 @@ export function DividirLoteModal({
   loteNumero,
   etapaId,
   etapaNombre,
+  pesoTotalKg,
 }: DividirLoteModalProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -72,6 +81,33 @@ export function DividirLoteModal({
       toast({ title: 'Error', description: detail, variant: 'destructive' });
     },
   });
+
+  const dividirMutation = useMutation({
+    mutationFn: () => {
+      // Divide el peso en mitades. El backend valida principal + alternativo <= total.
+      const peso = pesoTotalKg && pesoTotalKg > 0 ? pesoTotalKg : 0;
+      const mitad = Math.round((peso / 2) * 10) / 10;
+      return produccionService.dividirLote(loteId, etapaId, {
+        peso_destino_principal_kg: mitad,
+        peso_destino_alternativo_kg: peso - mitad,
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['lotes'] });
+      toast({
+        title: 'Lote dividido en dos',
+        description: data.mensaje || 'Una mitad va a cada posta.',
+      });
+      onClose();
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const detail = error.response?.data?.detail || 'No se pudo dividir el lote';
+      toast({ title: 'Error', description: detail, variant: 'destructive' });
+    },
+  });
+
+  const pending = moverMutation.isPending || dividirMutation.isPending;
 
   if (isLoading) {
     return (
@@ -132,7 +168,7 @@ export function DividirLoteModal({
         <div className="grid grid-cols-1 gap-3 py-2">
           <button
             type="button"
-            disabled={moverMutation.isPending || !destinoPrincipalId}
+            disabled={pending || !destinoPrincipalId}
             onClick={() => destinoPrincipalId && moverMutation.mutate(destinoPrincipalId)}
             className="w-full py-5 rounded-2xl border-2 border-green-500 bg-green-50 text-green-800
                        hover:bg-green-100 active:scale-[0.98] transition-all
@@ -147,7 +183,7 @@ export function DividirLoteModal({
 
           <button
             type="button"
-            disabled={moverMutation.isPending || !destinoAlternativoId}
+            disabled={pending || !destinoAlternativoId}
             onClick={() =>
               destinoAlternativoId && moverMutation.mutate(destinoAlternativoId)
             }
@@ -161,21 +197,48 @@ export function DividirLoteModal({
             </span>
             <ArrowRight className="h-5 w-5" />
           </button>
+
+          <button
+            type="button"
+            disabled={
+              pending ||
+              !destinoPrincipalId ||
+              !destinoAlternativoId ||
+              !pesoTotalKg ||
+              pesoTotalKg <= 0
+            }
+            onClick={() => dividirMutation.mutate()}
+            className="w-full py-5 rounded-2xl border-2 border-purple-500 bg-purple-50 text-purple-800
+                       hover:bg-purple-100 active:scale-[0.98] transition-all
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       flex items-center justify-between px-5"
+          >
+            <div className="flex flex-col items-start text-left">
+              <span className="text-base sm:text-lg font-bold flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                Mandar a las dos
+              </span>
+              <span className="text-xs text-purple-600/90 mt-0.5">
+                Divide el lote (50/50) y manda una mitad a cada posta
+              </span>
+            </div>
+            <ArrowRight className="h-5 w-5 flex-shrink-0" />
+          </button>
         </div>
 
         <DialogFooter>
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={moverMutation.isPending}
+            disabled={pending}
             className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
-          {moverMutation.isPending && (
+          {pending && (
             <div className="flex items-center text-sm text-gray-500">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Moviendo...
+              Procesando...
             </div>
           )}
         </DialogFooter>
