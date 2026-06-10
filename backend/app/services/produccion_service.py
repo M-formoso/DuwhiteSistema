@@ -1325,20 +1325,22 @@ class ProduccionService:
         today = date.today()
         prefijo = f"L{today.strftime('%y%m%d')}-"
 
-        ultimo = (
-            self.db.query(LoteProduccion)
+        # Ignorar sublotes de división (formato Lyymmdd-NNNN-B), que romperían int(...)
+        numeros = (
+            self.db.query(LoteProduccion.numero)
             .filter(LoteProduccion.numero.like(f"{prefijo}%"))
-            .order_by(LoteProduccion.numero.desc())
-            .first()
+            .all()
         )
 
-        if ultimo:
-            ultimo_num = int(ultimo.numero.split("-")[-1])
-            nuevo_num = ultimo_num + 1
-        else:
-            nuevo_num = 1
+        max_num = 0
+        for (numero,) in numeros:
+            sufijo = numero[len(prefijo):]
+            if sufijo.isdigit():
+                num = int(sufijo)
+                if num > max_num:
+                    max_num = num
 
-        return f"{prefijo}{nuevo_num:04d}"
+        return f"{prefijo}{max_num + 1:04d}"
 
     def _get_siguiente_etapa(
         self,
