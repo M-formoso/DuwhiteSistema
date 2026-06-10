@@ -219,6 +219,14 @@ class KanbanCanasto(BaseModel):
     codigo: str
 
 
+class KanbanEtapaResumen(BaseModel):
+    """Resumen de una etapa procesada (para mostrar en la posta Finalizada)."""
+    etapa_codigo: str
+    etapa_nombre: str
+    peso_kg: Optional[Decimal] = None
+    duracion_minutos: int = 0
+
+
 class KanbanLote(BaseModel):
     """Schema para lote en el Kanban."""
     id: UUID
@@ -240,6 +248,11 @@ class KanbanLote(BaseModel):
     responsable_nombre: Optional[str] = None
     maquinas_nombres: List[str] = []
     maquinas_ids: List[str] = []  # IDs de máquinas en uso (para corrección)
+    # Resumen de etapas previas completadas. Se llena solo cuando el lote está
+    # en la posta "Finalizada" (FIN), antes del conteo.
+    etapas_resumen: List[KanbanEtapaResumen] = []
+    peso_total_procesado_kg: Optional[Decimal] = None
+    duracion_total_minutos: int = 0
 
     class Config:
         from_attributes = True

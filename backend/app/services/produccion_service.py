@@ -44,6 +44,7 @@ from app.schemas.lote_produccion import (
     KanbanColumna,
     KanbanLote,
     KanbanCanasto,
+    KanbanEtapaResumen,
     DividirLoteRequest,
     DividirLoteResponse,
     EtapaBifurcacionInfo,
@@ -1217,6 +1218,33 @@ class ProduccionService:
                     if lote_padre:
                         lote_padre_numero = lote_padre.numero
 
+                # Resumen de etapas previas (solo en la posta Finalizada).
+                etapas_resumen: List[KanbanEtapaResumen] = []
+                peso_total_procesado: Optional[Decimal] = None
+                duracion_total = 0
+                if etapa.codigo == "FIN":
+                    etapas_previas = (
+                        self.db.query(LoteEtapa)
+                        .options(joinedload(LoteEtapa.etapa))
+                        .filter(
+                            LoteEtapa.lote_id == lote.id,
+                            LoteEtapa.fecha_fin.isnot(None),
+                        )
+                        .order_by(LoteEtapa.orden)
+                        .all()
+                    )
+                    for le in etapas_previas:
+                        if not le.etapa:
+                            continue
+                        etapas_resumen.append(KanbanEtapaResumen(
+                            etapa_codigo=le.etapa.codigo,
+                            etapa_nombre=le.etapa.nombre,
+                            peso_kg=le.peso_kg,
+                            duracion_minutos=le.duracion_minutos,
+                        ))
+                        duracion_total += le.duracion_minutos
+                    peso_total_procesado = lote.peso_entrada_kg
+
                 kanban_lotes.append(KanbanLote(
                     id=lote.id,
                     numero=lote.numero,
@@ -1236,6 +1264,9 @@ class ProduccionService:
                     responsable_nombre=responsable_nombre,
                     maquinas_nombres=maquinas_nombres,
                     maquinas_ids=maquinas_ids,
+                    etapas_resumen=etapas_resumen,
+                    peso_total_procesado_kg=peso_total_procesado,
+                    duracion_total_minutos=duracion_total,
                 ))
 
                 total_lotes += 1

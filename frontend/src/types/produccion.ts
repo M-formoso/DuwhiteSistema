@@ -184,6 +184,13 @@ export interface KanbanCanasto {
   codigo: string;
 }
 
+export interface KanbanEtapaResumen {
+  etapa_codigo: string;
+  etapa_nombre: string;
+  peso_kg: number | null;
+  duracion_minutos: number;
+}
+
 // Kanban
 export interface KanbanLote {
   id: string;
@@ -206,6 +213,10 @@ export interface KanbanLote {
   responsable_nombre?: string | null;
   maquinas_nombres?: string[];
   maquinas_ids?: string[];
+  // Resumen de etapas previas (solo cuando el lote está en la posta FIN)
+  etapas_resumen?: KanbanEtapaResumen[];
+  peso_total_procesado_kg?: number | null;
+  duracion_total_minutos?: number;
 }
 
 export interface KanbanColumna {

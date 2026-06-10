@@ -40,11 +40,21 @@ import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
 import { canastoService } from '@/services/canastoService';
-import { formatDate } from '@/utils/formatters';
+import { formatDate, formatNumber } from '@/utils/formatters';
 import type { KanbanLote, KanbanColumna, PrioridadLote } from '@/types/produccion';
 import { useAuthStore } from '@/stores/authStore';
 import { DividirLoteModal } from '@/components/produccion/DividirLoteModal';
 import { CorregirEtapaModal } from '@/components/produccion/CorregirEtapaModal';
+
+function formatTiempo(minutos: number): string {
+  if (minutos < 60) return `${minutos}m`;
+  const horas = Math.floor(minutos / 60);
+  const mins = minutos % 60;
+  if (horas < 24) return `${horas}h ${mins}m`;
+  const dias = Math.floor(horas / 24);
+  const horasRestantes = horas % 24;
+  return `${dias}d ${horasRestantes}h`;
+}
 
 // Tipo local para máquinas disponibles
 interface MaquinaDisponible {
@@ -236,6 +246,37 @@ function LoteCard({
           </div>
         )}
 
+        {/* Resumen de procesamiento (solo en posta Finalizada) */}
+        {columna.etapa_codigo === 'FIN' && lote.etapas_resumen && lote.etapas_resumen.length > 0 && (
+          <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-2">
+            <div className="text-[11px] font-bold text-emerald-700 mb-1.5 uppercase tracking-wide">
+              Resumen del proceso
+            </div>
+            <div className="space-y-1">
+              {lote.etapas_resumen.map((er) => (
+                <div key={er.etapa_codigo} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-700 truncate">{er.etapa_nombre}</span>
+                  <span className="font-medium text-gray-900 flex items-center gap-2 flex-shrink-0">
+                    {er.peso_kg !== null && er.peso_kg !== undefined && (
+                      <span>{Number(er.peso_kg).toFixed(1)} kg</span>
+                    )}
+                    <span className="text-gray-500">{formatTiempo(er.duracion_minutos)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-1.5 pt-1.5 border-t border-emerald-200 flex items-center justify-between text-xs font-bold text-emerald-800">
+              <span>Total</span>
+              <span className="flex items-center gap-2">
+                {lote.peso_total_procesado_kg !== null && lote.peso_total_procesado_kg !== undefined && (
+                  <span>{Number(lote.peso_total_procesado_kg).toFixed(1)} kg</span>
+                )}
+                <span>{formatTiempo(lote.duracion_total_minutos || 0)}</span>
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Botón de acción */}
         {!enProceso ? (
           <button
@@ -318,6 +359,10 @@ function EtapaColumna({
 }) {
   const lotesAtrasados = columna.lotes.filter((l) => l.esta_atrasado).length;
   const lotesUrgentes = columna.lotes.filter((l) => l.prioridad === 'urgente').length;
+  const totalKgColumna = columna.lotes.reduce(
+    (sum, l) => sum + (Number(l.peso_entrada_kg) || 0),
+    0,
+  );
 
   return (
     <div className="flex-shrink-0 w-[88vw] sm:w-[320px] lg:w-[340px] flex flex-col h-full">
@@ -341,6 +386,12 @@ function EtapaColumna({
           <div className="text-right flex-shrink-0">
             <div className="text-2xl sm:text-4xl font-bold leading-none">{columna.lotes.length}</div>
             <div className="text-xs sm:text-sm text-white/80">lotes</div>
+            {totalKgColumna > 0 && (
+              <div className="mt-1 flex items-center justify-end gap-1 text-xs sm:text-sm font-semibold text-white/95">
+                <Scale className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                {formatNumber(totalKgColumna, 1)} kg
+              </div>
+            )}
           </div>
         </div>
 

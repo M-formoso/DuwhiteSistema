@@ -279,6 +279,37 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorreg
               Compromiso: {formatDateAR(lote.fecha_compromiso)}
             </div>
           )}
+
+          {/* Resumen de procesamiento (solo en posta Finalizada) */}
+          {columna.etapa_codigo === 'FIN' && lote.etapas_resumen && lote.etapas_resumen.length > 0 && (
+            <div className="mt-2 rounded border border-emerald-200 bg-emerald-50/60 p-2">
+              <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-1">
+                Resumen del proceso
+              </div>
+              <div className="space-y-0.5">
+                {lote.etapas_resumen.map((er) => (
+                  <div key={er.etapa_codigo} className="flex items-center justify-between text-[11px]">
+                    <span className="text-gray-700 truncate">{er.etapa_nombre}</span>
+                    <span className="text-gray-900 font-medium flex items-center gap-2 flex-shrink-0">
+                      {er.peso_kg !== null && er.peso_kg !== undefined && (
+                        <span>{formatNumber(Number(er.peso_kg), 1)} kg</span>
+                      )}
+                      <span className="text-gray-500">{formatTiempo(er.duracion_minutos)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1 pt-1 border-t border-emerald-200 flex items-center justify-between text-[11px] font-bold text-emerald-800">
+                <span>Total</span>
+                <span className="flex items-center gap-2">
+                  {lote.peso_total_procesado_kg !== null && lote.peso_total_procesado_kg !== undefined && (
+                    <span>{formatNumber(Number(lote.peso_total_procesado_kg), 1)} kg</span>
+                  )}
+                  <span>{formatTiempo(lote.duracion_total_minutos || 0)}</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Botones de acción */}
