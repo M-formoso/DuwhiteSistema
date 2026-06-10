@@ -2144,14 +2144,16 @@ class ProduccionService:
                 tipo_servicio=lote.tipo_servicio,
                 tipo_lote="relevado",  # Marcamos como relevado/sub-lote
                 lote_padre_id=lote.id,  # Referencia al lote original
-                estado=EstadoLote.EN_PROCESO.value,
+                # El sub-lote queda pendiente: el operario tiene que apretar
+                # "Iniciar" en la posta destino, igual que el lote principal.
+                estado=EstadoLote.PENDIENTE.value,
                 prioridad=lote.prioridad,
                 etapa_actual_id=etapa_alternativa.id,
                 peso_entrada_kg=data.peso_destino_alternativo_kg,
                 cantidad_prendas=None,  # No se puede dividir cantidad exacta de prendas
                 fecha_compromiso=lote.fecha_compromiso,
                 fecha_ingreso=datetime.utcnow(),
-                fecha_inicio_proceso=datetime.utcnow(),
+                fecha_inicio_proceso=None,
                 creado_por_id=usuario_id,
                 descripcion=f"Sub-lote de {lote.numero} - División en {etapa.nombre}",
                 notas_internas=data.observaciones_alternativo or f"Creado por división en etapa {etapa.nombre}",
@@ -2161,23 +2163,18 @@ class ProduccionService:
             self.db.add(lote_secundario)
             self.db.flush()
 
-            # Crear registros de etapas para el sub-lote
-            # Solo las etapas desde la alternativa en adelante
+            # Crear registros de etapas para el sub-lote, todas en estado
+            # "pendiente" (incluida la etapa alternativa donde aterriza).
             etapas_activas = self.get_etapas(solo_activas=True)
             etapa_alt_orden = etapa_alternativa.orden
 
             for i, e in enumerate(etapas_activas):
                 if e.orden >= etapa_alt_orden:
-                    estado_etapa = "pendiente"
-                    if e.id == etapa_alternativa.id:
-                        estado_etapa = "en_proceso"
-
                     lote_etapa_nuevo = LoteEtapa(
                         lote_id=lote_secundario.id,
                         etapa_id=e.id,
                         orden=i,
-                        estado=estado_etapa,
-                        fecha_inicio=datetime.utcnow() if estado_etapa == "en_proceso" else None,
+                        estado="pendiente",
                     )
                     self.db.add(lote_etapa_nuevo)
 
