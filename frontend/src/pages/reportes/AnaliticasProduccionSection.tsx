@@ -44,6 +44,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -61,6 +68,7 @@ import {
 import { formatNumber } from '@/utils/formatters';
 import {
   getAnaliticaProduccion,
+  getKgIngresados,
   getRendimientoProductos,
   type AnaliticaPosta,
 } from '@/services/reporteService';
@@ -251,6 +259,18 @@ export function AnaliticasProduccionSection({
         : getRendimientoProductos({ dias_atras: diasAtras }),
   });
 
+  const { data: kgIngresados, isLoading: loadingKgIngresados } = useQuery({
+    queryKey: ['kg-ingresados', fechaDesde, fechaHasta],
+    queryFn: () =>
+      getKgIngresados(
+        tieneRangoExterno
+          ? { fecha_desde: fechaDesde, fecha_hasta: fechaHasta }
+          : undefined
+      ),
+  });
+
+  const [kgIngresadosOpen, setKgIngresadosOpen] = useState(false);
+
   const totales = analitica?.totales;
   const rangoLabel = (() => {
     if (!fechaDesde || !fechaHasta) return 'Hoy';
@@ -262,8 +282,208 @@ export function AnaliticasProduccionSection({
     ).toLocaleDateString('es-AR')}`;
   })();
 
+  const promedioPorDia =
+    kgIngresados && kgIngresados.por_dia.length > 0
+      ? kgIngresados.total_kg / kgIngresados.por_dia.length
+      : 0;
+  const horaPicoLabel = (() => {
+    if (!kgIngresados?.hora_pico) return null;
+    const h = kgIngresados.hora_pico.hora;
+    const next = (h + 1) % 24;
+    const fmt = (n: number) => String(n).padStart(2, '0');
+    return `${fmt(h)}:00 – ${fmt(next)}:00`;
+  })();
+
   return (
     <div className="space-y-6">
+      {/* Kg ingresados — card destacada con desglose en modal */}
+      <button
+        type="button"
+        onClick={() => setKgIngresadosOpen(true)}
+        className="w-full text-left"
+      >
+        <Card className="border-l-4 border-l-cyan-500 hover:shadow-md transition-shadow cursor-pointer">
+          <CardContent className="pt-4">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-cyan-100 p-2.5">
+                  <Scale className="h-6 w-6 text-cyan-700" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Kg ingresados
+                  </p>
+                  <p className="text-3xl font-bold text-cyan-700 leading-tight">
+                    {formatNumber(kgIngresados?.total_kg || 0, 1)} kg
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {kgIngresados?.total_lotes ?? 0} lotes en el rango
+                    {kgIngresados && kgIngresados.por_dia.length > 1 && (
+                      <span className="ml-1">
+                        · prom. {formatNumber(promedioPorDia, 1)} kg/día
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              {horaPicoLabel && (
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-500 uppercase">Hora pico</p>
+                  <p className="text-sm font-semibold text-cyan-700">{horaPicoLabel}</p>
+                  <p className="text-xs text-gray-500">
+                    {formatNumber(kgIngresados!.hora_pico!.kg, 1)} kg
+                  </p>
+                </div>
+              )}
+              <div className="self-center">
+                <Badge variant="outline" className="text-xs">Ver desglose</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </button>
+
+      <Dialog open={kgIngresadosOpen} onOpenChange={setKgIngresadosOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-cyan-700" />
+              Kg ingresados — desglose
+            </DialogTitle>
+            <DialogDescription>
+              {rangoLabel}. Suma de peso de entrada de los lotes creados en el rango, sin importar el estado actual.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingKgIngresados ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            </div>
+          ) : !kgIngresados || kgIngresados.total_lotes === 0 ? (
+            <div className="text-center py-12 text-gray-500 text-sm">
+              No hay lotes ingresados en el rango seleccionado.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Totales rápidos */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="bg-cyan-50 rounded p-3">
+                  <p className="text-[10px] text-cyan-700 uppercase">Total kg</p>
+                  <p className="text-xl font-bold text-cyan-700">
+                    {formatNumber(kgIngresados.total_kg, 1)}
+                  </p>
+                </div>
+                <div className="bg-blue-50 rounded p-3">
+                  <p className="text-[10px] text-blue-700 uppercase">Lotes</p>
+                  <p className="text-xl font-bold text-blue-700">
+                    {kgIngresados.total_lotes}
+                  </p>
+                </div>
+                {horaPicoLabel && (
+                  <div className="bg-amber-50 rounded p-3">
+                    <p className="text-[10px] text-amber-700 uppercase">Hora pico</p>
+                    <p className="text-xl font-bold text-amber-700">{horaPicoLabel}</p>
+                    <p className="text-[11px] text-amber-700">
+                      {formatNumber(kgIngresados.hora_pico!.kg, 1)} kg
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Por día */}
+              {kgIngresados.por_dia.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Por día</h3>
+                  <div className="rounded border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Fecha</TableHead>
+                          <TableHead className="text-right">Lotes</TableHead>
+                          <TableHead className="text-right">Kg</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {kgIngresados.por_dia.map((d) => (
+                          <TableRow key={d.fecha}>
+                            <TableCell>{new Date(d.fecha).toLocaleDateString('es-AR')}</TableCell>
+                            <TableCell className="text-right">{d.lotes}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatNumber(d.kg, 1)} kg
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Por hora (barras simples) */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Por hora del día</h3>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={kgIngresados.por_hora}>
+                      <XAxis
+                        dataKey="hora"
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(h) => `${String(h).padStart(2, '0')}h`}
+                        interval={1}
+                      />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(v: number) => [`${formatNumber(v, 1)} kg`, 'Kg']}
+                        labelFormatter={(h: number) =>
+                          `${String(h).padStart(2, '0')}:00 – ${String((h + 1) % 24).padStart(2, '0')}:00`
+                        }
+                      />
+                      <Bar dataKey="kg" fill="#0891B2" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Detalle de lotes */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  Lotes ingresados ({kgIngresados.lotes.length})
+                </h3>
+                <div className="rounded border overflow-hidden max-h-80 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Lote</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Ingreso</TableHead>
+                        <TableHead className="text-right">Kg</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {kgIngresados.lotes.map((l) => {
+                        const f = new Date(l.fecha_ingreso);
+                        return (
+                          <TableRow key={l.id}>
+                            <TableCell className="font-mono text-xs">{l.numero}</TableCell>
+                            <TableCell className="text-sm">{l.cliente || '–'}</TableCell>
+                            <TableCell className="text-xs text-gray-600">
+                              {f.toLocaleDateString('es-AR')} {f.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatNumber(l.kg, 1)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Sub-header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

@@ -192,6 +192,96 @@ def get_produccion_por_periodo(
     ]
 
 
+def get_kg_ingresados(
+    db: Session,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Kg de ropa ingresados (lotes creados) en el rango — independiente
+    del estado actual del lote.
+
+    Devuelve:
+    - total_kg / total_lotes
+    - por_dia: [{fecha, kg, lotes}]
+    - por_hora: [{hora (0-23), kg, lotes}]
+    - hora_pico: {hora, kg, lotes}
+    - lotes: [{id, numero, cliente, kg, fecha_ingreso}]
+    """
+    hoy = date.today()
+    desde = fecha_desde or hoy
+    hasta = fecha_hasta or hoy
+    inicio = datetime.combine(desde, datetime.min.time())
+    fin = datetime.combine(hasta, datetime.max.time())
+
+    lotes = (
+        db.query(LoteProduccion, Cliente.razon_social)
+        .outerjoin(Cliente, Cliente.id == LoteProduccion.cliente_id)
+        .filter(
+            LoteProduccion.activo == True,
+            LoteProduccion.fecha_ingreso >= inicio,
+            LoteProduccion.fecha_ingreso <= fin,
+        )
+        .order_by(LoteProduccion.fecha_ingreso.desc())
+        .all()
+    )
+
+    total_kg = 0.0
+    total_lotes = 0
+    por_dia: Dict[str, Dict[str, float]] = {}
+    por_hora: Dict[int, Dict[str, float]] = {h: {"kg": 0.0, "lotes": 0} for h in range(24)}
+    detalle_lotes: List[Dict[str, Any]] = []
+
+    for lote, cliente_nombre in lotes:
+        kg = float(lote.peso_entrada_kg or 0)
+        total_kg += kg
+        total_lotes += 1
+
+        dia_key = lote.fecha_ingreso.date().isoformat()
+        if dia_key not in por_dia:
+            por_dia[dia_key] = {"kg": 0.0, "lotes": 0}
+        por_dia[dia_key]["kg"] += kg
+        por_dia[dia_key]["lotes"] += 1
+
+        hora = lote.fecha_ingreso.hour
+        por_hora[hora]["kg"] += kg
+        por_hora[hora]["lotes"] += 1
+
+        detalle_lotes.append({
+            "id": str(lote.id),
+            "numero": lote.numero,
+            "cliente": cliente_nombre,
+            "kg": round(kg, 2),
+            "fecha_ingreso": lote.fecha_ingreso.isoformat(),
+        })
+
+    por_dia_list = [
+        {"fecha": k, "kg": round(v["kg"], 2), "lotes": int(v["lotes"])}
+        for k, v in sorted(por_dia.items())
+    ]
+    por_hora_list = [
+        {"hora": h, "kg": round(por_hora[h]["kg"], 2), "lotes": int(por_hora[h]["lotes"])}
+        for h in range(24)
+    ]
+
+    hora_pico = None
+    if total_kg > 0:
+        mejor = max(por_hora_list, key=lambda x: (x["kg"], x["lotes"]))
+        if mejor["kg"] > 0:
+            hora_pico = mejor
+
+    return {
+        "total_kg": round(total_kg, 2),
+        "total_lotes": total_lotes,
+        "fecha_desde": desde.isoformat(),
+        "fecha_hasta": hasta.isoformat(),
+        "por_dia": por_dia_list,
+        "por_hora": por_hora_list,
+        "hora_pico": hora_pico,
+        "lotes": detalle_lotes,
+    }
+
+
 def get_produccion_por_etapa(
     db: Session,
     fecha_desde: date,

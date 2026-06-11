@@ -125,6 +125,19 @@ def get_analitica_produccion(
     )
 
 
+@router.get("/produccion/kg-ingresados")
+def get_kg_ingresados(
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Kg de ropa ingresados (lotes creados) en el rango, con desglose por día/hora."""
+    return reporte_service.get_kg_ingresados(
+        db=db, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
+
+
 @router.get("/produccion/rendimiento-productos")
 def get_rendimiento_productos(
     dias_atras: Optional[int] = Query(None, ge=1, le=365),

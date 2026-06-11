@@ -322,6 +322,45 @@ export async function getAnaliticaProduccion(params?: {
   return response.data;
 }
 
+export interface KgIngresadosPorDia {
+  fecha: string;
+  kg: number;
+  lotes: number;
+}
+
+export interface KgIngresadosPorHora {
+  hora: number;
+  kg: number;
+  lotes: number;
+}
+
+export interface KgIngresadosLote {
+  id: string;
+  numero: string;
+  cliente: string | null;
+  kg: number;
+  fecha_ingreso: string;
+}
+
+export interface KgIngresadosResponse {
+  total_kg: number;
+  total_lotes: number;
+  fecha_desde: string;
+  fecha_hasta: string;
+  por_dia: KgIngresadosPorDia[];
+  por_hora: KgIngresadosPorHora[];
+  hora_pico: { hora: number; kg: number; lotes: number } | null;
+  lotes: KgIngresadosLote[];
+}
+
+export async function getKgIngresados(params?: {
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}): Promise<KgIngresadosResponse> {
+  const response = await api.get('/reportes/produccion/kg-ingresados', { params });
+  return response.data;
+}
+
 export async function getRendimientoProductos(params?: {
   dias_atras?: number;
   fecha_desde?: string;
