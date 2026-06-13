@@ -263,18 +263,78 @@ class ProduccionService:
 
         return maquina
 
+    def _maquinas_en_uso_real_ids(self):
+        """
+        IDs de máquinas que realmente están siendo usadas ahora.
+
+        Fuente de verdad: tabla LoteEtapaMaquina (asignación activa en una
+        etapa en proceso) + LoteEtapa.maquina_id legacy. NO usa el flag
+        Maquina.estado porque puede quedar desincronizado si un lote se
+        canceló, dividió o finalizó con error y no se liberó la máquina.
+        """
+        intermedia_ids = (
+            self.db.query(LoteEtapaMaquina.maquina_id)
+            .join(LoteEtapa, LoteEtapaMaquina.lote_etapa_id == LoteEtapa.id)
+            .filter(
+                LoteEtapaMaquina.fecha_liberacion.is_(None),
+                LoteEtapa.estado == "en_proceso",
+            )
+        )
+        legacy_ids = (
+            self.db.query(LoteEtapa.maquina_id)
+            .filter(
+                LoteEtapa.maquina_id.isnot(None),
+                LoteEtapa.estado == "en_proceso",
+            )
+        )
+        return intermedia_ids.union(legacy_ids).subquery()
+
     def is_maquina_disponible(self, maquina_id: UUID) -> bool:
         """Verifica si una máquina está disponible para asignación."""
         maquina = self.get_maquina(maquina_id)
-        if not maquina:
+        if not maquina or not maquina.activo:
             return False
-        return maquina.estado == "disponible" and maquina.activo
+        # Mantenimiento o fuera de servicio son estados manuales que sí cuentan.
+        if maquina.estado in ("mantenimiento", "fuera_servicio"):
+            return False
+
+        en_uso = (
+            self.db.query(LoteEtapaMaquina)
+            .join(LoteEtapa, LoteEtapaMaquina.lote_etapa_id == LoteEtapa.id)
+            .filter(
+                LoteEtapaMaquina.maquina_id == maquina_id,
+                LoteEtapaMaquina.fecha_liberacion.is_(None),
+                LoteEtapa.estado == "en_proceso",
+            )
+            .first()
+        )
+        if en_uso:
+            return False
+
+        en_uso_legacy = (
+            self.db.query(LoteEtapa)
+            .filter(
+                LoteEtapa.maquina_id == maquina_id,
+                LoteEtapa.estado == "en_proceso",
+            )
+            .first()
+        )
+        return en_uso_legacy is None
 
     def get_maquinas_disponibles(self, tipo: Optional[str] = None) -> List[Maquina]:
-        """Obtiene máquinas disponibles para asignar."""
+        """
+        Máquinas asignables ahora.
+
+        Se basa en LoteEtapaMaquina (tabla de asignaciones) como fuente de
+        verdad, no en el flag Maquina.estado, para evitar que máquinas
+        queden "fantasma" en uso si una etapa anterior no liberó bien.
+        """
+        en_uso_subq = self._maquinas_en_uso_real_ids()
+
         query = self.db.query(Maquina).filter(
             Maquina.activo == True,
-            Maquina.estado == "disponible",
+            Maquina.estado.notin_(("mantenimiento", "fuera_servicio")),
+            ~Maquina.id.in_(en_uso_subq),
         )
 
         if tipo:
