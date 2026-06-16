@@ -263,60 +263,58 @@ class ProduccionService:
 
         return maquina
 
-    def _maquinas_en_uso_real_ids(self):
-        """
-        IDs de máquinas que realmente están siendo usadas ahora.
-
-        Fuente de verdad: tabla LoteEtapaMaquina (asignación activa en una
-        etapa en proceso) + LoteEtapa.maquina_id legacy. NO usa el flag
-        Maquina.estado porque puede quedar desincronizado si un lote se
-        canceló, dividió o finalizó con error y no se liberó la máquina.
-        """
-        intermedia_ids = (
+    def _intermedia_en_uso_query(self):
+        """LoteEtapaMaquina activas en una etapa en proceso de un lote activo."""
+        return (
             self.db.query(LoteEtapaMaquina.maquina_id)
             .join(LoteEtapa, LoteEtapaMaquina.lote_etapa_id == LoteEtapa.id)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
             .filter(
                 LoteEtapaMaquina.fecha_liberacion.is_(None),
                 LoteEtapa.estado == "en_proceso",
+                LoteProduccion.activo == True,
+                LoteProduccion.estado.notin_((
+                    EstadoLote.COMPLETADO.value,
+                    EstadoLote.CANCELADO.value,
+                )),
             )
         )
-        legacy_ids = (
+
+    def _legacy_en_uso_query(self):
+        """LoteEtapa con maquina_id legacy en etapa en proceso de un lote activo."""
+        return (
             self.db.query(LoteEtapa.maquina_id)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
             .filter(
                 LoteEtapa.maquina_id.isnot(None),
                 LoteEtapa.estado == "en_proceso",
+                LoteProduccion.activo == True,
+                LoteProduccion.estado.notin_((
+                    EstadoLote.COMPLETADO.value,
+                    EstadoLote.CANCELADO.value,
+                )),
             )
         )
-        return intermedia_ids.union(legacy_ids).subquery()
 
     def is_maquina_disponible(self, maquina_id: UUID) -> bool:
         """Verifica si una máquina está disponible para asignación."""
         maquina = self.get_maquina(maquina_id)
         if not maquina or not maquina.activo:
             return False
-        # Mantenimiento o fuera de servicio son estados manuales que sí cuentan.
         if maquina.estado in ("mantenimiento", "fuera_servicio"):
             return False
 
         en_uso = (
-            self.db.query(LoteEtapaMaquina)
-            .join(LoteEtapa, LoteEtapaMaquina.lote_etapa_id == LoteEtapa.id)
-            .filter(
-                LoteEtapaMaquina.maquina_id == maquina_id,
-                LoteEtapaMaquina.fecha_liberacion.is_(None),
-                LoteEtapa.estado == "en_proceso",
-            )
+            self._intermedia_en_uso_query()
+            .filter(LoteEtapaMaquina.maquina_id == maquina_id)
             .first()
         )
         if en_uso:
             return False
 
         en_uso_legacy = (
-            self.db.query(LoteEtapa)
-            .filter(
-                LoteEtapa.maquina_id == maquina_id,
-                LoteEtapa.estado == "en_proceso",
-            )
+            self._legacy_en_uso_query()
+            .filter(LoteEtapa.maquina_id == maquina_id)
             .first()
         )
         return en_uso_legacy is None
@@ -328,19 +326,143 @@ class ProduccionService:
         Se basa en LoteEtapaMaquina (tabla de asignaciones) como fuente de
         verdad, no en el flag Maquina.estado, para evitar que máquinas
         queden "fantasma" en uso si una etapa anterior no liberó bien.
-        """
-        en_uso_subq = self._maquinas_en_uso_real_ids()
 
+        Adicional: ignora asignaciones cuyo lote ya está completado o
+        cancelado (puede quedar la etapa "en_proceso" si se cerró por
+        otra ruta).
+        """
+        # Subqueries correlativas (SQLAlchemy las convierte en NOT IN (SELECT...))
         query = self.db.query(Maquina).filter(
             Maquina.activo == True,
             Maquina.estado.notin_(("mantenimiento", "fuera_servicio")),
-            ~Maquina.id.in_(en_uso_subq),
+            ~Maquina.id.in_(self._intermedia_en_uso_query().subquery().select()),
+            ~Maquina.id.in_(self._legacy_en_uso_query().subquery().select()),
         )
 
         if tipo:
             query = query.filter(Maquina.tipo == tipo)
 
         return query.order_by(Maquina.codigo).all()
+
+    def get_diagnostico_maquina(self, maquina_id: UUID) -> dict:
+        """
+        Devuelve por qué una máquina aparece como ocupada (o disponible).
+        Útil para diagnosticar "lavadoras fantasma".
+        """
+        maquina = self.get_maquina(maquina_id)
+        if not maquina:
+            return {"error": "Máquina no encontrada"}
+
+        intermedias = (
+            self.db.query(LoteEtapaMaquina, LoteEtapa, LoteProduccion)
+            .join(LoteEtapa, LoteEtapaMaquina.lote_etapa_id == LoteEtapa.id)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+            .filter(
+                LoteEtapaMaquina.maquina_id == maquina_id,
+                LoteEtapaMaquina.fecha_liberacion.is_(None),
+            )
+            .all()
+        )
+        legacy = (
+            self.db.query(LoteEtapa, LoteProduccion)
+            .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+            .filter(
+                LoteEtapa.maquina_id == maquina_id,
+                LoteEtapa.estado == "en_proceso",
+            )
+            .all()
+        )
+
+        return {
+            "maquina": {
+                "id": str(maquina.id),
+                "codigo": maquina.codigo,
+                "nombre": maquina.nombre,
+                "estado_flag": maquina.estado,
+                "activo": maquina.activo,
+            },
+            "disponible_real": self.is_maquina_disponible(maquina_id),
+            "asignaciones_intermedia": [
+                {
+                    "lote_numero": lp.numero,
+                    "lote_estado": lp.estado,
+                    "lote_activo": lp.activo,
+                    "etapa_estado": le.estado,
+                    "fecha_asignacion": lem.fecha_asignacion.isoformat() if lem.fecha_asignacion else None,
+                    "lote_etapa_maquina_id": str(lem.id),
+                }
+                for lem, le, lp in intermedias
+            ],
+            "asignaciones_legacy": [
+                {
+                    "lote_numero": lp.numero,
+                    "lote_estado": lp.estado,
+                    "etapa_estado": le.estado,
+                    "lote_etapa_id": str(le.id),
+                }
+                for le, lp in legacy
+            ],
+        }
+
+    def liberar_maquina_forzado(self, maquina_id: UUID, usuario_id: UUID) -> dict:
+        """
+        Libera una máquina cerrando todas sus asignaciones activas y
+        seteando estado=disponible. Para limpiar máquinas "fantasma" que
+        quedaron pegadas tras un bug previo. Solo para superadmin.
+        """
+        maquina = self.get_maquina(maquina_id)
+        if not maquina:
+            raise ValueError("Máquina no encontrada")
+
+        intermedias = (
+            self.db.query(LoteEtapaMaquina)
+            .filter(
+                LoteEtapaMaquina.maquina_id == maquina_id,
+                LoteEtapaMaquina.fecha_liberacion.is_(None),
+            )
+            .all()
+        )
+        cerradas = 0
+        for lem in intermedias:
+            lem.fecha_liberacion = datetime.utcnow()
+            cerradas += 1
+
+        # Limpiar LoteEtapa.maquina_id legacy en etapas ya completadas
+        # (no tocar etapas en_proceso por seguridad).
+        legacy_completadas = (
+            self.db.query(LoteEtapa)
+            .filter(
+                LoteEtapa.maquina_id == maquina_id,
+                LoteEtapa.estado.in_(("completado", "omitida")),
+            )
+            .all()
+        )
+        for le in legacy_completadas:
+            le.maquina_id = None
+
+        maquina.estado = "disponible"
+        self.db.commit()
+
+        self.log_service.registrar(
+            db=self.db,
+            usuario_id=usuario_id,
+            accion="liberar_maquina_forzado",
+            modulo="produccion",
+            entidad_tipo="Maquina",
+            entidad_id=maquina_id,
+            descripcion=f"Liberación forzada de {maquina.codigo}",
+            datos_nuevos={
+                "asignaciones_cerradas": cerradas,
+                "legacy_limpiadas": len(legacy_completadas),
+            },
+        )
+
+        return {
+            "ok": True,
+            "maquina_codigo": maquina.codigo,
+            "asignaciones_cerradas": cerradas,
+            "legacy_limpiadas": len(legacy_completadas),
+        }
 
     def get_lote_usando_maquina(self, maquina_id: UUID) -> Optional[dict]:
         """Obtiene el lote que está usando una máquina (busca en tabla intermedia y campo legacy)."""

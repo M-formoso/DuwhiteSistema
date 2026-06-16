@@ -18,6 +18,7 @@ import {
   Droplets,
   Scale,
   Calendar,
+  Unlock,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 import { produccionService } from '@/services/produccionService';
 import { formatDate, formatCurrency } from '@/utils/formatters';
+import { useAuthStore } from '@/stores/authStore';
 import type { Maquina } from '@/types/produccion';
 
 interface FormData {
@@ -174,6 +176,39 @@ export default function MaquinasPage() {
       });
     },
   });
+
+  const user = useAuthStore((s) => s.user);
+  const esSuperadmin = user?.rol === 'superadmin';
+
+  const liberarMutation = useMutation({
+    mutationFn: (id: string) => produccionService.liberarMaquinaForzado(id),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['maquinas'] });
+      queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
+      queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      toast({
+        title: `${res.maquina_codigo} liberada`,
+        description: `${res.asignaciones_cerradas} asignación(es) cerrada(s).`,
+      });
+    },
+    onError: (err: unknown) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'No se pudo liberar la máquina.';
+      toast({ title: 'Error', description: detail, variant: 'destructive' });
+    },
+  });
+
+  const handleLiberarForzado = (maquina: Maquina) => {
+    if (
+      !window.confirm(
+        `¿Liberar a la fuerza ${maquina.codigo}? Cierra todas las asignaciones activas y la marca como disponible. Usalo solo si quedó pegada.`,
+      )
+    ) {
+      return;
+    }
+    liberarMutation.mutate(maquina.id);
+  };
 
   const handleOpenCreate = () => {
     setEditingMaquina(null);
@@ -450,6 +485,18 @@ export default function MaquinasPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            {esSuperadmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Liberar a la fuerza (si quedó pegada)"
+                                className="text-amber-600 hover:text-amber-700"
+                                onClick={() => handleLiberarForzado(maquina)}
+                                disabled={liberarMutation.isPending}
+                              >
+                                <Unlock className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

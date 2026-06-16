@@ -327,6 +327,35 @@ def listar_maquinas_disponibles(
     ]
 
 
+@router.get("/maquinas/{maquina_id}/diagnostico")
+def diagnostico_maquina(
+    maquina_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Diagnóstico: por qué la máquina aparece (o no) como disponible."""
+    service = ProduccionService(db)
+    return service.get_diagnostico_maquina(maquina_id)
+
+
+@router.post("/maquinas/{maquina_id}/liberar-forzado")
+def liberar_maquina_forzado(
+    maquina_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin")),
+):
+    """
+    Cierra todas las asignaciones activas de la máquina y la marca como
+    disponible. Para limpiar máquinas pegadas tras un bug previo. Solo
+    superadmin.
+    """
+    service = ProduccionService(db)
+    try:
+        return service.liberar_maquina_forzado(maquina_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.get("/maquinas/{maquina_id}/en-uso", response_model=Dict[str, Any])
 def verificar_maquina_en_uso(
     maquina_id: UUID,

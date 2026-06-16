@@ -197,6 +197,25 @@ export async function deleteLote(id: string): Promise<{ message: string }> {
   return response.data;
 }
 
+export interface LiberarMaquinaResponse {
+  ok: boolean;
+  maquina_codigo: string;
+  asignaciones_cerradas: number;
+  legacy_limpiadas: number;
+}
+
+export async function liberarMaquinaForzado(
+  maquinaId: string,
+): Promise<LiberarMaquinaResponse> {
+  const response = await api.post(`/produccion/maquinas/${maquinaId}/liberar-forzado`);
+  return response.data;
+}
+
+export async function getDiagnosticoMaquina(maquinaId: string) {
+  const response = await api.get(`/produccion/maquinas/${maquinaId}/diagnostico`);
+  return response.data;
+}
+
 export interface RevertirAccionResponse {
   ok: boolean;
   accion_revertida: 'iniciar_etapa' | 'finalizar_etapa';
@@ -395,6 +414,8 @@ export const produccionService = {
   getMaquinasLista,
   getMaquinasDisponibles,
   verificarMaquinaEnUso,
+  liberarMaquinaForzado,
+  getDiagnosticoMaquina,
   createMaquina,
   updateMaquina,
   // Lotes
