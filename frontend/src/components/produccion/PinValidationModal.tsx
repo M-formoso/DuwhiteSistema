@@ -156,7 +156,7 @@ export function PinValidationModal({
             )}
           </div>
 
-          {/* Input de PIN */}
+          {/* Input de PIN + teclado numérico en pantalla */}
           <div className="space-y-2">
             <Label>PIN</Label>
             <Input
@@ -173,9 +173,64 @@ export function PinValidationModal({
               }}
               onKeyDown={handleKeyDown}
               placeholder="Ingrese PIN de 4-6 dígitos"
-              disabled={!operarioId}
-              className="text-center text-2xl tracking-widest font-mono"
+              readOnly
+              onFocus={(e) => e.target.blur()}
+              className="text-center text-2xl tracking-widest font-mono bg-white"
             />
+            {!operarioId && (
+              <p className="text-xs text-amber-600">
+                Seleccioná un operario para habilitar el PIN.
+              </p>
+            )}
+            <div className="grid grid-cols-3 gap-2 pt-1 select-none">
+              {(['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={!operarioId}
+                  onClick={() => {
+                    if (pin.length >= 6) return;
+                    setPin((p) => p + d);
+                    setError(null);
+                  }}
+                  className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
+                             active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {d}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={!operarioId || pin.length === 0}
+                onClick={() => { setPin(''); setError(null); }}
+                className="h-12 rounded-md border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
+                           active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Borrar
+              </button>
+              <button
+                type="button"
+                disabled={!operarioId}
+                onClick={() => {
+                  if (pin.length >= 6) return;
+                  setPin((p) => p + '0');
+                  setError(null);
+                }}
+                className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
+                           active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                disabled={!operarioId || pin.length === 0}
+                onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); }}
+                className="h-12 rounded-md border border-gray-300 bg-white text-base font-semibold text-gray-700
+                           active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ←
+              </button>
+            </div>
           </div>
 
           {/* Error */}

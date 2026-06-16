@@ -667,7 +667,7 @@ function PinModalGrande({
             </Select>
           </div>
 
-          {/* Input de PIN */}
+          {/* Input de PIN + teclado numérico en pantalla */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               PIN
@@ -686,11 +686,72 @@ function PinModalGrande({
               }}
               onKeyDown={handleKeyDown}
               placeholder="Ingrese PIN de 4-6 dígitos"
-              disabled={!selectedOperario}
-              className="w-full h-10 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono
-                         focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
-                         disabled:bg-gray-100 disabled:cursor-not-allowed"
+              readOnly
+              onFocus={(e) => e.target.blur()}
+              className="w-full h-12 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono bg-white"
             />
+            {!selectedOperario && (
+              <p className="text-xs text-amber-600">
+                Seleccioná un operario para habilitar el PIN.
+              </p>
+            )}
+
+            {/* Teclado numérico en pantalla — funciona sin depender del teclado del SO */}
+            <div className="grid grid-cols-3 gap-2 pt-1 select-none">
+              {(['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={!selectedOperario}
+                  onClick={() => {
+                    if (pin.length >= 6) return;
+                    setPin((p) => p + d);
+                    setError('');
+                  }}
+                  className="h-14 sm:h-16 rounded-xl border border-gray-300 bg-white text-2xl font-bold text-gray-800
+                             active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {d}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={!selectedOperario || pin.length === 0}
+                onClick={() => {
+                  setPin('');
+                  setError('');
+                }}
+                className="h-14 sm:h-16 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
+                           active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Borrar
+              </button>
+              <button
+                type="button"
+                disabled={!selectedOperario}
+                onClick={() => {
+                  if (pin.length >= 6) return;
+                  setPin((p) => p + '0');
+                  setError('');
+                }}
+                className="h-14 sm:h-16 rounded-xl border border-gray-300 bg-white text-2xl font-bold text-gray-800
+                           active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                disabled={!selectedOperario || pin.length === 0}
+                onClick={() => {
+                  setPin((p) => p.slice(0, -1));
+                  setError('');
+                }}
+                className="h-14 sm:h-16 rounded-xl border border-gray-300 bg-white text-xl font-semibold text-gray-700
+                           active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ←
+              </button>
+            </div>
           </div>
 
           {/* Input de peso (solo para Recepción y Pesaje) */}
