@@ -85,11 +85,15 @@ export function DividirLoteModal({
   const dividirMutation = useMutation({
     mutationFn: () => {
       // Divide el peso en mitades. El backend valida principal + alternativo <= total.
+      // Redondeamos a 2 decimales y compensamos el resto en la otra mitad para evitar
+      // errores de float (132.65 + 132.65 = 265.30000000000002).
       const peso = pesoTotalKg && pesoTotalKg > 0 ? pesoTotalKg : 0;
-      const mitad = Math.round((peso / 2) * 10) / 10;
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const mitad = round2(peso / 2);
+      const resto = round2(peso - mitad);
       return produccionService.dividirLote(loteId, etapaId, {
         peso_destino_principal_kg: mitad,
-        peso_destino_alternativo_kg: peso - mitad,
+        peso_destino_alternativo_kg: resto,
       });
     },
     onSuccess: (data) => {

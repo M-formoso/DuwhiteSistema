@@ -2307,12 +2307,22 @@ class ProduccionService:
         if not etapa_principal:
             raise ValueError("No se encontró etapa destino principal")
 
-        # Validar pesos
-        peso_total = data.peso_destino_principal_kg + data.peso_destino_alternativo_kg
-        if lote.peso_entrada_kg and peso_total > lote.peso_entrada_kg:
-            raise ValueError(
-                f"La suma de pesos ({peso_total} kg) excede el peso del lote ({lote.peso_entrada_kg} kg)"
-            )
+        # Validar pesos. Cuantizamos a 2 decimales y damos tolerancia de
+        # 0.01 kg para absorber errores de redondeo de float (132.65 +
+        # 132.65 puede dar 265.30000000000002 al deserializar JSON).
+        from decimal import ROUND_HALF_UP
+        cuant = Decimal("0.01")
+        peso_principal = Decimal(data.peso_destino_principal_kg).quantize(cuant, rounding=ROUND_HALF_UP)
+        peso_alternativo = Decimal(data.peso_destino_alternativo_kg).quantize(cuant, rounding=ROUND_HALF_UP)
+        peso_total = (peso_principal + peso_alternativo).quantize(cuant, rounding=ROUND_HALF_UP)
+        if lote.peso_entrada_kg:
+            limite = Decimal(lote.peso_entrada_kg).quantize(cuant, rounding=ROUND_HALF_UP) + cuant
+            if peso_total > limite:
+                raise ValueError(
+                    f"La suma de pesos ({peso_total} kg) excede el peso del lote ({lote.peso_entrada_kg} kg)"
+                )
+        data.peso_destino_principal_kg = peso_principal
+        data.peso_destino_alternativo_kg = peso_alternativo
 
         # Finalizar la etapa actual del lote principal
         lote_etapa = (
