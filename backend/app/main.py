@@ -193,10 +193,11 @@ def create_tables():
         Base.metadata.create_all(bind=engine)
         print("Tablas creadas correctamente")
 
-        # Ejecutar migraciones para columnas nuevas
-        print("Ejecutando migraciones...")
-        run_migrations()
-        print("Migraciones completadas")
+        # Las migraciones DDL se ejecutan vía `alembic upgrade head` en el
+        # start command (Railway). Antes corríamos run_migrations() acá en
+        # el lifespan, pero esos ALTER TABLE/ADD VALUE quedaban esperando
+        # locks de PostgreSQL tomados por la conexión activa del deploy
+        # previo y trababan el startup (healthcheck timeout).
     except Exception as e:
         print(f"Error creando tablas: {e}")
         import traceback
