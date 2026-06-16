@@ -206,12 +206,15 @@ def create_tables():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Ejecutar migraciones y crear usuario admin al iniciar."""
+    """Crear datos por defecto al iniciar (no DDL: eso lo hace alembic)."""
 
-    # Crear tablas primero
-    create_tables()
+    # Las tablas las crea `alembic upgrade head` en el start command. No
+    # llamamos a create_all() acá porque puede pedir locks que el deploy
+    # anterior todavía no liberó y colgar el healthcheck.
 
-    # Crear usuario admin si no existe
+    # Crear usuario admin si no existe. Con statement_timeout configurado
+    # en el engine, si Postgres no responde rápido reventamos y dejamos
+    # arrancar la app igual, en vez de quedar colgados.
     db = SessionLocal()
     try:
         admin = db.query(Usuario).filter(Usuario.email == "admin@duwhite.com").first()
