@@ -26,6 +26,7 @@ import {
   List,
   Wrench,
   Pencil,
+  Undo2,
 } from 'lucide-react';
 
 import {
@@ -114,7 +115,9 @@ interface KanbanCardProps {
   onFinalizar: (loteId: string, etapaId: string) => void;
   onDividir: (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => void;
   onCorregir: (lote: KanbanLote, columna: KanbanColumna) => void;
+  onRevertir?: (lote: KanbanLote) => void;
   isEnProceso: boolean;
+  esSuperadmin: boolean;
 }
 
 // Devuelve clases de color según el % de tiempo usado vs estimado.
@@ -126,7 +129,7 @@ function tiempoColorClasses(minutos: number, estimado: number | null | undefined
   return 'text-red-600 font-semibold';
 }
 
-function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorregir, isEnProceso }: KanbanCardProps) {
+function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorregir, onRevertir, isEnProceso, esSuperadmin }: KanbanCardProps) {
   const navigate = useNavigate();
 
   // Timer en tiempo real
@@ -155,6 +158,19 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorreg
               <span className="font-mono font-medium text-sm">{lote.numero}</span>
             </div>
             <div className="flex gap-1 items-center">
+              {esSuperadmin && onRevertir && (
+                <button
+                  type="button"
+                  title="Revertir última acción"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRevertir(lote);
+                  }}
+                  className="p-1 rounded hover:bg-amber-50 text-amber-600 hover:text-amber-700"
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                </button>
+              )}
               {isEnProceso && (
                 <button
                   type="button"
@@ -754,6 +770,38 @@ export default function KanbanBoardPage() {
     setShowDividirModal(true);
   };
 
+  const revertirMutation = useMutation({
+    mutationFn: (loteId: string) => produccionService.revertirUltimaAccionLote(loteId),
+    onSuccess: (res) => {
+      toast({
+        title: 'Acción revertida',
+        description: res.mensaje,
+      });
+      queryClient.invalidateQueries({ queryKey: ['kanban'] });
+    },
+    onError: (err: unknown) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'No se pudo revertir la acción.';
+      toast({
+        title: 'Error',
+        description: detail,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleRevertir = (lote: KanbanLote) => {
+    if (
+      !window.confirm(
+        `¿Revertir la última acción del lote ${lote.numero}? Esto reabre la etapa o cancela el inicio.`,
+      )
+    ) {
+      return;
+    }
+    revertirMutation.mutate(lote.id);
+  };
+
   const handleCorregir = (lote: KanbanLote, columna: KanbanColumna) => {
     setCorregirData({
       loteId: lote.id,
@@ -970,7 +1018,9 @@ export default function KanbanBoardPage() {
                         onFinalizar={handleFinalizar}
                         onDividir={handleDividir}
                         onCorregir={handleCorregir}
+                        onRevertir={handleRevertir}
                         isEnProceso={isLoteEnProceso(lote)}
+                        esSuperadmin={user?.rol === 'superadmin'}
                       />
                     ))
                   )}

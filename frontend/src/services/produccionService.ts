@@ -197,6 +197,20 @@ export async function deleteLote(id: string): Promise<{ message: string }> {
   return response.data;
 }
 
+export interface RevertirAccionResponse {
+  ok: boolean;
+  accion_revertida: 'iniciar_etapa' | 'finalizar_etapa';
+  etapa: string;
+  mensaje: string;
+}
+
+export async function revertirUltimaAccionLote(
+  id: string,
+): Promise<RevertirAccionResponse> {
+  const response = await api.post(`/produccion/lotes/${id}/revertir-ultima-accion`);
+  return response.data;
+}
+
 export async function cambiarEstadoLote(
   id: string,
   estado: EstadoLote,
@@ -390,6 +404,7 @@ export const produccionService = {
   updateLote,
   deleteLote,
   cambiarEstadoLote,
+  revertirUltimaAccionLote,
   moverLote,
   crearLoteDirecto,
   // Etapas de lote

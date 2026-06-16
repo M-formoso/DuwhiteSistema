@@ -769,6 +769,26 @@ def eliminar_lote(
     return MessageResponse(message=f"Lote {numero} eliminado correctamente")
 
 
+@router.post("/lotes/{lote_id}/revertir-ultima-accion")
+def revertir_ultima_accion_lote(
+    lote_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin")),
+):
+    """
+    Revierte la última acción de etapa del lote.
+
+    Si hay una etapa en proceso, cancela su inicio. Si todas están en
+    pendiente, reabre la última finalizada. Solo superadmin.
+    """
+    service = ProduccionService(db)
+    try:
+        result = service.revertir_ultima_accion(lote_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return result
+
+
 @router.post("/lotes/{lote_id}/estado", response_model=MessageResponse)
 def cambiar_estado_lote(
     lote_id: UUID,

@@ -581,6 +581,174 @@ class ProduccionService:
 
         return True
 
+    def revertir_ultima_accion(self, lote_id: UUID, usuario_id: UUID) -> dict:
+        """
+        Revierte la última acción de cambio de etapa hecha sobre un lote.
+
+        Resuelve dos casos:
+        1. Hay una etapa "en_proceso": se revierte el "iniciar". La etapa
+           vuelve a "pendiente", se liberan máquinas y responsable.
+        2. No hay etapa en proceso: se revierte el último "finalizar".
+           La última etapa completada vuelve a "en_proceso", se reabre
+           fecha_fin, el lote vuelve a esa etapa y, si estaba COMPLETADO,
+           pasa a EN_PROCESO. Las máquinas que tenía se reintentan asignar
+           (si siguen libres).
+        """
+        lote = self.get_lote(lote_id)
+        if not lote:
+            raise ValueError("Lote no encontrado")
+
+        # Caso 1: etapa en proceso → deshacer el "iniciar".
+        etapa_en_proceso = (
+            self.db.query(LoteEtapa)
+            .filter(
+                LoteEtapa.lote_id == lote_id,
+                LoteEtapa.estado == "en_proceso",
+            )
+            .first()
+        )
+
+        if etapa_en_proceso:
+            etapa_obj = self.get_etapa(etapa_en_proceso.etapa_id)
+            etapa_nombre = etapa_obj.nombre if etapa_obj else "etapa"
+
+            # Liberar máquinas activas en esta etapa.
+            maquinas_activas = (
+                self.db.query(LoteEtapaMaquina)
+                .filter(
+                    LoteEtapaMaquina.lote_etapa_id == etapa_en_proceso.id,
+                    LoteEtapaMaquina.fecha_liberacion.is_(None),
+                )
+                .all()
+            )
+            for lem in maquinas_activas:
+                lem.fecha_liberacion = datetime.utcnow()
+                m = self.get_maquina(lem.maquina_id)
+                if m and m.estado == "en_uso":
+                    m.estado = "disponible"
+
+            # Compatibilidad: maquina_id legacy.
+            if etapa_en_proceso.maquina_id and not maquinas_activas:
+                m = self.get_maquina(etapa_en_proceso.maquina_id)
+                if m and m.estado == "en_uso":
+                    m.estado = "disponible"
+
+            # Volver la etapa a pendiente.
+            etapa_en_proceso.estado = "pendiente"
+            etapa_en_proceso.fecha_inicio = None
+            etapa_en_proceso.responsable_id = None
+            etapa_en_proceso.maquina_id = None
+
+            # Si el lote estaba PENDIENTE → EN_PROCESO al iniciar la primera
+            # etapa, lo volvemos a PENDIENTE si ya no quedan etapas en proceso
+            # ni completadas con fecha_inicio.
+            otras_arrancadas = (
+                self.db.query(LoteEtapa)
+                .filter(
+                    LoteEtapa.lote_id == lote_id,
+                    LoteEtapa.id != etapa_en_proceso.id,
+                    LoteEtapa.fecha_inicio.isnot(None),
+                )
+                .first()
+            )
+            if not otras_arrancadas and lote.estado == EstadoLote.EN_PROCESO.value:
+                lote.estado = EstadoLote.PENDIENTE.value
+                lote.fecha_inicio_proceso = None
+
+            self.db.commit()
+
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="revertir_accion",
+                modulo="produccion",
+                entidad_tipo="LoteProduccion",
+                entidad_id=lote_id,
+                descripcion=f"Revertido inicio de {etapa_nombre} en lote {lote.numero}",
+                datos_nuevos={
+                    "accion_revertida": "iniciar_etapa",
+                    "etapa": etapa_nombre,
+                    "etapa_id": str(etapa_en_proceso.etapa_id),
+                },
+            )
+
+            return {
+                "ok": True,
+                "accion_revertida": "iniciar_etapa",
+                "etapa": etapa_nombre,
+                "mensaje": f"Se canceló el inicio de {etapa_nombre}",
+            }
+
+        # Caso 2: revertir el último "finalizar".
+        ultima_completada = (
+            self.db.query(LoteEtapa)
+            .filter(
+                LoteEtapa.lote_id == lote_id,
+                LoteEtapa.estado == "completado",
+                LoteEtapa.fecha_fin.isnot(None),
+            )
+            .order_by(LoteEtapa.fecha_fin.desc())
+            .first()
+        )
+
+        if not ultima_completada:
+            raise ValueError("No hay acciones que revertir en este lote")
+
+        etapa_obj = self.get_etapa(ultima_completada.etapa_id)
+        etapa_nombre = etapa_obj.nombre if etapa_obj else "etapa"
+
+        # Reabrir la etapa.
+        ultima_completada.estado = "en_proceso"
+        ultima_completada.fecha_fin = None
+
+        # Reactivar máquinas que tenía asignadas, sólo si siguen libres.
+        maquinas_a_reactivar = (
+            self.db.query(LoteEtapaMaquina)
+            .filter(LoteEtapaMaquina.lote_etapa_id == ultima_completada.id)
+            .all()
+        )
+        for lem in maquinas_a_reactivar:
+            if lem.fecha_liberacion is None:
+                continue  # ya estaba activa, raro pero ok
+            if self.is_maquina_disponible(lem.maquina_id):
+                lem.fecha_liberacion = None
+                m = self.get_maquina(lem.maquina_id)
+                if m:
+                    m.estado = "en_uso"
+
+        # El lote vuelve a esa etapa.
+        lote.etapa_actual_id = etapa_obj.id if etapa_obj else ultima_completada.etapa_id
+
+        # Si estaba COMPLETADO, volver a EN_PROCESO.
+        if lote.estado == EstadoLote.COMPLETADO.value:
+            lote.estado = EstadoLote.EN_PROCESO.value
+            lote.fecha_fin_proceso = None
+            lote.peso_salida_kg = None
+
+        self.db.commit()
+
+        self.log_service.registrar(
+            db=self.db,
+            usuario_id=usuario_id,
+            accion="revertir_accion",
+            modulo="produccion",
+            entidad_tipo="LoteProduccion",
+            entidad_id=lote_id,
+            descripcion=f"Reabierta {etapa_nombre} en lote {lote.numero}",
+            datos_nuevos={
+                "accion_revertida": "finalizar_etapa",
+                "etapa": etapa_nombre,
+                "etapa_id": str(ultima_completada.etapa_id),
+            },
+        )
+
+        return {
+            "ok": True,
+            "accion_revertida": "finalizar_etapa",
+            "etapa": etapa_nombre,
+            "mensaje": f"Se reabrió {etapa_nombre}",
+        }
+
     def cambiar_estado_lote(
         self,
         lote_id: UUID,

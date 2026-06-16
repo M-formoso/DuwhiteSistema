@@ -25,6 +25,7 @@ import {
   Pencil,
   Calculator,
   Plus,
+  Undo2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -113,6 +114,8 @@ function LoteCard({
   onDividir,
   onCorregir,
   onIrConteo,
+  onRevertir,
+  esSuperadmin,
   enProceso,
 }: {
   lote: KanbanLote;
@@ -122,6 +125,8 @@ function LoteCard({
   onDividir: () => void;
   onCorregir: () => void;
   onIrConteo: () => void;
+  onRevertir?: () => void;
+  esSuperadmin: boolean;
   enProceso: boolean;
 }) {
   const prioridad = PRIORIDAD_CONFIG[lote.prioridad];
@@ -170,6 +175,16 @@ function LoteCard({
         <div className="flex items-center justify-between mb-2 gap-2">
           <h3 className="text-base sm:text-lg font-bold font-mono tracking-wide truncate">{lote.numero}</h3>
           <div className="flex items-center gap-2">
+            {esSuperadmin && onRevertir && (
+              <button
+                type="button"
+                title="Revertir última acción"
+                onClick={onRevertir}
+                className="p-1.5 rounded-full bg-white border border-amber-300 text-amber-600 hover:text-amber-700 hover:border-amber-500"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </button>
+            )}
             {enProceso && (
               <button
                 type="button"
@@ -347,6 +362,8 @@ function EtapaColumna({
   onDividir,
   onCorregir,
   onIrConteo,
+  onRevertir,
+  esSuperadmin,
   getLoteEnProceso,
 }: {
   columna: KanbanColumna;
@@ -355,6 +372,8 @@ function EtapaColumna({
   onDividir: (lote: KanbanLote, columna: KanbanColumna) => void;
   onCorregir: (lote: KanbanLote, columna: KanbanColumna) => void;
   onIrConteo: (lote: KanbanLote, columna: KanbanColumna) => void;
+  onRevertir: (lote: KanbanLote) => void;
+  esSuperadmin: boolean;
   getLoteEnProceso: (lote: KanbanLote) => boolean;
 }) {
   const lotesAtrasados = columna.lotes.filter((l) => l.esta_atrasado).length;
@@ -431,6 +450,8 @@ function EtapaColumna({
               onDividir={() => onDividir(lote, columna)}
               onCorregir={() => onCorregir(lote, columna)}
               onIrConteo={() => onIrConteo(lote, columna)}
+              onRevertir={() => onRevertir(lote)}
+              esSuperadmin={esSuperadmin}
               enProceso={getLoteEnProceso(lote)}
             />
           ))
@@ -955,6 +976,32 @@ export default function PanelOperariosPage() {
     navigate(`/produccion/lotes/${lote.id}/conteo`);
   };
 
+  const revertirMutation = useMutation({
+    mutationFn: (loteId: string) => produccionService.revertirUltimaAccionLote(loteId),
+    onSuccess: (res) => {
+      toast({ title: 'Acción revertida', description: res.mensaje });
+      queryClient.invalidateQueries({ queryKey: ['kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
+    },
+    onError: (err: unknown) => {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'No se pudo revertir la acción.';
+      toast({ title: 'Error', description: detail, variant: 'destructive' });
+    },
+  });
+
+  const handleRevertir = (lote: KanbanLote) => {
+    if (
+      !window.confirm(
+        `¿Revertir la última acción del lote ${lote.numero}? Esto reabre la etapa o cancela el inicio.`,
+      )
+    ) {
+      return;
+    }
+    revertirMutation.mutate(lote.id);
+  };
+
   const handleCorregir = (lote: KanbanLote, columna: KanbanColumna) => {
     setCorregirData({
       loteId: lote.id,
@@ -1132,6 +1179,8 @@ export default function PanelOperariosPage() {
               onDividir={handleDividir}
               onCorregir={handleCorregir}
               onIrConteo={handleIrConteo}
+              onRevertir={handleRevertir}
+              esSuperadmin={user?.rol === 'superadmin'}
               getLoteEnProceso={getLoteEnProceso}
             />
           ))}
