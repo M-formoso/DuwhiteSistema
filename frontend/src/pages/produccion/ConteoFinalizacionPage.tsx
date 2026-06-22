@@ -1,14 +1,9 @@
 /**
  * Página de Conteo y Finalización de Lotes
- * Última posta del proceso de producción
- * - Conteo de prendas por producto
- * - Cálculo de precios desde lista del cliente
- * - Generación de remito
- * - Opción de relevado parcial
- * - Cargo a cuenta corriente
+ * Búsqueda por código de producto → cantidad → lista de ítems
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,12 +15,12 @@ import {
   RotateCcw,
   CheckCircle,
   AlertTriangle,
-  Plus,
-  Minus,
   Loader2,
   User,
   Clock,
-  Printer,
+  X,
+  Search,
+  Keyboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,16 +36,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableFooter,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,26 +47,41 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { produccionService } from '@/services/produccionService';
 import { productoLavadoService } from '@/services/productoLavadoService';
 import { remitoService } from '@/services/remitoService';
 import { clienteService } from '@/services/clienteService';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
-import {
-  ProductoConPrecio,
-  CATEGORIAS_PRODUCTO_LAVADO,
-} from '@/types/produccion-v2';
+import { ProductoConPrecio } from '@/types/produccion-v2';
+import ProductoLookupModal from '@/components/produccion/ProductoLookupModal';
+
+const formatearCodigo = (codigo: string) => {
+  const limpio = (codigo || '').trim();
+  if (/^\d+$/.test(limpio)) return limpio.padStart(4, '0');
+  return limpio;
+};
+
+const normalizarCodigo = (codigo: string) => {
+  const limpio = (codigo || '').trim();
+  if (/^\d+$/.test(limpio)) return String(parseInt(limpio, 10));
+  return limpio;
+};
 
 interface ConteoItem {
   producto_id: string;
   producto_codigo: string;
   producto_nombre: string;
-  categoria: string;
   precio_unitario: number;
   cantidad: number;
   cantidad_relevado: number;
-  subtotal: number;
 }
 
 export default function ConteoFinalizacionPage() {
@@ -88,29 +89,39 @@ export default function ConteoFinalizacionPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Estados
+  // Estado principal
   const [conteoItems, setConteoItems] = useState<ConteoItem[]>([]);
   const [observaciones, setObservaciones] = useState('');
   const [tieneRelevado, setTieneRelevado] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showRelevadoInfo, setShowRelevadoInfo] = useState(false);
 
-  // Query: Datos del lote
+  // Estado del buscador por código
+  const [codigoInput, setCodigoInput] = useState('');
+  const [cantidadInput, setCantidadInput] = useState('1');
+  const [productoEncontrado, setProductoEncontrado] = useState<ProductoConPrecio | null>(null);
+  const [errorCodigo, setErrorCodigo] = useState('');
+  const [showLookup, setShowLookup] = useState(false);
+  const [showTeclado, setShowTeclado] = useState(false);
+  const [campoActivo, setCampoActivo] = useState<'codigo' | 'cantidad'>('codigo');
+
+  const codigoRef = useRef<HTMLInputElement>(null);
+  const cantidadRef = useRef<HTMLInputElement>(null);
+
+  // Queries
   const { data: lote, isLoading: loadingLote } = useQuery({
     queryKey: ['lote', loteId],
     queryFn: () => produccionService.getLote(loteId!),
     enabled: !!loteId,
   });
 
-  // Query: Datos del cliente
   const { data: cliente } = useQuery({
     queryKey: ['cliente', lote?.cliente_id],
     queryFn: () => clienteService.getCliente(lote!.cliente_id!),
     enabled: !!lote?.cliente_id,
   });
 
-  // Query: Productos con precios del cliente
-  const { data: productosConPrecios, isLoading: loadingProductos } = useQuery<ProductoConPrecio[]>({
+  const { data: productosConPrecios = [], isLoading: loadingProductos } = useQuery<ProductoConPrecio[]>({
     queryKey: ['productos-con-precios', cliente?.lista_precios_id],
     queryFn: async () => {
       if (!cliente?.lista_precios_id) return [];
@@ -119,34 +130,184 @@ export default function ConteoFinalizacionPage() {
     enabled: !!cliente?.lista_precios_id,
   });
 
-  // Inicializar items de conteo cuando se cargan los productos
+  // Foco inicial en el campo de código
   useEffect(() => {
-    if (productosConPrecios && productosConPrecios.length > 0 && conteoItems.length === 0) {
-      setConteoItems(
-        productosConPrecios.map((p) => ({
-          producto_id: p.producto_id,
-          producto_codigo: p.producto_codigo,
-          producto_nombre: p.producto_nombre,
-          categoria: p.categoria,
-          precio_unitario: p.precio_unitario || 0,
-          cantidad: 0,
-          cantidad_relevado: 0,
-          subtotal: 0,
-        }))
-      );
+    if (!loadingProductos) codigoRef.current?.focus();
+  }, [loadingProductos]);
+
+  // Resolver producto al escribir el código (acepta con o sin ceros a la izquierda)
+  const resolverCodigo = (codigo: string) => {
+    setErrorCodigo('');
+    setProductoEncontrado(null);
+    if (!codigo.trim()) return;
+
+    const buscado = normalizarCodigo(codigo);
+    const encontrado = productosConPrecios.find(
+      (p) => normalizarCodigo(p.producto_codigo) === buscado
+    );
+    if (encontrado) {
+      setProductoEncontrado(encontrado);
+      setErrorCodigo('');
+      setCampoActivo('cantidad');
+      cantidadRef.current?.focus();
+      cantidadRef.current?.select();
+    } else {
+      setErrorCodigo(`No se encontró producto con código "${codigo}"`);
     }
-  }, [productosConPrecios, conteoItems.length]);
+  };
+
+  // F4 abre el modal de búsqueda (estilo POS viejo)
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.key === 'F4') {
+        e.preventDefault();
+        setShowLookup(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, []);
+
+  const seleccionarDesdeLookup = (p: ProductoConPrecio) => {
+    setProductoEncontrado(p);
+    setCodigoInput(formatearCodigo(p.producto_codigo));
+    setErrorCodigo('');
+    setCampoActivo('cantidad');
+    setTimeout(() => {
+      cantidadRef.current?.focus();
+      cantidadRef.current?.select();
+    }, 50);
+  };
+
+  // Manejo del teclado numérico en pantalla
+  const setValorCampoActivo = (updater: (prev: string) => string) => {
+    if (campoActivo === 'codigo') {
+      setCodigoInput((prev) => {
+        const next = updater(prev);
+        setProductoEncontrado(null);
+        setErrorCodigo('');
+        return next;
+      });
+    } else {
+      setCantidadInput((prev) => updater(prev));
+    }
+  };
+
+  const tecladoTeclear = (d: string) => {
+    setValorCampoActivo((prev) => (prev === '0' ? d : prev + d));
+  };
+
+  const tecladoBorrar = () => {
+    setValorCampoActivo((prev) => prev.slice(0, -1));
+  };
+
+  const tecladoLimpiar = () => {
+    setValorCampoActivo(() => '');
+  };
+
+  const tecladoEnter = () => {
+    if (campoActivo === 'codigo') {
+      resolverCodigo(codigoInput);
+    } else {
+      agregarItem();
+    }
+  };
+
+  const handleCodigoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      resolverCodigo(codigoInput);
+    }
+  };
+
+  const handleCantidadKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      agregarItem();
+    }
+  };
+
+  const agregarItem = () => {
+    if (!productoEncontrado) {
+      resolverCodigo(codigoInput);
+      return;
+    }
+    const cantidad = parseInt(cantidadInput) || 0;
+    if (cantidad <= 0) {
+      toast.error('La cantidad debe ser mayor a 0');
+      cantidadRef.current?.focus();
+      return;
+    }
+
+    setConteoItems((prev) => {
+      const existente = prev.find((i) => i.producto_id === productoEncontrado.producto_id);
+      if (existente) {
+        return prev.map((i) =>
+          i.producto_id === productoEncontrado.producto_id
+            ? { ...i, cantidad: i.cantidad + cantidad }
+            : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          producto_id: productoEncontrado.producto_id,
+          producto_codigo: productoEncontrado.producto_codigo,
+          producto_nombre: productoEncontrado.producto_nombre,
+          precio_unitario: productoEncontrado.precio_unitario || 0,
+          cantidad,
+          cantidad_relevado: 0,
+        },
+      ];
+    });
+
+    // Reset para siguiente entrada
+    setCodigoInput('');
+    setCantidadInput('1');
+    setProductoEncontrado(null);
+    setErrorCodigo('');
+    codigoRef.current?.focus();
+  };
+
+  const quitarItem = (productoId: string) => {
+    setConteoItems((prev) => prev.filter((i) => i.producto_id !== productoId));
+  };
+
+  const actualizarCantidad = (productoId: string, cantidad: number) => {
+    if (cantidad <= 0) {
+      quitarItem(productoId);
+      return;
+    }
+    setConteoItems((prev) =>
+      prev.map((i) => (i.producto_id === productoId ? { ...i, cantidad } : i))
+    );
+  };
+
+  const actualizarRelevado = (productoId: string, cantidad: number) => {
+    setConteoItems((prev) =>
+      prev.map((i) =>
+        i.producto_id === productoId
+          ? { ...i, cantidad_relevado: Math.max(0, Math.min(cantidad, i.cantidad)) }
+          : i
+      )
+    );
+  };
+
+  // Totales
+  const totales = useMemo(() => {
+    const totalUnidades = conteoItems.reduce((s, i) => s + i.cantidad, 0);
+    const totalRelevado = conteoItems.reduce((s, i) => s + i.cantidad_relevado, 0);
+    const totalMonto = conteoItems.reduce((s, i) => s + i.cantidad * i.precio_unitario, 0);
+    return { totalUnidades, totalRelevado, totalMonto };
+  }, [conteoItems]);
 
   // Mutation: Generar remito
   const generarRemitoMutation = useMutation({
     mutationFn: async () => {
       if (!loteId) throw new Error('No hay lote');
-
-      const itemsConCantidad = conteoItems.filter((item) => item.cantidad > 0);
-
       return remitoService.generarDesdeLote(loteId, {
         notas: observaciones || undefined,
-        detalles: itemsConCantidad.map((item) => ({
+        detalles: conteoItems.map((item) => ({
           producto_id: item.producto_id,
           cantidad: item.cantidad,
           precio_unitario: item.precio_unitario,
@@ -165,92 +326,18 @@ export default function ConteoFinalizacionPage() {
       toast.success('Remito generado correctamente');
       queryClient.invalidateQueries({ queryKey: ['lote', loteId] });
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
-
       if (response.lote_relevado_id) {
         toast.info(`Se creó lote de relevado: ${response.lote_relevado_numero}`);
       }
-
-      // Navegar al detalle del remito o volver al kanban
-      navigate(`/produccion`);
+      navigate('/produccion');
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Error al generar remito');
+    onError: (error: unknown) => {
+      const e = error as { response?: { data?: { detail?: string } } };
+      toast.error(e.response?.data?.detail || 'Error al generar remito');
     },
   });
 
-  // Calcular totales
-  const totales = useMemo(() => {
-    const totalUnidades = conteoItems.reduce((sum, item) => sum + item.cantidad, 0);
-    const totalRelevado = conteoItems.reduce((sum, item) => sum + item.cantidad_relevado, 0);
-    const totalMonto = conteoItems.reduce(
-      (sum, item) => sum + item.cantidad * item.precio_unitario,
-      0
-    );
-    return { totalUnidades, totalRelevado, totalMonto };
-  }, [conteoItems]);
-
-  // Handlers
-  const handleCantidadChange = (productoId: string, cantidad: number, esRelevado = false) => {
-    setConteoItems((prev) =>
-      prev.map((item) => {
-        if (item.producto_id === productoId) {
-          const newCantidad = esRelevado ? item.cantidad : Math.max(0, cantidad);
-          const newCantidadRelevado = esRelevado
-            ? Math.max(0, Math.min(cantidad, item.cantidad))
-            : item.cantidad_relevado;
-          return {
-            ...item,
-            cantidad: newCantidad,
-            cantidad_relevado: newCantidadRelevado,
-            subtotal: newCantidad * item.precio_unitario,
-          };
-        }
-        return item;
-      })
-    );
-  };
-
-  const handleIncrement = (productoId: string, esRelevado = false) => {
-    const item = conteoItems.find((i) => i.producto_id === productoId);
-    if (!item) return;
-    handleCantidadChange(
-      productoId,
-      esRelevado ? item.cantidad_relevado + 1 : item.cantidad + 1,
-      esRelevado
-    );
-  };
-
-  const handleDecrement = (productoId: string, esRelevado = false) => {
-    const item = conteoItems.find((i) => i.producto_id === productoId);
-    if (!item) return;
-    handleCantidadChange(
-      productoId,
-      esRelevado ? item.cantidad_relevado - 1 : item.cantidad - 1,
-      esRelevado
-    );
-  };
-
-  const handleSubmit = () => {
-    if (totales.totalUnidades === 0) {
-      toast.error('Debe contar al menos una prenda');
-      return;
-    }
-    setShowConfirmDialog(true);
-  };
-
-  const confirmarGeneracion = () => {
-    setShowConfirmDialog(false);
-    generarRemitoMutation.mutate();
-  };
-
-  // Agrupar items por categoría
-  const itemsPorCategoria = useMemo(() => {
-    return CATEGORIAS_PRODUCTO_LAVADO.map((cat) => ({
-      ...cat,
-      items: conteoItems.filter((item) => item.categoria === cat.value),
-    })).filter((cat) => cat.items.length > 0);
-  }, [conteoItems]);
-
+  // Loading / error states
   if (loadingLote || loadingProductos) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -264,49 +351,30 @@ export default function ConteoFinalizacionPage() {
       <div className="text-center py-8">
         <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
         <p className="text-gray-600">Lote no encontrado</p>
-        <Button className="mt-4" onClick={() => navigate('/produccion')}>
-          Volver al Kanban
-        </Button>
+        <Button className="mt-4" onClick={() => navigate('/produccion')}>Volver al Kanban</Button>
       </div>
     );
   }
 
-  // Verificar si el cliente tiene lista de precios
   if (cliente && !cliente.lista_precios_id) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
+            <ArrowLeft className="h-4 w-4 mr-2" />Volver
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Conteo y Finalización</h1>
-            <p className="text-gray-500 text-sm">
-              Lote {lote.numero} - {lote.cliente_nombre}
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold">Conteo — Lote {lote.numero}</h1>
         </div>
         <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">
-                Cliente sin Lista de Precios
-              </h3>
-              <p className="text-yellow-700 mb-4">
-                El cliente "{lote.cliente_nombre}" no tiene una lista de precios asignada.
-                <br />
-                Debe asignar una lista de precios al cliente para poder realizar el conteo.
-              </p>
-              <div className="flex gap-4 justify-center">
-                <Button variant="outline" onClick={() => navigate('/produccion')}>
-                  Volver al Kanban
-                </Button>
-                <Button onClick={() => navigate(`/clientes/${lote.cliente_id}/editar`)}>
-                  Editar Cliente
-                </Button>
-              </div>
+          <CardContent className="pt-6 text-center py-8">
+            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">Cliente sin Lista de Precios</h3>
+            <p className="text-yellow-700 mb-4">
+              "{lote.cliente_nombre}" no tiene lista de precios asignada.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Button variant="outline" onClick={() => navigate('/produccion')}>Volver al Kanban</Button>
+              <Button onClick={() => navigate(`/clientes/${lote.cliente_id}/editar`)}>Editar Cliente</Button>
             </div>
           </CardContent>
         </Card>
@@ -315,261 +383,391 @@ export default function ConteoFinalizacionPage() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-start sm:items-center gap-2 sm:gap-4 min-w-0">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="flex-shrink-0">
-            <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Volver</span>
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Calculator className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
-              <span className="truncate">Conteo y Finalización</span>
-            </h1>
-            <p className="text-gray-500 text-xs sm:text-sm truncate">
-              Lote {lote.numero} - {lote.cliente_nombre}
-            </p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">Volver</span>
+        </Button>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Calculator className="h-5 w-5 flex-shrink-0" />
+            Conteo y Finalización
+          </h1>
+          <p className="text-gray-500 text-sm">Lote {lote.numero} — {lote.cliente_nombre}</p>
         </div>
-        <Badge
-          variant={lote.tipo_lote === 'relevado' ? 'outline' : 'default'}
-          className={`self-start sm:self-auto ${lote.tipo_lote === 'relevado' ? 'bg-purple-100 text-purple-700' : ''}`}
-        >
-          {lote.tipo_lote === 'relevado' ? 'Relevado' : 'Normal'}
-        </Badge>
       </div>
 
       {/* Info del lote */}
       <Card>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-gray-400" />
+              <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <div>
                 <p className="text-xs text-gray-500">Cliente</p>
-                <p className="font-medium">{lote.cliente_nombre}</p>
+                <p className="font-medium text-sm">{lote.cliente_nombre}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Scale className="h-4 w-4 text-gray-400" />
+              <Scale className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500">Peso Entrada</p>
-                <p className="font-medium">{formatNumber(Number(lote.peso_entrada_kg), 2)} kg</p>
+                <p className="text-xs text-gray-500">Peso entrada</p>
+                <p className="font-medium text-sm">{formatNumber(Number(lote.peso_entrada_kg), 2)} kg</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-gray-400" />
+              <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <div>
                 <p className="text-xs text-gray-500">Ingreso</p>
-                <p className="font-medium">
-                  {new Date(lote.fecha_ingreso).toLocaleDateString('es-AR')}
-                </p>
+                <p className="font-medium text-sm">{new Date(lote.fecha_ingreso).toLocaleDateString('es-AR')}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-gray-400" />
+              <Package className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500">Canastos Usados</p>
-                <p className="font-medium">{lote.canastos?.length || 0}</p>
+                <p className="text-xs text-gray-500">Canastos</p>
+                <p className="font-medium text-sm">{lote.canastos?.length || 0}</p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabla de conteo por categoría */}
-      <div className="grid gap-4">
-        {itemsPorCategoria.map((categoria) => (
-          <Card key={categoria.value}>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span>{categoria.label}</span>
-                <Badge variant="outline">
-                  {categoria.items.reduce((sum, item) => sum + item.cantidad, 0)} unidades
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-20">Código</TableHead>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="w-24 text-right">Precio</TableHead>
-                    <TableHead className="w-40 text-center">Cantidad</TableHead>
+      {/* Buscador por código — interfaz tipo POS */}
+      <Card className="border-primary/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Agregar ítem por código
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowTeclado((v) => !v)}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors ${
+                showTeclado
+                  ? 'bg-primary/10 border-primary/30 text-primary'
+                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Mostrar / ocultar teclado en pantalla (tablets)"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Teclado</span>
+            </button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            {/* Código */}
+            <div className="w-full sm:w-32">
+              <Label className="text-xs text-gray-500 mb-1 block">Código</Label>
+              <Input
+                ref={codigoRef}
+                value={codigoInput}
+                onChange={(e) => {
+                  setCodigoInput(e.target.value);
+                  setProductoEncontrado(null);
+                  setErrorCodigo('');
+                }}
+                onFocus={() => setCampoActivo('codigo')}
+                onKeyDown={handleCodigoKeyDown}
+                onBlur={() => resolverCodigo(codigoInput)}
+                placeholder="Ej: 1"
+                className="text-lg font-mono text-center"
+                autoComplete="off"
+                inputMode={showTeclado ? 'none' : 'numeric'}
+              />
+            </div>
+
+            {/* Botón abrir lookup (F4) */}
+            <div className="w-full sm:w-auto">
+              <Label className="text-xs text-gray-500 mb-1 block sm:invisible">F4</Label>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowLookup(true)}
+                className="w-full sm:w-auto h-10 gap-1"
+                title="Buscar artículo (F4)"
+              >
+                <Search className="h-4 w-4" />
+                <span className="sm:hidden">Buscar artículo</span>
+                <kbd className="hidden sm:inline-block px-1 py-0.5 bg-gray-100 rounded text-[10px] ml-1">F4</kbd>
+              </Button>
+            </div>
+
+            {/* Nombre del producto (resuelto) */}
+            <div className="flex-1">
+              <Label className="text-xs text-gray-500 mb-1 block">Producto</Label>
+              <div
+                className={`h-10 flex items-center px-3 rounded-md border text-sm font-medium
+                  ${productoEncontrado
+                    ? 'border-green-400 bg-green-50 text-green-800'
+                    : errorCodigo
+                    ? 'border-red-300 bg-red-50 text-red-700'
+                    : 'border-gray-200 bg-gray-50 text-gray-400'
+                  }`}
+              >
+                {productoEncontrado
+                  ? productoEncontrado.producto_nombre
+                  : errorCodigo
+                  ? errorCodigo
+                  : 'Ingrese un código y presione Enter, o buscá con F4'}
+              </div>
+            </div>
+
+            {/* Precio */}
+            {productoEncontrado && (
+              <div className="w-28 hidden sm:block">
+                <Label className="text-xs text-gray-500 mb-1 block">Precio unit.</Label>
+                <div className="h-10 flex items-center px-3 rounded-md border border-gray-200 bg-gray-50 text-sm">
+                  {formatCurrency(productoEncontrado.precio_unitario)}
+                </div>
+              </div>
+            )}
+
+            {/* Cantidad */}
+            <div className="w-full sm:w-28">
+              <Label className="text-xs text-gray-500 mb-1 block">Cantidad</Label>
+              <Input
+                ref={cantidadRef}
+                type="number"
+                min={1}
+                value={cantidadInput}
+                onChange={(e) => setCantidadInput(e.target.value)}
+                onFocus={() => setCampoActivo('cantidad')}
+                onKeyDown={handleCantidadKeyDown}
+                className="text-lg text-center"
+                inputMode={showTeclado ? 'none' : 'numeric'}
+              />
+            </div>
+
+            {/* Botón agregar */}
+            <Button
+              onClick={agregarItem}
+              disabled={!productoEncontrado}
+              className="w-full sm:w-auto h-10"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Agregar
+            </Button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Tip: <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">Enter</kbd> en el código resuelve, <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">Enter</kbd> en la cantidad agrega, <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">F4</kbd> abre la lista.
+          </p>
+
+          {/* Teclado numérico en pantalla (tablets) */}
+          {showTeclado && (
+            <div className="mt-4 max-w-xs mx-auto">
+              <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+                <span>
+                  Editando:{' '}
+                  <span className="font-semibold text-gray-800">
+                    {campoActivo === 'codigo' ? 'Código' : 'Cantidad'}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={tecladoLimpiar}
+                  className="px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                >
+                  Limpiar
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 select-none">
+                {(['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => tecladoTeclear(d)}
+                    className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800 active:bg-gray-200 active:scale-95 transition"
+                  >
+                    {d}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={tecladoBorrar}
+                  className="h-12 rounded-md border border-gray-300 bg-white text-base font-semibold text-gray-700 active:bg-gray-200 active:scale-95 transition"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={() => tecladoTeclear('0')}
+                  className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800 active:bg-gray-200 active:scale-95 transition"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={tecladoEnter}
+                  className="h-12 rounded-md border border-primary bg-primary text-base font-semibold text-white active:scale-95 transition"
+                >
+                  ↵
+                </button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tabla de ítems agregados */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Ítems del conteo</span>
+            <Badge variant="secondary">{conteoItems.length} productos</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          {conteoItems.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <Package className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Todavía no se agregaron ítems</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16 text-center">Cód.</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className="text-right w-24">Precio</TableHead>
+                  <TableHead className="text-center w-28">Cantidad</TableHead>
+                  {tieneRelevado && (
+                    <TableHead className="text-center w-28">Relevado</TableHead>
+                  )}
+                  <TableHead className="text-right w-28">Subtotal</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {conteoItems.map((item) => (
+                  <TableRow key={item.producto_id}>
+                    <TableCell className="text-center font-mono text-sm font-medium">
+                      {formatearCodigo(item.producto_codigo)}
+                    </TableCell>
+                    <TableCell className="font-medium">{item.producto_nombre}</TableCell>
+                    <TableCell className="text-right text-sm text-gray-600">
+                      {formatCurrency(item.precio_unitario)}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={item.cantidad}
+                        onChange={(e) =>
+                          actualizarCantidad(item.producto_id, parseInt(e.target.value) || 0)
+                        }
+                        className="w-full text-center"
+                      />
+                    </TableCell>
                     {tieneRelevado && (
-                      <TableHead className="w-40 text-center">Relevado</TableHead>
-                    )}
-                    <TableHead className="w-28 text-right">Subtotal</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {categoria.items.map((item) => (
-                    <TableRow key={item.producto_id}>
-                      <TableCell className="font-mono text-xs">
-                        {item.producto_codigo}
-                      </TableCell>
-                      <TableCell>{item.producto_nombre}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(item.precio_unitario)}
-                      </TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleDecrement(item.producto_id)}
-                            disabled={item.cantidad === 0}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <Input
-                            type="number"
-                            value={item.cantidad}
-                            onChange={(e) =>
-                              handleCantidadChange(
-                                item.producto_id,
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            className="w-16 text-center"
-                            min={0}
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleIncrement(item.producto_id)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.cantidad}
+                          value={item.cantidad_relevado}
+                          onChange={(e) =>
+                            actualizarRelevado(item.producto_id, parseInt(e.target.value) || 0)
+                          }
+                          className="w-full text-center border-purple-300"
+                        />
                       </TableCell>
-                      {tieneRelevado && (
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 border-purple-300"
-                              onClick={() => handleDecrement(item.producto_id, true)}
-                              disabled={item.cantidad_relevado === 0}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={item.cantidad_relevado}
-                              onChange={(e) =>
-                                handleCantidadChange(
-                                  item.producto_id,
-                                  parseInt(e.target.value) || 0,
-                                  true
-                                )
-                              }
-                              className="w-16 text-center border-purple-300"
-                              min={0}
-                              max={item.cantidad}
-                            />
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 border-purple-300"
-                              onClick={() => handleIncrement(item.producto_id, true)}
-                              disabled={item.cantidad_relevado >= item.cantidad}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(item.cantidad * item.precio_unitario)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    )}
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(item.cantidad * item.precio_unitario)}
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => quitarItem(item.producto_id)}
+                        className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Resumen y acciones */}
       <Card className="border-2 border-primary">
-        <CardHeader>
-          <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <span>Resumen del Conteo</span>
-            <div className="flex flex-wrap items-center gap-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-base">
+            <span>Resumen del conteo</span>
+            <div className="flex items-center gap-2">
               <Checkbox
                 id="relevado"
                 checked={tieneRelevado}
                 onCheckedChange={(checked) => {
                   setTieneRelevado(!!checked);
                   if (!checked) {
-                    // Limpiar cantidades de relevado
                     setConteoItems((prev) =>
                       prev.map((item) => ({ ...item, cantidad_relevado: 0 }))
                     );
                   }
                 }}
               />
-              <Label
-                htmlFor="relevado"
-                className="text-sm font-normal flex items-center gap-1 cursor-pointer"
-              >
+              <Label htmlFor="relevado" className="text-sm font-normal flex items-center gap-1 cursor-pointer">
                 <RotateCcw className="h-4 w-4 text-purple-600" />
                 Hay prendas para relevado
               </Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-purple-600"
+              <button
                 onClick={() => setShowRelevadoInfo(true)}
+                className="text-gray-400 hover:text-gray-600 p-0.5"
               >
                 <AlertTriangle className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
-            <div className="text-center p-3 sm:p-4 bg-blue-50 rounded-lg">
-              <p className="text-xs sm:text-sm text-blue-600">Total Unidades</p>
-              <p className="text-2xl sm:text-3xl font-bold text-blue-700">{totales.totalUnidades}</p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-600">Total unidades</p>
+              <p className="text-3xl font-bold text-blue-700">{totales.totalUnidades}</p>
             </div>
             {tieneRelevado && (
-              <div className="text-center p-3 sm:p-4 bg-purple-50 rounded-lg">
-                <p className="text-xs sm:text-sm text-purple-600">Para Relevado</p>
-                <p className="text-2xl sm:text-3xl font-bold text-purple-700">{totales.totalRelevado}</p>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <p className="text-xs text-purple-600">Para relevado</p>
+                <p className="text-3xl font-bold text-purple-700">{totales.totalRelevado}</p>
               </div>
             )}
-            <div className="text-center p-3 sm:p-4 bg-green-50 rounded-lg">
-              <p className="text-xs sm:text-sm text-green-600">Total a Facturar</p>
-              <p className="text-xl sm:text-3xl font-bold text-green-700 break-words">
+            <div className="text-center p-4 bg-green-50 rounded-lg col-span-2 sm:col-span-1">
+              <p className="text-xs text-green-600">Total a facturar</p>
+              <p className="text-2xl font-bold text-green-700 break-all">
                 {formatCurrency(totales.totalMonto)}
               </p>
             </div>
           </div>
 
-          <div className="mb-6">
-            <Label>Observaciones del conteo</Label>
+          <div>
+            <Label className="text-sm">Observaciones</Label>
             <Textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Notas adicionales para el remito..."
+              placeholder="Notas para el remito..."
               rows={2}
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button
               className="flex-1"
               size="lg"
-              onClick={handleSubmit}
+              onClick={() => {
+                if (totales.totalUnidades === 0) {
+                  toast.error('Debe contar al menos una prenda');
+                  return;
+                }
+                setShowConfirmDialog(true);
+              }}
               disabled={generarRemitoMutation.isPending || totales.totalUnidades === 0}
             >
               {generarRemitoMutation.isPending ? (
@@ -586,37 +784,29 @@ export default function ConteoFinalizacionPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog de confirmación */}
+      {/* Confirmación */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Generación de Remito</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar generación de remito</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-4">
-                <p>Se generará un remito con los siguientes datos:</p>
-                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                  <p>
-                    <strong>Total unidades:</strong> {totales.totalUnidades}
-                  </p>
-                  <p>
-                    <strong>Total a facturar:</strong> {formatCurrency(totales.totalMonto)}
-                  </p>
+              <div className="space-y-3 text-sm">
+                <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                  <p><strong>Total unidades:</strong> {totales.totalUnidades}</p>
+                  <p><strong>Total a facturar:</strong> {formatCurrency(totales.totalMonto)}</p>
                   {tieneRelevado && totales.totalRelevado > 0 && (
                     <p className="text-purple-600">
-                      <strong>Para relevado:</strong> {totales.totalRelevado} unidades
-                      (se creará nuevo lote)
+                      <strong>Para relevado:</strong> {totales.totalRelevado} unidades (se crea nuevo lote)
                     </p>
                   )}
                 </div>
-                <p className="text-sm text-gray-500">
-                  Esta acción generará un cargo en la cuenta corriente del cliente.
-                </p>
+                <p className="text-gray-500">Esta acción generará un cargo en la cuenta corriente del cliente.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmarGeneracion}>
+            <AlertDialogAction onClick={() => { setShowConfirmDialog(false); generarRemitoMutation.mutate(); }}>
               <CheckCircle className="h-4 w-4 mr-2" />
               Confirmar
             </AlertDialogAction>
@@ -624,7 +814,15 @@ export default function ConteoFinalizacionPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog info relevado */}
+      {/* Modal F4: lookup de productos */}
+      <ProductoLookupModal
+        open={showLookup}
+        onClose={() => setShowLookup(false)}
+        productos={productosConPrecios}
+        onSelect={seleccionarDesdeLookup}
+      />
+
+      {/* Info relevado */}
       <Dialog open={showRelevadoInfo} onOpenChange={setShowRelevadoInfo}>
         <DialogContent>
           <DialogHeader>
@@ -633,21 +831,14 @@ export default function ConteoFinalizacionPage() {
               ¿Qué es el Relevado?
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-sm text-gray-600">
-            <p>
-              El <strong>relevado</strong> permite enviar a re-lavar prendas que no quedaron
-              correctamente en el primer proceso.
-            </p>
-            <p>Cuando marcas prendas para relevado:</p>
-            <ul className="list-disc pl-6 space-y-1">
+          <div className="space-y-3 text-sm text-gray-600">
+            <p>El <strong>relevado</strong> permite re-lavar prendas que no quedaron correctamente.</p>
+            <ul className="list-disc pl-5 space-y-1">
               <li>Se genera un remito parcial con las prendas OK</li>
               <li>Se crea automáticamente un nuevo lote con las prendas marcadas</li>
               <li>El nuevo lote vuelve a la etapa de Lavado</li>
-              <li>Al finalizar el relevado, se genera un remito complementario</li>
             </ul>
-            <p className="text-purple-600 font-medium">
-              El cliente solo paga una vez - el cargo se hace al entregar todas las prendas.
-            </p>
+            <p className="text-purple-600 font-medium">El cliente paga una sola vez.</p>
           </div>
           <DialogFooter>
             <Button onClick={() => setShowRelevadoInfo(false)}>Entendido</Button>
