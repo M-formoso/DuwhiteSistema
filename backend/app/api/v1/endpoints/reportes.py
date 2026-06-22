@@ -112,6 +112,51 @@ def get_produccion_por_etapa(
     )
 
 
+@router.get("/produccion/usuario-posta")
+def get_produccion_por_usuario_posta(
+    fecha_desde: date = Query(...),
+    fecha_hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Producción por operario y posta (kg y lotes finalizados en el rango)"""
+    return reporte_service.get_produccion_por_usuario_posta(
+        db=db, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
+
+
+@router.get("/produccion/clientes")
+def get_clientes_produccion(
+    fecha_desde: date = Query(...),
+    fecha_hasta: date = Query(...),
+    cliente_id: Optional[UUID] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Mejores clientes por kg lavados; si se filtra por cliente_id devuelve desglose de lotes"""
+    return reporte_service.get_clientes_produccion(
+        db=db,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        cliente_id=cliente_id,
+        limit=limit,
+    )
+
+
+@router.get("/produccion/tiempo-muerto")
+def get_tiempo_muerto_produccion(
+    fecha_desde: date = Query(...),
+    fecha_hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Tiempo muerto por lote (tiempo total - tiempo activo en postas)"""
+    return reporte_service.get_tiempo_muerto_produccion(
+        db=db, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
+
+
 @router.get("/produccion/analitica")
 def get_analitica_produccion(
     fecha_desde: Optional[date] = Query(None),

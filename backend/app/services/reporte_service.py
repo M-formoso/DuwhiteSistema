@@ -319,6 +319,217 @@ def get_produccion_por_etapa(
     ]
 
 
+def get_produccion_por_usuario_posta(
+    db: Session,
+    fecha_desde: date,
+    fecha_hasta: date,
+) -> List[Dict[str, Any]]:
+    """Producción (kg y lotes) por operario y etapa en el rango dado."""
+    from app.models.usuario import Usuario
+    from app.models.etapa_produccion import EtapaProduccion
+
+    inicio = datetime.combine(fecha_desde, datetime.min.time())
+    fin = datetime.combine(fecha_hasta, datetime.max.time())
+
+    rows = (
+        db.query(
+            Usuario.id.label("usuario_id"),
+            Usuario.nombre.label("usuario_nombre"),
+            EtapaProduccion.id.label("etapa_id"),
+            EtapaProduccion.nombre.label("etapa_nombre"),
+            func.count(LoteEtapa.id).label("cantidad_etapas"),
+            func.count(func.distinct(LoteEtapa.lote_id)).label("lotes_distintos"),
+            func.coalesce(func.sum(LoteEtapa.peso_kg), 0).label("kg_procesados"),
+        )
+        .join(LoteEtapa, LoteEtapa.responsable_id == Usuario.id)
+        .join(EtapaProduccion, LoteEtapa.etapa_id == EtapaProduccion.id)
+        .join(LoteProduccion, LoteEtapa.lote_id == LoteProduccion.id)
+        .filter(
+            LoteProduccion.activo == True,
+            LoteEtapa.fecha_fin.isnot(None),
+            LoteEtapa.fecha_fin >= inicio,
+            LoteEtapa.fecha_fin <= fin,
+        )
+        .group_by(Usuario.id, Usuario.nombre, EtapaProduccion.id, EtapaProduccion.nombre)
+        .order_by(EtapaProduccion.nombre, func.sum(LoteEtapa.peso_kg).desc())
+        .all()
+    )
+
+    return [
+        {
+            "usuario_id": str(row.usuario_id),
+            "usuario_nombre": row.usuario_nombre,
+            "etapa_id": str(row.etapa_id),
+            "etapa_nombre": row.etapa_nombre,
+            "cantidad_etapas": row.cantidad_etapas or 0,
+            "lotes_distintos": row.lotes_distintos or 0,
+            "kg_procesados": round(float(row.kg_procesados or 0), 2),
+        }
+        for row in rows
+    ]
+
+
+def get_clientes_produccion(
+    db: Session,
+    fecha_desde: date,
+    fecha_hasta: date,
+    cliente_id: Optional[UUID] = None,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    """
+    Mejores clientes por kg lavados en el rango.
+    Si se pasa cliente_id devuelve además el desglose de lotes de ese cliente.
+    """
+    inicio = datetime.combine(fecha_desde, datetime.min.time())
+    fin = datetime.combine(fecha_hasta, datetime.max.time())
+
+    base_filter = [
+        LoteProduccion.activo == True,
+        LoteProduccion.fecha_ingreso >= inicio,
+        LoteProduccion.fecha_ingreso <= fin,
+    ]
+    if cliente_id:
+        base_filter.append(LoteProduccion.cliente_id == cliente_id)
+
+    ranking = (
+        db.query(
+            Cliente.id.label("cliente_id"),
+            Cliente.nombre.label("cliente_nombre"),
+            func.count(LoteProduccion.id).label("cantidad_lotes"),
+            func.coalesce(func.sum(LoteProduccion.peso_entrada_kg), 0).label("kg_total"),
+        )
+        .join(LoteProduccion, LoteProduccion.cliente_id == Cliente.id)
+        .filter(*base_filter)
+        .group_by(Cliente.id, Cliente.nombre)
+        .order_by(func.sum(LoteProduccion.peso_entrada_kg).desc().nulls_last())
+        .limit(limit)
+        .all()
+    )
+
+    clientes_data = [
+        {
+            "cliente_id": str(row.cliente_id),
+            "cliente_nombre": row.cliente_nombre,
+            "cantidad_lotes": row.cantidad_lotes or 0,
+            "kg_total": round(float(row.kg_total or 0), 2),
+        }
+        for row in ranking
+    ]
+
+    detalle_lotes = []
+    if cliente_id:
+        lotes = (
+            db.query(LoteProduccion)
+            .filter(*base_filter)
+            .order_by(LoteProduccion.fecha_ingreso.desc())
+            .all()
+        )
+        detalle_lotes = [
+            {
+                "lote_id": str(l.id),
+                "numero": l.numero,
+                "estado": l.estado,
+                "fecha_ingreso": l.fecha_ingreso.isoformat() if l.fecha_ingreso else None,
+                "fecha_fin": l.fecha_fin.isoformat() if l.fecha_fin else None,
+                "peso_kg": round(float(l.peso_entrada_kg or 0), 2),
+                "descripcion": l.descripcion,
+            }
+            for l in lotes
+        ]
+
+    return {
+        "fecha_desde": fecha_desde.isoformat(),
+        "fecha_hasta": fecha_hasta.isoformat(),
+        "clientes": clientes_data,
+        "detalle_lotes": detalle_lotes,
+    }
+
+
+def get_tiempo_muerto_produccion(
+    db: Session,
+    fecha_desde: date,
+    fecha_hasta: date,
+) -> Dict[str, Any]:
+    """
+    Tiempo muerto: tiempo que cada lote estuvo sin ser procesado en ninguna posta.
+    tiempo_muerto = (última fecha_fin etapa - primera fecha_inicio etapa) - Σ(duración de cada etapa)
+    Solo para lotes con al menos una etapa completada en el rango.
+    """
+    inicio = datetime.combine(fecha_desde, datetime.min.time())
+    fin = datetime.combine(fecha_hasta, datetime.max.time())
+
+    lotes_ids_q = (
+        db.query(LoteEtapa.lote_id)
+        .filter(
+            LoteEtapa.fecha_fin.isnot(None),
+            LoteEtapa.fecha_fin >= inicio,
+            LoteEtapa.fecha_fin <= fin,
+        )
+        .distinct()
+        .subquery()
+    )
+
+    lotes = (
+        db.query(LoteProduccion)
+        .filter(
+            LoteProduccion.activo == True,
+            LoteProduccion.id.in_(db.query(lotes_ids_q)),
+        )
+        .all()
+    )
+
+    resultados = []
+    total_muerto_min = 0.0
+    lotes_con_datos = 0
+
+    for lote in lotes:
+        etapas = (
+            db.query(LoteEtapa)
+            .filter(
+                LoteEtapa.lote_id == lote.id,
+                LoteEtapa.fecha_inicio.isnot(None),
+                LoteEtapa.fecha_fin.isnot(None),
+            )
+            .order_by(LoteEtapa.fecha_inicio)
+            .all()
+        )
+        if len(etapas) < 1:
+            continue
+
+        primera_inicio = etapas[0].fecha_inicio
+        ultima_fin = etapas[-1].fecha_fin
+        tiempo_total_seg = (ultima_fin - primera_inicio).total_seconds()
+        tiempo_activo_seg = sum(
+            (e.fecha_fin - e.fecha_inicio).total_seconds() for e in etapas
+        )
+        tiempo_muerto_seg = max(0, tiempo_total_seg - tiempo_activo_seg)
+        tiempo_muerto_min = tiempo_muerto_seg / 60
+
+        resultados.append({
+            "lote_id": str(lote.id),
+            "numero": lote.numero,
+            "cliente_nombre": lote.cliente.nombre if lote.cliente else None,
+            "primera_inicio": primera_inicio.isoformat(),
+            "ultima_fin": ultima_fin.isoformat(),
+            "tiempo_total_minutos": round(tiempo_total_seg / 60, 1),
+            "tiempo_activo_minutos": round(tiempo_activo_seg / 60, 1),
+            "tiempo_muerto_minutos": round(tiempo_muerto_min, 1),
+        })
+        total_muerto_min += tiempo_muerto_min
+        lotes_con_datos += 1
+
+    promedio_muerto = (total_muerto_min / lotes_con_datos) if lotes_con_datos > 0 else 0
+
+    return {
+        "fecha_desde": fecha_desde.isoformat(),
+        "fecha_hasta": fecha_hasta.isoformat(),
+        "lotes_analizados": lotes_con_datos,
+        "promedio_tiempo_muerto_minutos": round(promedio_muerto, 1),
+        "total_tiempo_muerto_minutos": round(total_muerto_min, 1),
+        "detalle": sorted(resultados, key=lambda x: x["tiempo_muerto_minutos"], reverse=True),
+    }
+
+
 def get_analitica_produccion(
     db: Session,
     fecha_desde: Optional[date] = None,

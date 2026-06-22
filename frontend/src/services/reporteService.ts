@@ -372,6 +372,86 @@ export async function getRendimientoProductos(params?: {
   return response.data;
 }
 
+export interface ProduccionUsuarioPosta {
+  usuario_id: string;
+  usuario_nombre: string;
+  etapa_id: string;
+  etapa_nombre: string;
+  cantidad_etapas: number;
+  lotes_distintos: number;
+  kg_procesados: number;
+}
+
+export interface ClienteProduccion {
+  cliente_id: string;
+  cliente_nombre: string;
+  cantidad_lotes: number;
+  kg_total: number;
+}
+
+export interface LoteDetalleCliente {
+  lote_id: string;
+  numero: string;
+  estado: string;
+  fecha_ingreso: string | null;
+  fecha_fin: string | null;
+  peso_kg: number;
+  descripcion: string | null;
+}
+
+export interface ClientesProduccionResponse {
+  fecha_desde: string;
+  fecha_hasta: string;
+  clientes: ClienteProduccion[];
+  detalle_lotes: LoteDetalleCliente[];
+}
+
+export interface TiempoMuertoPorLote {
+  lote_id: string;
+  numero: string;
+  cliente_nombre: string | null;
+  primera_inicio: string;
+  ultima_fin: string;
+  tiempo_total_minutos: number;
+  tiempo_activo_minutos: number;
+  tiempo_muerto_minutos: number;
+}
+
+export interface TiempoMuertoResponse {
+  fecha_desde: string;
+  fecha_hasta: string;
+  lotes_analizados: number;
+  promedio_tiempo_muerto_minutos: number;
+  total_tiempo_muerto_minutos: number;
+  detalle: TiempoMuertoPorLote[];
+}
+
+export async function getProduccionPorUsuarioPosta(params: {
+  fecha_desde: string;
+  fecha_hasta: string;
+}): Promise<ProduccionUsuarioPosta[]> {
+  const response = await api.get('/reportes/produccion/usuario-posta', { params });
+  return response.data;
+}
+
+export async function getClientesProduccion(params: {
+  fecha_desde: string;
+  fecha_hasta: string;
+  cliente_id?: string;
+  limit?: number;
+}): Promise<ClientesProduccionResponse> {
+  const response = await api.get('/reportes/produccion/clientes', { params });
+  return response.data;
+}
+
+export async function getTiempoMuertoProduccion(params: {
+  fecha_desde: string;
+  fecha_hasta: string;
+}): Promise<TiempoMuertoResponse> {
+  const response = await api.get('/reportes/produccion/tiempo-muerto', { params });
+  return response.data;
+}
+
 // Finanzas
 export async function getFlujoCaja(
   params: FiltroFechas & { agrupacion?: Agrupacion }
@@ -445,6 +525,9 @@ export const reporteService = {
   // Produccion
   getProduccionPorPeriodo,
   getProduccionPorEtapa,
+  getProduccionPorUsuarioPosta,
+  getClientesProduccion,
+  getTiempoMuertoProduccion,
   // Finanzas
   getFlujoCaja,
   getMovimientosPorCategoria,
