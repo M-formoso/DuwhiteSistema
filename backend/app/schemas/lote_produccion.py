@@ -27,9 +27,16 @@ class LoteEtapaMaquinaResponse(LoteEtapaMaquinaBase):
     fecha_liberacion: Optional[datetime] = None
     maquina_codigo: Optional[str] = None
     maquina_nombre: Optional[str] = None
+    peso_kg: Optional[Decimal] = None
 
     class Config:
         from_attributes = True
+
+
+class MaquinaConKg(BaseModel):
+    """Máquina con kg asignados para una etapa (p.ej. LAV con múltiples lavadoras)."""
+    maquina_id: UUID
+    kg: Decimal = Field(ge=0)
 
 
 # ==================== LOTE ETAPA ====================
@@ -286,6 +293,7 @@ class IniciarEtapaRequest(BaseModel):
     responsable_id: Optional[UUID] = None
     maquina_id: Optional[UUID] = None  # Mantener por compatibilidad
     maquinas_ids: Optional[List[UUID]] = None  # Nuevo: múltiples máquinas
+    maquinas_con_kg: Optional[List[MaquinaConKg]] = None  # LAV: kg por lavadora
     observaciones: Optional[str] = None
     # Para validación con PIN del operario
     operario_id: Optional[UUID] = None
@@ -315,6 +323,12 @@ class FinalizarEtapaRequest(BaseModel):
     # Para validación con PIN del operario
     operario_id: Optional[UUID] = None
     pin: Optional[str] = Field(None, min_length=4, max_length=6)
+    # Quien finaliza la etapa (operario responsable)
+    responsable_id: Optional[UUID] = None
+    # Canastos asociados al cerrar la etapa
+    canastos_ids: Optional[List[UUID]] = None
+    # Override de la siguiente etapa (ej: desde LAV saltar División e ir directo a SEC)
+    siguiente_etapa_id: Optional[UUID] = None
     # Campos para cargo en cuenta corriente (solo aplican si es la última etapa)
     monto_cobro: Optional[Decimal] = Field(
         None, ge=0,
@@ -334,6 +348,8 @@ class MoverLoteRequest(BaseModel):
     # Para validación con PIN del operario
     operario_id: Optional[UUID] = None
     pin: Optional[str] = Field(None, min_length=4, max_length=6)
+    # Canastos que viajan con el lote; los no listados se liberan
+    canastos_ids: Optional[List[UUID]] = None
 
 
 class CambiarEstadoLoteRequest(BaseModel):
@@ -392,19 +408,23 @@ class LoteDirectoResponse(BaseModel):
 
 class DividirLoteRequest(BaseModel):
     """
-    Schema para dividir un lote en la etapa de Estirado.
-    Permite enviar parte del lote a Secado y otra parte de vuelta a Lavado.
+    Schema para dividir un lote en la etapa de División.
+    Permite enviar parte del lote a Secado y otra parte a Planchado.
     """
     # Peso que va a la etapa destino principal (ej: Secado)
     peso_destino_principal_kg: Decimal = Field(
         ..., gt=0,
         description="Peso en kg que continúa al destino principal (ej: Secado)"
     )
-    # Peso que va a la etapa alternativa (ej: Lavado) - si es 0, no se crea sub-lote
+    # Peso que va a la etapa alternativa (ej: Planchado) - si es 0, no se crea sub-lote
     peso_destino_alternativo_kg: Decimal = Field(
         default=Decimal("0"), ge=0,
-        description="Peso en kg que va al destino alternativo (ej: vuelve a Lavado)"
+        description="Peso en kg que va al destino alternativo (ej: Planchado)"
     )
+    # Canastos que van con el lote principal
+    canastos_ids_principal: Optional[List[UUID]] = None
+    # Canastos que van con el sub-lote alternativo
+    canastos_ids_alternativo: Optional[List[UUID]] = None
     # Observaciones para el lote que continúa
     observaciones_principal: Optional[str] = None
     # Observaciones para el sub-lote (si se crea)

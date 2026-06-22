@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Info, Clock, Package, Plus } from 'lucide-react';
+import { RefreshCw, Info, Clock, Package, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +44,7 @@ export default function CanastosPage() {
   const [nuevoEstado, setNuevoEstado] = useState<EstadoCanasto>('disponible');
   const [showAgregarModal, setShowAgregarModal] = useState(false);
   const [cantidadAgregar, setCantidadAgregar] = useState<string>('1');
+  const [busqueda, setBusqueda] = useState('');
 
   // Query: Grid de canastos
   const { data: gridData, isLoading, refetch } = useQuery<CanastosGridResponse>({
@@ -140,6 +141,12 @@ export default function CanastosPage() {
   }
 
   const canastos = gridData?.canastos || [];
+  const canastosFiltrados = busqueda.trim()
+    ? canastos.filter((c) =>
+        c.numero.toString().includes(busqueda.trim()) ||
+        c.codigo.toLowerCase().includes(busqueda.trim().toLowerCase())
+      )
+    : canastos;
   const resumen = gridData?.resumen || {
     disponible: 0,
     en_uso: 0,
@@ -220,11 +227,37 @@ export default function CanastosPage() {
       {/* Grid de Canastos */}
       <Card>
         <CardHeader>
-          <CardTitle>Grid de Canastos</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <CardTitle className="flex-1">Grid de Canastos</CardTitle>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por número o código..."
+                className="pl-9 pr-8"
+              />
+              {busqueda && (
+                <button
+                  onClick={() => setBusqueda('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          {busqueda && (
+            <p className="text-sm text-gray-500 mt-1">
+              {canastosFiltrados.length === 0
+                ? 'No se encontraron canastos'
+                : `${canastosFiltrados.length} canasto${canastosFiltrados.length !== 1 ? 's' : ''} encontrado${canastosFiltrados.length !== 1 ? 's' : ''}`}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 xs:grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3">
-            {canastos.map((canasto) => (
+            {canastosFiltrados.map((canasto) => (
               <div
                 key={canasto.id}
                 onClick={() => handleCanastoClick(canasto)}

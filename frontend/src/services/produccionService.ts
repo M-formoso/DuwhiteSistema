@@ -246,12 +246,14 @@ export async function moverLote(
   id: string,
   etapa_destino_id: string,
   responsable_id?: string,
-  observaciones?: string
+  observaciones?: string,
+  canastos_ids?: string[]
 ): Promise<{ message: string }> {
   const response = await api.post(`/produccion/lotes/${id}/mover`, {
     etapa_destino_id,
     responsable_id,
     observaciones,
+    canastos_ids,
   });
   return response.data;
 }
@@ -263,8 +265,9 @@ export async function iniciarEtapa(
   etapaId: string,
   data?: {
     responsable_id?: string;
-    maquina_id?: string;      // Mantener por compatibilidad
-    maquinas_ids?: string[];  // Nuevo: múltiples máquinas
+    maquina_id?: string;
+    maquinas_ids?: string[];
+    maquinas_con_kg?: { maquina_id: string; kg: number }[];
     observaciones?: string;
     canastos_ids?: string[];
     peso_kg?: number;
@@ -283,6 +286,9 @@ export async function finalizarEtapa(
   data?: {
     peso_kg?: number;
     observaciones?: string;
+    responsable_id?: string;
+    canastos_ids?: string[];
+    siguiente_etapa_id?: string;
   }
 ): Promise<LoteEtapa> {
   const response = await api.post(
@@ -366,6 +372,8 @@ export interface EtapaBifurcacionInfo {
 export interface DividirLoteRequest {
   peso_destino_principal_kg: number;
   peso_destino_alternativo_kg?: number;
+  canastos_ids_principal?: string[];
+  canastos_ids_alternativo?: string[];
   observaciones_principal?: string;
   observaciones_alternativo?: string;
 }

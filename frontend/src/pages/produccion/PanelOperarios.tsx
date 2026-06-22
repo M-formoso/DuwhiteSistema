@@ -67,6 +67,12 @@ interface MaquinaDisponible {
   capacidad_kg: number | null;
 }
 
+interface RoutingOption {
+  label: string;
+  etapaId: string;
+  description?: string;
+}
+
 // Tipo local para canastos disponibles
 interface CanastoDisponible {
   id: string;
@@ -294,16 +300,30 @@ function LoteCard({
 
         {/* Botón de acción */}
         {!enProceso ? (
-          <button
-            onClick={onIniciar}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600
-                       text-white text-sm font-bold flex items-center justify-center gap-2
-                       hover:from-green-600 hover:to-green-700 active:scale-98
-                       transition-all shadow-md shadow-green-100"
-          >
-            <Play className="h-4 w-4" />
-            INICIAR ETAPA
-          </button>
+          columna.permite_bifurcacion ? (
+            // División: al llegar, abrir directamente el modal de dividir
+            <button
+              onClick={onDividir}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600
+                         text-white text-sm font-bold flex items-center justify-center gap-2
+                         hover:from-purple-600 hover:to-purple-700 active:scale-98
+                         transition-all shadow-md shadow-purple-100"
+            >
+              <Split className="h-4 w-4" />
+              DIVIDIR
+            </button>
+          ) : (
+            <button
+              onClick={onIniciar}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600
+                         text-white text-sm font-bold flex items-center justify-center gap-2
+                         hover:from-green-600 hover:to-green-700 active:scale-98
+                         transition-all shadow-md shadow-green-100"
+            >
+              <Play className="h-4 w-4" />
+              INICIAR ETAPA
+            </button>
+          )
         ) : columna.etapa_codigo === 'CONT' ? (
           <button
             onClick={onIrConteo}
@@ -315,28 +335,6 @@ function LoteCard({
             <Calculator className="h-4 w-4" />
             IR A CONTEO
           </button>
-        ) : columna.permite_bifurcacion ? (
-          <div className="flex gap-2">
-            <button
-              onClick={onDividir}
-              className="flex-1 py-2.5 rounded-xl border-2 border-purple-500 bg-white text-purple-700
-                         text-sm font-bold flex items-center justify-center gap-2
-                         hover:bg-purple-50 active:scale-98 transition-all"
-            >
-              <Split className="h-4 w-4" />
-              DIVIDIR
-            </button>
-            <button
-              onClick={onFinalizar}
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600
-                         text-white text-sm font-bold flex items-center justify-center gap-2
-                         hover:from-blue-600 hover:to-blue-700 active:scale-98
-                         transition-all shadow-md shadow-blue-100"
-            >
-              <CheckCircle className="h-4 w-4" />
-              FINALIZAR
-            </button>
-          </div>
         ) : (
           <button
             onClick={onFinalizar}
@@ -461,7 +459,7 @@ function EtapaColumna({
   );
 }
 
-// Modal de PIN con input de texto (igual que admin)
+// Modal de PIN para iniciar/finalizar etapa (sin máquinas)
 function PinModalGrande({
   open,
   onClose,
@@ -471,33 +469,43 @@ function PinModalGrande({
   etapaNombre,
   etapaCodigo,
   accion,
-  requiereMaquina = false,
-  tipoMaquina = null,
+  routingOptions,
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => void;
+  onConfirm: (
+    operarioId: string,
+    operarioNombre: string,
+    canastosIds?: string[],
+    pesoKg?: number,
+    siguienteEtapaId?: string,
+    maquinasConKg?: { maquinaId: string; kg: number }[],
+  ) => void;
   title: string;
   loteNumero?: string;
   etapaNombre?: string;
   etapaCodigo?: string;
   accion: 'iniciar' | 'finalizar';
-  requiereMaquina?: boolean;
-  tipoMaquina?: string | null;
+  routingOptions?: RoutingOption[];
 }) {
   const [selectedOperario, setSelectedOperario] = useState('');
-  const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [pesoKg, setPesoKg] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
+  const [maquinasConKg, setMaquinasConKg] = useState<{ maquinaId: string; kg: number }[]>([]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
-  // Determinar si requiere peso (REC - Recepción y Pesaje)
-  const requierePeso = accion === 'iniciar' && etapaCodigo === 'REC';
-  // En la vista de operario los canastos son opcionales (no se exigen).
-  const requiereCanastos = false;
+  // Mostrar peso en REC (iniciar y finalizar)
+  const requierePeso = etapaCodigo === 'REC';
+  // Mostrar canastos en REC, LAV, SEC
+  const muestraCanastos = ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
+  const esRecepcion = etapaCodigo === 'REC';
+  const esLavado = etapaCodigo === 'LAV';
+  const muestraRouting = accion === 'finalizar' && !!routingOptions?.length;
+  const muestraMaquinasLav = esLavado && accion === 'iniciar';
 
   const { data: operarios } = useQuery({
     queryKey: ['operarios-pin'],
@@ -505,39 +513,36 @@ function PinModalGrande({
     enabled: open,
   });
 
-  // Cargar máquinas disponibles si es necesario
-  const { data: maquinas = [] } = useQuery<MaquinaDisponible[]>({
-    queryKey: ['maquinas-disponibles', tipoMaquina],
-    queryFn: () => produccionService.getMaquinasDisponibles(tipoMaquina || undefined),
-    enabled: open && accion === 'iniciar' && requiereMaquina,
-  });
-
-  // Cargar canastos disponibles si es necesario
   const { data: canastos = [] } = useQuery<CanastoDisponible[]>({
     queryKey: ['canastos-disponibles'],
     queryFn: () => canastoService.getDisponibles(),
-    enabled: open && requiereCanastos,
+    enabled: open && muestraCanastos,
   });
 
-  // Reset cuando se abre
+  const { data: lavadoras = [] } = useQuery<MaquinaDisponible[]>({
+    queryKey: ['maquinas-disponibles', 'LAV'],
+    queryFn: () => produccionService.getMaquinasDisponibles('lavadora'),
+    enabled: open && muestraMaquinasLav,
+  });
+
   useEffect(() => {
     if (open) {
       setSelectedOperario('');
-      setSelectedMaquinas([]);
       setSelectedCanastos([]);
       setPesoKg('');
       setPin('');
       setError('');
+      setSelectedRoutingId(null);
+      setMaquinasConKg([]);
     }
   }, [open]);
 
-  const toggleMaquina = (id: string) => {
-    setSelectedMaquinas((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
+  useEffect(() => {
+    if (muestraMaquinasLav && lavadoras.length > 0) {
+      setMaquinasConKg(lavadoras.map((m) => ({ maquinaId: m.id, kg: 0 })));
+    }
+  }, [muestraMaquinasLav, lavadoras]);
 
-  // Focus en PIN cuando se selecciona operario
   useEffect(() => {
     if (selectedOperario && pinInputRef.current) {
       pinInputRef.current.focus();
@@ -545,27 +550,18 @@ function PinModalGrande({
   }, [selectedOperario]);
 
   const handleConfirm = async () => {
-    if (!selectedOperario) {
-      setError('Seleccione un operario');
-      return;
-    }
-    if (pin.length < 4) {
-      setError('Ingrese su PIN completo');
-      return;
-    }
-    // Validar máquina si es requerida
-    if (accion === 'iniciar' && requiereMaquina && selectedMaquinas.length === 0) {
-      setError('Debe seleccionar al menos una máquina');
-      return;
-    }
-    // Validar peso si es requerido
+    if (!selectedOperario) { setError('Seleccione un operario'); return; }
+    if (pin.length < 4) { setError('Ingrese su PIN completo'); return; }
     if (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) {
       setError('Debe ingresar el peso del lote');
       return;
     }
-    // Validar canastos si es requerido
-    if (requiereCanastos && selectedCanastos.length === 0) {
+    if (esRecepcion && selectedCanastos.length === 0) {
       setError('Debe seleccionar al menos un canasto');
+      return;
+    }
+    if (muestraRouting && !selectedRoutingId) {
+      setError('Debe seleccionar el destino del lote');
       return;
     }
 
@@ -575,18 +571,23 @@ function PinModalGrande({
     try {
       const result = await produccionService.validarPin(selectedOperario, pin);
       if (result.valido) {
+        const maqKgFinal = muestraMaquinasLav && maquinasConKg.some((m) => m.kg > 0)
+          ? maquinasConKg.filter((m) => m.kg > 0)
+          : undefined;
         onConfirm(
           result.operario_id,
           result.operario_nombre,
-          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
           selectedCanastos.length > 0 ? selectedCanastos : undefined,
-          pesoKg ? parseFloat(pesoKg) : undefined
+          pesoKg ? parseFloat(pesoKg) : undefined,
+          selectedRoutingId ?? undefined,
+          maqKgFinal,
         );
         setPin('');
         setSelectedOperario('');
-        setSelectedMaquinas([]);
         setSelectedCanastos([]);
         setPesoKg('');
+        setSelectedRoutingId(null);
+        setMaquinasConKg([]);
       } else {
         setError(result.mensaje || 'PIN incorrecto');
         setPin('');
@@ -600,19 +601,14 @@ function PinModalGrande({
     }
   };
 
-  // Toggle canasto selection
   const toggleCanasto = (canastoId: string) => {
     setSelectedCanastos((prev) =>
-      prev.includes(canastoId)
-        ? prev.filter((id) => id !== canastoId)
-        : [...prev, canastoId]
+      prev.includes(canastoId) ? prev.filter((id) => id !== canastoId) : [...prev, canastoId]
     );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && selectedOperario && pin.length >= 4) {
-      handleConfirm();
-    }
+    if (e.key === 'Enter' && selectedOperario && pin.length >= 4) handleConfirm();
   };
 
   if (!open) return null;
@@ -686,9 +682,8 @@ function PinModalGrande({
               }}
               onKeyDown={handleKeyDown}
               placeholder="Ingrese PIN de 4-6 dígitos"
-              readOnly
-              onFocus={(e) => e.target.blur()}
-              className="w-full h-12 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono bg-white"
+              disabled={!selectedOperario}
+              className="w-full h-12 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono bg-white disabled:bg-gray-50"
             />
             {!selectedOperario && (
               <p className="text-xs text-amber-600">
@@ -775,12 +770,12 @@ function PinModalGrande({
             </div>
           )}
 
-          {/* Selector de canastos (solo para Lavado/Secado) */}
-          {requiereCanastos && (
+          {/* Selector de canastos (REC, LAV, SEC) */}
+          {muestraCanastos && (
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                 <Package className="h-4 w-4" />
-                Canastos <span className="text-red-500">*</span>
+                Canastos {esRecepcion && <span className="text-red-500">*</span>}
                 {selectedCanastos.length > 0 && (
                   <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">
                     {selectedCanastos.length} seleccionados
@@ -795,7 +790,7 @@ function PinModalGrande({
                   </div>
                 </div>
               ) : (
-                <div className="max-h-32 overflow-y-auto border rounded-md p-2">
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2">
                   <div className="grid grid-cols-4 xs:grid-cols-5 gap-1.5 sm:gap-2">
                     {canastos.map((canasto) => (
                       <div
@@ -816,69 +811,72 @@ function PinModalGrande({
                   </div>
                 </div>
               )}
-              <p className="text-xs text-gray-500">Selecciona los canastos donde se colocará el lote</p>
+              <p className="text-xs text-gray-500">
+                {esRecepcion ? 'Seleccioná los canastos donde se colocará el lote' : 'Canastos para esta etapa (opcional)'}
+              </p>
             </div>
           )}
 
-          {/* Selector de máquinas (multi-select, solo para iniciar y si requiere) */}
-          {accion === 'iniciar' && requiereMaquina && (
+          {/* Kg por lavadora (solo LAV + iniciar) */}
+          {muestraMaquinasLav && lavadoras.length > 0 && (
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                Máquinas <span className="text-red-500">*</span>
-                {tipoMaquina && (
-                  <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded text-xs uppercase">
-                    {tipoMaquina}
-                  </span>
-                )}
-                {selectedMaquinas.length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs">
-                    {selectedMaquinas.length} seleccionada{selectedMaquinas.length !== 1 ? 's' : ''}
-                  </span>
-                )}
+                <Scale className="h-4 w-4" />
+                Kg por lavadora
               </label>
-              {maquinas.length === 0 ? (
-                <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-700 text-sm">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>No hay {tipoMaquina || 'máquinas'} disponibles. Todas están en uso.</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2">
-                    {maquinas.map((m) => {
-                      const sel = selectedMaquinas.includes(m.id);
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => toggleMaquina(m.id)}
-                          className={`
-                            text-left p-2 rounded-lg border-2 transition-colors text-xs
-                            ${sel
-                              ? 'bg-primary text-white border-primary'
-                              : 'bg-white border-gray-200 hover:border-primary/50 text-gray-700'
-                            }
-                          `}
-                        >
-                          <div className="font-mono font-bold text-sm">{m.codigo}</div>
-                          <div className={`truncate ${sel ? 'text-white/90' : 'text-gray-500'}`}>
-                            {m.nombre}
-                          </div>
-                          {m.capacidad_kg && (
-                            <div className={`text-[10px] ${sel ? 'text-white/70' : 'text-gray-400'}`}>
-                              {m.capacidad_kg} kg
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-gray-500">
-                Tocá para seleccionar/deseleccionar. Podés elegir varias.
-              </p>
+              <div className="space-y-2">
+                {lavadoras.map((lav) => {
+                  const row = maquinasConKg.find((m) => m.maquinaId === lav.id);
+                  return (
+                    <div key={lav.id} className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600 w-28 truncate">{lav.nombre}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={row?.kg ?? 0}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setMaquinasConKg((prev) =>
+                            prev.map((m) => m.maquinaId === lav.id ? { ...m, kg: val } : m)
+                          );
+                        }}
+                        className="flex-1 h-10 px-3 rounded-md border border-gray-300 text-sm"
+                        placeholder="0"
+                      />
+                      <span className="text-sm text-gray-500">kg</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Opciones de destino (LAV finalizar) */}
+          {muestraRouting && routingOptions && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Destino del lote <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2">
+                {routingOptions.map((opt) => (
+                  <button
+                    key={opt.etapaId}
+                    type="button"
+                    onClick={() => setSelectedRoutingId(opt.etapaId)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
+                      selectedRoutingId === opt.etapaId
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <div className="font-medium text-sm">{opt.label}</div>
+                    {opt.description && (
+                      <div className="text-xs text-gray-500 mt-0.5">{opt.description}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -906,9 +904,9 @@ function PinModalGrande({
               loading ||
               !selectedOperario ||
               pin.length < 4 ||
-              (accion === 'iniciar' && requiereMaquina && (selectedMaquinas.length === 0 || maquinas.length === 0)) ||
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
-              (requiereCanastos && selectedCanastos.length === 0)
+              (esRecepcion && selectedCanastos.length === 0) ||
+              (muestraRouting && !selectedRoutingId)
             }
             className="w-full sm:w-auto px-4 py-2 rounded-md bg-primary text-white hover:bg-primary/90
                        disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -974,19 +972,21 @@ export default function PanelOperariosPage() {
 
   // Mutations
   const iniciarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId, operarioId, maquinasIds, canastosIds, pesoKg }: {
+    mutationFn: ({ loteId, etapaId, operarioId, maquinasIds, canastosIds, pesoKg, maquinasConKg }: {
       loteId: string;
       etapaId: string;
       operarioId: string;
       maquinasIds?: string[];
       canastosIds?: string[];
       pesoKg?: number;
+      maquinasConKg?: { maquinaId: string; kg: number }[];
     }) =>
       produccionService.iniciarEtapa(loteId, etapaId, {
         responsable_id: operarioId,
         maquinas_ids: maquinasIds,
         canastos_ids: canastosIds,
-        peso_kg: pesoKg
+        peso_kg: pesoKg,
+        maquinas_con_kg: maquinasConKg?.map((m) => ({ maquina_id: m.maquinaId, kg: m.kg })),
       }),
     onSuccess: () => {
       // Invalidar inmediatamente y refetch para actualizar UI
@@ -1002,12 +1002,18 @@ export default function PanelOperariosPage() {
   });
 
   const finalizarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId }: { loteId: string; etapaId: string }) =>
-      produccionService.finalizarEtapa(loteId, etapaId, {}),
+    mutationFn: ({ loteId, etapaId, responsable_id, canastos_ids, peso_kg, siguiente_etapa_id }: {
+      loteId: string;
+      etapaId: string;
+      responsable_id?: string;
+      canastos_ids?: string[];
+      peso_kg?: number;
+      siguiente_etapa_id?: string;
+    }) =>
+      produccionService.finalizarEtapa(loteId, etapaId, { responsable_id, canastos_ids, peso_kg, siguiente_etapa_id }),
     onSuccess: () => {
-      // Invalidar inmediatamente y refetch para actualizar UI
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
-      queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
+      queryClient.invalidateQueries({ queryKey: ['canastos-disponibles'] });
       toast({ title: 'Etapa finalizada correctamente' });
     },
     onError: () => {
@@ -1079,7 +1085,14 @@ export default function PanelOperariosPage() {
     });
   };
 
-  const handlePinConfirm = (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => {
+  const handlePinConfirm = (
+    operarioId: string,
+    operarioNombre: string,
+    canastosIds?: string[],
+    pesoKg?: number,
+    siguienteEtapaId?: string,
+    maquinasConKg?: { maquinaId: string; kg: number }[],
+  ) => {
     const { accion, lote, columna } = pinModal;
 
     if (!lote || !columna) return;
@@ -1091,14 +1104,19 @@ export default function PanelOperariosPage() {
         loteId: lote.id,
         etapaId: columna.etapa_id,
         operarioId,
-        maquinasIds,
+        maquinasIds: undefined,
         canastosIds,
         pesoKg,
+        maquinasConKg,
       });
     } else {
       finalizarMutation.mutate({
         loteId: lote.id,
         etapaId: columna.etapa_id,
+        responsable_id: operarioId,
+        canastos_ids: canastosIds,
+        peso_kg: pesoKg,
+        siguiente_etapa_id: siguienteEtapaId,
       });
     }
 
@@ -1231,7 +1249,8 @@ export default function PanelOperariosPage() {
       {/* Tablero Kanban */}
       <div className="p-3 sm:p-6 overflow-x-auto flex-1 overflow-y-hidden">
         <div className="flex gap-3 sm:gap-6 h-full" style={{ minWidth: 'max-content' }}>
-          {kanban?.columnas.map((columna) => (
+          {/* Columnas normales (excluye CONT) */}
+          {kanban?.columnas.filter((c) => c.etapa_codigo !== 'CONT').map((columna) => (
             <EtapaColumna
               key={columna.etapa_id}
               columna={columna}
@@ -1245,6 +1264,65 @@ export default function PanelOperariosPage() {
               getLoteEnProceso={getLoteEnProceso}
             />
           ))}
+
+          {/* Columna especial: Listos para Conteo */}
+          {(() => {
+            const contLotes = kanban?.columnas.find((c) => c.etapa_codigo === 'CONT')?.lotes ?? [];
+            return (
+              <div className="flex-shrink-0 w-64 sm:w-72 flex flex-col h-full">
+                <div className="bg-white rounded-2xl border-2 border-green-300 shadow-sm flex flex-col h-full overflow-hidden">
+                  <div className="px-4 py-3 border-b border-green-200 bg-green-50 flex-shrink-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="font-bold text-green-800 text-sm">Listos para Conteo</span>
+                      </div>
+                      <span className="bg-green-200 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                        {contLotes.length}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                    {contLotes.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
+                        <Package className="h-10 w-10 mb-2 opacity-40" />
+                        <span className="text-sm">Sin lotes</span>
+                      </div>
+                    ) : (
+                      contLotes.map((lote) => (
+                        <div
+                          key={lote.id}
+                          className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-base text-gray-800">{lote.numero}</span>
+                            {lote.peso_entrada_kg && (
+                              <span className="text-xs text-gray-500">
+                                {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
+                              </span>
+                            )}
+                          </div>
+                          {lote.cliente_nombre && (
+                            <p className="text-sm text-gray-600 truncate">{lote.cliente_nombre}</p>
+                          )}
+                          <button
+                            onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
+                            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
+                                       text-white text-sm font-bold flex items-center justify-center gap-2
+                                       hover:from-emerald-600 hover:to-emerald-700 active:scale-98
+                                       transition-all shadow-md shadow-emerald-100"
+                          >
+                            <Calculator className="h-4 w-4" />
+                            IR A CONTEO
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -1258,8 +1336,18 @@ export default function PanelOperariosPage() {
         etapaNombre={pinModal.columna?.etapa_nombre}
         etapaCodigo={pinModal.columna?.etapa_codigo}
         accion={pinModal.accion}
-        requiereMaquina={pinModal.columna?.requiere_maquina}
-        tipoMaquina={pinModal.columna?.tipo_maquina}
+        routingOptions={
+          pinModal.accion === 'finalizar' && pinModal.columna?.etapa_codigo === 'LAV'
+            ? (() => {
+                const divCol = kanban?.columnas.find((c) => c.permite_bifurcacion);
+                const secCol = kanban?.columnas.find((c) => c.etapa_codigo === 'SEC');
+                const opts: RoutingOption[] = [];
+                if (secCol) opts.push({ label: 'Solo Secado', etapaId: secCol.etapa_id, description: 'El lote pasa directo a Secado' });
+                if (divCol) opts.push({ label: 'Secado + Planchado', etapaId: divCol.etapa_id, description: 'El lote se divide entre Secado y Planchado' });
+                return opts.length > 0 ? opts : undefined;
+              })()
+            : undefined
+        }
       />
 
       {/* Modal Dividir lote (bifurcación: Estirado, Planchado/Secado) */}

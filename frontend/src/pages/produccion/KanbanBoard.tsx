@@ -43,7 +43,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
-import { PinValidationModal } from '@/components/produccion/PinValidationModal';
 import { IniciarEtapaModal } from '@/components/produccion/IniciarEtapaModal';
 import { DividirLoteModal } from '@/components/produccion/DividirLoteModal';
 import { CorregirEtapaModal } from '@/components/produccion/CorregirEtapaModal';
@@ -111,8 +110,8 @@ const PRIORIDAD_LABELS: Record<PrioridadLote, string> = {
 interface KanbanCardProps {
   lote: KanbanLote;
   columna: KanbanColumna;
-  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null, etapaCodigo?: string) => void;
-  onFinalizar: (loteId: string, etapaId: string) => void;
+  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, etapaCodigo?: string) => void;
+  onFinalizar: (loteId: string, etapaId: string, etapaCodigo?: string, loteNumero?: string, etapaNombre?: string) => void;
   onDividir: (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => void;
   onCorregir: (lote: KanbanLote, columna: KanbanColumna) => void;
   onRevertir?: (lote: KanbanLote) => void;
@@ -331,18 +330,33 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorreg
         {/* Botones de acción */}
         <div className="flex gap-2 mt-3 pt-2 border-t">
           {!isEnProceso ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.requiere_maquina, columna.tipo_maquina, columna.etapa_codigo);
-              }}
-            >
-              <Play className="h-3 w-3 mr-1" />
-              Iniciar
-            </Button>
+            columna.permite_bifurcacion ? (
+              // División no se "inicia" como etapa normal: abre DividirLoteModal directamente
+              <Button
+                size="sm"
+                className="flex-1 text-xs bg-purple-600 hover:bg-purple-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDividir(lote.id, lote.numero, columna.etapa_id, columna.etapa_nombre, Number(lote.peso_entrada_kg) || 0);
+                }}
+              >
+                <Split className="h-3 w-3 mr-1" />
+                Dividir
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.etapa_codigo);
+                }}
+              >
+                <Play className="h-3 w-3 mr-1" />
+                Iniciar
+              </Button>
+            )
           ) : columna.etapa_codigo === 'CONT' ? (
             // En etapa de Conteo, ir a página de conteo en vez de finalizar directo
             <Button
@@ -357,45 +371,25 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorreg
               Ir a Conteo
             </Button>
           ) : columna.permite_bifurcacion ? (
-            // En etapa con bifurcación (Estirado), mostrar botones de dividir y finalizar
-            <div className="flex gap-1 w-full">
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDividir(
-                    lote.id,
-                    lote.numero,
-                    columna.etapa_id,
-                    columna.etapa_nombre,
-                    Number(lote.peso_entrada_kg) || 0
-                  );
-                }}
-              >
-                <Split className="h-3 w-3 mr-1" />
-                Dividir
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFinalizar(lote.id, columna.etapa_id);
-                }}
-              >
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Finalizar
-              </Button>
-            </div>
+            // En etapa División: botón "Dividir" que abre el DividirLoteModal
+            <Button
+              size="sm"
+              className="flex-1 text-xs bg-purple-600 hover:bg-purple-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDividir(lote.id, lote.numero, columna.etapa_id, columna.etapa_nombre, Number(lote.peso_entrada_kg) || 0);
+              }}
+            >
+              <Split className="h-3 w-3 mr-1" />
+              Dividir
+            </Button>
           ) : (
             <Button
               size="sm"
               className="flex-1 text-xs"
               onClick={(e) => {
                 e.stopPropagation();
-                onFinalizar(lote.id, columna.etapa_id);
+                onFinalizar(lote.id, columna.etapa_id, columna.etapa_codigo, lote.numero, columna.etapa_nombre);
               }}
             >
               <CheckCircle className="h-3 w-3 mr-1" />
@@ -412,19 +406,21 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorreg
 // Aplana todos los lotes de todas las columnas y muestra la etapa actual de cada uno.
 interface KanbanListViewProps {
   kanban: { columnas: KanbanColumna[] } | undefined;
-  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null, etapaCodigo?: string) => void;
-  onFinalizar: (loteId: string, etapaId: string) => void;
+  onIniciar: (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, etapaCodigo?: string) => void;
+  onFinalizar: (loteId: string, etapaId: string, etapaCodigo?: string, loteNumero?: string, etapaNombre?: string) => void;
 }
 
 function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps) {
   const navigate = useNavigate();
 
-  // Aplanar: cada item de lote queda emparejado con su columna (etapa actual)
-  const items = (kanban?.columnas || []).flatMap((col) =>
-    col.lotes.map((lote) => ({ lote, columna: col }))
-  );
+  // Aplanar excluyendo CONT — los lotes CONT se muestran en sección separada
+  const items = (kanban?.columnas || [])
+    .filter((col) => col.etapa_codigo !== 'CONT')
+    .flatMap((col) => col.lotes.map((lote) => ({ lote, columna: col })));
+  const contLotes = (kanban?.columnas || [])
+    .find((c) => c.etapa_codigo === 'CONT')?.lotes ?? [];
 
-  if (items.length === 0) {
+  if (items.length === 0 && contLotes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 text-gray-400 py-12">
         <Package className="h-10 w-10 mb-2" />
@@ -499,7 +495,7 @@ function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps)
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.requiere_maquina, columna.tipo_maquina, columna.etapa_codigo)}
+                        onClick={() => onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.etapa_codigo)}
                       >
                         <Play className="h-3 w-3 mr-1" />
                         Iniciar
@@ -516,7 +512,7 @@ function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps)
                     ) : (
                       <Button
                         size="sm"
-                        onClick={() => onFinalizar(lote.id, columna.etapa_id)}
+                        onClick={() => onFinalizar(lote.id, columna.etapa_id, columna.etapa_codigo, lote.numero, columna.etapa_nombre)}
                       >
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Finalizar
@@ -589,7 +585,7 @@ function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps)
                       size="sm"
                       variant="outline"
                       className="w-full"
-                      onClick={() => onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.requiere_maquina, columna.tipo_maquina, columna.etapa_codigo)}
+                      onClick={() => onIniciar(lote.id, columna.etapa_id, lote.numero, columna.etapa_nombre, columna.etapa_codigo)}
                     >
                       <Play className="h-3 w-3 mr-1" />
                       Iniciar etapa
@@ -607,7 +603,7 @@ function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps)
                     <Button
                       size="sm"
                       className="w-full"
-                      onClick={() => onFinalizar(lote.id, columna.etapa_id)}
+                      onClick={() => onFinalizar(lote.id, columna.etapa_id, columna.etapa_codigo, lote.numero, columna.etapa_nombre)}
                     >
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Finalizar
@@ -619,6 +615,85 @@ function KanbanListView({ kanban, onIniciar, onFinalizar }: KanbanListViewProps)
           );
         })}
       </div>
+
+      {/* Sección Listos para Conteo */}
+      {contLotes.length > 0 && (
+        <div className="mt-4">
+          <h2 className="text-sm font-semibold text-green-700 flex items-center gap-2 mb-2">
+            <CheckCircle className="h-4 w-4" />
+            Listos para Conteo ({contLotes.length})
+          </h2>
+          {/* Tabla en desktop */}
+          <Card className="hidden md:block border-green-200">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-green-50">
+                  <TableHead>Lote</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-right">Peso</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contLotes.map((lote) => (
+                  <TableRow
+                    key={lote.id}
+                    className="cursor-pointer hover:bg-green-50"
+                    onClick={() => navigate(`/produccion/lotes/${lote.id}`)}
+                  >
+                    <TableCell className="font-mono font-medium">{lote.numero}</TableCell>
+                    <TableCell>{lote.cliente_nombre || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      {lote.peso_entrada_kg ? `${formatNumber(Number(lote.peso_entrada_kg), 1)} kg` : '-'}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
+                      >
+                        <Calculator className="h-3 w-3 mr-1" />
+                        Ir a Conteo
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+          {/* Cards en mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:hidden">
+            {contLotes.map((lote) => (
+              <Card
+                key={lote.id}
+                className="cursor-pointer border-green-300 bg-green-50"
+                onClick={() => navigate(`/produccion/lotes/${lote.id}`)}
+              >
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <span className="font-mono font-semibold">{lote.numero}</span>
+                    <Badge className={PRIORIDAD_COLORS[lote.prioridad]}>{PRIORIDAD_LABELS[lote.prioridad]}</Badge>
+                  </div>
+                  {lote.cliente_nombre && <div className="text-sm text-gray-700 truncate">{lote.cliente_nombre}</div>}
+                  {lote.peso_entrada_kg && (
+                    <div className="text-xs text-gray-500">{formatNumber(Number(lote.peso_entrada_kg), 1)} kg</div>
+                  )}
+                  <div className="pt-2 border-t border-green-200" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
+                    >
+                      <Calculator className="h-3 w-3 mr-1" />
+                      Ir a Conteo
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -655,8 +730,7 @@ export default function KanbanBoardPage() {
     window.localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
 
-  // Estado para modal de PIN / Iniciar
-  const [showPinModal, setShowPinModal] = useState(false);
+  // Estado para modal de PIN / Iniciar / Finalizar
   const [showIniciarModal, setShowIniciarModal] = useState(false);
   const [showDividirModal, setShowDividirModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
@@ -665,8 +739,6 @@ export default function KanbanBoardPage() {
     etapaId: string;
     loteNumero?: string;
     etapaNombre?: string;
-    requiereMaquina?: boolean;
-    tipoMaquina?: string | null;
     etapaCodigo?: string;
   } | null>(null);
   const [dividirData, setDividirData] = useState<{
@@ -710,8 +782,14 @@ export default function KanbanBoardPage() {
 
   // Iniciar etapa
   const iniciarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId, operarioId, maquinasIds, canastosIds, pesoKg }: { loteId: string; etapaId: string; operarioId: string; maquinasIds?: string[]; canastosIds?: string[]; pesoKg?: number }) =>
-      produccionService.iniciarEtapa(loteId, etapaId, { responsable_id: operarioId, maquinas_ids: maquinasIds, canastos_ids: canastosIds, peso_kg: pesoKg }),
+    mutationFn: ({ loteId, etapaId, operarioId, maquinasIds, canastosIds, pesoKg, maquinasConKg }: {
+      loteId: string; etapaId: string; operarioId: string; maquinasIds?: string[]; canastosIds?: string[]; pesoKg?: number;
+      maquinasConKg?: { maquinaId: string; kg: number }[];
+    }) =>
+      produccionService.iniciarEtapa(loteId, etapaId, {
+        responsable_id: operarioId, maquinas_ids: maquinasIds, canastos_ids: canastosIds, peso_kg: pesoKg,
+        maquinas_con_kg: maquinasConKg?.map(m => ({ maquina_id: m.maquinaId, kg: m.kg })),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
@@ -734,35 +812,34 @@ export default function KanbanBoardPage() {
 
   // Finalizar etapa
   const finalizarMutation = useMutation({
-    mutationFn: ({ loteId, etapaId }: { loteId: string; etapaId: string }) =>
-      produccionService.finalizarEtapa(loteId, etapaId, {}),
+    mutationFn: ({ loteId, etapaId, responsable_id, canastos_ids, peso_kg, siguiente_etapa_id }: {
+      loteId: string;
+      etapaId: string;
+      responsable_id?: string;
+      canastos_ids?: string[];
+      peso_kg?: number;
+      siguiente_etapa_id?: string;
+    }) =>
+      produccionService.finalizarEtapa(loteId, etapaId, { responsable_id, canastos_ids, peso_kg, siguiente_etapa_id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
-      queryClient.invalidateQueries({ queryKey: ['maquinas-disponibles'] });
       queryClient.invalidateQueries({ queryKey: ['canastos-disponibles'] });
       queryClient.invalidateQueries({ queryKey: ['canastos-grid'] });
-      toast({
-        title: 'Etapa finalizada',
-        description: 'La etapa ha sido completada.',
-      });
+      toast({ title: 'Etapa finalizada', description: 'La etapa ha sido completada.' });
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'No se pudo finalizar la etapa.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'No se pudo finalizar la etapa.', variant: 'destructive' });
     },
   });
 
-  const handleIniciar = (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, requiereMaquina?: boolean, tipoMaquina?: string | null, etapaCodigo?: string) => {
-    setPendingAction({ type: 'iniciar', loteId, etapaId, loteNumero, etapaNombre, requiereMaquina, tipoMaquina, etapaCodigo });
+  const handleIniciar = (loteId: string, etapaId: string, loteNumero?: string, etapaNombre?: string, etapaCodigo?: string) => {
+    setPendingAction({ type: 'iniciar', loteId, etapaId, loteNumero, etapaNombre, etapaCodigo });
     setShowIniciarModal(true);
   };
 
-  const handleFinalizar = (loteId: string, etapaId: string) => {
-    setPendingAction({ type: 'finalizar', loteId, etapaId });
-    setShowPinModal(true);
+  const handleFinalizar = (loteId: string, etapaId: string, etapaCodigo?: string, loteNumero?: string, etapaNombre?: string) => {
+    setPendingAction({ type: 'finalizar', loteId, etapaId, etapaCodigo, loteNumero, etapaNombre });
+    setShowIniciarModal(true);
   };
 
   const handleDividir = (loteId: string, loteNumero: string, etapaId: string, etapaNombre: string, pesoKg: number) => {
@@ -817,42 +894,38 @@ export default function KanbanBoardPage() {
     });
   };
 
-  const handleIniciarConfirm = (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => {
+  const handleModalConfirm = (
+    operarioId: string,
+    operarioNombre: string,
+    canastosIds?: string[],
+    pesoKg?: number,
+    siguienteEtapaId?: string,
+    maquinasConKg?: { maquinaId: string; kg: number }[],
+  ) => {
     if (!pendingAction) return;
 
-    const maquinasMsg = maquinasIds?.length ? ` con ${maquinasIds.length} máquina(s)` : '';
-    const canastosMsg = canastosIds?.length ? ` y ${canastosIds.length} canasto(s)` : '';
-    const pesoMsg = pesoKg ? ` - ${pesoKg} kg` : '';
-
-    toast({
-      title: 'Operario validado',
-      description: `Etapa iniciada por ${operarioNombre}${maquinasMsg}${canastosMsg}${pesoMsg}`,
-    });
-
-    iniciarMutation.mutate({
-      loteId: pendingAction.loteId,
-      etapaId: pendingAction.etapaId,
-      operarioId,
-      maquinasIds,
-      canastosIds,
-      pesoKg,
-    });
-
-    setPendingAction(null);
-  };
-
-  const handlePinValidated = (operarioId: string, operarioNombre: string) => {
-    if (!pendingAction) return;
-
-    toast({
-      title: 'Operario validado',
-      description: `Acción registrada por ${operarioNombre}`,
-    });
-
-    finalizarMutation.mutate({
-      loteId: pendingAction.loteId,
-      etapaId: pendingAction.etapaId,
-    });
+    if (pendingAction.type === 'iniciar') {
+      toast({ title: 'Operario validado', description: `Etapa iniciada por ${operarioNombre}` });
+      iniciarMutation.mutate({
+        loteId: pendingAction.loteId,
+        etapaId: pendingAction.etapaId,
+        operarioId,
+        maquinasIds: undefined,
+        canastosIds,
+        pesoKg,
+        maquinasConKg,
+      });
+    } else {
+      toast({ title: 'Operario validado', description: `Etapa finalizada por ${operarioNombre}` });
+      finalizarMutation.mutate({
+        loteId: pendingAction.loteId,
+        etapaId: pendingAction.etapaId,
+        responsable_id: operarioId,
+        canastos_ids: canastosIds,
+        peso_kg: pesoKg,
+        siguiente_etapa_id: siguienteEtapaId,
+      });
+    }
 
     setPendingAction(null);
   };
@@ -960,9 +1033,8 @@ export default function KanbanBoardPage() {
         />
       ) : (
         <div className="flex gap-3 sm:gap-4 overflow-x-auto flex-1 pb-2 snap-x snap-mandatory md:snap-none">
-          {/* Columnas de etapas del Kanban */}
-          {kanban?.columnas.map((columna) => {
-            // Calcular total kg de la columna
+          {/* Columnas de etapas del Kanban (excluye CONT) */}
+          {kanban?.columnas.filter((c) => c.etapa_codigo !== 'CONT').map((columna) => {
             const totalKgColumna = columna.lotes.reduce(
               (sum, lote) => sum + (Number(lote.peso_entrada_kg) || 0),
               0
@@ -993,7 +1065,6 @@ export default function KanbanBoardPage() {
                       {columna.lotes.length}
                     </Badge>
                   </div>
-                  {/* Total kg pendientes de procesar */}
                   <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-100">
                     <Scale className="h-3.5 w-3.5 text-primary" />
                     <span className="text-sm font-semibold text-gray-700">
@@ -1029,6 +1100,76 @@ export default function KanbanBoardPage() {
             </div>
             );
           })}
+
+          {/* Columna especial: Listos para Conteo (lotes en etapa CONT) */}
+          {(() => {
+            const contCol = kanban?.columnas.find((c) => c.etapa_codigo === 'CONT');
+            const contLotes = contCol?.lotes ?? [];
+            return (
+              <div className="flex-shrink-0 w-[92vw] sm:w-[20rem] md:w-72 lg:w-80 flex flex-col snap-start">
+                <Card className="flex flex-col h-full">
+                  <CardHeader
+                    className="py-3 px-4 flex-shrink-0 sticky top-0 bg-white z-10 rounded-t-lg"
+                    style={{ borderTopColor: '#22c55e', borderTopWidth: '4px' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          Listos para Conteo
+                        </CardTitle>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {contLotes.length}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-2 space-y-2 flex-1 overflow-y-auto">
+                    {contLotes.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <Package className="h-8 w-8 mb-2" />
+                        <span className="text-sm">Sin lotes</span>
+                      </div>
+                    ) : (
+                      contLotes.map((lote) => (
+                        <Card
+                          key={lote.id}
+                          className="cursor-pointer hover:shadow-md transition-shadow border-green-200 bg-green-50"
+                          onClick={() => navigate(`/produccion/lotes/${lote.id}`)}
+                        >
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-start justify-between">
+                              <span className="font-mono font-semibold text-base">{lote.numero}</span>
+                              <Badge className={PRIORIDAD_COLORS[lote.prioridad]}>{PRIORIDAD_LABELS[lote.prioridad]}</Badge>
+                            </div>
+                            {lote.cliente_nombre && (
+                              <div className="text-sm text-gray-700 truncate">{lote.cliente_nombre}</div>
+                            )}
+                            {lote.peso_entrada_kg && (
+                              <div className="text-xs text-gray-500 flex items-center gap-1">
+                                <Scale className="h-3 w-3" />
+                                {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
+                              </div>
+                            )}
+                            <div className="pt-2 border-t border-green-200" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                className="w-full bg-green-600 hover:bg-green-700"
+                                onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
+                              >
+                                <Calculator className="h-3 w-3 mr-1" />
+                                Ir a Conteo
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1058,35 +1199,38 @@ export default function KanbanBoardPage() {
         </CardContent>
       </Card>
 
-      {/* Modal para iniciar etapa con máquina y canastos */}
+      {/* Modal para iniciar O finalizar etapa */}
       <IniciarEtapaModal
         open={showIniciarModal}
         onClose={() => {
           setShowIniciarModal(false);
           setPendingAction(null);
         }}
-        onConfirm={handleIniciarConfirm}
-        title="Iniciar Etapa"
-        description="Valida tu PIN para iniciar esta etapa"
+        onConfirm={handleModalConfirm}
+        accion={pendingAction?.type === 'finalizar' ? 'finalizar' : 'iniciar'}
+        title={pendingAction?.type === 'finalizar' ? 'Finalizar Etapa' : 'Iniciar Etapa'}
+        description={
+          pendingAction?.type === 'finalizar'
+            ? 'Ingresá el PIN y completá los datos para finalizar'
+            : 'Ingresá el PIN para iniciar esta etapa'
+        }
         loteId={pendingAction?.loteId}
         loteNumero={pendingAction?.loteNumero}
         etapaNombre={pendingAction?.etapaNombre}
-        showMachineSelection={true}
-        requiereMaquina={pendingAction?.requiereMaquina}
-        tipoMaquina={pendingAction?.tipoMaquina}
         etapaCodigo={pendingAction?.etapaCodigo}
-      />
-
-      {/* Modal de validación de PIN para finalizar */}
-      <PinValidationModal
-        open={showPinModal}
-        onClose={() => {
-          setShowPinModal(false);
-          setPendingAction(null);
-        }}
-        onValidated={handlePinValidated}
-        title="Finalizar Etapa"
-        description="Valida tu PIN para finalizar esta etapa"
+        showPesoInput={pendingAction?.type === 'finalizar'}
+        routingOptions={
+          pendingAction?.type === 'finalizar' && pendingAction?.etapaCodigo === 'LAV'
+            ? (() => {
+                const divCol = kanban?.columnas.find(c => c.permite_bifurcacion);
+                const secCol = kanban?.columnas.find(c => c.etapa_codigo === 'SEC');
+                const opts = [];
+                if (secCol) opts.push({ label: 'Solo Secado', etapaId: secCol.etapa_id, description: 'Saltea División, va directo a Secado' });
+                if (divCol) opts.push({ label: 'Secado + Planchado', etapaId: divCol.etapa_id, description: 'Va a División para dividir el lote' });
+                return opts.length > 0 ? opts : undefined;
+              })()
+            : undefined
+        }
       />
 
       {/* Modal para dividir lote */}

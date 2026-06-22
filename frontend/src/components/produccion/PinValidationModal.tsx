@@ -173,8 +173,7 @@ export function PinValidationModal({
               }}
               onKeyDown={handleKeyDown}
               placeholder="Ingrese PIN de 4-6 dígitos"
-              readOnly
-              onFocus={(e) => e.target.blur()}
+              disabled={!operarioId}
               className="text-center text-2xl tracking-widest font-mono bg-white"
             />
             {!operarioId && (

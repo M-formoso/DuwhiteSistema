@@ -1,12 +1,10 @@
 /**
- * Modal para iniciar una etapa con validación de PIN, selección de máquinas y canastos
- * V2: Soporte para múltiples canastos en etapas de lavado/secado
- * V3: Soporte para múltiples máquinas por etapa
+ * Modal para iniciar/finalizar una etapa: PIN + canastos + peso (sin máquinas)
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, User, Loader2, Settings2, Box, Check, Scale } from 'lucide-react';
+import { KeyRound, User, Loader2, Box, Check, Scale } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,21 +29,11 @@ import { Badge } from '@/components/ui/badge';
 
 import { produccionService } from '@/services/produccionService';
 import { canastoService } from '@/services/canastoService';
-import { formatNumber } from '@/utils/formatters';
 
 interface Operario {
   id: string;
   nombre: string;
   rol: string;
-}
-
-interface Maquina {
-  id: string;
-  codigo: string;
-  nombre: string;
-  tipo: string;
-  estado: string;
-  capacidad_kg: number | null;
 }
 
 interface Canasto {
@@ -62,21 +50,40 @@ interface CanastoAsignado {
   canasto_codigo: string;
 }
 
+interface RoutingOption {
+  label: string;
+  etapaId: string;
+  description?: string;
+}
+
+interface MaquinaDisponible {
+  id: string;
+  codigo: string;
+  nombre: string;
+  tipo: string;
+}
+
 interface IniciarEtapaModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (operarioId: string, operarioNombre: string, maquinasIds?: string[], canastosIds?: string[], pesoKg?: number) => void;
+  onConfirm: (
+    operarioId: string,
+    operarioNombre: string,
+    canastosIds?: string[],
+    pesoKg?: number,
+    siguienteEtapaId?: string,
+    maquinasConKg?: { maquinaId: string; kg: number }[],
+  ) => void;
   title?: string;
   description?: string;
-  showMachineSelection?: boolean;
-  requiereMaquina?: boolean;  // Si es true, es obligatorio seleccionar al menos una máquina
-  tipoMaquina?: string | null;  // Filtrar por tipo: lavadora, secadora, planchadora
   etapaNombre?: string;
   loteNumero?: string;
-  loteId?: string;  // ID del lote para cargar canastos asignados
-  showCanastosSelection?: boolean;  // Mostrar selección de canastos
-  etapaCodigo?: string;  // Código de la etapa (LAV, SEC, etc.)
-  showPesoInput?: boolean;  // Mostrar input de peso (para Recepción)
+  loteId?: string;
+  showCanastosSelection?: boolean;
+  etapaCodigo?: string;
+  showPesoInput?: boolean;
+  accion?: 'iniciar' | 'finalizar';
+  routingOptions?: RoutingOption[];
 }
 
 export function IniciarEtapaModal({
@@ -85,87 +92,84 @@ export function IniciarEtapaModal({
   onConfirm,
   title = 'Iniciar Etapa',
   description = 'Valida tu PIN para iniciar esta etapa',
-  showMachineSelection = true,
-  requiereMaquina = false,
-  tipoMaquina = null,
   etapaNombre,
   loteNumero,
   loteId,
   showCanastosSelection = false,
   etapaCodigo,
   showPesoInput = false,
+  accion = 'iniciar',
+  routingOptions,
 }: IniciarEtapaModalProps) {
   const [operarioId, setOperarioId] = useState<string>('');
   const [pin, setPin] = useState('');
-  const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [pesoKg, setPesoKg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
+  const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
+  const [maquinasConKg, setMaquinasConKg] = useState<{ maquinaId: string; nombre: string; kg: string }[]>([]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
-  // Determinar si esta etapa muestra canastos (REC, LAV o SEC)
   const muestraCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
-
-  // Solo es obligatorio seleccionar canastos en Recepción (REC) - primera etapa
-  // En LAV y SEC, si ya tiene canastos asignados, no es obligatorio cambiarlos
   const esEtapaRecepcion = etapaCodigo === 'REC';
-
-  // Determinar si esta etapa requiere peso (REC - Recepción y Pesaje)
   const requierePeso = showPesoInput || etapaCodigo === 'REC';
+  const esLavado = etapaCodigo === 'LAV';
+  const muestraRouting = (routingOptions?.length ?? 0) > 0;
+  const muestraMaquinasLav = esLavado && accion === 'iniciar';
 
-  // Cargar operarios con PIN
   const { data: operarios = [], isLoading: loadingOperarios } = useQuery<Operario[]>({
     queryKey: ['operarios-con-pin'],
     queryFn: () => produccionService.getOperariosConPin(),
     enabled: open,
   });
 
-  // Cargar máquinas disponibles (filtradas por tipo si se especifica)
-  const { data: maquinas = [], isLoading: loadingMaquinas, refetch: refetchMaquinas } = useQuery<Maquina[]>({
-    queryKey: ['maquinas-disponibles', tipoMaquina],
-    queryFn: () => produccionService.getMaquinasDisponibles(tipoMaquina || undefined),
-    enabled: open && (showMachineSelection || requiereMaquina),
-  });
-
-  // Cargar canastos disponibles
   const { data: canastosDisponibles = [], isLoading: loadingCanastos, refetch: refetchCanastos } = useQuery<Canasto[]>({
     queryKey: ['canastos-disponibles'],
     queryFn: () => canastoService.getDisponibles(),
     enabled: open && muestraCanastos,
   });
 
-  // Cargar canastos ya asignados al lote
   const { data: canastosDelLote = [], isLoading: loadingCanastosLote } = useQuery<CanastoAsignado[]>({
     queryKey: ['canastos-lote', loteId],
     queryFn: () => canastoService.getCanastosLote(loteId!),
     enabled: open && muestraCanastos && !!loteId && !esEtapaRecepcion,
   });
 
-  // Reset estado cuando se abre/cierra
+  const { data: lavadoras = [] } = useQuery<MaquinaDisponible[]>({
+    queryKey: ['maquinas-disponibles', 'lavadora'],
+    queryFn: async () => {
+      return produccionService.getMaquinasDisponibles('lavadora');
+    },
+    enabled: open && muestraMaquinasLav,
+  });
+
   useEffect(() => {
     if (open) {
       setOperarioId('');
       setPin('');
-      setSelectedMaquinas([]);
       setSelectedCanastos([]);
       setPesoKg('');
       setError(null);
-      refetchMaquinas();
-      if (muestraCanastos) {
-        refetchCanastos();
-      }
+      setSelectedRoutingId(null);
+      setMaquinasConKg([]);
+      if (muestraCanastos) refetchCanastos();
     }
-  }, [open, refetchMaquinas, refetchCanastos, muestraCanastos]);
+  }, [open, refetchCanastos, muestraCanastos]);
 
-  // Preseleccionar canastos ya asignados al lote (para LAV y SEC)
+  // Init lavadoras rows when list loads
+  useEffect(() => {
+    if (muestraMaquinasLav && lavadoras.length > 0 && maquinasConKg.length === 0) {
+      setMaquinasConKg(lavadoras.map(m => ({ maquinaId: m.id, nombre: m.codigo || m.nombre, kg: '' })));
+    }
+  }, [lavadoras, muestraMaquinasLav, maquinasConKg.length]);
+
   useEffect(() => {
     if (canastosDelLote.length > 0 && !esEtapaRecepcion) {
       setSelectedCanastos(canastosDelLote.map(c => c.canasto_id));
     }
   }, [canastosDelLote, esEtapaRecepcion]);
 
-  // Focus en PIN cuando se selecciona operario
   useEffect(() => {
     if (operarioId && pinInputRef.current) {
       pinInputRef.current.focus();
@@ -177,23 +181,16 @@ export function IniciarEtapaModal({
       setError('Selecciona un operario e ingresa el PIN');
       return;
     }
-
-    // Validar que se seleccione al menos una máquina si es obligatorio
-    if (requiereMaquina && selectedMaquinas.length === 0) {
-      setError('Debes seleccionar al menos una máquina para esta etapa');
-      return;
-    }
-
-    // Validar que se seleccionen canastos si es requerido
-    // Solo obligatorio en Recepción (REC) - en otras etapas ya vienen con canastos
     if (esEtapaRecepcion && selectedCanastos.length === 0) {
       setError('Debes seleccionar al menos un canasto');
       return;
     }
-
-    // Validar peso si es requerido
     if (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) {
       setError('Debes ingresar el peso del lote');
+      return;
+    }
+    if (muestraRouting && !selectedRoutingId) {
+      setError('Debés seleccionar a dónde va el lote');
       return;
     }
 
@@ -202,14 +199,17 @@ export function IniciarEtapaModal({
 
     try {
       const result = await produccionService.validarPin(operarioId, pin);
-
       if (result.valido) {
+        const maqConKgFiltradas = maquinasConKg
+          .filter(m => m.kg && parseFloat(m.kg) > 0)
+          .map(m => ({ maquinaId: m.maquinaId, kg: parseFloat(m.kg) }));
         onConfirm(
           operarioId,
           result.operario_nombre,
-          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
           selectedCanastos.length > 0 ? selectedCanastos : undefined,
-          pesoKg ? parseFloat(pesoKg) : undefined
+          pesoKg ? parseFloat(pesoKg) : undefined,
+          selectedRoutingId ?? undefined,
+          maqConKgFiltradas.length > 0 ? maqConKgFiltradas : undefined,
         );
         onClose();
       } else {
@@ -230,43 +230,6 @@ export function IniciarEtapaModal({
     }
   };
 
-  const isLoading = loadingOperarios || loadingMaquinas || loadingCanastos || loadingCanastosLote;
-
-  // Combinar canastos disponibles con los del lote (para mostrar todos)
-  // Importante: filtrar disponibles para excluir los que ya están asignados al lote
-  const canastosParaMostrar = esEtapaRecepcion
-    ? canastosDisponibles
-    : (() => {
-        const idsDelLote = new Set(canastosDelLote.map(c => c.canasto_id));
-        return [
-          // Primero los canastos ya asignados al lote
-          ...canastosDelLote.map(c => ({
-            id: c.canasto_id,
-            numero: c.canasto_numero,
-            codigo: c.canasto_codigo,
-            estado: 'en_uso' as const,
-            esDelLote: true,
-          })),
-          // Luego los disponibles (excluyendo los que ya están en el lote)
-          ...canastosDisponibles
-            .filter(c => !idsDelLote.has(c.id))
-            .map(c => ({
-              ...c,
-              esDelLote: false,
-            })),
-        ];
-      })();
-
-  // Manejar selección de máquina (múltiple)
-  const toggleMaquina = (maquinaId: string) => {
-    setSelectedMaquinas((prev) =>
-      prev.includes(maquinaId)
-        ? prev.filter((id) => id !== maquinaId)
-        : [...prev, maquinaId]
-    );
-  };
-
-  // Manejar selección de canasto
   const toggleCanasto = (canastoId: string) => {
     setSelectedCanastos((prev) =>
       prev.includes(canastoId)
@@ -275,12 +238,29 @@ export function IniciarEtapaModal({
     );
   };
 
-  // Determinar si el modal necesita ser más grande (tiene máquinas Y canastos)
-  const necesitaModalGrande = (showMachineSelection || requiereMaquina) && muestraCanastos;
+  const canastosParaMostrar = esEtapaRecepcion
+    ? canastosDisponibles
+    : (() => {
+        const idsDelLote = new Set(canastosDelLote.map(c => c.canasto_id));
+        return [
+          ...canastosDelLote.map(c => ({
+            id: c.canasto_id,
+            numero: c.canasto_numero,
+            codigo: c.canasto_codigo,
+            estado: 'en_uso' as const,
+            esDelLote: true,
+          })),
+          ...canastosDisponibles
+            .filter(c => !idsDelLote.has(c.id))
+            .map(c => ({ ...c, esDelLote: false })),
+        ];
+      })();
+
+  const isLoading = loadingOperarios || loadingCanastos || loadingCanastosLote;
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={`${necesitaModalGrande ? "sm:max-w-[700px]" : "sm:max-w-[450px]"} w-[95vw] max-h-[90vh] flex flex-col p-4 sm:p-6`}>
+      <DialogContent className="sm:max-w-[450px] w-[95vw] max-h-[90vh] flex flex-col p-4 sm:p-6">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <KeyRound className="h-5 w-5 text-primary flex-shrink-0" />
@@ -308,7 +288,7 @@ export function IniciarEtapaModal({
             ) : operarios.length === 0 ? (
               <Alert>
                 <AlertDescription>
-                  No hay operarios con PIN configurado. Configura el PIN en la sección de Usuarios.
+                  No hay operarios con PIN configurado.
                 </AlertDescription>
               </Alert>
             ) : (
@@ -330,7 +310,7 @@ export function IniciarEtapaModal({
             )}
           </div>
 
-          {/* Input de PIN */}
+          {/* PIN */}
           <div className="space-y-2">
             <Label>PIN</Label>
             <Input
@@ -350,240 +330,93 @@ export function IniciarEtapaModal({
               disabled={!operarioId}
               className="text-center text-2xl tracking-widest font-mono"
             />
+            {!operarioId && (
+              <p className="text-xs text-amber-600">Seleccioná un operario para habilitar el PIN.</p>
+            )}
+            <div className="grid grid-cols-3 gap-2 pt-1 select-none">
+              {(['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={!operarioId}
+                  onClick={() => {
+                    if (pin.length >= 6) return;
+                    setPin((p) => p + d);
+                    setError(null);
+                  }}
+                  className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
+                             active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {d}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={!operarioId || pin.length === 0}
+                onClick={() => { setPin(''); setError(null); }}
+                className="h-12 rounded-md border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
+                           active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Borrar
+              </button>
+              <button
+                type="button"
+                disabled={!operarioId}
+                onClick={() => {
+                  if (pin.length >= 6) return;
+                  setPin((p) => p + '0');
+                  setError(null);
+                }}
+                className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
+                           active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                disabled={!operarioId || pin.length === 0}
+                onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); }}
+                className="h-12 rounded-md border border-gray-300 bg-white text-base font-semibold text-gray-700
+                           active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ←
+              </button>
+            </div>
           </div>
 
-          {/* Input de peso (para Recepción y Pesaje) */}
+          {/* Peso */}
           {requierePeso && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Scale className="h-4 w-4" />
-                Peso de Entrada (kg) <span className="text-red-500">*</span>
+                Peso (kg) <span className="text-red-500">*</span>
               </Label>
               <Input
                 type="number"
                 step="0.1"
                 min="0"
+                inputMode="decimal"
                 value={pesoKg}
                 onChange={(e) => setPesoKg(e.target.value)}
                 placeholder="Ej: 45.5"
                 className="text-lg"
               />
-              <p className="text-xs text-muted-foreground">
-                Ingresa el peso que marca la balanza
-              </p>
             </div>
           )}
 
-          {/* Grid para máquinas y canastos cuando ambos están presentes */}
-          {necesitaModalGrande ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {/* Selector de máquinas (múltiple) */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 flex-wrap">
-                  <Settings2 className="h-4 w-4" />
-                  Máquinas {requiereMaquina ? <span className="text-red-500">*</span> : '(opcional)'}
-                  {tipoMaquina && (
-                    <Badge variant="outline" className="capitalize">
-                      {tipoMaquina}
-                    </Badge>
-                  )}
-                  {selectedMaquinas.length > 0 && (
-                    <Badge variant="secondary">
-                      {selectedMaquinas.length} sel.
-                    </Badge>
-                  )}
-                </Label>
-                {loadingMaquinas ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Cargando...
-                  </div>
-                ) : maquinas.length === 0 ? (
-                  <Alert variant={requiereMaquina ? 'destructive' : 'default'}>
-                    <AlertDescription className="text-xs">
-                      No hay máquinas disponibles
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="max-h-40 sm:max-h-48 overflow-y-auto border rounded-md p-2">
-                    <div className="grid grid-cols-3 sm:grid-cols-2 gap-1">
-                      {maquinas.map((m) => {
-                        const isSelected = selectedMaquinas.includes(m.id);
-                        return (
-                          <div
-                            key={m.id}
-                            onClick={() => toggleMaquina(m.id)}
-                            className={`
-                              flex items-center gap-1 p-1.5 rounded cursor-pointer
-                              border transition-all text-xs
-                              ${isSelected
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-gray-50 border-gray-200 hover:border-primary/50'
-                              }
-                            `}
-                          >
-                            {isSelected && <Check className="h-3 w-3 flex-shrink-0" />}
-                            <span className="font-mono font-medium truncate">{m.codigo}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {maquinas.length} disponible(s)
-                </p>
-              </div>
-
-              {/* Selector de canastos */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 flex-wrap">
-                  <Box className="h-4 w-4" />
-                  Canastos {esEtapaRecepcion && <span className="text-red-500">*</span>}
-                  {selectedCanastos.length > 0 && (
-                    <Badge variant="secondary">
-                      {selectedCanastos.length} sel.
-                    </Badge>
-                  )}
-                </Label>
-                {(loadingCanastos || loadingCanastosLote) ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Cargando...
-                  </div>
-                ) : canastosParaMostrar.length === 0 ? (
-                  <Alert variant="destructive">
-                    <AlertDescription className="text-xs">
-                      No hay canastos disponibles
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <div className="max-h-40 sm:max-h-48 overflow-y-auto border rounded-md p-2">
-                    <div className="grid grid-cols-5 sm:grid-cols-4 gap-1">
-                      {canastosParaMostrar.map((canasto) => {
-                        const isSelected = selectedCanastos.includes(canasto.id);
-                        const isFromLote = 'esDelLote' in canasto && canasto.esDelLote;
-                        return (
-                          <div
-                            key={canasto.id}
-                            onClick={() => toggleCanasto(canasto.id)}
-                            className={`
-                              flex items-center justify-center p-1.5 rounded cursor-pointer
-                              border transition-all text-xs font-medium
-                              ${isSelected
-                                ? isFromLote
-                                  ? 'bg-blue-500 text-white border-blue-600'
-                                  : 'bg-primary text-primary-foreground border-primary'
-                                : isFromLote
-                                  ? 'bg-blue-50 border-blue-300 hover:border-blue-500'
-                                  : 'bg-green-50 border-green-300 hover:border-green-500'
-                              }
-                            `}
-                          >
-                            {isSelected && <Check className="h-3 w-3 mr-0.5" />}
-                            #{canasto.numero}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {esEtapaRecepcion ? 'Selecciona canastos' : 'Azul = ya asignados'}
-                </p>
-              </div>
-            </div>
-          ) : (showMachineSelection || requiereMaquina) && (
-            /* Selector de máquinas solo (sin canastos) */
+          {/* Canastos */}
+          {muestraCanastos && (
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Settings2 className="h-4 w-4" />
-                Máquinas {requiereMaquina ? <span className="text-red-500">*</span> : '(opcional)'}
-                {tipoMaquina && (
-                  <Badge variant="outline" className="ml-2 capitalize">
-                    {tipoMaquina}
-                  </Badge>
-                )}
-                {selectedMaquinas.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {selectedMaquinas.length} seleccionada(s)
-                  </Badge>
-                )}
-              </Label>
-              {loadingMaquinas ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Cargando máquinas...
-                </div>
-              ) : maquinas.length === 0 ? (
-                <Alert variant={requiereMaquina ? 'destructive' : 'default'}>
-                  <AlertDescription>
-                    {requiereMaquina
-                      ? `No hay ${tipoMaquina || 'máquinas'}s disponibles. Todas están en uso.`
-                      : 'No hay máquinas disponibles en este momento'}
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {maquinas.map((m) => {
-                      const isSelected = selectedMaquinas.includes(m.id);
-
-                      return (
-                        <div
-                          key={m.id}
-                          onClick={() => toggleMaquina(m.id)}
-                          className={`
-                            flex items-center gap-2 p-2 rounded-md cursor-pointer
-                            border-2 transition-all text-sm
-                            ${isSelected
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-gray-50 border-gray-200 hover:border-primary/50'
-                            }
-                          `}
-                        >
-                          {isSelected && (
-                            <Check className="h-4 w-4 flex-shrink-0" />
-                          )}
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-mono font-medium truncate">{m.codigo}</span>
-                            <span className={`text-xs truncate ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                              {m.nombre}
-                              {m.capacidad_kg && ` - ${formatNumber(m.capacidad_kg, 0)} kg`}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {maquinas.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {requiereMaquina
-                    ? `Selecciona al menos una máquina. Hay ${maquinas.length} disponible(s).`
-                    : `Puedes seleccionar múltiples máquinas. Hay ${maquinas.length} disponible(s).`
-                  }
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Selector de canastos (solo cuando NO hay grid, es decir, cuando no hay máquinas) */}
-          {muestraCanastos && !necesitaModalGrande && (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 flex-wrap">
                 <Box className="h-4 w-4" />
                 Canastos {esEtapaRecepcion && <span className="text-red-500">*</span>}
                 {!esEtapaRecepcion && canastosDelLote.length > 0 && (
-                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-300">
+                  <Badge variant="outline" className="text-blue-600 border-blue-300">
                     {canastosDelLote.length} asignados
                   </Badge>
                 )}
                 {selectedCanastos.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {selectedCanastos.length} seleccionados
-                  </Badge>
+                  <Badge variant="secondary">{selectedCanastos.length} sel.</Badge>
                 )}
               </Label>
               {(loadingCanastos || loadingCanastosLote) ? (
@@ -593,9 +426,7 @@ export function IniciarEtapaModal({
                 </div>
               ) : canastosParaMostrar.length === 0 ? (
                 <Alert variant="destructive">
-                  <AlertDescription>
-                    No hay canastos disponibles. Todos están en uso.
-                  </AlertDescription>
+                  <AlertDescription>No hay canastos disponibles.</AlertDescription>
                 </Alert>
               ) : (
                 <div className="max-h-40 sm:max-h-32 overflow-y-auto border rounded-md p-2">
@@ -603,7 +434,6 @@ export function IniciarEtapaModal({
                     {canastosParaMostrar.map((canasto) => {
                       const isSelected = selectedCanastos.includes(canasto.id);
                       const isFromLote = 'esDelLote' in canasto && canasto.esDelLote;
-
                       return (
                         <div
                           key={canasto.id}
@@ -613,18 +443,16 @@ export function IniciarEtapaModal({
                             border-2 transition-all text-sm font-medium
                             ${isSelected
                               ? isFromLote
-                                ? 'bg-blue-500 text-white border-blue-600'  // Azul para los del lote
+                                ? 'bg-blue-500 text-white border-blue-600'
                                 : 'bg-primary text-primary-foreground border-primary'
                               : isFromLote
-                                ? 'bg-blue-50 border-blue-300 hover:border-blue-500'  // Los del lote en azul claro
+                                ? 'bg-blue-50 border-blue-300 hover:border-blue-500'
                                 : 'bg-green-50 border-green-300 hover:border-green-500'
                             }
                           `}
                           title={isFromLote ? 'Ya asignado a este lote' : 'Disponible'}
                         >
-                          {isSelected && (
-                            <Check className="h-3 w-3 mr-1" />
-                          )}
+                          {isSelected && <Check className="h-3 w-3 mr-1" />}
                           #{canasto.numero}
                         </div>
                       );
@@ -636,14 +464,65 @@ export function IniciarEtapaModal({
                 {esEtapaRecepcion
                   ? 'Selecciona los canastos donde se colocará el lote'
                   : canastosDelLote.length > 0
-                    ? 'Los canastos en azul ya están asignados al lote. Puedes cambiarlos si es necesario.'
+                    ? 'Azul = ya asignados al lote'
                     : 'Selecciona los canastos para este lote'
                 }
               </p>
             </div>
           )}
 
-          {/* Error */}
+          {/* Lavadoras con kg (solo LAV iniciar) */}
+          {muestraMaquinasLav && maquinasConKg.length > 0 && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                Kg por lavadora
+              </Label>
+              <div className="space-y-2">
+                {maquinasConKg.map((m, i) => (
+                  <div key={m.maquinaId} className="flex items-center gap-2">
+                    <span className="text-sm font-medium w-24 truncate">{m.nombre}</span>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="0 kg"
+                      value={m.kg}
+                      onChange={e => setMaquinasConKg(prev => prev.map((x, j) => j === i ? { ...x, kg: e.target.value } : x))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm text-muted-foreground">kg</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Routing para LAV finalizar */}
+          {muestraRouting && (
+            <div className="space-y-2">
+              <Label className="font-semibold">¿A dónde va después? <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-1 gap-2">
+                {routingOptions!.map(opt => (
+                  <button
+                    key={opt.etapaId}
+                    type="button"
+                    onClick={() => { setSelectedRoutingId(opt.etapaId); setError(null); }}
+                    className={`w-full py-3 px-4 rounded-xl border-2 text-left transition-all active:scale-[0.98]
+                      ${selectedRoutingId === opt.etapaId
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-gray-300 bg-white hover:border-primary/60'}
+                    `}
+                  >
+                    <div className="font-semibold text-sm">{opt.label}</div>
+                    {opt.description && <div className={`text-xs mt-0.5 ${selectedRoutingId === opt.etapaId ? 'opacity-80' : 'text-muted-foreground'}`}>{opt.description}</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -651,7 +530,7 @@ export function IniciarEtapaModal({
           )}
         </div>
 
-        <DialogFooter className="flex-shrink-0 pt-3 sm:pt-4 border-t flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+        <DialogFooter className="flex-shrink-0 pt-3 sm:pt-4 border-t flex-col-reverse sm:flex-row gap-2">
           <Button variant="outline" onClick={onClose} disabled={validating} className="w-full sm:w-auto">
             Cancelar
           </Button>
@@ -663,9 +542,9 @@ export function IniciarEtapaModal({
               pin.length < 4 ||
               validating ||
               isLoading ||
-              (requiereMaquina && (selectedMaquinas.length === 0 || maquinas.length === 0)) ||
               (esEtapaRecepcion && selectedCanastos.length === 0) ||
-              (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0))
+              (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
+              (muestraRouting && !selectedRoutingId)
             }
           >
             {validating ? (
@@ -674,7 +553,7 @@ export function IniciarEtapaModal({
                 Validando...
               </>
             ) : (
-              'Iniciar Etapa'
+              title
             )}
           </Button>
         </DialogFooter>

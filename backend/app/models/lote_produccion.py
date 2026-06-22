@@ -345,6 +345,9 @@ class LoteEtapaMaquina(Base, TimestampMixin):
         index=True,
     )
 
+    # Kg de ropa asignados a esta máquina (útil para LAV con múltiples lavadoras)
+    peso_kg = Column(Numeric(10, 2), nullable=True)
+
     # Fechas de uso
     fecha_asignacion = Column(DateTime, nullable=False, default=datetime.utcnow)
     fecha_liberacion = Column(DateTime, nullable=True)

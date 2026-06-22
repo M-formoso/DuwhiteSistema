@@ -1010,8 +1010,13 @@ class ProduccionService:
         # Obtener la etapa para verificar si requiere máquina
         etapa = self.get_etapa(etapa_id)
 
-        # Determinar las máquinas a usar (nuevo: maquinas_ids, o compatibilidad: maquina_id)
-        maquinas_ids = data.maquinas_ids or ([data.maquina_id] if data.maquina_id else [])
+        # Determinar las máquinas a usar:
+        # Prioridad: maquinas_con_kg > maquinas_ids > maquina_id (legado)
+        maquinas_con_kg = getattr(data, 'maquinas_con_kg', None) or []
+        if maquinas_con_kg:
+            maquinas_ids = [m.maquina_id for m in maquinas_con_kg]
+        else:
+            maquinas_ids = data.maquinas_ids or ([data.maquina_id] if data.maquina_id else [])
 
         # Validar que se seleccione máquina si la etapa lo requiere
         if etapa and etapa.requiere_maquina and not maquinas_ids:
@@ -1038,12 +1043,16 @@ class ProduccionService:
         lote_etapa.maquina_id = maquinas_ids[0] if maquinas_ids else None
         lote_etapa.observaciones = data.observaciones
 
+        # Construir mapa maquina_id → kg (para maquinas_con_kg)
+        kg_por_maquina = {str(m.maquina_id): m.kg for m in maquinas_con_kg} if maquinas_con_kg else {}
+
         # Asignar todas las máquinas usando la tabla intermedia
         for maq_id in maquinas_ids:
             lote_etapa_maquina = LoteEtapaMaquina(
                 lote_etapa_id=lote_etapa.id,
                 maquina_id=maq_id,
-                fecha_asignacion=datetime.utcnow()
+                fecha_asignacion=datetime.utcnow(),
+                peso_kg=kg_por_maquina.get(str(maq_id)),
             )
             self.db.add(lote_etapa_maquina)
 
@@ -1248,6 +1257,9 @@ class ProduccionService:
         lote_etapa.fecha_fin = datetime.utcnow()
         lote_etapa.peso_kg = data.peso_kg
 
+        if data.responsable_id:
+            lote_etapa.responsable_id = data.responsable_id
+
         if data.observaciones:
             lote_etapa.observaciones = (lote_etapa.observaciones or "") + f"\n{data.observaciones}"
 
@@ -1288,23 +1300,28 @@ class ProduccionService:
         # Verificar si hay siguiente etapa
         lote = self.get_lote(lote_id)
         if lote:
-            siguiente_etapa = self._get_siguiente_etapa(lote, etapa_id)
-            if siguiente_etapa:
-                lote.etapa_actual_id = siguiente_etapa.id
+            siguiente_etapa_override = getattr(data, 'siguiente_etapa_id', None)
+            if siguiente_etapa_override:
+                # Override explícito: saltar a la etapa indicada (ej: LAV → SEC, saltando DIV)
+                lote.etapa_actual_id = siguiente_etapa_override
             else:
-                # Es la última etapa, completar el lote
-                lote.estado = EstadoLote.COMPLETADO.value
-                lote.fecha_fin_proceso = datetime.utcnow()
-                lote.peso_salida_kg = data.peso_kg
+                siguiente_etapa = self._get_siguiente_etapa(lote, etapa_id)
+                if siguiente_etapa:
+                    lote.etapa_actual_id = siguiente_etapa.id
+                else:
+                    # Es la última etapa, completar el lote
+                    lote.estado = EstadoLote.COMPLETADO.value
+                    lote.fecha_fin_proceso = datetime.utcnow()
+                    lote.peso_salida_kg = data.peso_kg
 
-                # Si tiene cliente y monto_cobro, registrar cargo en cuenta corriente
-                if lote.cliente_id and monto_cobro and monto_cobro > 0:
-                    self._registrar_cargo_cc_desde_lote(
-                        lote=lote,
-                        monto=monto_cobro,
-                        usuario_id=usuario_id,
-                        estado_facturacion=estado_facturacion or "sin_facturar",
-                    )
+                    # Si tiene cliente y monto_cobro, registrar cargo en cuenta corriente
+                    if lote.cliente_id and monto_cobro and monto_cobro > 0:
+                        self._registrar_cargo_cc_desde_lote(
+                            lote=lote,
+                            monto=monto_cobro,
+                            usuario_id=usuario_id,
+                            estado_facturacion=estado_facturacion or "sin_facturar",
+                        )
 
         self.db.commit()
         self.db.refresh(lote_etapa)
@@ -1335,6 +1352,58 @@ class ProduccionService:
             logging.getLogger(__name__).exception("No se pudo registrar log de finalizar_etapa")
 
         return lote_etapa
+
+    def _liberar_canastos_selectivo(
+        self,
+        lote_id: UUID,
+        mantener_ids: List[UUID],
+        usuario_id: UUID,
+    ) -> None:
+        """Libera canastos del lote que NO están en mantener_ids."""
+        asignaciones = (
+            self.db.query(LoteCanasto)
+            .filter(
+                LoteCanasto.lote_id == lote_id,
+                LoteCanasto.fecha_liberacion.is_(None),
+                LoteCanasto.activo == True,
+            )
+            .all()
+        )
+        for asig in asignaciones:
+            if asig.canasto_id not in set(mantener_ids):
+                asig.fecha_liberacion = datetime.utcnow()
+                asig.liberado_por_id = usuario_id
+                canasto = self.db.query(Canasto).filter(Canasto.id == asig.canasto_id).first()
+                if canasto:
+                    canasto.estado = "disponible"
+
+    def _asignar_canastos(
+        self,
+        lote_id: UUID,
+        etapa_id: Optional[UUID],
+        canasto_ids: List[UUID],
+        usuario_id: UUID,
+    ) -> None:
+        """Asigna canastos a un lote/etapa (solo los que no están ya asignados)."""
+        existentes = {
+            str(a.canasto_id)
+            for a in self.db.query(LoteCanasto).filter(
+                LoteCanasto.lote_id == lote_id,
+                LoteCanasto.fecha_liberacion.is_(None),
+                LoteCanasto.activo == True,
+            ).all()
+        }
+        for canasto_id in canasto_ids:
+            if str(canasto_id) not in existentes:
+                canasto = self.db.query(Canasto).filter(Canasto.id == canasto_id).first()
+                if canasto:
+                    canasto.estado = "en_uso"
+                    self.db.add(LoteCanasto(
+                        lote_id=lote_id,
+                        canasto_id=canasto_id,
+                        etapa_id=etapa_id,
+                        asignado_por_id=usuario_id,
+                    ))
 
     def _liberar_canastos_lote(
         self,
@@ -1403,6 +1472,14 @@ class ProduccionService:
 
         if data.observaciones:
             lote.notas_internas = (lote.notas_internas or "") + f"\n[Movido] {data.observaciones}"
+
+        # Manejar canastos: si se especifican, los no listados quedan libres
+        if getattr(data, 'canastos_ids', None) is not None:
+            self._liberar_canastos_selectivo(lote_id, data.canastos_ids, usuario_id)
+            self._asignar_canastos(lote_id, data.etapa_destino_id, data.canastos_ids, usuario_id)
+        else:
+            # Sin especificación: liberar todos (el lote se "vacía" de canastos al moverse)
+            self._liberar_canastos_lote(lote_id, usuario_id)
 
         self.db.commit()
         self.db.refresh(lote)
@@ -2490,6 +2567,18 @@ class ProduccionService:
         nota_division = f"[División en {etapa.nombre}] {data.peso_destino_principal_kg}kg → {etapa_principal.nombre}"
         lote.notas_internas = (lote.notas_internas or "") + f"\n{datetime.utcnow()}: {nota_division}"
 
+        # Manejar canastos del lote principal
+        todos_ids_usados: List[UUID] = []
+        if data.canastos_ids_principal:
+            todos_ids_usados.extend(data.canastos_ids_principal)
+        if data.canastos_ids_alternativo:
+            todos_ids_usados.extend(data.canastos_ids_alternativo)
+        # Liberar canastos no reasignados a ningún branch
+        self._liberar_canastos_selectivo(lote.id, todos_ids_usados, usuario_id)
+        # Asignar canastos del branch principal
+        if data.canastos_ids_principal:
+            self._asignar_canastos(lote.id, etapa_principal.id, data.canastos_ids_principal, usuario_id)
+
         lote_secundario = None
 
         # Si hay peso para destino alternativo, crear sub-lote
@@ -2537,6 +2626,15 @@ class ProduccionService:
                         estado="pendiente",
                     )
                     self.db.add(lote_etapa_nuevo)
+
+            # Asignar canastos al sub-lote
+            if data.canastos_ids_alternativo:
+                self._asignar_canastos(
+                    lote_secundario.id,
+                    etapa_alternativa.id,
+                    data.canastos_ids_alternativo,
+                    usuario_id,
+                )
 
         self.db.commit()
         self.db.refresh(lote)

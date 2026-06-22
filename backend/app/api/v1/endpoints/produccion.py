@@ -410,6 +410,48 @@ def crear_maquina(
     )
 
 
+@router.put("/maquinas/{maquina_id}", response_model=MaquinaResponse)
+def actualizar_maquina(
+    maquina_id: UUID,
+    data: MaquinaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion")),
+):
+    """Actualiza los datos de una máquina."""
+    service = ProduccionService(db)
+    maquina = service.update_maquina(maquina_id, data, current_user.id)
+
+    if not maquina:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Máquina no encontrada",
+        )
+
+    return MaquinaResponse(
+        id=maquina.id,
+        codigo=maquina.codigo,
+        nombre=maquina.nombre,
+        tipo=maquina.tipo,
+        marca=maquina.marca,
+        modelo=maquina.modelo,
+        numero_serie=maquina.numero_serie,
+        capacidad_kg=maquina.capacidad_kg,
+        estado=maquina.estado,
+        ubicacion=maquina.ubicacion,
+        costo_hora=maquina.costo_hora,
+        consumo_energia_kwh=maquina.consumo_energia_kwh,
+        consumo_agua_litros=maquina.consumo_agua_litros,
+        fecha_ultimo_mantenimiento=maquina.fecha_ultimo_mantenimiento,
+        fecha_proximo_mantenimiento=maquina.fecha_proximo_mantenimiento,
+        horas_uso_totales=maquina.horas_uso_totales,
+        notas=maquina.notas,
+        created_at=maquina.created_at,
+        updated_at=maquina.updated_at,
+        is_active=maquina.activo,
+        requiere_mantenimiento=maquina.requiere_mantenimiento,
+    )
+
+
 # ==================== LOTES ====================
 
 @router.get("/lotes/{lote_id}/historial")
