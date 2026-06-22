@@ -19,6 +19,8 @@ import {
   ShoppingCart,
   Clock,
   Loader2,
+  PauseCircle,
+  Search,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -54,9 +56,11 @@ import {
   Area,
 } from 'recharts';
 
-import { reporteService, type Agrupacion } from '@/services/reporteService';
+import { reporteService, getProduccionPorUsuarioPosta, getClientesProduccion, getTiempoMuertoProduccion, type Agrupacion } from '@/services/reporteService';
+import { clienteService } from '@/services/clienteService';
 import { getLocalDateString } from '@/utils/formatters';
 import { AnaliticasProduccionSection } from '@/pages/reportes/AnaliticasProduccionSection';
+import { Combobox } from '@/components/ui/combobox';
 
 const COLORS = ['#00BCD4', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -73,14 +77,10 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('es-AR').format(value);
 }
 
-// Obtener fechas por defecto (último mes)
+// Default: el día actual — el usuario abre y ve la producción del día
 function getDefaultDates() {
-  const hoy = new Date();
-  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  return {
-    desde: getLocalDateString(inicioMes),
-    hasta: getLocalDateString(hoy),
-  };
+  const hoy = getLocalDateString(new Date());
+  return { desde: hoy, hasta: hoy };
 }
 
 export default function ReportesPage() {
@@ -89,6 +89,7 @@ export default function ReportesPage() {
   const [fechaHasta, setFechaHasta] = useState(defaultDates.hasta);
   const [agrupacion, setAgrupacion] = useState<Agrupacion>('dia');
   const [activeTab, setActiveTab] = useState('resumen');
+  const [clienteFiltroId, setClienteFiltroId] = useState<string | null>(null);
 
   // Query de estadísticas rápidas
   const { data: estadisticas, isLoading: loadingEstadisticas } = useQuery({
@@ -165,6 +166,38 @@ export default function ReportesPage() {
     enabled: !!fechaDesde && !!fechaHasta,
   });
 
+  // Producción por usuario/posta
+  const { data: produccionUsuarioPosta, isLoading: loadingUsuarioPosta } = useQuery({
+    queryKey: ['produccion-usuario-posta', fechaDesde, fechaHasta],
+    queryFn: () => getProduccionPorUsuarioPosta({ fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
+    enabled: !!fechaDesde && !!fechaHasta && activeTab === 'produccion',
+  });
+
+  // Clientes por producción
+  const { data: clientesProduccion, isLoading: loadingClientesProduccion } = useQuery({
+    queryKey: ['clientes-produccion', fechaDesde, fechaHasta, clienteFiltroId],
+    queryFn: () => getClientesProduccion({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+      cliente_id: clienteFiltroId || undefined,
+    }),
+    enabled: !!fechaDesde && !!fechaHasta && activeTab === 'produccion',
+  });
+
+  // Lista de clientes para el combobox
+  const { data: clientesLista = [] } = useQuery({
+    queryKey: ['clientes-lista'],
+    queryFn: clienteService.getClientesLista,
+    enabled: activeTab === 'produccion',
+  });
+
+  // Tiempo muerto
+  const { data: tiempoMuerto, isLoading: loadingTiempoMuerto } = useQuery({
+    queryKey: ['tiempo-muerto', fechaDesde, fechaHasta],
+    queryFn: () => getTiempoMuertoProduccion({ fecha_desde: fechaDesde, fecha_hasta: fechaHasta }),
+    enabled: !!fechaDesde && !!fechaHasta && activeTab === 'produccion',
+  });
+
   // Query de flujo de caja
   const { data: flujoCaja } = useQuery({
     queryKey: ['flujo-caja', fechaDesde, fechaHasta, agrupacion],
@@ -211,7 +244,7 @@ export default function ReportesPage() {
       </div>
 
       {/* KPIs Rápidos */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         {loadingEstadisticas ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
@@ -224,71 +257,71 @@ export default function ReportesPage() {
         ) : estadisticas ? (
           <>
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Ventas Hoy</p>
-                    <p className="text-2xl font-bold">{formatCurrency(estadisticas.hoy.total)}</p>
-                    <p className="text-xs text-muted-foreground">
+              <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Ventas Hoy</p>
+                    <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(estadisticas.hoy.total)}</p>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {estadisticas.hoy.pedidos} pedidos
                     </p>
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <ShoppingCart className="h-6 w-6 text-primary" />
+                  <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <ShoppingCart className="h-4 w-4 sm:h-6 sm:w-6 text-primary" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Ventas del Mes</p>
-                    <p className="text-2xl font-bold">{formatCurrency(estadisticas.mes.total)}</p>
-                    <p className="text-xs text-muted-foreground">
+              <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Ventas del Mes</p>
+                    <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(estadisticas.mes.total)}</p>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {estadisticas.mes.pedidos} pedidos
                     </p>
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-green-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">En Producción</p>
-                    <p className="text-2xl font-bold">
+              <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">En Producción</p>
+                    <p className="text-lg sm:text-2xl font-bold">
                       {estadisticas.produccion.lotes_en_proceso}
                     </p>
-                    <p className="text-xs text-muted-foreground">lotes activos</p>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">lotes activos</p>
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                    <Factory className="h-6 w-6 text-blue-600" />
+                  <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <Factory className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Stock Crítico</p>
-                    <p className="text-2xl font-bold">{estadisticas.stock.critico}</p>
-                    <p className="text-xs text-muted-foreground">insumos bajo mínimo</p>
+              <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Stock Crítico</p>
+                    <p className="text-lg sm:text-2xl font-bold">{estadisticas.stock.critico}</p>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">insumos bajo mínimo</p>
                   </div>
                   <div
-                    className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                    className={`h-9 w-9 sm:h-12 sm:w-12 rounded-full flex items-center justify-center flex-shrink-0 ${
                       estadisticas.stock.critico > 0 ? 'bg-red-100' : 'bg-green-100'
                     }`}
                   >
                     <AlertTriangle
-                      className={`h-6 w-6 ${
+                      className={`h-4 w-4 sm:h-6 sm:w-6 ${
                         estadisticas.stock.critico > 0 ? 'text-red-600' : 'text-green-600'
                       }`}
                     />
@@ -303,33 +336,33 @@ export default function ReportesPage() {
       {/* Filtros de Fecha */}
       <Card>
         <CardContent className="py-4">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-end">
+            <div className="space-y-2 w-full sm:w-auto">
+              <Label className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4" />
                 Período
               </Label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <Input
                   type="date"
                   value={fechaDesde}
                   onChange={(e) => setFechaDesde(e.target.value)}
-                  className="w-40"
+                  className="flex-1 sm:w-40 sm:flex-none"
                 />
-                <span className="flex items-center text-muted-foreground">a</span>
+                <span className="text-muted-foreground text-sm">a</span>
                 <Input
                   type="date"
                   value={fechaHasta}
                   onChange={(e) => setFechaHasta(e.target.value)}
-                  className="w-40"
+                  className="flex-1 sm:w-40 sm:flex-none"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Agrupar por</Label>
+            <div className="space-y-2 w-full sm:w-auto">
+              <Label className="text-sm">Agrupar por</Label>
               <Select value={agrupacion} onValueChange={(v) => setAgrupacion(v as Agrupacion)}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -340,7 +373,18 @@ export default function ReportesPage() {
               </Select>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const hoy = getLocalDateString(new Date());
+                  setFechaDesde(hoy);
+                  setFechaHasta(hoy);
+                }}
+              >
+                Hoy
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -386,24 +430,24 @@ export default function ReportesPage() {
 
       {/* Tabs de Reportes */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="resumen" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
+          <TabsTrigger value="resumen" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-1 sm:px-3 py-2 text-[11px] sm:text-sm">
             <BarChart3 className="h-4 w-4" />
             Resumen
           </TabsTrigger>
-          <TabsTrigger value="ventas" className="flex items-center gap-2">
+          <TabsTrigger value="ventas" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-1 sm:px-3 py-2 text-[11px] sm:text-sm">
             <DollarSign className="h-4 w-4" />
             Ventas
           </TabsTrigger>
-          <TabsTrigger value="produccion" className="flex items-center gap-2">
+          <TabsTrigger value="produccion" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-1 sm:px-3 py-2 text-[11px] sm:text-sm">
             <Factory className="h-4 w-4" />
             Producción
           </TabsTrigger>
-          <TabsTrigger value="finanzas" className="flex items-center gap-2">
+          <TabsTrigger value="finanzas" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-1 sm:px-3 py-2 text-[11px] sm:text-sm">
             <TrendingUp className="h-4 w-4" />
             Finanzas
           </TabsTrigger>
-          <TabsTrigger value="stock" className="flex items-center gap-2">
+          <TabsTrigger value="stock" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-1 sm:px-3 py-2 text-[11px] sm:text-sm">
             <Package className="h-4 w-4" />
             Stock
           </TabsTrigger>
@@ -418,53 +462,53 @@ export default function ReportesPage() {
           ) : resumen ? (
             <>
               {/* Cards de Resumen */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                  <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                       Total Ventas
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(resumen.ventas.total)}</div>
-                    <p className="text-xs text-muted-foreground">
+                  <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                    <div className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(resumen.ventas.total)}</div>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {resumen.ventas.cantidad_pedidos} pedidos en el período
                     </p>
                   </CardContent>
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                  <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                       Producción
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
+                  <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                    <div className="text-lg sm:text-2xl font-bold">
                       {formatNumber(resumen.produccion.kg_procesados)} kg
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {resumen.produccion.lotes_completados} de {resumen.produccion.cantidad_lotes}{' '}
-                      lotes completados
+                      lotes
                     </p>
                   </CardContent>
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                  <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                       Balance
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                     <div
-                      className={`text-2xl font-bold ${
+                      className={`text-lg sm:text-2xl font-bold truncate ${
                         resumen.finanzas.balance >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}
                     >
                       {formatCurrency(resumen.finanzas.balance)}
                     </div>
-                    <div className="flex gap-4 text-xs">
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] sm:text-xs">
                       <span className="text-green-600">
                         +{formatCurrency(resumen.finanzas.ingresos)}
                       </span>
@@ -476,14 +520,14 @@ export default function ReportesPage() {
                 </Card>
 
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                  <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                       Clientes Nuevos
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{resumen.clientes_nuevos}</div>
-                    <p className="text-xs text-muted-foreground">
+                  <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                    <div className="text-lg sm:text-2xl font-bold">{resumen.clientes_nuevos}</div>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {resumen.stock_critico > 0 ? (
                         <span className="text-red-600">
                           {resumen.stock_critico} alertas de stock
@@ -795,6 +839,376 @@ export default function ReportesPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Tiempo Muerto */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PauseCircle className="h-5 w-5 text-amber-500" />
+                Tiempo Muerto
+              </CardTitle>
+              <CardDescription>
+                Tiempo que los lotes estuvieron sin ser procesados en ninguna posta
+                (desde el inicio de la primera hasta el fin de la última etapa, descontando el tiempo activo)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingTiempoMuerto ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Calculando...
+                </div>
+              ) : tiempoMuerto && tiempoMuerto.lotes_analizados > 0 ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                    <div className="text-center p-2 sm:p-3 rounded-lg bg-amber-50 border border-amber-200">
+                      <div className="text-lg sm:text-2xl font-bold text-amber-700">
+                        {Math.round(tiempoMuerto.promedio_tiempo_muerto_minutos)} min
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-amber-600 mt-1">Promedio por lote</div>
+                    </div>
+                    <div className="text-center p-2 sm:p-3 rounded-lg bg-blue-50 border border-blue-200">
+                      <div className="text-lg sm:text-2xl font-bold text-blue-700">
+                        {tiempoMuerto.lotes_analizados}
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-blue-600 mt-1">Lotes analizados</div>
+                    </div>
+                    <div className="text-center p-2 sm:p-3 rounded-lg bg-red-50 border border-red-200">
+                      <div className="text-lg sm:text-2xl font-bold text-red-700">
+                        {Math.round(tiempoMuerto.total_tiempo_muerto_minutos / 60)} h
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-red-600 mt-1">Total acumulado</div>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium text-muted-foreground">Lote</th>
+                          <th className="pb-2 font-medium text-muted-foreground">Cliente</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-right">Tiempo total</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-right">Tiempo activo</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-right">Tiempo muerto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tiempoMuerto.detalle.slice(0, 10).map((row) => (
+                          <tr key={row.lote_id} className="border-b last:border-0">
+                            <td className="py-2 font-mono text-xs">{row.numero}</td>
+                            <td className="py-2 text-muted-foreground">{row.cliente_nombre ?? '-'}</td>
+                            <td className="py-2 text-right">{Math.round(row.tiempo_total_minutos)} min</td>
+                            <td className="py-2 text-right text-green-700">{Math.round(row.tiempo_activo_minutos)} min</td>
+                            <td className="py-2 text-right font-semibold text-amber-700">
+                              {Math.round(row.tiempo_muerto_minutos)} min
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {tiempoMuerto.detalle.length > 10 && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        Mostrando los 10 lotes con mayor tiempo muerto de {tiempoMuerto.detalle.length} totales
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-24 text-muted-foreground">
+                  No hay lotes con etapas completadas en el período
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Producción por Operario y Posta */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Producción por Operario y Posta
+              </CardTitle>
+              <CardDescription>
+                Kg procesados y lotes completados por cada operario en cada etapa
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingUsuarioPosta ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando...
+                </div>
+              ) : produccionUsuarioPosta && produccionUsuarioPosta.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium text-muted-foreground">Operario</th>
+                        <th className="pb-2 font-medium text-muted-foreground">Posta</th>
+                        <th className="pb-2 font-medium text-muted-foreground text-right">Lotes</th>
+                        <th className="pb-2 font-medium text-muted-foreground text-right">Kg procesados</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {produccionUsuarioPosta.map((row, i) => (
+                        <tr key={`${row.usuario_id}-${row.etapa_id}`} className="border-b last:border-0">
+                          <td className="py-2 font-medium">{row.usuario_nombre}</td>
+                          <td className="py-2">
+                            <Badge variant="outline" className="text-xs">{row.etapa_nombre}</Badge>
+                          </td>
+                          <td className="py-2 text-right">{row.lotes_distintos}</td>
+                          <td className="py-2 text-right font-semibold text-primary">
+                            {formatNumber(row.kg_procesados)} kg
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-24 text-muted-foreground">
+                  No hay datos de producción por operario en el período
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Mejores Clientes por Producción */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Search className="h-5 w-5 text-primary" />
+                    Clientes por Kg Lavados
+                  </CardTitle>
+                  <CardDescription>
+                    Filtrá por cliente para ver el desglose de lotes
+                  </CardDescription>
+                </div>
+                <div className="w-full sm:w-64">
+                  <Combobox
+                    options={clientesLista.map((c) => ({ value: c.id, label: c.nombre }))}
+                    value={clienteFiltroId}
+                    onChange={setClienteFiltroId}
+                    placeholder="Todos los clientes"
+                    searchPlaceholder="Buscar cliente..."
+                    emptyText="No encontrado"
+                    allowClear
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingClientesProduccion ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando...
+                </div>
+              ) : clienteFiltroId && clientesProduccion?.detalle_lotes && clientesProduccion.detalle_lotes.length > 0 ? (
+                <div className="space-y-3">
+                  {clientesProduccion.clientes[0] && (
+                    <div className="flex items-center gap-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <div>
+                        <div className="font-semibold">{clientesProduccion.clientes[0].cliente_nombre}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {clientesProduccion.clientes[0].cantidad_lotes} lotes ·{' '}
+                          <span className="font-medium text-primary">
+                            {formatNumber(clientesProduccion.clientes[0].kg_total)} kg totales
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium text-muted-foreground">Lote</th>
+                          <th className="pb-2 font-medium text-muted-foreground">Estado</th>
+                          <th className="pb-2 font-medium text-muted-foreground">Ingreso</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-right">Kg</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientesProduccion.detalle_lotes.map((lote) => (
+                          <tr key={lote.lote_id} className="border-b last:border-0">
+                            <td className="py-2 font-mono text-xs">{lote.numero}</td>
+                            <td className="py-2">
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {lote.estado.replace('_', ' ')}
+                              </Badge>
+                            </td>
+                            <td className="py-2 text-muted-foreground text-xs">
+                              {lote.fecha_ingreso
+                                ? new Date(lote.fecha_ingreso).toLocaleDateString('es-AR')
+                                : '-'}
+                            </td>
+                            <td className="py-2 text-right font-semibold">
+                              {lote.peso_kg > 0 ? `${formatNumber(lote.peso_kg)} kg` : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : !clienteFiltroId && clientesProduccion?.clientes && clientesProduccion.clientes.length > 0 ? (
+                (() => {
+                  const totalKg = clientesProduccion.clientes.reduce((s, c) => s + c.kg_total, 0);
+                  const totalLotes = clientesProduccion.clientes.reduce((s, c) => s + c.cantidad_lotes, 0);
+                  const promedioPorCliente = clientesProduccion.clientes.length > 0
+                    ? totalKg / clientesProduccion.clientes.length
+                    : 0;
+                  const diasRango = (() => {
+                    const d1 = new Date(fechaDesde).getTime();
+                    const d2 = new Date(fechaHasta).getTime();
+                    return Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+                  })();
+                  const promedioPorDia = totalKg / diasRango;
+                  const topN = clientesProduccion.clientes.slice(0, 10);
+                  const chartData = [...topN]
+                    .map((c) => ({
+                      nombre:
+                        c.cliente_nombre.length > 22
+                          ? c.cliente_nombre.slice(0, 22) + '…'
+                          : c.cliente_nombre,
+                      kg: Math.round(c.kg_total * 10) / 10,
+                      lotes: c.cantidad_lotes,
+                    }))
+                    .reverse();
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Acumuladores */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                        <div className="bg-cyan-50 border border-cyan-100 rounded-lg p-2 sm:p-3">
+                          <p className="text-[10px] text-cyan-700 uppercase tracking-wide">
+                            Total kg
+                          </p>
+                          <p className="text-base sm:text-xl font-bold text-cyan-700 truncate">
+                            {formatNumber(totalKg)} kg
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-cyan-600 mt-0.5">
+                            {totalLotes} lotes · {clientesProduccion.clientes.length} clientes
+                          </p>
+                        </div>
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2 sm:p-3">
+                          <p className="text-[10px] text-emerald-700 uppercase tracking-wide">
+                            Prom. cliente
+                          </p>
+                          <p className="text-base sm:text-xl font-bold text-emerald-700 truncate">
+                            {formatNumber(Math.round(promedioPorCliente))} kg
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-emerald-600 mt-0.5">
+                            sobre {clientesProduccion.clientes.length} clientes
+                          </p>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-2 sm:p-3">
+                          <p className="text-[10px] text-blue-700 uppercase tracking-wide">
+                            Prom. día
+                          </p>
+                          <p className="text-base sm:text-xl font-bold text-blue-700 truncate">
+                            {formatNumber(Math.round(promedioPorDia))} kg
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-blue-600 mt-0.5">
+                            sobre {diasRango} día{diasRango === 1 ? '' : 's'}
+                          </p>
+                        </div>
+                        <div className="bg-purple-50 border border-purple-100 rounded-lg p-2 sm:p-3">
+                          <p className="text-[10px] text-purple-700 uppercase tracking-wide">
+                            Top cliente
+                          </p>
+                          <p className="text-xs sm:text-sm font-bold text-purple-700 truncate">
+                            {clientesProduccion.clientes[0].cliente_nombre}
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-purple-600 mt-0.5">
+                            {formatNumber(clientesProduccion.clientes[0].kg_total)} kg
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Gráfico + tabla */}
+                      <div className="grid gap-4 lg:grid-cols-12">
+                        {/* Gráfico de barras horizontales */}
+                        <div className="lg:col-span-7">
+                          <p className="text-xs font-semibold text-gray-700 uppercase mb-2">
+                            Top {topN.length} clientes por kg lavados
+                          </p>
+                          <div className="h-[300px] sm:h-[360px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={chartData}
+                                layout="vertical"
+                                margin={{ top: 4, right: 12, left: 0, bottom: 4 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                                <XAxis
+                                  type="number"
+                                  fontSize={10}
+                                  tickFormatter={(v) => `${formatNumber(v)}`}
+                                />
+                                <YAxis
+                                  type="category"
+                                  dataKey="nombre"
+                                  fontSize={10}
+                                  width={100}
+                                  tick={{ fill: '#374151' }}
+                                />
+                                <Tooltip
+                                  formatter={(value: number, name) => {
+                                    if (name === 'kg') return [`${formatNumber(value)} kg`, 'Kg lavados'];
+                                    return [value, name];
+                                  }}
+                                />
+                                <Bar dataKey="kg" fill="#00BCD4" radius={[0, 4, 4, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+
+                        {/* Tabla lateral */}
+                        <div className="lg:col-span-5 overflow-x-auto">
+                          <p className="text-xs font-semibold text-gray-700 uppercase mb-2">
+                            Detalle (clic para filtrar)
+                          </p>
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-left">
+                                <th className="pb-2 font-medium text-muted-foreground">#</th>
+                                <th className="pb-2 font-medium text-muted-foreground">Cliente</th>
+                                <th className="pb-2 font-medium text-muted-foreground text-right">Lotes</th>
+                                <th className="pb-2 font-medium text-muted-foreground text-right">Kg</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {clientesProduccion.clientes.map((c, idx) => (
+                                <tr
+                                  key={c.cliente_id}
+                                  className="border-b last:border-0 cursor-pointer hover:bg-muted/50"
+                                  onClick={() => setClienteFiltroId(c.cliente_id)}
+                                >
+                                  <td className="py-2 text-muted-foreground">{idx + 1}</td>
+                                  <td className="py-2 font-medium">{c.cliente_nombre}</td>
+                                  <td className="py-2 text-right">{c.cantidad_lotes}</td>
+                                  <td className="py-2 text-right font-semibold text-primary">
+                                    {formatNumber(c.kg_total)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="flex items-center justify-center h-24 text-muted-foreground">
+                  No hay datos de clientes en el período
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Tab: Finanzas */}

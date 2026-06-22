@@ -65,7 +65,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatNumber } from '@/utils/formatters';
+import { formatNumber, getLocalDateString } from '@/utils/formatters';
 import {
   getAnaliticaProduccion,
   getKgIngresados,
@@ -87,9 +87,9 @@ function PostaCard({ posta }: { posta: AnaliticaPosta }) {
     min > (posta.tiempo_estimado_minutos as number);
 
   return (
-    <Card className="flex flex-col h-[460px]">
+    <Card className="flex flex-col min-h-[380px] sm:h-[460px]">
       <div
-        className="rounded-t-xl px-4 py-3 text-white"
+        className="rounded-t-xl px-3 sm:px-4 py-2.5 sm:py-3 text-white"
         style={{ backgroundColor: posta.etapa_color }}
       >
         <div className="flex items-center justify-between">
@@ -259,14 +259,14 @@ export function AnaliticasProduccionSection({
         : getRendimientoProductos({ dias_atras: diasAtras }),
   });
 
+  // "Kg ingresados HOY" — siempre del día actual, independiente del rango externo.
+  // Esto permite que al cambiar el filtro de fechas (p. ej. para ver el mes)
+  // el reporte del día siga visible y al alcance.
+  const hoyStr = getLocalDateString(new Date());
   const { data: kgIngresados, isLoading: loadingKgIngresados } = useQuery({
-    queryKey: ['kg-ingresados', fechaDesde, fechaHasta],
-    queryFn: () =>
-      getKgIngresados(
-        tieneRangoExterno
-          ? { fecha_desde: fechaDesde, fecha_hasta: fechaHasta }
-          : undefined
-      ),
+    queryKey: ['kg-ingresados-hoy', hoyStr],
+    queryFn: () => getKgIngresados({ fecha_desde: hoyStr, fecha_hasta: hoyStr }),
+    refetchInterval: 60_000,
   });
 
   const [kgIngresadosOpen, setKgIngresadosOpen] = useState(false);
@@ -281,11 +281,8 @@ export function AnaliticasProduccionSection({
       fechaHasta
     ).toLocaleDateString('es-AR')}`;
   })();
+  const hoyLabel = new Date().toLocaleDateString('es-AR');
 
-  const promedioPorDia =
-    kgIngresados && kgIngresados.por_dia.length > 0
-      ? kgIngresados.total_kg / kgIngresados.por_dia.length
-      : 0;
   const horaPicoLabel = (() => {
     if (!kgIngresados?.hora_pico) return null;
     const h = kgIngresados.hora_pico.hora;
@@ -303,26 +300,24 @@ export function AnaliticasProduccionSection({
         className="w-full text-left"
       >
         <Card className="border-l-4 border-l-cyan-500 hover:shadow-md transition-shadow cursor-pointer">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-cyan-100 p-2.5">
-                  <Scale className="h-6 w-6 text-cyan-700" />
+          <CardContent className="pt-3 sm:pt-4">
+            <div className="flex items-start justify-between gap-3 sm:gap-4 flex-wrap">
+              <div className="flex items-start gap-2.5 sm:gap-3 flex-1 min-w-0">
+                <div className="rounded-lg bg-cyan-100 p-2 sm:p-2.5 flex-shrink-0">
+                  <Scale className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-700" />
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">
-                    Kg ingresados
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    Kg ingresados hoy
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      {hoyLabel}
+                    </Badge>
                   </p>
-                  <p className="text-3xl font-bold text-cyan-700 leading-tight">
-                    {formatNumber(kgIngresados?.total_kg || 0, 1)} kg
+                  <p className="text-2xl sm:text-3xl font-bold text-cyan-700 leading-tight">
+                    {loadingKgIngresados ? '–' : `${formatNumber(kgIngresados?.total_kg || 0, 1)} kg`}
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {kgIngresados?.total_lotes ?? 0} lotes en el rango
-                    {kgIngresados && kgIngresados.por_dia.length > 1 && (
-                      <span className="ml-1">
-                        · prom. {formatNumber(promedioPorDia, 1)} kg/día
-                      </span>
-                    )}
+                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
+                    {kgIngresados?.total_lotes ?? 0} lote{kgIngresados?.total_lotes === 1 ? '' : 's'} en el día
                   </p>
                 </div>
               </div>
@@ -330,12 +325,12 @@ export function AnaliticasProduccionSection({
                 <div className="text-right">
                   <p className="text-[10px] text-gray-500 uppercase">Hora pico</p>
                   <p className="text-sm font-semibold text-cyan-700">{horaPicoLabel}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-[11px] text-gray-500">
                     {formatNumber(kgIngresados!.hora_pico!.kg, 1)} kg
                   </p>
                 </div>
               )}
-              <div className="self-center">
+              <div className="self-center hidden sm:block">
                 <Badge variant="outline" className="text-xs">Ver desglose</Badge>
               </div>
             </div>
@@ -348,10 +343,10 @@ export function AnaliticasProduccionSection({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-cyan-700" />
-              Kg ingresados — desglose
+              Kg ingresados hoy — desglose
             </DialogTitle>
             <DialogDescription>
-              {rangoLabel}. Suma de peso de entrada de los lotes creados en el rango, sin importar el estado actual.
+              {hoyLabel}. Suma de peso de entrada de los lotes creados en el día, sin importar el estado actual.
             </DialogDescription>
           </DialogHeader>
 
@@ -361,7 +356,7 @@ export function AnaliticasProduccionSection({
             </div>
           ) : !kgIngresados || kgIngresados.total_lotes === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">
-              No hay lotes ingresados en el rango seleccionado.
+              No hay lotes ingresados hoy todavía.
             </div>
           ) : (
             <div className="space-y-5">
@@ -486,93 +481,93 @@ export function AnaliticasProduccionSection({
 
       {/* Sub-header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Gauge className="h-5 w-5 text-primary" />
-            Tiempo real por posta
-            <Badge variant="outline" className="font-normal">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+            <Gauge className="h-5 w-5 text-primary flex-shrink-0" />
+            <span>Tiempo real por posta</span>
+            <Badge variant="outline" className="font-normal text-[11px]">
               {rangoLabel}
             </Badge>
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-[11px] sm:text-xs text-gray-500 mt-1">
             "En proceso" siempre es ahora; los kg / lotes finalizados y kg/h corresponden al rango.
             {dataUpdatedAt > 0 && (
-              <span className="text-gray-400 ml-2">
+              <span className="text-gray-400 ml-2 hidden sm:inline">
                 · actualizado {new Date(dataUpdatedAt).toLocaleTimeString('es-AR')}
               </span>
             )}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetchAnalitica()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Actualizar
+        <Button variant="outline" size="sm" onClick={() => refetchAnalitica()} className="self-start sm:self-auto">
+          <RefreshCw className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Actualizar</span>
         </Button>
       </div>
 
       {/* Tiles de totales */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Lotes en proceso</p>
-                <p className="text-2xl font-bold text-blue-600">
+          <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 uppercase truncate">Lotes en proceso</p>
+                <p className="text-lg sm:text-2xl font-bold text-blue-600">
                   {totales?.lotes_en_proceso ?? '–'}
                 </p>
               </div>
-              <Factory className="h-7 w-7 text-blue-300" />
+              <Factory className="h-5 w-5 sm:h-7 sm:w-7 text-blue-300 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">kg en proceso</p>
-                <p className="text-2xl font-bold text-blue-700">
+          <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 uppercase truncate">kg en proceso</p>
+                <p className="text-lg sm:text-2xl font-bold text-blue-700">
                   {formatNumber(totales?.kg_en_proceso || 0, 1)}
                 </p>
               </div>
-              <Scale className="h-7 w-7 text-blue-300" />
+              <Scale className="h-5 w-5 sm:h-7 sm:w-7 text-blue-300 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Lotes finalizados</p>
-                <p className="text-2xl font-bold text-emerald-600">
+          <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 uppercase truncate">Lotes finalizados</p>
+                <p className="text-lg sm:text-2xl font-bold text-emerald-600">
                   {totales?.lotes_finalizados_hoy ?? '–'}
                 </p>
               </div>
-              <CheckCircle className="h-7 w-7 text-emerald-300" />
+              <CheckCircle className="h-5 w-5 sm:h-7 sm:w-7 text-emerald-300 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">kg finalizados</p>
-                <p className="text-2xl font-bold text-emerald-700">
+          <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 uppercase truncate">kg finalizados</p>
+                <p className="text-lg sm:text-2xl font-bold text-emerald-700">
                   {formatNumber(totales?.kg_finalizado_hoy || 0, 1)}
                 </p>
               </div>
-              <Scale className="h-7 w-7 text-emerald-300" />
+              <Scale className="h-5 w-5 sm:h-7 sm:w-7 text-emerald-300 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Horas planta</p>
-                <p className="text-2xl font-bold text-purple-700">
+        <Card className="border-l-4 border-l-purple-500 col-span-2 sm:col-span-1">
+          <CardContent className="pt-3 sm:pt-4 px-3 sm:px-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 uppercase truncate">Horas planta</p>
+                <p className="text-lg sm:text-2xl font-bold text-purple-700">
                   {formatNumber(totales?.horas_planta_hoy || 0, 1)} h
                 </p>
               </div>
-              <Clock className="h-7 w-7 text-purple-300" />
+              <Clock className="h-5 w-5 sm:h-7 sm:w-7 text-purple-300 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
@@ -588,36 +583,36 @@ export function AnaliticasProduccionSection({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <div className="bg-blue-50 rounded p-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+              <div className="bg-blue-50 rounded p-2 sm:p-3 text-center">
                 <p className="text-[10px] text-blue-700 uppercase">Lotes</p>
-                <p className="text-xl font-bold text-blue-700">
+                <p className="text-lg sm:text-xl font-bold text-blue-700">
                   {analitica.ciclo_lotes.lotes_completados}
                 </p>
               </div>
-              <div className="bg-emerald-50 rounded p-3 text-center">
+              <div className="bg-emerald-50 rounded p-2 sm:p-3 text-center">
                 <p className="text-[10px] text-emerald-700 uppercase">kg producidos</p>
-                <p className="text-xl font-bold text-emerald-700">
+                <p className="text-lg sm:text-xl font-bold text-emerald-700">
                   {formatNumber(analitica.ciclo_lotes.kg_total_completado, 1)}
                 </p>
               </div>
-              <div className="bg-purple-50 rounded p-3 text-center">
+              <div className="bg-purple-50 rounded p-2 sm:p-3 text-center">
                 <p className="text-[10px] text-purple-700 uppercase">Duración promedio</p>
-                <p className="text-xl font-bold text-purple-700">
+                <p className="text-lg sm:text-xl font-bold text-purple-700">
                   {formatMinutos(analitica.ciclo_lotes.duracion_promedio_minutos)}
                 </p>
               </div>
-              <div className="bg-gray-50 rounded p-3 text-center">
+              <div className="bg-gray-50 rounded p-2 sm:p-3 text-center">
                 <p className="text-[10px] text-gray-600 uppercase">Más rápido</p>
-                <p className="text-lg font-bold text-gray-700">
+                <p className="text-base sm:text-lg font-bold text-gray-700">
                   {analitica.ciclo_lotes.duracion_min_minutos != null
                     ? formatMinutos(analitica.ciclo_lotes.duracion_min_minutos)
                     : '–'}
                 </p>
               </div>
-              <div className="bg-gray-50 rounded p-3 text-center">
+              <div className="bg-gray-50 rounded p-2 sm:p-3 text-center col-span-2 sm:col-span-1">
                 <p className="text-[10px] text-gray-600 uppercase">Más lento</p>
-                <p className="text-lg font-bold text-gray-700">
+                <p className="text-base sm:text-lg font-bold text-gray-700">
                   {analitica.ciclo_lotes.duracion_max_minutos != null
                     ? formatMinutos(analitica.ciclo_lotes.duracion_max_minutos)
                     : '–'}
