@@ -134,6 +134,9 @@ export interface EmpleadoCreate {
   dias_trabajo?: string | null;
   salario_base?: number;
   salario_hora?: number | null;
+  valor_hora_extra?: number | null;
+  valor_dia_franco?: number | null;
+  valor_dia_feriado?: number | null;
   tipo_contratacion?: TipoContratacion;
   dia_pago?: number | null;
   jornada_horas?: number;
@@ -176,6 +179,9 @@ export interface EmpleadoUpdate {
   dias_trabajo?: string | null;
   salario_base?: number;
   salario_hora?: number | null;
+  valor_hora_extra?: number | null;
+  valor_dia_franco?: number | null;
+  valor_dia_feriado?: number | null;
   tipo_contratacion?: TipoContratacion;
   dia_pago?: number | null;
   jornada_horas?: number;

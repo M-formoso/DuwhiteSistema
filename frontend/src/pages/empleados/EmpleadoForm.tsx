@@ -46,6 +46,9 @@ export default function EmpleadoFormPage() {
     dias_trabajo: null,
     salario_base: 0,
     salario_hora: null,
+    valor_hora_extra: null,
+    valor_dia_franco: null,
+    valor_dia_feriado: null,
     tipo_contratacion: 'blanco',
     dia_pago: 5,
     jornada_horas: 8,
@@ -98,6 +101,9 @@ export default function EmpleadoFormPage() {
         dias_trabajo: empleado.dias_trabajo,
         salario_base: empleado.salario_base,
         salario_hora: empleado.salario_hora,
+        valor_hora_extra: empleado.valor_hora_extra,
+        valor_dia_franco: empleado.valor_dia_franco,
+        valor_dia_feriado: empleado.valor_dia_feriado,
         tipo_contratacion: empleado.tipo_contratacion,
         dia_pago: empleado.dia_pago,
         jornada_horas: empleado.jornada_horas,
@@ -613,6 +619,66 @@ export default function EmpleadoFormPage() {
                     className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <p className="text-xs text-muted-foreground mt-1">% máximo del salario que se puede adelantar</p>
+                </div>
+
+                {/* Sub-sección: Valores para Jornales */}
+                <div className="md:col-span-2 border-t border-border pt-5 mt-2">
+                  <h3 className="text-sm font-semibold text-text-primary mb-1">
+                    Valores para Jornales
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Estos valores se usan al cargar horas extras, francos y feriados desde la pantalla de Jornales.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-text-primary mb-1">
+                        Valor Hora Extra ($)
+                      </label>
+                      <input
+                        type="number"
+                        name="valor_hora_extra"
+                        value={formData.valor_hora_extra ?? ''}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Monto por cada hora extra</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-text-primary mb-1">
+                        Valor Día Franco ($)
+                      </label>
+                      <input
+                        type="number"
+                        name="valor_dia_franco"
+                        value={formData.valor_dia_franco ?? ''}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Monto por cada día de franco trabajado</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-text-primary mb-1">
+                        Valor Día Feriado ($)
+                      </label>
+                      <input
+                        type="number"
+                        name="valor_dia_feriado"
+                        value={formData.valor_dia_feriado ?? ''}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        className="w-full px-3 py-2 bg-background border border-input rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Monto por cada día de feriado trabajado</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">

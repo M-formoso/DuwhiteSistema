@@ -54,7 +54,8 @@ import {
   getResumenMensualJornales,
   registrarJornal,
   getEmpleados,
-  actualizarValorHoraExtra,
+  getEmpleado,
+  updateEmpleado,
   getMovimientosNomina,
   updateJornal,
   deleteJornal,
@@ -122,10 +123,13 @@ export default function JornalesPage() {
     notas: '',
   });
 
-  // Form para config
+  // Form para config (los tres valores que usa el módulo de jornales)
   const [configForm, setConfigForm] = useState({
     valor_hora_extra: '',
+    valor_dia_franco: '',
+    valor_dia_feriado: '',
   });
+  const [loadingConfig, setLoadingConfig] = useState(false);
 
   // Query resumen mensual
   const { data: resumen, isLoading } = useQuery({
@@ -175,14 +179,23 @@ export default function JornalesPage() {
     },
   });
 
-  // Mutation actualizar valor hora extra
+  // Mutation actualizar valores de jornales (hora extra, día franco, día feriado)
   const actualizarValorMutation = useMutation({
-    mutationFn: ({ empleadoId, valor }: { empleadoId: string; valor: number }) =>
-      actualizarValorHoraExtra(empleadoId, valor),
+    mutationFn: ({
+      empleadoId,
+      valores,
+    }: {
+      empleadoId: string;
+      valores: {
+        valor_hora_extra: number | null;
+        valor_dia_franco: number | null;
+        valor_dia_feriado: number | null;
+      };
+    }) => updateEmpleado(empleadoId, valores),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jornales-resumen'] });
       queryClient.invalidateQueries({ queryKey: ['empleados'] });
-      toast({ title: 'Valor hora extra actualizado' });
+      toast({ title: 'Valores actualizados correctamente' });
       setShowConfigModal(false);
       setSelectedEmpleado(null);
     },
@@ -286,14 +299,27 @@ export default function JornalesPage() {
     }
   };
 
-  const openConfigModal = (emp: EmpleadoList) => {
+  const openConfigModal = async (emp: EmpleadoList) => {
     setSelectedEmpleado(emp);
-    // Buscar valor actual en el resumen
-    const empResumen = resumen?.empleados.find((e) => e.empleado_id === emp.id);
-    setConfigForm({
-      valor_hora_extra: empResumen?.valor_hora_extra?.toString() || '',
-    });
     setShowConfigModal(true);
+    setLoadingConfig(true);
+    setConfigForm({ valor_hora_extra: '', valor_dia_franco: '', valor_dia_feriado: '' });
+    try {
+      const empFull = await getEmpleado(emp.id);
+      setConfigForm({
+        valor_hora_extra: empFull.valor_hora_extra?.toString() || '',
+        valor_dia_franco: empFull.valor_dia_franco?.toString() || '',
+        valor_dia_feriado: empFull.valor_dia_feriado?.toString() || '',
+      });
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar los valores del empleado',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingConfig(false);
+    }
   };
 
   const openEditModal = (jornal: MovimientoNomina) => {
@@ -1023,13 +1049,13 @@ export default function JornalesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal Config Valor Hora Extra */}
+      {/* Modal Config Valores de Jornales */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Configurar Valor Hora Extra
+              Configurar Valores de Jornales
             </DialogTitle>
           </DialogHeader>
           {selectedEmpleado && (
@@ -1041,33 +1067,92 @@ export default function JornalesPage() {
                 </p>
               </div>
 
-              <div>
-                <Label>Valor Hora Extra ($)</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={configForm.valor_hora_extra}
-                  onChange={(e) =>
-                    setConfigForm({ ...configForm, valor_hora_extra: e.target.value })
-                  }
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Este valor se usará para calcular el monto de las horas extras
-                </p>
-              </div>
+              {loadingConfig ? (
+                <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Cargando valores actuales...
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Timer className="h-3.5 w-3.5 text-blue-600" />
+                      Valor Hora Extra ($)
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={configForm.valor_hora_extra}
+                      onChange={(e) =>
+                        setConfigForm({ ...configForm, valor_hora_extra: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Monto por cada hora extra registrada
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Coffee className="h-3.5 w-3.5 text-amber-600" />
+                      Valor Día Franco ($)
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={configForm.valor_dia_franco}
+                      onChange={(e) =>
+                        setConfigForm({ ...configForm, valor_dia_franco: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Monto por cada día de franco trabajado
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <PartyPopper className="h-3.5 w-3.5 text-purple-600" />
+                      Valor Día Feriado ($)
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={configForm.valor_dia_feriado}
+                      onChange={(e) =>
+                        setConfigForm({ ...configForm, valor_dia_feriado: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Monto por cada día de feriado trabajado
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="ghost" onClick={() => setShowConfigModal(false)}>
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() =>
+                  onClick={() => {
+                    const parse = (v: string) => (v === '' ? null : parseFloat(v));
                     actualizarValorMutation.mutate({
                       empleadoId: selectedEmpleado.id,
-                      valor: parseFloat(configForm.valor_hora_extra),
-                    })
-                  }
-                  disabled={!configForm.valor_hora_extra || actualizarValorMutation.isPending}
+                      valores: {
+                        valor_hora_extra: parse(configForm.valor_hora_extra),
+                        valor_dia_franco: parse(configForm.valor_dia_franco),
+                        valor_dia_feriado: parse(configForm.valor_dia_feriado),
+                      },
+                    });
+                  }}
+                  disabled={loadingConfig || actualizarValorMutation.isPending}
                 >
                   {actualizarValorMutation.isPending ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
