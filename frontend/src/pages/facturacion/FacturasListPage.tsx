@@ -80,10 +80,10 @@ export default function FacturasListPage() {
       }),
   });
 
-  // Badge con cantidad de pedidos pendientes (sin filtros) para mostrar en la pestaña
+  // Badge con cantidad de remitos pendientes (sin filtros) para mostrar en la pestaña
   const { data: pendientes } = useQuery({
-    queryKey: ['pedidos-pendientes-facturar-count'],
-    queryFn: () => facturaService.listarPedidosPendientes({ page: 1, page_size: 1 }),
+    queryKey: ['remitos-pendientes-facturar-count'],
+    queryFn: () => facturaService.listarRemitosPendientes({ page: 1, page_size: 1 }),
     refetchOnWindowFocus: true,
   });
   const pendientesCount = pendientes?.total ?? 0;
@@ -97,7 +97,7 @@ export default function FacturasListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Facturación</h1>
-          <p className="text-text-secondary">Pedidos listos para facturar y facturas emitidas</p>
+          <p className="text-text-secondary">Remitos pendientes y facturas emitidas</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowMesModal(true)}>

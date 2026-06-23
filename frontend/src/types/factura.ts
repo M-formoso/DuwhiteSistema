@@ -238,6 +238,38 @@ export interface FacturarMasivoResponse {
   errores: Array<{ pedido_id: string; detail: string }>;
 }
 
+export interface RemitoPendienteFacturar {
+  id: string;
+  numero: string;
+  estado: string;
+  cliente_id: string;
+  cliente_razon_social: string;
+  cliente_condicion_iva: string;
+  tipo_comprobante_sugerido: TipoComprobante;
+  fecha_emision: string;
+  lote_numero: string | null;
+  cantidad_items: number;
+  total: string;
+}
+
+export interface RemitosPendientesResponse {
+  items: RemitoPendienteFacturar[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface FacturaCreateDesdeRemito {
+  remito_ids: string[];
+  fecha_emision?: string;
+  concepto_afip?: string;
+  fecha_servicio_desde?: string;
+  fecha_servicio_hasta?: string;
+  fecha_vencimiento_pago?: string;
+  condicion_venta?: string;
+  observaciones?: string;
+}
+
 export interface EstadoArcaCheck {
   id: string;
   titulo: string;

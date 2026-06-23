@@ -16,6 +16,7 @@ from app.core.permissions import verificar_permiso
 from app.models.usuario import Usuario
 from app.schemas.factura import (
     FacturaCreateDesdePedido,
+    FacturaCreateDesdeRemito,
     FacturaCreateManual,
     FacturaResponse,
     FacturaListItem,
@@ -26,6 +27,7 @@ from app.schemas.factura import (
     RegistrarCobroRequest,
     RegistrarCobroResponse,
     PedidoPendienteFacturar,
+    RemitoPendienteFacturar,
     FacturarMasivoRequest,
     FacturarMasivoResponse,
     TIPOS_COMPROBANTE,
@@ -319,6 +321,135 @@ def facturar_mes_cliente(
     verificar_permiso(current_user, "facturacion.crear")
     from uuid import UUID as _UUID
     factura = factura_service.facturar_mes_consolidado(
+        db=db,
+        cliente_id=_UUID(cliente_id),
+        mes=mes,
+        anio=anio,
+        usuario_id=current_user.id,
+        punto_venta=settings.AFIP_PUNTO_VENTA,
+        fecha_emision=fecha_emision,
+    )
+    db.commit()
+    return {
+        "factura_id": str(factura.id),
+        "tipo": factura.tipo,
+        "total": float(factura.total),
+        "items": len(factura.detalles),
+        "mensaje": "Factura BORRADOR creada. Revisá y emití a AFIP cuando esté lista.",
+    }
+
+
+# ==================== REMITOS PENDIENTES DE FACTURAR ====================
+#
+# El flujo real de DUWHITE es: conteo → remito (carga CC) → factura.
+# La unidad de facturación natural es el remito, no el pedido.
+
+
+@router.get("/remitos-pendientes")
+def listar_remitos_pendientes(
+    cliente_id: Optional[UUID] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Cola de remitos pendientes de facturar (emitidos/entregados sin factura)."""
+    verificar_permiso(current_user, "facturacion.ver")
+    remitos, total = factura_service.listar_remitos_pendientes(
+        db=db,
+        cliente_id=cliente_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        page=page,
+        page_size=page_size,
+    )
+    items = []
+    for r in remitos:
+        cliente = r.cliente
+        condicion = cliente.condicion_iva if cliente else "consumidor_final"
+        tipo_sug = factura_service.determinar_tipo_factura(condicion).value
+        items.append(
+            RemitoPendienteFacturar(
+                id=str(r.id),
+                numero=r.numero,
+                estado=r.estado,
+                cliente_id=str(r.cliente_id),
+                cliente_razon_social=cliente.razon_social if cliente else "",
+                cliente_condicion_iva=condicion,
+                tipo_comprobante_sugerido=tipo_sug,
+                fecha_emision=r.fecha_emision,
+                lote_numero=r.lote.numero if r.lote else None,
+                cantidad_items=len(r.detalles or []),
+                total=r.total,
+            )
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.post("/desde-remito")
+def crear_factura_desde_remito(
+    data: FacturaCreateDesdeRemito,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Crea una factura BORRADOR a partir de uno o más remitos del mismo cliente.
+    Si se pasa 1 remito → factura individual; si son varios → consolidada.
+    """
+    verificar_permiso(current_user, "facturacion.crear")
+    factura = factura_service.crear_desde_remito(
+        db=db,
+        data=data,
+        usuario_id=current_user.id,
+        punto_venta=settings.AFIP_PUNTO_VENTA,
+    )
+    db.commit()
+    return {
+        "factura_id": str(factura.id),
+        "tipo": factura.tipo,
+        "total": float(factura.total),
+        "items": len(factura.detalles),
+        "mensaje": "Factura BORRADOR creada. Revisá y emití a AFIP cuando esté lista.",
+    }
+
+
+@router.get("/preview-mes-remitos")
+def preview_mes_remitos(
+    cliente_id: str,
+    mes: int,
+    anio: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Previsualiza qué remitos entrarían en una factura mensual consolidada."""
+    verificar_permiso(current_user, "facturacion.ver")
+    from uuid import UUID as _UUID
+    return factura_service.preview_factura_mes_consolidado_remitos(
+        db=db,
+        cliente_id=_UUID(cliente_id),
+        mes=mes,
+        anio=anio,
+    )
+
+
+@router.post("/desde-mes-remitos")
+def facturar_mes_remitos(
+    cliente_id: str,
+    mes: int,
+    anio: int,
+    fecha_emision: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Genera UNA factura BORRADOR consolidando todos los remitos del cliente
+    en el mes/año dado que aún no están facturados.
+    """
+    verificar_permiso(current_user, "facturacion.crear")
+    from uuid import UUID as _UUID
+    factura = factura_service.facturar_mes_consolidado_remitos(
         db=db,
         cliente_id=_UUID(cliente_id),
         mes=mes,

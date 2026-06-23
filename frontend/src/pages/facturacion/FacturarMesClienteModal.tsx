@@ -1,7 +1,7 @@
 /**
- * Modal para emitir UNA factura consolidada de TODOS los pedidos
- * del mes de un cliente. Con preview de qué pedidos entran y cuáles
- * se excluyen (ya facturados, cancelados, sin ítems).
+ * Modal para emitir UNA factura consolidada de TODOS los remitos
+ * del mes de un cliente. Con preview de qué remitos entran y cuáles
+ * se excluyen (ya facturados, anulados, sin ítems).
  */
 
 import { useState } from 'react';
@@ -63,14 +63,14 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
 
   // Preview: se dispara automáticamente cuando hay cliente + mes + año
   const { data: preview, isLoading: loadingPreview, error: errorPreview } = useQuery({
-    queryKey: ['factura-mes-preview', clienteId, mes, anio],
-    queryFn: () => facturaService.previewMesCliente(clienteId, mes, anio),
+    queryKey: ['factura-mes-preview-remitos', clienteId, mes, anio],
+    queryFn: () => facturaService.previewMesRemitos(clienteId, mes, anio),
     enabled: Boolean(clienteId && mes && anio && open),
   });
 
   const facturarMut = useMutation({
     mutationFn: () =>
-      facturaService.facturarMesCliente(clienteId, mes, anio, fechaEmision || undefined),
+      facturaService.facturarMesRemitos(clienteId, mes, anio, fechaEmision || undefined),
     onSuccess: (r) => {
       toast({
         title: 'Factura BORRADOR creada',
@@ -102,7 +102,7 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>Factura mensual por cliente</DialogTitle>
           <DialogDescription>
-            Consolida todos los pedidos no facturados del cliente en el período
+            Consolida todos los remitos no facturados del cliente en el período
             seleccionado en UNA sola factura BORRADOR.
           </DialogDescription>
         </DialogHeader>
@@ -186,7 +186,7 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
                       A facturar
                     </p>
                     <p className="text-lg font-bold text-green-800">
-                      {preview.cantidad_a_facturar} pedido{preview.cantidad_a_facturar !== 1 ? 's' : ''}
+                      {preview.cantidad_a_facturar} remito{preview.cantidad_a_facturar !== 1 ? 's' : ''}
                     </p>
                   </div>
                   <div className={`border rounded p-3 ${preview.cantidad_excluidos > 0 ? 'bg-amber-50 border-amber-200' : 'bg-gray-50'}`}>
@@ -195,7 +195,7 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
                       Excluidos
                     </p>
                     <p className={`text-lg font-bold ${preview.cantidad_excluidos > 0 ? 'text-amber-800' : 'text-gray-700'}`}>
-                      {preview.cantidad_excluidos} pedido{preview.cantidad_excluidos !== 1 ? 's' : ''}
+                      {preview.cantidad_excluidos} remito{preview.cantidad_excluidos !== 1 ? 's' : ''}
                     </p>
                   </div>
                   <div className="bg-blue-50 border border-blue-200 rounded p-3">
@@ -206,24 +206,29 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
                   </div>
                 </div>
 
-                {/* Pedidos a incluir */}
+                {/* Remitos a incluir */}
                 {preview.incluidos.length > 0 && (
                   <div>
                     <p className="text-sm font-semibold mb-2 text-green-800">
-                      Se incluirán {preview.incluidos.length} pedido(s):
+                      Se incluirán {preview.incluidos.length} remito(s):
                     </p>
                     <div className="border rounded divide-y max-h-60 overflow-y-auto">
-                      {preview.incluidos.map((p) => (
-                        <div key={p.id} className="flex justify-between items-center px-3 py-2 text-sm">
+                      {preview.incluidos.map((r) => (
+                        <div key={r.id} className="flex justify-between items-center px-3 py-2 text-sm">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-text-secondary">#{p.numero}</span>
+                            <span className="font-mono text-text-secondary">#{r.numero}</span>
+                            {r.lote_numero && (
+                              <>
+                                <span className="text-text-secondary">·</span>
+                                <span className="text-xs text-text-secondary">Lote {r.lote_numero}</span>
+                              </>
+                            )}
                             <span className="text-text-secondary">·</span>
-                            <span>{formatDate(p.fecha)}</span>
-                            <Badge variant="outline" className="text-xs">{p.estado}</Badge>
+                            <span>{formatDate(r.fecha)}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-text-secondary">{p.cantidad_items} ítems</span>
-                            <span className="font-mono font-semibold">{formatCurrency(p.total)}</span>
+                            <span className="text-xs text-text-secondary">{r.cantidad_items} ítems</span>
+                            <span className="font-mono font-semibold">{formatCurrency(r.total)}</span>
                           </div>
                         </div>
                       ))}
@@ -236,20 +241,20 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
                   <div>
                     <p className="text-sm font-semibold mb-2 text-amber-800 flex items-center gap-1">
                       <AlertTriangle className="h-4 w-4" />
-                      Se omitirán {preview.excluidos.length} pedido(s):
+                      Se omitirán {preview.excluidos.length} remito(s):
                     </p>
                     <div className="border rounded divide-y max-h-40 overflow-y-auto bg-amber-50/30">
-                      {preview.excluidos.map((p) => (
-                        <div key={p.id} className="flex justify-between items-center px-3 py-2 text-sm">
+                      {preview.excluidos.map((r) => (
+                        <div key={r.id} className="flex justify-between items-center px-3 py-2 text-sm">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-text-secondary">#{p.numero}</span>
+                            <span className="font-mono text-text-secondary">#{r.numero}</span>
                             <span className="text-text-secondary">·</span>
-                            <span>{formatDate(p.fecha)}</span>
+                            <span>{formatDate(r.fecha)}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="font-mono">{formatCurrency(p.total)}</span>
+                            <span className="font-mono">{formatCurrency(r.total)}</span>
                             <Badge variant="outline" className="text-xs text-amber-700 border-amber-400">
-                              {p.motivo_exclusion}
+                              {r.motivo_exclusion}
                             </Badge>
                           </div>
                         </div>
@@ -260,9 +265,9 @@ export default function FacturarMesClienteModal({ open, onOpenChange }: Props) {
 
                 {preview.cantidad_a_facturar === 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800">
-                    No hay pedidos para facturar en este período. {preview.cantidad_excluidos > 0
-                      ? 'Todos los pedidos están excluidos (ver detalle arriba).'
-                      : 'Probá con otro mes/año o asegurate que el cliente tenga pedidos confirmados.'}
+                    No hay remitos para facturar en este período. {preview.cantidad_excluidos > 0
+                      ? 'Todos los remitos están excluidos (ver detalle arriba).'
+                      : 'Probá con otro mes/año o asegurate que el cliente tenga remitos generados desde el conteo.'}
                   </div>
                 )}
               </>

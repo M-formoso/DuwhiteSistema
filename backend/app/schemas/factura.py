@@ -65,6 +65,30 @@ class FacturaCreateDesdePedido(BaseModel):
         return parse_date_without_timezone(v)
 
 
+class FacturaCreateDesdeRemito(BaseModel):
+    """Crear factura (borrador) a partir de uno o más remitos del mismo cliente."""
+
+    remito_ids: List[str]
+    fecha_emision: Optional[date] = None  # Default: hoy
+    concepto_afip: str = "2"  # Servicios
+    fecha_servicio_desde: Optional[date] = None
+    fecha_servicio_hasta: Optional[date] = None
+    fecha_vencimiento_pago: Optional[date] = None
+    condicion_venta: str = "cuenta_corriente"
+    observaciones: Optional[str] = None
+
+    @field_validator(
+        "fecha_emision",
+        "fecha_servicio_desde",
+        "fecha_servicio_hasta",
+        "fecha_vencimiento_pago",
+        mode="before",
+    )
+    @classmethod
+    def validate_date(cls, v):
+        return parse_date_without_timezone(v)
+
+
 class FacturaCreateManual(BaseModel):
     """Crear factura manual (sin pedido)."""
 
@@ -296,6 +320,25 @@ class FacturarMasivoRequest(BaseModel):
 class FacturarMasivoResponse(BaseModel):
     creadas: List[str]
     errores: List[dict]
+
+
+class RemitoPendienteFacturar(BaseModel):
+    """Fila de la cola de remitos pendientes de facturar."""
+
+    id: str
+    numero: str
+    estado: str
+    cliente_id: str
+    cliente_razon_social: str
+    cliente_condicion_iva: str
+    tipo_comprobante_sugerido: str  # "factura_a" | "factura_b"
+    fecha_emision: date
+    lote_numero: Optional[str] = None
+    cantidad_items: int = 0
+    total: Decimal
+
+    class Config:
+        from_attributes = True
 
 
 # ==================== CONSTANTES ====================

@@ -42,8 +42,10 @@ from app.models.factura import (
     LETRA_COMPROBANTE,
 )
 from app.models.pedido import Pedido, EstadoPedido
+from app.models.remito import Remito, DetalleRemito, EstadoRemito
 from app.schemas.factura import (
     FacturaCreateDesdePedido,
+    FacturaCreateDesdeRemito,
     FacturaCreateManual,
     FacturaDetalleCreate,
     FacturaFiltros,
@@ -450,6 +452,393 @@ def listar_pedidos_pendientes(
     )
 
     return query.all(), total
+
+
+# ==================== REMITOS PENDIENTES / FACTURACIÓN DESDE REMITO ====================
+#
+# Flujo real DUWHITE: el conteo del lote genera un Remito que carga la CC del
+# cliente. La unidad de facturación es el remito (no el pedido). Estas
+# funciones espejean las de "pedidos" pero operando sobre remitos.
+# Vínculo factura↔remito: vía MovimientoCuentaCorriente.factura_id +
+# remito.movimiento_cc_id.
+
+
+def _remitos_facturados_subquery(db: Session):
+    """Sub-query: IDs de movimientos_cc que ya tienen factura activa.
+    Sirve para excluir remitos cuyo movimiento_cc ya quedó facturado."""
+    return (
+        db.query(MovimientoCuentaCorriente.id)
+        .filter(
+            MovimientoCuentaCorriente.activo == True,
+            MovimientoCuentaCorriente.factura_id.isnot(None),
+        )
+        .subquery()
+    )
+
+
+def listar_remitos_pendientes(
+    db: Session,
+    cliente_id: Optional[UUID] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> Tuple[List[Remito], int]:
+    """
+    Remitos pendientes de facturar.
+
+    Criterios:
+      - remito.activo == True
+      - remito.estado IN ('emitido', 'entregado')  (no borrador/anulado)
+      - El movimiento_cc del remito NO está vinculado a factura activa
+    """
+    subq_facturados = _remitos_facturados_subquery(db)
+
+    estados_validos = [EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.value]
+
+    query = db.query(Remito).filter(
+        Remito.activo == True,
+        Remito.estado.in_(estados_validos),
+        Remito.movimiento_cc_id.isnot(None),
+        ~Remito.movimiento_cc_id.in_(subq_facturados),
+    )
+
+    if cliente_id:
+        query = query.filter(Remito.cliente_id == cliente_id)
+    if fecha_desde:
+        query = query.filter(Remito.fecha_emision >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Remito.fecha_emision <= fecha_hasta)
+
+    total = query.count()
+
+    query = (
+        query.order_by(Remito.fecha_emision.desc(), Remito.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+
+    return query.all(), total
+
+
+def _vincular_movimientos_cc_a_factura(
+    db: Session, movimiento_ids: List[UUID], factura: Factura
+) -> None:
+    """Marca los movimientos_cc como facturados y los vincula a la factura."""
+    if not movimiento_ids:
+        return
+    estado_facturacion_value = (
+        EstadoFacturacion.FACTURA_A.value
+        if factura.tipo == TipoComprobante.FACTURA_A.value
+        else EstadoFacturacion.FACTURA_B.value
+    )
+    db.query(MovimientoCuentaCorriente).filter(
+        MovimientoCuentaCorriente.id.in_(movimiento_ids)
+    ).update(
+        {
+            "factura_id": factura.id,
+            "estado_facturacion": estado_facturacion_value,
+        },
+        synchronize_session=False,
+    )
+
+
+def crear_desde_remito(
+    db: Session,
+    data: FacturaCreateDesdeRemito,
+    usuario_id: UUID,
+    punto_venta: int,
+) -> Factura:
+    """
+    Crea una factura BORRADOR a partir de uno o más remitos del mismo cliente.
+
+    - Si se pasa 1 remito: factura individual de ese remito.
+    - Si se pasan N remitos: factura consolidada (todos del mismo cliente).
+
+    Vincula los movimientos_cc de los remitos a la factura creada.
+    """
+    if not data.remito_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Lista de remitos vacía")
+
+    remito_uuids = [UUID(r) for r in data.remito_ids]
+    remitos = (
+        db.query(Remito)
+        .filter(
+            Remito.id.in_(remito_uuids),
+            Remito.activo == True,
+        )
+        .all()
+    )
+
+    if len(remitos) != len(remito_uuids):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="Uno o más remitos no existen o están inactivos",
+        )
+
+    # Todos los remitos deben ser del mismo cliente
+    clientes_ids = {r.cliente_id for r in remitos}
+    if len(clientes_ids) != 1:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Todos los remitos deben pertenecer al mismo cliente",
+        )
+
+    # Validar estados y que no estén ya facturados
+    movimiento_ids: List[UUID] = []
+    for remito in remitos:
+        if remito.estado not in (EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.value):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Remito {remito.numero} en estado '{remito.estado}' no se puede facturar",
+            )
+        if not remito.movimiento_cc_id:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Remito {remito.numero} no tiene movimiento de cuenta corriente",
+            )
+        mcc = db.query(MovimientoCuentaCorriente).filter(
+            MovimientoCuentaCorriente.id == remito.movimiento_cc_id
+        ).first()
+        if not mcc:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Movimiento CC del remito {remito.numero} no encontrado",
+            )
+        if mcc.factura_id is not None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Remito {remito.numero} ya está facturado",
+            )
+        movimiento_ids.append(mcc.id)
+
+    cliente = db.query(Cliente).filter(Cliente.id == remitos[0].cliente_id).first()
+    if not cliente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente del remito no encontrado")
+
+    tipo = determinar_tipo_factura(cliente.condicion_iva)
+    snap = _snapshot_cliente(cliente)
+
+    fechas_remitos = [r.fecha_emision for r in remitos if r.fecha_emision]
+    fecha_servicio_desde = data.fecha_servicio_desde or (min(fechas_remitos) if fechas_remitos else None)
+    fecha_servicio_hasta = data.fecha_servicio_hasta or (max(fechas_remitos) if fechas_remitos else None)
+
+    if len(remitos) > 1:
+        numeros = ", ".join(sorted(r.numero for r in remitos))
+        obs_default = f"Facturación de {len(remitos)} remitos: {numeros}"
+    else:
+        obs_default = f"Facturación de remito {remitos[0].numero}"
+
+    factura = Factura(
+        id=uuid.uuid4(),
+        tipo=tipo.value,
+        punto_venta=punto_venta,
+        cliente_id=cliente.id,
+        fecha_emision=data.fecha_emision or date.today(),
+        fecha_servicio_desde=fecha_servicio_desde,
+        fecha_servicio_hasta=fecha_servicio_hasta,
+        fecha_vencimiento_pago=data.fecha_vencimiento_pago,
+        concepto_afip=data.concepto_afip or ConceptoAfip.SERVICIOS.value,
+        condicion_venta=data.condicion_venta or CondicionVenta.CUENTA_CORRIENTE.value,
+        observaciones=data.observaciones or obs_default,
+        estado=EstadoFactura.BORRADOR.value,
+        creado_por_id=usuario_id,
+        **snap,
+    )
+    db.add(factura)
+    db.flush()
+
+    # Mapear DetalleRemito → FacturaDetalle (todos a IVA 21%)
+    iva_default = Decimal("21")
+    for remito in remitos:
+        for det in remito.detalles:
+            montos = calcular_linea(
+                precio_unitario_neto=det.precio_unitario,
+                cantidad=det.cantidad,
+                descuento_porcentaje=Decimal("0"),
+                iva_porcentaje=iva_default,
+            )
+            # Resolver descripción: descripción del detalle o nombre del producto
+            descripcion_base = det.descripcion
+            if not descripcion_base and det.producto:
+                descripcion_base = det.producto.nombre
+            if not descripcion_base:
+                descripcion_base = "Servicio de lavandería"
+            if len(remitos) > 1:
+                descripcion = f"{descripcion_base} (Remito #{remito.numero})"
+            else:
+                descripcion = descripcion_base
+            db.add(
+                FacturaDetalle(
+                    id=uuid.uuid4(),
+                    factura_id=factura.id,
+                    producto_lavado_id=det.producto_id,
+                    descripcion=descripcion[:255],
+                    cantidad=det.cantidad,
+                    unidad_medida="unidad",
+                    precio_unitario_neto=det.precio_unitario,
+                    descuento_porcentaje=Decimal("0"),
+                    iva_porcentaje=iva_default,
+                    **montos,
+                )
+            )
+
+    db.flush()
+    db.refresh(factura)
+    _recalcular_y_persistir_totales(db, factura)
+
+    _vincular_movimientos_cc_a_factura(db, movimiento_ids, factura)
+    db.flush()
+
+    return factura
+
+
+def preview_factura_mes_consolidado_remitos(
+    db: Session,
+    cliente_id: UUID,
+    mes: int,
+    anio: int,
+) -> dict:
+    """
+    Previsualiza qué remitos entrarían en una factura consolidada del mes.
+    Devuelve incluidos / excluidos por separado con totales. NO crea nada.
+    """
+    from datetime import date as _date
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.activo == True).first()
+    if not cliente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    desde = _date(anio, mes, 1)
+    hasta = _date(anio + 1, 1, 1) if mes == 12 else _date(anio, mes + 1, 1)
+
+    todos = (
+        db.query(Remito)
+        .filter(
+            Remito.cliente_id == cliente_id,
+            Remito.activo == True,
+            Remito.fecha_emision >= desde,
+            Remito.fecha_emision < hasta,
+        )
+        .order_by(Remito.fecha_emision.asc())
+        .all()
+    )
+
+    # IDs de movimientos_cc ya facturados
+    mov_facturados = (
+        db.query(MovimientoCuentaCorriente.id, MovimientoCuentaCorriente.factura_id)
+        .filter(
+            MovimientoCuentaCorriente.activo == True,
+            MovimientoCuentaCorriente.factura_id.isnot(None),
+            MovimientoCuentaCorriente.id.in_([r.movimiento_cc_id for r in todos if r.movimiento_cc_id]),
+        )
+        .all()
+        if todos
+        else []
+    )
+    facturados_set = {mid for mid, _ in mov_facturados}
+
+    incluidos = []
+    excluidos = []
+    total_incluido = Decimal("0")
+
+    for r in todos:
+        item = {
+            "id": str(r.id),
+            "numero": r.numero,
+            "fecha": r.fecha_emision.isoformat() if r.fecha_emision else None,
+            "estado": r.estado,
+            "total": float(r.total or 0),
+            "lote_numero": r.lote.numero if r.lote else None,
+            "cantidad_items": len(r.detalles or []),
+        }
+        if r.estado in (EstadoRemito.BORRADOR.value, EstadoRemito.ANULADO.value):
+            item["motivo_exclusion"] = f"Estado {r.estado}"
+            excluidos.append(item)
+        elif not r.movimiento_cc_id:
+            item["motivo_exclusion"] = "Sin movimiento de cuenta corriente"
+            excluidos.append(item)
+        elif r.movimiento_cc_id in facturados_set:
+            item["motivo_exclusion"] = "Ya facturado"
+            excluidos.append(item)
+        elif not r.detalles:
+            item["motivo_exclusion"] = "Sin ítems"
+            excluidos.append(item)
+        else:
+            incluidos.append(item)
+            total_incluido += Decimal(r.total or 0)
+
+    return {
+        "cliente_id": str(cliente.id),
+        "cliente_nombre": cliente.razon_social,
+        "mes": mes,
+        "anio": anio,
+        "periodo_label": f"{mes:02d}/{anio}",
+        "incluidos": incluidos,
+        "excluidos": excluidos,
+        "total_a_facturar": float(total_incluido),
+        "cantidad_a_facturar": len(incluidos),
+        "cantidad_excluidos": len(excluidos),
+    }
+
+
+def facturar_mes_consolidado_remitos(
+    db: Session,
+    cliente_id: UUID,
+    mes: int,
+    anio: int,
+    usuario_id: UUID,
+    punto_venta: int,
+    fecha_emision: Optional[date] = None,
+) -> Factura:
+    """
+    Genera UNA SOLA factura BORRADOR consolidando todos los remitos del
+    cliente en el mes/año indicado que todavía no estén facturados.
+    """
+    from datetime import date as _date
+
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.activo == True).first()
+    if not cliente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+
+    desde = _date(anio, mes, 1)
+    hasta = _date(anio + 1, 1, 1) if mes == 12 else _date(anio, mes + 1, 1)
+
+    subq_facturados = _remitos_facturados_subquery(db)
+
+    remitos = (
+        db.query(Remito)
+        .filter(
+            Remito.cliente_id == cliente_id,
+            Remito.activo == True,
+            Remito.fecha_emision >= desde,
+            Remito.fecha_emision < hasta,
+            Remito.estado.in_([EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.value]),
+            Remito.movimiento_cc_id.isnot(None),
+            ~Remito.movimiento_cc_id.in_(subq_facturados),
+        )
+        .order_by(Remito.fecha_emision.asc())
+        .all()
+    )
+
+    if not remitos:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"No hay remitos pendientes de facturar para el cliente en {mes:02d}/{anio}",
+        )
+
+    # Reuso la lógica de crear_desde_remito armando el request
+    fecha_emision_final = fecha_emision or date.today()
+    request = FacturaCreateDesdeRemito(
+        remito_ids=[str(r.id) for r in remitos],
+        fecha_emision=fecha_emision_final,
+        fecha_servicio_desde=desde,
+        fecha_servicio_hasta=min(hasta, fecha_emision_final),
+        concepto_afip=ConceptoAfip.SERVICIOS.value,
+        condicion_venta=CondicionVenta.CUENTA_CORRIENTE.value,
+        observaciones=f"Facturación consolidada {mes:02d}/{anio} — {len(remitos)} remitos",
+    )
+    return crear_desde_remito(db, request, usuario_id, punto_venta)
 
 
 def preview_factura_mes_consolidado(

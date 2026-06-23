@@ -7,6 +7,7 @@ import {
   Factura,
   FacturaListResponse,
   FacturaCreateDesdePedido,
+  FacturaCreateDesdeRemito,
   FacturaCreateManual,
   NotaCreditoCreate,
   NotaDebitoCreate,
@@ -15,6 +16,7 @@ import {
   RegistrarCobroRequest,
   RegistrarCobroResponse,
   PedidosPendientesResponse,
+  RemitosPendientesResponse,
   FacturarMasivoResponse,
   EstadoArcaResponse,
 } from '@/types/factura';
@@ -152,6 +154,84 @@ export const facturaService = {
 
   async estadoArca(): Promise<EstadoArcaResponse> {
     const response = await api.get(`${BASE_URL}/estado-arca`);
+    return response.data;
+  },
+
+  // ==================== REMITOS ====================
+
+  async listarRemitosPendientes(params?: {
+    cliente_id?: string;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<RemitosPendientesResponse> {
+    const response = await api.get(`${BASE_URL}/remitos-pendientes`, { params });
+    return response.data;
+  },
+
+  async crearDesdeRemito(
+    data: FacturaCreateDesdeRemito,
+  ): Promise<{ factura_id: string; tipo: string; total: number; items: number; mensaje: string }> {
+    const response = await api.post(`${BASE_URL}/desde-remito`, data);
+    return response.data;
+  },
+
+  async previewMesRemitos(
+    clienteId: string,
+    mes: number,
+    anio: number,
+  ): Promise<{
+    cliente_id: string;
+    cliente_nombre: string;
+    mes: number;
+    anio: number;
+    periodo_label: string;
+    incluidos: Array<{
+      id: string;
+      numero: string;
+      fecha: string;
+      estado: string;
+      total: number;
+      lote_numero: string | null;
+      cantidad_items: number;
+    }>;
+    excluidos: Array<{
+      id: string;
+      numero: string;
+      fecha: string;
+      estado: string;
+      total: number;
+      lote_numero: string | null;
+      cantidad_items: number;
+      motivo_exclusion: string;
+    }>;
+    total_a_facturar: number;
+    cantidad_a_facturar: number;
+    cantidad_excluidos: number;
+  }> {
+    const params = new URLSearchParams({
+      cliente_id: clienteId,
+      mes: String(mes),
+      anio: String(anio),
+    });
+    const response = await api.get(`${BASE_URL}/preview-mes-remitos?${params.toString()}`);
+    return response.data;
+  },
+
+  async facturarMesRemitos(
+    clienteId: string,
+    mes: number,
+    anio: number,
+    fechaEmision?: string,
+  ): Promise<{ factura_id: string; tipo: string; total: number; items: number; mensaje: string }> {
+    const params = new URLSearchParams({
+      cliente_id: clienteId,
+      mes: String(mes),
+      anio: String(anio),
+    });
+    if (fechaEmision) params.append('fecha_emision', fechaEmision);
+    const response = await api.post(`${BASE_URL}/desde-mes-remitos?${params.toString()}`);
     return response.data;
   },
 };
