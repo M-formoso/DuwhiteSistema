@@ -23,6 +23,7 @@ from app.schemas.remito import (
     ESTADOS_REMITO,
 )
 from app.services.remito_service import RemitoService
+from app.services import remito_pdf_service
 
 
 router = APIRouter()
@@ -157,6 +158,34 @@ def obtener_remito(
         detalles=detalles,
         tiene_complemento=remito.tiene_complemento,
         remitos_complementarios=complementarios
+    )
+
+
+# ==================== PDF ====================
+
+@router.get("/{remito_id}/pdf")
+def descargar_remito_pdf(
+    remito_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
+):
+    """
+    Devuelve el PDF del remito posicionado para imprimir sobre el papel
+    preimpreso DUWHITE (33×20 cm apaisado, original + duplicado).
+    """
+    from fastapi.responses import Response
+
+    remito = RemitoService.get_by_id(db, remito_id)
+    if not remito:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Remito no encontrado")
+
+    pdf_bytes = remito_pdf_service.generar_pdf(db, remito)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="remito-{remito.numero}.pdf"',
+        },
     )
 
 

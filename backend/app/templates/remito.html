@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Remito {{ remito.numero }}</title>
+    <style>
+        /*
+         * PDF de remito DUWHITE — posicionado para encajar en el papel
+         * preimpreso (formato 33cm × 20cm apaisado, dos hojas idénticas
+         * separadas por perforación horizontal: ORIGINAL arriba, DUPLICADO abajo).
+         *
+         * El papel YA TIENE preimpresos el logo DUWHITE, "X RETIRO" y los
+         * recuadros de FECHA / CANTIDAD / DETALLE. Este PDF solo escribe
+         * los datos variables (fecha, cantidad, descripción) en las
+         * posiciones donde encajan en esos cuadros.
+         *
+         * Si el papel se imprime corrido, ajustá las coordenadas
+         * (variables `coord_*` que vienen de remito_pdf_service.py).
+         */
+
+        @page {
+            size: {{ page_width_mm }}mm {{ page_height_mm }}mm;
+            margin: 0;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: {{ page_width_mm }}mm;
+            height: {{ page_height_mm }}mm;
+            font-family: "Helvetica", Arial, sans-serif;
+            color: #000;
+            font-size: 11pt;
+        }
+
+        .hoja {
+            position: relative;
+            width: {{ page_width_mm }}mm;
+            height: {{ hoja_height_mm }}mm;
+            overflow: hidden;
+        }
+
+        /* Líneas guía sutiles para preview en pantalla — se imprimen
+           encima del borde preimpreso del papel, sin molestar visualmente. */
+        .hoja .borde-guia {
+            position: absolute;
+            border: 0.2mm dashed rgba(150, 150, 150, 0.15);
+            pointer-events: none;
+        }
+
+        .fecha {
+            position: absolute;
+            top: {{ coord_fecha_top_mm }}mm;
+            left: {{ coord_fecha_left_mm }}mm;
+            width: {{ coord_fecha_width_mm }}mm;
+            font-size: 12pt;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .items {
+            position: absolute;
+            top: {{ coord_items_top_mm }}mm;
+            left: {{ coord_cantidad_left_mm }}mm;
+            width: {{ coord_items_width_mm }}mm;
+            height: {{ coord_items_height_mm }}mm;
+            overflow: hidden;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: flex-start;
+            border-bottom: 0.15mm dotted rgba(120, 120, 120, 0.25);
+            min-height: {{ coord_row_height_mm }}mm;
+            padding: 0.6mm 0;
+            font-size: 10.5pt;
+            line-height: 1.1;
+        }
+
+        .item-row .cantidad {
+            width: {{ coord_cantidad_width_mm }}mm;
+            flex-shrink: 0;
+            text-align: center;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            padding-right: 2mm;
+        }
+
+        .item-row .detalle {
+            flex: 1;
+            padding-left: {{ coord_detalle_gap_mm }}mm;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+
+        .item-row .codigo {
+            display: inline-block;
+            margin-right: 3mm;
+            font-family: "Courier New", monospace;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .overflow-note {
+            position: absolute;
+            top: {{ overflow_note_top_mm }}mm;
+            left: {{ coord_cantidad_left_mm }}mm;
+            font-size: 8pt;
+            font-style: italic;
+            color: #777;
+        }
+
+        .cliente-overlay {
+            position: absolute;
+            top: {{ coord_cliente_top_mm }}mm;
+            left: {{ coord_cliente_left_mm }}mm;
+            width: {{ coord_cliente_width_mm }}mm;
+            font-size: 9pt;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .numero-overlay {
+            position: absolute;
+            top: {{ coord_numero_top_mm }}mm;
+            left: {{ coord_numero_left_mm }}mm;
+            font-size: 8pt;
+            color: #555;
+            font-family: "Courier New", monospace;
+        }
+    </style>
+</head>
+<body>
+    {% for copia in copias %}
+    <div class="hoja">
+        {# Datos variables del remito #}
+        <div class="fecha">{{ fecha_formateada }}</div>
+
+        <div class="cliente-overlay">{{ cliente_nombre }}</div>
+        <div class="numero-overlay">R-{{ remito.numero }} · {{ copia }}</div>
+
+        <div class="items">
+            {% for it in items_visibles %}
+            <div class="item-row">
+                <div class="cantidad">{{ it.cantidad_fmt }}</div>
+                <div class="detalle">
+                    {% if it.codigo %}<span class="codigo">{{ it.codigo }}</span>{% endif %}
+                    {{ it.nombre }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if items_overflow > 0 %}
+        <div class="overflow-note">
+            + {{ items_overflow }} ítems más (ver remito digital R-{{ remito.numero }})
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</body>
+</html>

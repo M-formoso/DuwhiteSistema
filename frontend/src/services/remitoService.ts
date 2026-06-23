@@ -57,6 +57,26 @@ export const remitoService = {
   },
 
   /**
+   * Devuelve la URL absoluta del PDF del remito (puede abrirse en una
+   * ventana nueva o pasarse a un <iframe> para imprimir automáticamente).
+   */
+  getPdfUrl(remitoId: string): string {
+    const base = api.defaults.baseURL || '';
+    const sep = base.endsWith('/') ? '' : '';
+    return `${base}${sep}${BASE_URL}/${remitoId}/pdf`;
+  },
+
+  /**
+   * Descarga el PDF del remito como Blob (para enviar a print() vía iframe).
+   */
+  async getPdfBlob(remitoId: string): Promise<Blob> {
+    const response = await api.get(`${BASE_URL}/${remitoId}/pdf`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  /**
    * Genera remito desde la etapa de conteo
    */
   async generarDesdeLote(

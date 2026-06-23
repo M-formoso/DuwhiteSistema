@@ -302,6 +302,48 @@ export default function ConteoFinalizacionPage() {
   }, [conteoItems]);
 
   // Mutation: Generar remito
+  // Dispara la impresión del remito vía iframe oculto.
+  // Si el navegador bloquea print() (algunos kioscos / tablets), se abre
+  // el PDF en pestaña nueva y el operario presiona imprimir manualmente.
+  const imprimirRemitoAuto = async (remitoId: string) => {
+    try {
+      const blob = await remitoService.getPdfBlob(remitoId);
+      const blobUrl = URL.createObjectURL(blob);
+
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
+
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch {
+            window.open(blobUrl, '_blank');
+          }
+        }, 300);
+        // Cleanup tras dar tiempo al diálogo de impresión
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(blobUrl);
+          } catch {
+            /* ignore */
+          }
+        }, 60_000);
+      };
+    } catch {
+      toast.error('No se pudo cargar el PDF del remito para imprimir');
+    }
+  };
+
   const generarRemitoMutation = useMutation({
     mutationFn: async () => {
       if (!loteId) throw new Error('No hay lote');
@@ -323,13 +365,15 @@ export default function ConteoFinalizacionPage() {
       });
     },
     onSuccess: (response) => {
-      toast.success('Remito generado correctamente');
+      toast.success('Remito generado · imprimiendo...');
       queryClient.invalidateQueries({ queryKey: ['lote', loteId] });
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
       if (response.lote_relevado_id) {
         toast.info(`Se creó lote de relevado: ${response.lote_relevado_numero}`);
       }
-      navigate('/produccion');
+      // Dispara impresión y deja navegar; el iframe queda vivo en background.
+      imprimirRemitoAuto(response.remito_id);
+      setTimeout(() => navigate('/produccion'), 600);
     },
     onError: (error: unknown) => {
       const e = error as { response?: { data?: { detail?: string } } };
