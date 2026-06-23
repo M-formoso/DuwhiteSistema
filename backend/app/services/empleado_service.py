@@ -850,30 +850,26 @@ class EmpleadoService:
             )
 
         elif data.tipo == "franco":
-            # Franco trabajado se registra por día con valor fijo
+            # Franco: solo registro/conteo del día tomado.
+            # NO suma al sueldo (a diferencia del feriado). Se guarda monto=0
+            # para que el detalle no muestre un monto inexistente.
             cantidad_dias = data.cantidad_dias if data.cantidad_dias else Decimal("1")
             if cantidad_dias <= 0:
                 raise ValueError("Cantidad de días debe ser mayor a 0")
 
-            valor_dia = empleado.valor_dia_franco or Decimal("0")
-            if valor_dia <= 0:
-                raise ValueError("El empleado no tiene configurado un valor de día franco")
-
-            monto = cantidad_dias * valor_dia
-
             movimiento = MovimientoNomina(
                 empleado_id=data.empleado_id,
                 tipo=TipoMovimientoNomina.FRANCO.value,
-                concepto=f"Franco trabajado {data.fecha.strftime('%d/%m/%Y')}",
+                concepto=f"Franco {data.fecha.strftime('%d/%m/%Y')}",
                 descripcion=data.notas,
                 periodo_mes=data.fecha.month,
                 periodo_anio=data.fecha.year,
                 fecha=data.fecha,
                 semana=semana,
                 cantidad_dias=cantidad_dias,
-                valor_dia=valor_dia,
-                monto=monto,
-                es_debito=False,  # Franco se suma al sueldo
+                valor_dia=None,
+                monto=Decimal("0"),
+                es_debito=False,
                 registrado_por_id=registrado_por_id
             )
 
@@ -947,7 +943,8 @@ class EmpleadoService:
             total_monto_feriados_global += resumen_emp.get("total_monto_feriados", Decimal("0"))
 
         # HS extras se pagan aparte al momento, no se suman al sueldo final.
-        total_suma = total_monto_francos_global + total_monto_feriados_global
+        # Francos NO suman (solo se cuentan); solo feriados trabajados.
+        total_suma = total_monto_feriados_global
         total_general = total_suma - total_adelantos_global
 
         return {
@@ -1061,7 +1058,8 @@ class EmpleadoService:
 
         salario_base = empleado.salario_base or Decimal("0")
         # HS extras se pagan aparte al momento, no se suman al sueldo final.
-        total_a_sumar = total_monto_francos + total_monto_feriados
+        # Francos NO suman (solo se cuentan); solo feriados trabajados.
+        total_a_sumar = total_monto_feriados
         sueldo_final = salario_base + total_a_sumar - total_adelantos
 
         return {

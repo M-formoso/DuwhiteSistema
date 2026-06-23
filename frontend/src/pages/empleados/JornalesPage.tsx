@@ -123,10 +123,10 @@ export default function JornalesPage() {
     notas: '',
   });
 
-  // Form para config (los tres valores que usa el módulo de jornales)
+  // Form para config (valores que usa el módulo de jornales).
+  // El franco no suma al sueldo, así que no se configura monto para él.
   const [configForm, setConfigForm] = useState({
     valor_hora_extra: '',
-    valor_dia_franco: '',
     valor_dia_feriado: '',
   });
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -188,7 +188,6 @@ export default function JornalesPage() {
       empleadoId: string;
       valores: {
         valor_hora_extra: number | null;
-        valor_dia_franco: number | null;
         valor_dia_feriado: number | null;
       };
     }) => updateEmpleado(empleadoId, valores),
@@ -303,12 +302,11 @@ export default function JornalesPage() {
     setSelectedEmpleado(emp);
     setShowConfigModal(true);
     setLoadingConfig(true);
-    setConfigForm({ valor_hora_extra: '', valor_dia_franco: '', valor_dia_feriado: '' });
+    setConfigForm({ valor_hora_extra: '', valor_dia_feriado: '' });
     try {
       const empFull = await getEmpleado(emp.id);
       setConfigForm({
         valor_hora_extra: empFull.valor_hora_extra?.toString() || '',
-        valor_dia_franco: empFull.valor_dia_franco?.toString() || '',
         valor_dia_feriado: empFull.valor_dia_feriado?.toString() || '',
       });
     } catch (e) {
@@ -452,9 +450,9 @@ export default function JornalesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold text-amber-600">
-                {formatNumber(Number(resumen.total_monto_francos || 0), 'currency')}
+                {Number(resumen.total_francos || 0)} {Number(resumen.total_francos || 0) === 1 ? 'día' : 'días'}
               </div>
-              <p className="text-xs text-muted-foreground">{Number(resumen.total_francos || 0)} {Number(resumen.total_francos || 0) === 1 ? 'día' : 'días'}</p>
+              <p className="text-xs text-muted-foreground">Solo registro · no suma al sueldo</p>
             </CardContent>
           </Card>
 
@@ -478,13 +476,9 @@ export default function JornalesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xl font-bold text-green-600">
-                {formatNumber(
-                  Number(resumen.total_monto_francos || 0) +
-                  Number(resumen.total_monto_feriados || 0),
-                  'currency'
-                )}
+                {formatNumber(Number(resumen.total_monto_feriados || 0), 'currency')}
               </div>
-              <p className="text-xs text-muted-foreground">Francos + Feriados</p>
+              <p className="text-xs text-muted-foreground">Solo Feriados trabajados</p>
             </CardContent>
           </Card>
 
@@ -497,7 +491,7 @@ export default function JornalesPage() {
               <div className={`text-xl font-bold ${resumen.total_general >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatNumber(resumen.total_general, 'currency')}
               </div>
-              <p className="text-xs text-muted-foreground">Francos + Feriados - Adelantos</p>
+              <p className="text-xs text-muted-foreground">Feriados - Adelantos</p>
             </CardContent>
           </Card>
         </div>
@@ -605,7 +599,8 @@ export default function JornalesPage() {
                 <tbody>
                   {resumen.empleados.map((emp) => {
                     // HS extras se pagan aparte, no se suman al sueldo final.
-                    const totalSuma = Number(emp.total_monto_francos || 0) + Number(emp.total_monto_feriados || 0);
+                    // Francos NO suman (solo se cuentan); solo feriados trabajados.
+                    const totalSuma = Number(emp.total_monto_feriados || 0);
                     return (
                       <React.Fragment key={emp.empleado_id}>
                         <tr
@@ -669,13 +664,9 @@ export default function JornalesPage() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </td>
-                        {/* Francos - Monto */}
+                        {/* Francos - Monto: no aplica, el franco no suma al sueldo */}
                         <td className="bg-amber-50/30 px-3 py-4 text-center">
-                          {Number(emp.total_monto_francos || 0) > 0 ? (
-                            <span className="font-semibold text-amber-700">{formatNumber(emp.total_monto_francos, 'currency')}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                          <span className="text-muted-foreground text-xs italic">no suma</span>
                         </td>
                         {/* Feriados - Días */}
                         <td className="bg-purple-50/30 px-3 py-4 text-center border-l border-purple-100">
@@ -791,9 +782,13 @@ export default function JornalesPage() {
                                                 : <span className="text-muted-foreground">-</span>}
                                           </td>
                                           <td className="px-4 py-3 text-right">
-                                            <span className={`font-semibold ${mov.tipo === 'adelanto' ? 'text-red-600' : 'text-green-600'}`}>
-                                              {mov.tipo === 'adelanto' ? '-' : '+'}{formatNumber(mov.monto, 'currency')}
-                                            </span>
+                                            {mov.tipo === 'franco' ? (
+                                              <span className="text-muted-foreground text-xs italic">no suma</span>
+                                            ) : (
+                                              <span className={`font-semibold ${mov.tipo === 'adelanto' ? 'text-red-600' : 'text-green-600'}`}>
+                                                {mov.tipo === 'adelanto' ? '-' : '+'}{formatNumber(mov.monto, 'currency')}
+                                              </span>
+                                            )}
                                           </td>
                                           <td className="px-4 py-3">
                                             <div className="flex justify-center gap-1">
@@ -861,7 +856,7 @@ export default function JornalesPage() {
                       <span className="text-amber-800 font-bold">{Number(resumen.total_francos || 0)} {Number(resumen.total_francos || 0) === 1 ? 'día' : 'días'}</span>
                     </td>
                     <td className="bg-amber-200/50 px-3 py-4 text-center">
-                      <span className="text-amber-800 font-bold">{formatNumber(resumen.total_monto_francos, 'currency')}</span>
+                      <span className="text-muted-foreground text-xs italic">no suma</span>
                     </td>
                     {/* Feriados */}
                     <td className="bg-purple-200/50 px-3 py-4 text-center border-l border-purple-200">
@@ -870,14 +865,10 @@ export default function JornalesPage() {
                     <td className="bg-purple-200/50 px-3 py-4 text-center">
                       <span className="text-purple-800 font-bold">{formatNumber(resumen.total_monto_feriados, 'currency')}</span>
                     </td>
-                    {/* Total Suma */}
+                    {/* Total Suma (solo feriados) */}
                     <td className="bg-green-200/50 px-3 py-4 text-center border-l border-green-200">
                       <span className="text-green-800 font-bold text-lg">
-                        +{formatNumber(
-                          Number(resumen.total_monto_francos || 0) +
-                          Number(resumen.total_monto_feriados || 0),
-                          'currency'
-                        )}
+                        +{formatNumber(Number(resumen.total_monto_feriados || 0), 'currency')}
                       </span>
                     </td>
                     {/* Sueldo Final */}
@@ -1007,7 +998,7 @@ export default function JornalesPage() {
                   }
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {registroForm.tipo === 'franco' && 'El monto se calcula según el valor día franco del empleado'}
+                  {registroForm.tipo === 'franco' && 'El franco se registra solo como conteo — no suma al sueldo.'}
                   {registroForm.tipo === 'feriado' && 'El monto se calcula según el valor día feriado del empleado'}
                 </p>
               </div>
@@ -1096,26 +1087,6 @@ export default function JornalesPage() {
 
                   <div>
                     <Label className="flex items-center gap-2">
-                      <Coffee className="h-3.5 w-3.5 text-amber-600" />
-                      Valor Día Franco ($)
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0"
-                      value={configForm.valor_dia_franco}
-                      onChange={(e) =>
-                        setConfigForm({ ...configForm, valor_dia_franco: e.target.value })
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Monto por cada día de franco trabajado
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label className="flex items-center gap-2">
                       <PartyPopper className="h-3.5 w-3.5 text-purple-600" />
                       Valor Día Feriado ($)
                     </Label>
@@ -1147,7 +1118,6 @@ export default function JornalesPage() {
                       empleadoId: selectedEmpleado.id,
                       valores: {
                         valor_hora_extra: parse(configForm.valor_hora_extra),
-                        valor_dia_franco: parse(configForm.valor_dia_franco),
                         valor_dia_feriado: parse(configForm.valor_dia_feriado),
                       },
                     });
