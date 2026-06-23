@@ -521,13 +521,13 @@ class ResumenNomina(BaseModel):
 # ==================== JORNALES ====================
 
 class RegistroJornalCreate(BaseModel):
-    """Schema para registrar adelanto, horas extras, francos o feriados"""
+    """Schema para registrar adelanto, horas extras, francos, feriados o vacaciones"""
     empleado_id: UUID
     fecha: date
-    tipo: str  # 'adelanto', 'hora_extra', 'franco', 'feriado'
+    tipo: str  # 'adelanto', 'hora_extra', 'franco', 'feriado', 'vacaciones'
     monto: Optional[Decimal] = Field(None, ge=0)  # Para adelantos
     cantidad_horas: Optional[Decimal] = Field(None, ge=0)  # Para HS extras
-    cantidad_dias: Optional[Decimal] = Field(None, ge=0)  # Para francos/feriados (default 1)
+    cantidad_dias: Optional[Decimal] = Field(None, ge=0)  # Para francos/feriados/vacaciones (default 1)
     notas: Optional[str] = None
 
     @field_validator('fecha', mode='before')
@@ -563,6 +563,11 @@ class ResumenSemanalEmpleado(BaseModel):
     total_adelantos: Decimal
     total_horas_extras: Decimal
     total_monto_extras: Decimal
+    total_francos: Decimal = Decimal("0")
+    total_monto_francos: Decimal = Decimal("0")  # siempre 0 (solo registro)
+    total_feriados: Decimal = Decimal("0")
+    total_monto_feriados: Decimal = Decimal("0")
+    total_vacaciones: Decimal = Decimal("0")     # días de vacaciones (solo registro)
     dias_con_movimiento: int
 
 
@@ -580,8 +585,13 @@ class ResumenMensualEmpleado(BaseModel):
     total_adelantos: Decimal
     total_horas_extras: Decimal
     total_monto_extras: Decimal
+    total_francos: Decimal = Decimal("0")
+    total_monto_francos: Decimal = Decimal("0")  # siempre 0
+    total_feriados: Decimal = Decimal("0")
+    total_monto_feriados: Decimal = Decimal("0")
+    total_vacaciones: Decimal = Decimal("0")     # solo registro
     total_general: Decimal
-    sueldo_final: Decimal  # salario_base - total_adelantos
+    sueldo_final: Decimal  # salario_base + feriados - adelantos
 
 
 class ResumenMensualGeneral(BaseModel):
@@ -593,4 +603,9 @@ class ResumenMensualGeneral(BaseModel):
     total_adelantos: Decimal
     total_horas_extras: Decimal
     total_monto_extras: Decimal
+    total_francos: Decimal = Decimal("0")
+    total_monto_francos: Decimal = Decimal("0")
+    total_feriados: Decimal = Decimal("0")
+    total_monto_feriados: Decimal = Decimal("0")
+    total_vacaciones: Decimal = Decimal("0")
     total_general: Decimal

@@ -436,7 +436,7 @@ export const getTipoContratacionLabel = (tipo: TipoContratacion): string => {
 export interface RegistroJornalCreate {
   empleado_id: string;
   fecha: string;
-  tipo: 'adelanto' | 'hora_extra' | 'franco' | 'feriado';
+  tipo: 'adelanto' | 'hora_extra' | 'franco' | 'feriado' | 'vacaciones';
   monto?: number;
   cantidad_horas?: number;
   cantidad_dias?: number;
@@ -456,6 +456,7 @@ export interface ResumenSemanalEmpleado {
   total_monto_francos: number;
   total_feriados: number;
   total_monto_feriados: number;
+  total_vacaciones: number;
   dias_con_movimiento: number;
 }
 
@@ -474,6 +475,7 @@ export interface ResumenMensualEmpleado {
   total_monto_francos: number;
   total_feriados: number;
   total_monto_feriados: number;
+  total_vacaciones: number;
   total_general: number;
   sueldo_final: number;
 }
@@ -489,5 +491,6 @@ export interface ResumenMensualGeneral {
   total_monto_francos: number;
   total_feriados: number;
   total_monto_feriados: number;
+  total_vacaciones: number;
   total_general: number;
 }

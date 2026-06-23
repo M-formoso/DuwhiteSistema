@@ -873,6 +873,28 @@ class EmpleadoService:
                 registrado_por_id=registrado_por_id
             )
 
+        elif data.tipo == "vacaciones":
+            # Vacaciones: solo registro/conteo del día tomado. No suma al sueldo.
+            cantidad_dias = data.cantidad_dias if data.cantidad_dias else Decimal("1")
+            if cantidad_dias <= 0:
+                raise ValueError("Cantidad de días debe ser mayor a 0")
+
+            movimiento = MovimientoNomina(
+                empleado_id=data.empleado_id,
+                tipo=TipoMovimientoNomina.VACACIONES.value,
+                concepto=f"Vacaciones {data.fecha.strftime('%d/%m/%Y')}",
+                descripcion=data.notas,
+                periodo_mes=data.fecha.month,
+                periodo_anio=data.fecha.year,
+                fecha=data.fecha,
+                semana=semana,
+                cantidad_dias=cantidad_dias,
+                valor_dia=None,
+                monto=Decimal("0"),
+                es_debito=False,
+                registrado_por_id=registrado_por_id
+            )
+
         elif data.tipo == "feriado":
             # Feriado trabajado se registra por día con valor fijo
             cantidad_dias = data.cantidad_dias if data.cantidad_dias else Decimal("1")
@@ -929,6 +951,7 @@ class EmpleadoService:
         total_monto_francos_global = Decimal("0")
         total_feriados_global = Decimal("0")
         total_monto_feriados_global = Decimal("0")
+        total_vacaciones_global = Decimal("0")
 
         for empleado in empleados:
             resumen_emp = self.get_resumen_empleado_jornales(empleado.id, mes, anio)
@@ -941,6 +964,7 @@ class EmpleadoService:
             total_monto_francos_global += resumen_emp.get("total_monto_francos", Decimal("0"))
             total_feriados_global += resumen_emp.get("total_feriados", Decimal("0"))
             total_monto_feriados_global += resumen_emp.get("total_monto_feriados", Decimal("0"))
+            total_vacaciones_global += resumen_emp.get("total_vacaciones", Decimal("0"))
 
         # HS extras se pagan aparte al momento, no se suman al sueldo final.
         # Francos NO suman (solo se cuentan); solo feriados trabajados.
@@ -958,6 +982,7 @@ class EmpleadoService:
             "total_monto_francos": total_monto_francos_global,
             "total_feriados": total_feriados_global,
             "total_monto_feriados": total_monto_feriados_global,
+            "total_vacaciones": total_vacaciones_global,
             "total_general": total_general
         }
 
@@ -980,7 +1005,8 @@ class EmpleadoService:
                     TipoMovimientoNomina.ADELANTO.value,
                     TipoMovimientoNomina.HORA_EXTRA.value,
                     TipoMovimientoNomina.FRANCO.value,
-                    TipoMovimientoNomina.FERIADO.value
+                    TipoMovimientoNomina.FERIADO.value,
+                    TipoMovimientoNomina.VACACIONES.value,
                 ]),
                 MovimientoNomina.activo == True
             ))
@@ -1006,6 +1032,7 @@ class EmpleadoService:
                     "total_monto_francos": Decimal("0"),
                     "total_feriados": Decimal("0"),
                     "total_monto_feriados": Decimal("0"),
+                    "total_vacaciones": Decimal("0"),
                     "dias_con_movimiento": 0
                 }
 
@@ -1015,13 +1042,16 @@ class EmpleadoService:
                 semanas_dict[semana]["total_horas_extras"] += mov.cantidad_horas or Decimal("0")
                 semanas_dict[semana]["total_monto_extras"] += mov.monto
             elif mov.tipo == TipoMovimientoNomina.FRANCO.value:
-                # Francos se cuentan por días
+                # Francos se cuentan por días (no suman al sueldo)
                 semanas_dict[semana]["total_francos"] += mov.cantidad_dias or Decimal("1")
                 semanas_dict[semana]["total_monto_francos"] += mov.monto
             elif mov.tipo == TipoMovimientoNomina.FERIADO.value:
                 # Feriados se cuentan por días
                 semanas_dict[semana]["total_feriados"] += mov.cantidad_dias or Decimal("1")
                 semanas_dict[semana]["total_monto_feriados"] += mov.monto
+            elif mov.tipo == TipoMovimientoNomina.VACACIONES.value:
+                # Vacaciones se cuentan por días (solo registro, no suma al sueldo)
+                semanas_dict[semana]["total_vacaciones"] += mov.cantidad_dias or Decimal("1")
 
             semanas_dict[semana]["dias_con_movimiento"] += 1
 
@@ -1044,6 +1074,7 @@ class EmpleadoService:
                     "total_monto_francos": Decimal("0"),
                     "total_feriados": Decimal("0"),
                     "total_monto_feriados": Decimal("0"),
+                    "total_vacaciones": Decimal("0"),
                     "dias_con_movimiento": 0
                 })
 
@@ -1055,6 +1086,7 @@ class EmpleadoService:
         total_monto_francos = sum(s["total_monto_francos"] for s in semanas)
         total_feriados = sum(s["total_feriados"] for s in semanas)
         total_monto_feriados = sum(s["total_monto_feriados"] for s in semanas)
+        total_vacaciones = sum(s["total_vacaciones"] for s in semanas)
 
         salario_base = empleado.salario_base or Decimal("0")
         # HS extras se pagan aparte al momento, no se suman al sueldo final.
@@ -1077,6 +1109,7 @@ class EmpleadoService:
             "total_monto_francos": total_monto_francos,
             "total_feriados": total_feriados,
             "total_monto_feriados": total_monto_feriados,
+            "total_vacaciones": total_vacaciones,
             "total_general": total_a_sumar - total_adelantos,
             "sueldo_final": sueldo_final,
         }
