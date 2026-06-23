@@ -417,15 +417,21 @@ export function IniciarEtapaModal({
                 Peso (kg) <span className="text-red-500">*</span>
               </Label>
               <Input
-                type="number"
-                step="0.1"
-                min="0"
+                type="text"
                 inputMode="decimal"
                 value={pesoKg}
-                onChange={(e) => setPesoKg(e.target.value)}
-                placeholder="Ej: 45.5"
-                className="text-lg"
+                onChange={(e) => {
+                  let v = e.target.value.replace(/[^\d.,]/g, '').replace(/,/g, '.');
+                  const parts = v.split('.');
+                  if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+                  setPesoKg(v);
+                }}
+                placeholder="Ej: 45,5"
+                className="text-lg text-right font-medium"
               />
+              <p className="text-xs text-muted-foreground">
+                Usá el punto o la coma para los decimales (ej: 45.5 o 45,5).
+              </p>
             </div>
           )}
 
@@ -508,19 +514,29 @@ export function IniciarEtapaModal({
                   <div key={m.maquinaId} className="flex items-center gap-2">
                     <span className="text-sm font-medium w-24 truncate">{m.nombre}</span>
                     <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
+                      type="text"
                       inputMode="decimal"
-                      placeholder="0 kg"
+                      placeholder="0,0"
                       value={m.kg}
-                      onChange={e => setMaquinasConKg(prev => prev.map((x, j) => j === i ? { ...x, kg: e.target.value } : x))}
-                      className="flex-1"
+                      onChange={(e) => {
+                        // Acepta dígitos + un solo separador (. o ,).
+                        // Internamente normaliza a punto. Permite vacío.
+                        let v = e.target.value.replace(/[^\d.,]/g, '').replace(/,/g, '.');
+                        const parts = v.split('.');
+                        if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+                        setMaquinasConKg((prev) =>
+                          prev.map((x, j) => (j === i ? { ...x, kg: v } : x))
+                        );
+                      }}
+                      className="flex-1 text-right text-lg font-medium"
                     />
-                    <span className="text-sm text-muted-foreground">kg</span>
+                    <span className="text-sm text-muted-foreground w-6">kg</span>
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Tip: usá el punto o la coma para los decimales (ej: 12.5 o 12,5).
+              </p>
             </div>
           )}
 
