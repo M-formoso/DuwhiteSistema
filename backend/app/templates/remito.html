@@ -7,15 +7,16 @@
         /*
          * PDF de remito DUWHITE — posicionado para encajar en el papel
          * preimpreso (formato 33cm × 20cm apaisado, dos hojas idénticas
-         * separadas por perforación horizontal: ORIGINAL arriba, DUPLICADO abajo).
+         * SIDE-BY-SIDE separadas por perforación VERTICAL: ORIGINAL a la
+         * izquierda, DUPLICADO a la derecha).
          *
          * El papel YA TIENE preimpresos el logo DUWHITE, "X RETIRO" y los
          * recuadros de FECHA / CANTIDAD / DETALLE. Este PDF solo escribe
-         * los datos variables (fecha, cantidad, descripción) en las
-         * posiciones donde encajan en esos cuadros.
+         * los datos variables en las posiciones donde encajan en esos
+         * cuadros.
          *
-         * Si el papel se imprime corrido, ajustá las coordenadas
-         * (variables `coord_*` que vienen de remito_pdf_service.py).
+         * Si el papel sale corrido, ajustar las constantes COORD_* en
+         * remito_pdf_service.py.
          */
 
         @page {
@@ -36,28 +37,34 @@
         }
 
         .hoja {
-            position: relative;
-            width: {{ page_width_mm }}mm;
-            height: {{ hoja_height_mm }}mm;
+            position: absolute;
+            top: 0;
+            width: {{ hoja_width_mm }}mm;
+            height: {{ page_height_mm }}mm;
             overflow: hidden;
         }
 
-        /* Líneas guía sutiles para preview en pantalla — se imprimen
-           encima del borde preimpreso del papel, sin molestar visualmente. */
-        .hoja .borde-guia {
-            position: absolute;
-            border: 0.2mm dashed rgba(150, 150, 150, 0.15);
-            pointer-events: none;
-        }
+        .hoja.original  { left: 0; }
+        .hoja.duplicado { left: {{ hoja_width_mm }}mm; }
 
         .fecha {
             position: absolute;
             top: {{ coord_fecha_top_mm }}mm;
             left: {{ coord_fecha_left_mm }}mm;
             width: {{ coord_fecha_width_mm }}mm;
-            font-size: 12pt;
-            font-weight: 600;
+            font-size: 13pt;
+            font-weight: 700;
             text-align: center;
+        }
+
+        .cliente-overlay {
+            position: absolute;
+            top: {{ coord_cliente_top_mm }}mm;
+            left: {{ coord_cliente_left_mm }}mm;
+            width: {{ coord_cliente_width_mm }}mm;
+            font-size: 11pt;
+            font-weight: 700;
+            color: #000;
         }
 
         .items {
@@ -72,10 +79,9 @@
         .item-row {
             display: flex;
             align-items: flex-start;
-            border-bottom: 0.15mm dotted rgba(120, 120, 120, 0.25);
             min-height: {{ coord_row_height_mm }}mm;
-            padding: 0.6mm 0;
-            font-size: 10.5pt;
+            padding: 0.4mm 0;
+            font-size: 11pt;
             line-height: 1.1;
         }
 
@@ -85,7 +91,6 @@
             text-align: center;
             font-weight: 700;
             font-variant-numeric: tabular-nums;
-            padding-right: 2mm;
         }
 
         .item-row .detalle {
@@ -112,34 +117,21 @@
             color: #777;
         }
 
-        .cliente-overlay {
-            position: absolute;
-            top: {{ coord_cliente_top_mm }}mm;
-            left: {{ coord_cliente_left_mm }}mm;
-            width: {{ coord_cliente_width_mm }}mm;
-            font-size: 9pt;
-            font-weight: 600;
-            color: #333;
-        }
-
         .numero-overlay {
             position: absolute;
             top: {{ coord_numero_top_mm }}mm;
             left: {{ coord_numero_left_mm }}mm;
-            font-size: 8pt;
-            color: #555;
+            font-size: 7pt;
+            color: #777;
             font-family: "Courier New", monospace;
         }
     </style>
 </head>
 <body>
     {% for copia in copias %}
-    <div class="hoja">
-        {# Datos variables del remito #}
+    <div class="hoja {{ copia|lower }}">
         <div class="fecha">{{ fecha_formateada }}</div>
-
         <div class="cliente-overlay">{{ cliente_nombre }}</div>
-        <div class="numero-overlay">R-{{ remito.numero }} · {{ copia }}</div>
 
         <div class="items">
             {% for it in items_visibles %}
@@ -158,6 +150,8 @@
             + {{ items_overflow }} ítems más (ver remito digital R-{{ remito.numero }})
         </div>
         {% endif %}
+
+        <div class="numero-overlay">R-{{ remito.numero }} · {{ copia }}</div>
     </div>
     {% endfor %}
 </body>

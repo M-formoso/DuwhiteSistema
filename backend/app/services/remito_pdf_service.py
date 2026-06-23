@@ -28,41 +28,56 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templa
 
 # ==================== COORDENADAS DEL PAPEL PREIMPRESO ====================
 #
-# Medidas del papel completo (apaisado, 2 hojas unidas por perforación
-# horizontal). Si el formato cambia, ajustar acá.
+# Layout del papel: apaisado, dos hojas idénticas SIDE-BY-SIDE separadas
+# por una perforación VERTICAL en el medio. ORIGINAL a la izquierda,
+# DUPLICADO a la derecha.
+#
+# +-------------------------------+-------------------------------+
+# |   DUWHITE      |   X RETIRO   |   DUWHITE      |   X RETIRO   |
+# |   LAV. IND.    |   FECHA: []  |   LAV. IND.    |   FECHA: []  |
+# |   [Caseros 248]              ||   [Caseros 248]              |
+# |  +----+-------------------+  ||  +----+-------------------+  |
+# |  | CT |     DETALLE       |  ||  | CT |     DETALLE       |  |
+# |  | 1  | SABANAS           |  ||  | 1  | SABANAS           |  |
+# |  | 2  | FUNDAS            |  ||  | 2  | FUNDAS            |  |
+# |  +----+-------------------+  ||  +----+-------------------+  |
+# |          ORIGINAL            ||          DUPLICADO           |
+# +-------------------------------+-------------------------------+
+#                              perforación vertical
+#
+# Las coordenadas de cada bloque (FECHA, CLIENTE, items) son
+# DENTRO de UNA hoja (top-left de la hoja = 0,0).
+# Para calibrar imprimí un remito de prueba y ajustá los mm.
 
-PAGE_WIDTH_MM = 330   # 33 cm ancho total
-PAGE_HEIGHT_MM = 200  # 20 cm alto total
-HOJA_HEIGHT_MM = 100  # alto de cada hoja (mitad)
+PAGE_WIDTH_MM = 330    # 33 cm ancho total del papel
+PAGE_HEIGHT_MM = 200   # 20 cm alto total del papel
+HOJA_WIDTH_MM = 165    # cada hoja ocupa la mitad horizontal
 
-# Posición del cuadro FECHA dentro de cada hoja (medido desde top-left
-# de la hoja). Está sobre el cuadrito a la derecha donde dice "FECHA".
-COORD_FECHA_TOP_MM = 70     # bajo desde el borde superior de la hoja
-COORD_FECHA_LEFT_MM = 282   # cuadro a la derecha del cuerpo
-COORD_FECHA_WIDTH_MM = 40
+# --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
+COORD_FECHA_TOP_MM = 22
+COORD_FECHA_LEFT_MM = 110
+COORD_FECHA_WIDTH_MM = 45
 
-# Posición del bloque de ítems (cantidad + detalle).
-# Empieza en la parte de arriba del cuerpo, justo debajo del título.
-COORD_ITEMS_TOP_MM = 20
-COORD_CANTIDAD_LEFT_MM = 8   # columna CANTIDAD (margen izquierdo)
+# --- Nombre del cliente: dentro del recuadro horizontal que está debajo
+#     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
+COORD_CLIENTE_TOP_MM = 50
+COORD_CLIENTE_LEFT_MM = 10
+COORD_CLIENTE_WIDTH_MM = 150
+
+# --- Bloque de ítems (tabla CANTIDAD + DETALLE)
+COORD_ITEMS_TOP_MM = 88           # primera fila debajo del header de columnas
+COORD_CANTIDAD_LEFT_MM = 8        # margen izquierdo de la columna CANTIDAD
 COORD_CANTIDAD_WIDTH_MM = 28
-COORD_DETALLE_GAP_MM = 4     # gap horizontal entre cantidad y detalle
-COORD_ITEMS_WIDTH_MM = 268   # ancho disponible para cantidad+detalle
-COORD_ITEMS_HEIGHT_MM = 70   # alto disponible para la lista
+COORD_DETALLE_GAP_MM = 4
+COORD_ITEMS_WIDTH_MM = 150        # ancho total CANTIDAD + DETALLE
+COORD_ITEMS_HEIGHT_MM = 85        # alto disponible para las filas
+COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
-# Altura de cada fila — afecta cuántos ítems entran.
-COORD_ROW_HEIGHT_MM = 6
+# Mensaje "+N ítems más" si no entran todos (al pie del bloque)
+OVERFLOW_NOTE_TOP_MM = 175
 
-# Mensaje "+N ítems más" si no entran todos.
-OVERFLOW_NOTE_TOP_MM = 92
-
-# Nombre del cliente — pequeño, en la parte superior izquierda.
-COORD_CLIENTE_TOP_MM = 11
-COORD_CLIENTE_LEFT_MM = 8
-COORD_CLIENTE_WIDTH_MM = 220
-
-# Número de remito (chiquito, abajo a la izquierda como traza interna).
-COORD_NUMERO_TOP_MM = 93
+# Número de remito (traza chica, al pie de la hoja)
+COORD_NUMERO_TOP_MM = 190
 COORD_NUMERO_LEFT_MM = 8
 
 
@@ -157,7 +172,7 @@ def generar_pdf(db: Session, remito: Remito) -> bytes:
             # Coordenadas (mm)
             page_width_mm=PAGE_WIDTH_MM,
             page_height_mm=PAGE_HEIGHT_MM,
-            hoja_height_mm=HOJA_HEIGHT_MM,
+            hoja_width_mm=HOJA_WIDTH_MM,
             coord_fecha_top_mm=COORD_FECHA_TOP_MM,
             coord_fecha_left_mm=COORD_FECHA_LEFT_MM,
             coord_fecha_width_mm=COORD_FECHA_WIDTH_MM,
