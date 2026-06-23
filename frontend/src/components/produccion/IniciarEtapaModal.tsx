@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, User, Loader2, Box, Check, Scale } from 'lucide-react';
+import { KeyRound, User, Loader2, Box, Check, Scale, Wrench } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +73,7 @@ interface IniciarEtapaModalProps {
     pesoKg?: number,
     siguienteEtapaId?: string,
     maquinasConKg?: { maquinaId: string; kg: number }[],
+    maquinasIds?: string[],
   ) => void;
   title?: string;
   description?: string;
@@ -84,6 +85,8 @@ interface IniciarEtapaModalProps {
   showPesoInput?: boolean;
   accion?: 'iniciar' | 'finalizar';
   routingOptions?: RoutingOption[];
+  requiereMaquina?: boolean;
+  tipoMaquina?: string | null;
 }
 
 export function IniciarEtapaModal({
@@ -100,6 +103,8 @@ export function IniciarEtapaModal({
   showPesoInput = false,
   accion = 'iniciar',
   routingOptions,
+  requiereMaquina = false,
+  tipoMaquina = null,
 }: IniciarEtapaModalProps) {
   const [operarioId, setOperarioId] = useState<string>('');
   const [pin, setPin] = useState('');
@@ -109,6 +114,7 @@ export function IniciarEtapaModal({
   const [validating, setValidating] = useState(false);
   const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
   const [maquinasConKg, setMaquinasConKg] = useState<{ maquinaId: string; nombre: string; kg: string }[]>([]);
+  const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   const muestraCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
@@ -116,7 +122,12 @@ export function IniciarEtapaModal({
   const requierePeso = showPesoInput || etapaCodigo === 'REC';
   const esLavado = etapaCodigo === 'LAV';
   const muestraRouting = (routingOptions?.length ?? 0) > 0;
-  const muestraMaquinasLav = esLavado && accion === 'iniciar';
+  // Iniciar: si la etapa requiere máquina, se muestra el selector.
+  // LAV usa la UI especial con kg por lavadora; el resto usa multi-select simple.
+  const requiereMaquinaIniciar = requiereMaquina && accion === 'iniciar';
+  const muestraMaquinasLav = (esLavado || tipoMaquina === 'lavadora') && requiereMaquinaIniciar;
+  const muestraMaquinasSimple = requiereMaquinaIniciar && !muestraMaquinasLav;
+  const tipoMaquinaQuery = muestraMaquinasLav ? 'lavadora' : (tipoMaquina || undefined);
 
   const { data: operarios = [], isLoading: loadingOperarios } = useQuery<Operario[]>({
     queryKey: ['operarios-con-pin'],
@@ -136,13 +147,14 @@ export function IniciarEtapaModal({
     enabled: open && muestraCanastos && !!loteId && !esEtapaRecepcion,
   });
 
-  const { data: lavadoras = [] } = useQuery<MaquinaDisponible[]>({
-    queryKey: ['maquinas-disponibles', 'lavadora'],
+  const { data: maquinasDisponibles = [], isLoading: loadingMaquinas } = useQuery<MaquinaDisponible[]>({
+    queryKey: ['maquinas-disponibles', tipoMaquinaQuery || 'all'],
     queryFn: async () => {
-      return produccionService.getMaquinasDisponibles('lavadora');
+      return produccionService.getMaquinasDisponibles(tipoMaquinaQuery);
     },
-    enabled: open && muestraMaquinasLav,
+    enabled: open && requiereMaquinaIniciar,
   });
+  const lavadoras = maquinasDisponibles;
 
   useEffect(() => {
     if (open) {
@@ -153,6 +165,7 @@ export function IniciarEtapaModal({
       setError(null);
       setSelectedRoutingId(null);
       setMaquinasConKg([]);
+      setSelectedMaquinas([]);
       if (muestraCanastos) refetchCanastos();
     }
   }, [open, refetchCanastos, muestraCanastos]);
@@ -193,6 +206,17 @@ export function IniciarEtapaModal({
       setError('Debés seleccionar a dónde va el lote');
       return;
     }
+    if (muestraMaquinasLav) {
+      const conKg = maquinasConKg.filter(m => m.kg && parseFloat(m.kg) > 0);
+      if (conKg.length === 0) {
+        setError('Ingresá los kg en al menos una lavadora');
+        return;
+      }
+    }
+    if (muestraMaquinasSimple && selectedMaquinas.length === 0) {
+      setError('Seleccioná al menos una máquina para esta etapa');
+      return;
+    }
 
     setValidating(true);
     setError(null);
@@ -210,6 +234,7 @@ export function IniciarEtapaModal({
           pesoKg ? parseFloat(pesoKg) : undefined,
           selectedRoutingId ?? undefined,
           maqConKgFiltradas.length > 0 ? maqConKgFiltradas : undefined,
+          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
         );
         onClose();
       } else {
@@ -256,7 +281,7 @@ export function IniciarEtapaModal({
         ];
       })();
 
-  const isLoading = loadingOperarios || loadingCanastos || loadingCanastosLote;
+  const isLoading = loadingOperarios || loadingCanastos || loadingCanastosLote || loadingMaquinas;
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
@@ -499,6 +524,67 @@ export function IniciarEtapaModal({
             </div>
           )}
 
+          {/* Selección simple de máquinas (PLA, SEC, etc.) */}
+          {muestraMaquinasSimple && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                Máquinas <span className="text-red-500">*</span>
+              </Label>
+              {loadingMaquinas ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando máquinas...
+                </div>
+              ) : maquinasDisponibles.length === 0 ? (
+                <Alert>
+                  <AlertDescription>
+                    No hay máquinas disponibles{tipoMaquina ? ` del tipo "${tipoMaquina}"` : ''}. Liberá una desde Máquinas o esperá a que termine otro lote.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {maquinasDisponibles.map((m) => {
+                    const selected = selectedMaquinas.includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedMaquinas((prev) =>
+                            prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                          )
+                        }
+                        className={`flex items-center gap-2 p-2 rounded-lg border-2 text-left transition-all active:scale-[0.98] ${
+                          selected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-gray-200 bg-white hover:border-primary/40'
+                        }`}
+                      >
+                        <div
+                          className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            selected ? 'bg-primary border-primary' : 'border-gray-300'
+                          }`}
+                        >
+                          {selected && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate">{m.codigo || m.nombre}</div>
+                          {m.codigo && m.nombre && m.codigo !== m.nombre && (
+                            <div className="text-[11px] text-muted-foreground truncate">{m.nombre}</div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Podés elegir una o varias. Quedan reservadas hasta finalizar la etapa.
+              </p>
+            </div>
+          )}
+
           {/* Routing para LAV finalizar */}
           {muestraRouting && (
             <div className="space-y-2">
@@ -544,7 +630,8 @@ export function IniciarEtapaModal({
               isLoading ||
               (esEtapaRecepcion && selectedCanastos.length === 0) ||
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
-              (muestraRouting && !selectedRoutingId)
+              (muestraRouting && !selectedRoutingId) ||
+              (muestraMaquinasSimple && selectedMaquinas.length === 0)
             }
           >
             {validating ? (

@@ -901,6 +901,7 @@ export default function KanbanBoardPage() {
     pesoKg?: number,
     siguienteEtapaId?: string,
     maquinasConKg?: { maquinaId: string; kg: number }[],
+    maquinasIds?: string[],
   ) => {
     if (!pendingAction) return;
 
@@ -910,7 +911,7 @@ export default function KanbanBoardPage() {
         loteId: pendingAction.loteId,
         etapaId: pendingAction.etapaId,
         operarioId,
-        maquinasIds: undefined,
+        maquinasIds,
         canastosIds,
         pesoKg,
         maquinasConKg,
@@ -1200,6 +1201,11 @@ export default function KanbanBoardPage() {
       </Card>
 
       {/* Modal para iniciar O finalizar etapa */}
+      {(() => {
+        const colActual = pendingAction
+          ? kanban?.columnas.find((c) => c.etapa_id === pendingAction.etapaId)
+          : undefined;
+        return (
       <IniciarEtapaModal
         open={showIniciarModal}
         onClose={() => {
@@ -1219,6 +1225,8 @@ export default function KanbanBoardPage() {
         etapaNombre={pendingAction?.etapaNombre}
         etapaCodigo={pendingAction?.etapaCodigo}
         showPesoInput={pendingAction?.type === 'finalizar'}
+        requiereMaquina={!!colActual?.requiere_maquina}
+        tipoMaquina={colActual?.tipo_maquina ?? null}
         routingOptions={
           pendingAction?.type === 'finalizar' && pendingAction?.etapaCodigo === 'LAV'
             ? (() => {
@@ -1232,6 +1240,8 @@ export default function KanbanBoardPage() {
             : undefined
         }
       />
+        );
+      })()}
 
       {/* Modal para dividir lote */}
       {dividirData && (
