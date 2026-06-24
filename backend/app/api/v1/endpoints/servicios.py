@@ -363,13 +363,15 @@ def actualizar_lista_precios(
             detail="Lista de precios no encontrada"
         )
 
-    # Verificar código único si se cambia
+    # Verificar código único si se cambia (excluyendo la propia lista)
     if data.codigo and data.codigo != lista.codigo:
-        existente = servicio_service.get_lista_precios_by_codigo(db, data.codigo)
+        existente = servicio_service.get_lista_precios_by_codigo(
+            db, data.codigo, excluir_id=lista.id
+        )
         if existente:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Ya existe una lista con el código {data.codigo}"
+                detail=f"Ya existe una lista activa con el código {data.codigo}"
             )
 
     lista = servicio_service.update_lista_precios(db, lista, data)

@@ -191,11 +191,23 @@ def get_lista_precios(db: Session, lista_id: UUID) -> Optional[ListaPrecios]:
     ).first()
 
 
-def get_lista_precios_by_codigo(db: Session, codigo: str) -> Optional[ListaPrecios]:
-    """Obtiene una lista de precios por código."""
-    return db.query(ListaPrecios).filter(
-        ListaPrecios.codigo == codigo
-    ).first()
+def get_lista_precios_by_codigo(
+    db: Session, codigo: str, excluir_id: Optional[UUID] = None
+) -> Optional[ListaPrecios]:
+    """
+    Obtiene una lista de precios ACTIVA por código.
+    Las listas soft-deleted (activa=False) se ignoran para que su código
+    pueda reusarse o aparecer al editar otra lista sin chocar.
+    `excluir_id` permite excluir la propia lista al validar duplicados
+    en un update.
+    """
+    query = db.query(ListaPrecios).filter(
+        ListaPrecios.codigo == codigo,
+        ListaPrecios.activa == True,
+    )
+    if excluir_id is not None:
+        query = query.filter(ListaPrecios.id != excluir_id)
+    return query.first()
 
 
 def get_listas_precios(

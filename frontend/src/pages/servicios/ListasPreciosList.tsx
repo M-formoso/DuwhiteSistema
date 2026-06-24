@@ -72,6 +72,7 @@ import {
   ListaPreciosCreate,
   ListaPreciosUpdate,
 } from '@/services/servicioService';
+import { getErrorMessage } from '@/services/api';
 
 export default function ListasPreciosList() {
   const navigate = useNavigate();
@@ -119,8 +120,8 @@ export default function ListasPreciosList() {
       toast.success('Lista de precios creada correctamente');
       handleCloseModal();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al crear lista de precios');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Error al crear lista de precios');
     },
   });
 
@@ -132,8 +133,8 @@ export default function ListasPreciosList() {
       toast.success('Lista de precios actualizada correctamente');
       handleCloseModal();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al actualizar lista de precios');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Error al actualizar lista de precios');
     },
   });
 
@@ -145,8 +146,8 @@ export default function ListasPreciosList() {
       setDeleteDialogOpen(false);
       setListaEliminar(null);
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al eliminar lista de precios');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Error al eliminar lista de precios');
     },
   });
 
@@ -156,8 +157,8 @@ export default function ListasPreciosList() {
       queryClient.invalidateQueries({ queryKey: ['listas-precios'] });
       toast.success(`Se actualizaron ${data.items_actualizados} items`);
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Error al aplicar modificador');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Error al aplicar modificador');
     },
   });
 
