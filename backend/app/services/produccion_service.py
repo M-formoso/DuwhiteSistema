@@ -1292,9 +1292,25 @@ class ProduccionService:
                     horas = (lote_etapa.fecha_fin - lote_etapa.fecha_inicio).total_seconds() / 3600
                     maquina.horas_uso_totales += int(horas)
 
-        # Liberar canastos si se finaliza la etapa de Planchado (PLA)
+        # Manejo de canastos al finalizar:
+        # - Si llegó canastos_ids explícito desde el frontend (incluso lista
+        #   vacía): el operario decidió cuáles siguen. Liberamos los que
+        #   sacó del lote y asignamos los nuevos que agregó.
+        # - Si NO llegó canastos_ids (compatibilidad): la etapa PLA libera
+        #   todos los canastos del lote (era el comportamiento anterior).
         etapa = self.get_etapa(etapa_id)
-        if etapa and etapa.codigo == "PLA":
+        canastos_ids_solicitados = getattr(data, 'canastos_ids', None)
+        if canastos_ids_solicitados is not None:
+            self._liberar_canastos_selectivo(
+                lote_id, canastos_ids_solicitados, usuario_id
+            )
+            self._asignar_canastos(
+                lote_id,
+                etapa.id if etapa else None,
+                canastos_ids_solicitados,
+                usuario_id,
+            )
+        elif etapa and etapa.codigo == "PLA":
             self._liberar_canastos_lote(lote_id, usuario_id)
 
         # Verificar si hay siguiente etapa

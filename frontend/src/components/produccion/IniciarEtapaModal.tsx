@@ -117,7 +117,9 @@ export function IniciarEtapaModal({
   const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
-  const muestraCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
+  // Etapas que trabajan con canastos. Al finalizar cualquiera, el
+  // operario puede decidir qué canastos siguen con el lote y cuáles libera.
+  const muestraCanastos = showCanastosSelection || ['REC', 'LAV', 'SEC', 'DIV', 'PLA'].includes(etapaCodigo || '');
   const esEtapaRecepcion = etapaCodigo === 'REC';
   const requierePeso = showPesoInput || etapaCodigo === 'REC';
   const esLavado = etapaCodigo === 'LAV';
@@ -509,9 +511,11 @@ export function IniciarEtapaModal({
               <p className="text-xs text-muted-foreground">
                 {esEtapaRecepcion
                   ? 'Selecciona los canastos donde se colocará el lote'
-                  : canastosDelLote.length > 0
-                    ? 'Azul = ya asignados al lote'
-                    : 'Selecciona los canastos para este lote'
+                  : accion === 'finalizar'
+                    ? 'Marcá los canastos que SIGUEN con el lote. Los desmarcados se liberan al cerrar la etapa.'
+                    : canastosDelLote.length > 0
+                      ? 'Azul = ya asignados al lote · Podés sumar disponibles o quitar'
+                      : 'Selecciona los canastos para este lote'
                 }
               </p>
             </div>
