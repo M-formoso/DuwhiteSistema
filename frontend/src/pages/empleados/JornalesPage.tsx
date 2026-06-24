@@ -421,7 +421,7 @@ export default function JornalesPage() {
 
       {/* Resumen general */}
       {resumen && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Adelantos</CardTitle>
@@ -539,7 +539,7 @@ export default function JornalesPage() {
                 <thead className="sticky top-0 z-20">
                   {/* Fila 1: Grupos principales */}
                   <tr className="bg-muted/80">
-                    <th rowSpan={2} className="sticky left-0 z-30 bg-muted/80 px-4 py-3 text-left font-semibold border-b border-r border-border min-w-[200px]">
+                    <th rowSpan={2} className="bg-muted/80 px-4 py-3 text-left font-semibold border-b border-r border-border min-w-[200px]">
                       Empleado
                     </th>
                     <th rowSpan={2} className="bg-muted/80 px-3 py-3 text-center font-semibold border-b border-r border-border min-w-[80px]">
@@ -633,7 +633,7 @@ export default function JornalesPage() {
                         onClick={() => toggleExpandEmpleado(emp.empleado_id)}
                       >
                         {/* Empleado */}
-                        <td className="sticky left-0 z-10 bg-background px-4 py-4 font-medium border-r border-border">
+                        <td className="bg-background px-4 py-4 font-medium border-r border-border">
                           <div className="flex items-center gap-3">
                             <div className={`p-1 rounded ${expandedEmpleado === emp.empleado_id ? 'bg-primary/10' : 'bg-muted'}`}>
                               {expandedEmpleado === emp.empleado_id ? (
@@ -755,7 +755,7 @@ export default function JornalesPage() {
                       {/* Fila expandible con detalle de jornales */}
                       {expandedEmpleado === emp.empleado_id && (
                         <tr>
-                          <td colSpan={14} className="bg-muted/20 p-0 border-b-2 border-primary/20">
+                          <td colSpan={13} className="bg-muted/20 p-0 border-b-2 border-primary/20">
                             <div className="p-5">
                               <h4 className="font-semibold mb-4 flex items-center gap-2 text-base">
                                 <Calendar className="h-5 w-5 text-primary" />
@@ -877,7 +877,7 @@ export default function JornalesPage() {
                   })}
                   {/* Fila de totales */}
                   <tr className="bg-muted font-bold sticky bottom-0">
-                    <td className="sticky left-0 z-10 bg-muted px-4 py-4 border-r border-border text-base">
+                    <td className="bg-muted px-4 py-4 border-r border-border text-base">
                       TOTALES
                     </td>
                     <td className="bg-muted px-3 py-4 text-center border-r border-border"></td>
