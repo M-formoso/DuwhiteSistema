@@ -122,12 +122,27 @@ export function IniciarEtapaModal({
   const requierePeso = showPesoInput || etapaCodigo === 'REC';
   const esLavado = etapaCodigo === 'LAV';
   const muestraRouting = (routingOptions?.length ?? 0) > 0;
+
+  // Fallback por código de etapa: si la prop `requiereMaquina` no vino
+  // (o vino en false) pero el código es LAV/SEC/PLA, asumimos que la
+  // etapa requiere máquina. Evita que se rompa el flujo si el backend
+  // no envía bien el flag o si la columna no se encuentra.
+  const MAQUINA_POR_CODIGO: Record<string, string> = {
+    LAV: 'lavadora',
+    SEC: 'secadora',
+    PLA: 'planchadora',
+  };
+  const codigoEtapaUpper = (etapaCodigo || '').toUpperCase();
+  const tipoMaquinaSegunCodigo = MAQUINA_POR_CODIGO[codigoEtapaUpper];
+  const requiereMaquinaEfectivo = requiereMaquina || !!tipoMaquinaSegunCodigo;
+  const tipoMaquinaEfectivo = tipoMaquina || tipoMaquinaSegunCodigo || null;
+
   // Iniciar: si la etapa requiere máquina, se muestra el selector.
   // LAV usa la UI especial con kg por lavadora; el resto usa multi-select simple.
-  const requiereMaquinaIniciar = requiereMaquina && accion === 'iniciar';
-  const muestraMaquinasLav = (esLavado || tipoMaquina === 'lavadora') && requiereMaquinaIniciar;
+  const requiereMaquinaIniciar = requiereMaquinaEfectivo && accion === 'iniciar';
+  const muestraMaquinasLav = (esLavado || tipoMaquinaEfectivo === 'lavadora') && requiereMaquinaIniciar;
   const muestraMaquinasSimple = requiereMaquinaIniciar && !muestraMaquinasLav;
-  const tipoMaquinaQuery = muestraMaquinasLav ? 'lavadora' : (tipoMaquina || undefined);
+  const tipoMaquinaQuery = muestraMaquinasLav ? 'lavadora' : (tipoMaquinaEfectivo || undefined);
 
   const { data: operarios = [], isLoading: loadingOperarios } = useQuery<Operario[]>({
     queryKey: ['operarios-con-pin'],
@@ -555,7 +570,7 @@ export function IniciarEtapaModal({
               ) : maquinasDisponibles.length === 0 ? (
                 <Alert>
                   <AlertDescription>
-                    No hay máquinas disponibles{tipoMaquina ? ` del tipo "${tipoMaquina}"` : ''}. Liberá una desde Máquinas o esperá a que termine otro lote.
+                    No hay máquinas disponibles{tipoMaquinaEfectivo ? ` del tipo "${tipoMaquinaEfectivo}"` : ''}. Liberá una desde Máquinas o esperá a que termine otro lote.
                   </AlertDescription>
                 </Alert>
               ) : (
