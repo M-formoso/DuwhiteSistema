@@ -195,15 +195,33 @@ export default function ListasPreciosList() {
   };
 
   const handleSubmit = () => {
-    if (!formData.codigo || !formData.nombre) {
-      toast.error('Completa los campos obligatorios');
+    if (!formData.codigo || !formData.codigo.trim()) {
+      toast.error('El código es obligatorio');
+      return;
+    }
+    if (!formData.nombre || !formData.nombre.trim()) {
+      toast.error('El nombre es obligatorio');
       return;
     }
 
+    // Limpia el payload: strings vacíos → undefined, valores undefined no se
+    // serializan en JSON. Evita que el backend reciba "" donde espera null.
+    const payload: ListaPreciosUpdate = {
+      codigo: formData.codigo.trim(),
+      nombre: formData.nombre.trim(),
+      descripcion: formData.descripcion?.trim() || undefined,
+      es_lista_base: formData.es_lista_base,
+      lista_base_id: formData.es_lista_base ? undefined : (formData.lista_base_id || undefined),
+      porcentaje_modificador: formData.es_lista_base
+        ? undefined
+        : (formData.porcentaje_modificador ?? undefined),
+      notas: formData.notas?.trim() || undefined,
+    };
+
     if (listaEditar) {
-      updateMutation.mutate({ id: listaEditar.id, data: formData });
+      updateMutation.mutate({ id: listaEditar.id, data: payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload as ListaPreciosCreate);
     }
   };
 
