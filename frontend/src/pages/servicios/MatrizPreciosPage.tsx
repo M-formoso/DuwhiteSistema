@@ -373,10 +373,10 @@ export default function MatrizPreciosPage() {
           ) : (
             <div className="overflow-auto max-h-[70vh]">
               <table className="w-full text-sm border-collapse">
-                <thead className="sticky top-0 z-10 bg-muted/95">
+                <thead className="sticky top-0 z-20 bg-muted/95">
                   <tr>
-                    <th className="px-3 py-3 text-left font-semibold border-b border-r min-w-[80px]">Código</th>
-                    <th className="px-3 py-3 text-left font-semibold border-b border-r min-w-[180px]">Producto</th>
+                    <th className="sticky left-0 z-30 bg-muted/95 px-3 py-3 text-left font-semibold border-b border-r w-[80px] min-w-[80px]">Código</th>
+                    <th className="sticky left-[80px] z-30 bg-muted/95 px-3 py-3 text-left font-semibold border-b border-r w-[200px] min-w-[200px]">Producto</th>
                     {listas.map((l) => {
                       const clientesConEsta = clientesLista.filter(
                         (c: any) => c.lista_precios_id === l.id,
@@ -409,11 +409,11 @@ export default function MatrizPreciosPage() {
                 </thead>
                 <tbody>
                   {productos.map((p) => (
-                    <tr key={p.producto_id} className="hover:bg-muted/30 border-b">
-                      <td className="px-3 py-2 font-mono font-semibold border-r">
+                    <tr key={p.producto_id} className="group border-b">
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-muted/30 px-3 py-2 font-mono font-semibold border-r w-[80px] min-w-[80px]">
                         {formatearCodigo(p.producto_codigo)}
                       </td>
-                      <td className="px-3 py-2 border-r">
+                      <td className="sticky left-[80px] z-10 bg-white group-hover:bg-muted/30 px-3 py-2 border-r w-[200px] min-w-[200px]">
                         <div className="font-medium">{p.producto_nombre}</div>
                         <div className="text-[10px] text-muted-foreground capitalize">
                           {p.categoria.replace('_', ' ')}
