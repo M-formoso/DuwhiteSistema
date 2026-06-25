@@ -563,9 +563,16 @@ function PinModalGrande({
     enabled: open && muestraCanastos,
   });
 
+  // Trae máquinas del tipo solicitado. Si vuelve vacío reintenta sin
+  // tipo (fallback defensivo). Evita que un mismatch case-sensitive en
+  // BD bloquee al operario.
   const { data: maquinasDisponibles = [] } = useQuery<MaquinaDisponible[]>({
     queryKey: ['maquinas-disponibles', tipoMaquinaQuery || 'all'],
-    queryFn: () => produccionService.getMaquinasDisponibles(tipoMaquinaQuery),
+    queryFn: async () => {
+      const conTipo = await produccionService.getMaquinasDisponibles(tipoMaquinaQuery);
+      if (conTipo.length > 0 || !tipoMaquinaQuery) return conTipo;
+      return produccionService.getMaquinasDisponibles(undefined);
+    },
     enabled: open && requiereMaquinaIniciar,
   });
   const lavadoras = maquinasDisponibles;

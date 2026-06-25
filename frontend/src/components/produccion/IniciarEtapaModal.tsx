@@ -181,10 +181,18 @@ export function IniciarEtapaModal({
     enabled: open && muestraCanastos && !!loteId && !esEtapaRecepcion,
   });
 
+  // Trae máquinas del tipo solicitado. Si vuelve vacío y el tipo NO
+  // es 'lavadora' (porque LAV ya tiene UI especial), reintenta sin tipo
+  // para que el operario igual pueda elegir manualmente. Defensive: si
+  // el tipo en BD no coincide exacto (Secadora vs secadora, etc.) no se
+  // bloquea el flujo.
   const { data: maquinasDisponibles = [], isLoading: loadingMaquinas } = useQuery<MaquinaDisponible[]>({
     queryKey: ['maquinas-disponibles', tipoMaquinaQuery || 'all'],
     queryFn: async () => {
-      return produccionService.getMaquinasDisponibles(tipoMaquinaQuery);
+      const conTipo = await produccionService.getMaquinasDisponibles(tipoMaquinaQuery);
+      if (conTipo.length > 0 || !tipoMaquinaQuery) return conTipo;
+      // Fallback: traer todas sin filtro de tipo
+      return produccionService.getMaquinasDisponibles(undefined);
     },
     enabled: open && requiereMaquinaIniciar,
   });

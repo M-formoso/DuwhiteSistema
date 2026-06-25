@@ -340,7 +340,11 @@ class ProduccionService:
         )
 
         if tipo:
-            query = query.filter(Maquina.tipo == tipo)
+            # Case-insensitive y tolera variantes ("Secadora", "secadora",
+            # "SEC", etc.). Si la BD tiene tipos con mayúsculas o algun
+            # typo no rompe el flujo.
+            from sqlalchemy import func
+            query = query.filter(func.lower(Maquina.tipo) == tipo.lower())
 
         return query.order_by(Maquina.codigo).all()
 
