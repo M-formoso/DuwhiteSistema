@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, User, Loader2, Box, Check, Scale, Wrench } from 'lucide-react';
+import { KeyRound, User, Loader2, Box, Check, Scale, Wrench, Keyboard } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,6 +115,23 @@ export function IniciarEtapaModal({
   const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
   const [maquinasConKg, setMaquinasConKg] = useState<{ maquinaId: string; nombre: string; kg: string }[]>([]);
   const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
+  // Teclado virtual: visible u oculto. Se persiste la preferencia para
+  // que el operario configure una vez y se aplique siempre.
+  const [mostrarTeclado, setMostrarTeclado] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('pin-teclado-visible');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('pin-teclado-visible', String(mostrarTeclado));
+    } catch {
+      /* ignore */
+    }
+  }, [mostrarTeclado]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Etapas que trabajan con canastos. Al finalizar cualquiera, el
@@ -354,7 +371,18 @@ export function IniciarEtapaModal({
 
           {/* PIN */}
           <div className="space-y-2">
-            <Label>PIN</Label>
+            <div className="flex items-center justify-between">
+              <Label>PIN</Label>
+              <button
+                type="button"
+                onClick={() => setMostrarTeclado((v) => !v)}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
+                title={mostrarTeclado ? 'Ocultar teclado en pantalla' : 'Mostrar teclado en pantalla'}
+              >
+                <Keyboard className="h-3.5 w-3.5" />
+                {mostrarTeclado ? 'Ocultar' : 'Mostrar'} teclado
+              </button>
+            </div>
             <Input
               ref={pinInputRef}
               type="password"
@@ -375,6 +403,7 @@ export function IniciarEtapaModal({
             {!operarioId && (
               <p className="text-xs text-amber-600">Seleccioná un operario para habilitar el PIN.</p>
             )}
+            {mostrarTeclado && (
             <div className="grid grid-cols-3 gap-2 pt-1 select-none">
               {(['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).map((d) => (
                 <button
@@ -424,6 +453,7 @@ export function IniciarEtapaModal({
                 ←
               </button>
             </div>
+            )}
           </div>
 
           {/* Peso */}

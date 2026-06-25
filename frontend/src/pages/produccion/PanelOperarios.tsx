@@ -22,6 +22,7 @@ import {
   Shirt,
   Scale,
   Settings,
+  Keyboard,
   Split,
   Pencil,
   Calculator,
@@ -503,6 +504,23 @@ function PinModalGrande({
   const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
   const [maquinasConKg, setMaquinasConKg] = useState<{ maquinaId: string; kg: number }[]>([]);
   const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
+  // Teclado virtual visible u oculto (persistido en localStorage,
+  // compartido con IniciarEtapaModal vía misma key).
+  const [mostrarTeclado, setMostrarTeclado] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('pin-teclado-visible');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('pin-teclado-visible', String(mostrarTeclado));
+    } catch {
+      /* ignore */
+    }
+  }, [mostrarTeclado]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Mostrar peso en REC (iniciar y finalizar)
@@ -706,9 +724,20 @@ function PinModalGrande({
 
           {/* Input de PIN + teclado numérico en pantalla */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              PIN
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">
+                PIN
+              </label>
+              <button
+                type="button"
+                onClick={() => setMostrarTeclado((v) => !v)}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
+                title={mostrarTeclado ? 'Ocultar teclado en pantalla' : 'Mostrar teclado en pantalla'}
+              >
+                <Keyboard className="h-3.5 w-3.5" />
+                {mostrarTeclado ? 'Ocultar' : 'Mostrar'} teclado
+              </button>
+            </div>
             <input
               ref={pinInputRef}
               type="password"
@@ -733,6 +762,7 @@ function PinModalGrande({
             )}
 
             {/* Teclado numérico en pantalla — funciona sin depender del teclado del SO */}
+            {mostrarTeclado && (
             <div className="grid grid-cols-3 gap-2 pt-1 select-none">
               {(['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const).map((d) => (
                 <button
@@ -788,6 +818,7 @@ function PinModalGrande({
                 ←
               </button>
             </div>
+            )}
           </div>
 
           {/* Input de peso (solo para Recepción y Pesaje) */}
