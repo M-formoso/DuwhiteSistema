@@ -21,6 +21,7 @@ import {
   Lock,
   Shirt,
   Scale,
+  Settings,
   Split,
   Pencil,
   Calculator,
@@ -470,6 +471,8 @@ function PinModalGrande({
   etapaCodigo,
   accion,
   routingOptions,
+  requiereMaquina = false,
+  tipoMaquina = null,
 }: {
   open: boolean;
   onClose: () => void;
@@ -480,6 +483,7 @@ function PinModalGrande({
     pesoKg?: number,
     siguienteEtapaId?: string,
     maquinasConKg?: { maquinaId: string; kg: number }[],
+    maquinasIds?: string[],
   ) => void;
   title: string;
   loteNumero?: string;
@@ -487,6 +491,8 @@ function PinModalGrande({
   etapaCodigo?: string;
   accion: 'iniciar' | 'finalizar';
   routingOptions?: RoutingOption[];
+  requiereMaquina?: boolean;
+  tipoMaquina?: string | null;
 }) {
   const [selectedOperario, setSelectedOperario] = useState('');
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
@@ -496,16 +502,36 @@ function PinModalGrande({
   const [loading, setLoading] = useState(false);
   const [selectedRoutingId, setSelectedRoutingId] = useState<string | null>(null);
   const [maquinasConKg, setMaquinasConKg] = useState<{ maquinaId: string; kg: number }[]>([]);
+  const [selectedMaquinas, setSelectedMaquinas] = useState<string[]>([]);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Mostrar peso en REC (iniciar y finalizar)
   const requierePeso = etapaCodigo === 'REC';
-  // Mostrar canastos en REC, LAV, SEC
-  const muestraCanastos = ['REC', 'LAV', 'SEC'].includes(etapaCodigo || '');
+  // Mostrar canastos en REC, LAV, SEC, DIV, PLA
+  const muestraCanastos = ['REC', 'LAV', 'SEC', 'DIV', 'PLA'].includes(etapaCodigo || '');
   const esRecepcion = etapaCodigo === 'REC';
   const esLavado = etapaCodigo === 'LAV';
   const muestraRouting = accion === 'finalizar' && !!routingOptions?.length;
-  const muestraMaquinasLav = esLavado && accion === 'iniciar';
+
+  // Fallback por código de etapa: si la prop `requiereMaquina` no vino
+  // (o vino en false) pero el código es LAV/SEC/PLA, asumimos que la
+  // etapa requiere máquina. Evita que se rompa el flujo si el backend
+  // no envía bien el flag.
+  const MAQUINA_POR_CODIGO: Record<string, string> = {
+    LAV: 'lavadora',
+    SEC: 'secadora',
+    PLA: 'planchadora',
+  };
+  const codigoEtapaUpper = (etapaCodigo || '').toUpperCase();
+  const tipoMaquinaSegunCodigo = MAQUINA_POR_CODIGO[codigoEtapaUpper];
+  const requiereMaquinaEfectivo = requiereMaquina || !!tipoMaquinaSegunCodigo;
+  const tipoMaquinaEfectivo = tipoMaquina || tipoMaquinaSegunCodigo || null;
+
+  const requiereMaquinaIniciar = requiereMaquinaEfectivo && accion === 'iniciar';
+  const muestraMaquinasLav =
+    (esLavado || tipoMaquinaEfectivo === 'lavadora') && requiereMaquinaIniciar;
+  const muestraMaquinasSimple = requiereMaquinaIniciar && !muestraMaquinasLav;
+  const tipoMaquinaQuery = muestraMaquinasLav ? 'lavadora' : (tipoMaquinaEfectivo || undefined);
 
   const { data: operarios } = useQuery({
     queryKey: ['operarios-pin'],
@@ -519,11 +545,12 @@ function PinModalGrande({
     enabled: open && muestraCanastos,
   });
 
-  const { data: lavadoras = [] } = useQuery<MaquinaDisponible[]>({
-    queryKey: ['maquinas-disponibles', 'LAV'],
-    queryFn: () => produccionService.getMaquinasDisponibles('lavadora'),
-    enabled: open && muestraMaquinasLav,
+  const { data: maquinasDisponibles = [] } = useQuery<MaquinaDisponible[]>({
+    queryKey: ['maquinas-disponibles', tipoMaquinaQuery || 'all'],
+    queryFn: () => produccionService.getMaquinasDisponibles(tipoMaquinaQuery),
+    enabled: open && requiereMaquinaIniciar,
   });
+  const lavadoras = maquinasDisponibles;
 
   useEffect(() => {
     if (open) {
@@ -534,6 +561,7 @@ function PinModalGrande({
       setError('');
       setSelectedRoutingId(null);
       setMaquinasConKg([]);
+      setSelectedMaquinas([]);
     }
   }, [open]);
 
@@ -564,6 +592,17 @@ function PinModalGrande({
       setError('Debe seleccionar el destino del lote');
       return;
     }
+    if (muestraMaquinasLav) {
+      const conKg = maquinasConKg.filter((m) => m.kg > 0);
+      if (conKg.length === 0) {
+        setError('Ingresá los kg en al menos una lavadora');
+        return;
+      }
+    }
+    if (muestraMaquinasSimple && selectedMaquinas.length === 0) {
+      setError('Seleccioná al menos una máquina para esta etapa');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -581,6 +620,7 @@ function PinModalGrande({
           pesoKg ? parseFloat(pesoKg) : undefined,
           selectedRoutingId ?? undefined,
           maqKgFinal,
+          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
         );
         setPin('');
         setSelectedOperario('');
@@ -588,6 +628,7 @@ function PinModalGrande({
         setPesoKg('');
         setSelectedRoutingId(null);
         setMaquinasConKg([]);
+        setSelectedMaquinas([]);
       } else {
         setError(result.mensaje || 'PIN incorrecto');
         setPin('');
@@ -852,6 +893,61 @@ function PinModalGrande({
             </div>
           )}
 
+          {/* Selección de máquinas simple (PLA, SEC) */}
+          {muestraMaquinasSimple && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Máquinas <span className="text-red-500">*</span>
+              </label>
+              {maquinasDisponibles.length === 0 ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800 text-sm">
+                  No hay máquinas disponibles{tipoMaquinaEfectivo ? ` del tipo "${tipoMaquinaEfectivo}"` : ''}.
+                  Liberá una desde Máquinas o esperá a que termine otro lote.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {maquinasDisponibles.map((m) => {
+                    const selected = selectedMaquinas.includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedMaquinas((prev) =>
+                            prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                          )
+                        }
+                        className={`flex items-center gap-2 p-2 rounded-lg border-2 text-left transition-all active:scale-[0.98] ${
+                          selected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-gray-200 bg-white hover:border-primary/40'
+                        }`}
+                      >
+                        <div
+                          className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                            selected ? 'bg-primary border-primary text-white text-xs' : 'border-gray-300'
+                          }`}
+                        >
+                          {selected && '✓'}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate">{m.codigo || m.nombre}</div>
+                          {m.codigo && m.nombre && m.codigo !== m.nombre && (
+                            <div className="text-[11px] text-gray-500 truncate">{m.nombre}</div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-gray-500">
+                Podés elegir una o varias. Quedan reservadas hasta finalizar la etapa.
+              </p>
+            </div>
+          )}
+
           {/* Opciones de destino (LAV finalizar) */}
           {muestraRouting && routingOptions && (
             <div className="space-y-2">
@@ -1092,6 +1188,7 @@ export default function PanelOperariosPage() {
     pesoKg?: number,
     siguienteEtapaId?: string,
     maquinasConKg?: { maquinaId: string; kg: number }[],
+    maquinasIds?: string[],
   ) => {
     const { accion, lote, columna } = pinModal;
 
@@ -1104,7 +1201,7 @@ export default function PanelOperariosPage() {
         loteId: lote.id,
         etapaId: columna.etapa_id,
         operarioId,
-        maquinasIds: undefined,
+        maquinasIds,
         canastosIds,
         pesoKg,
         maquinasConKg,
@@ -1336,6 +1433,8 @@ export default function PanelOperariosPage() {
         etapaNombre={pinModal.columna?.etapa_nombre}
         etapaCodigo={pinModal.columna?.etapa_codigo}
         accion={pinModal.accion}
+        requiereMaquina={!!pinModal.columna?.requiere_maquina}
+        tipoMaquina={pinModal.columna?.tipo_maquina ?? null}
         routingOptions={
           pinModal.accion === 'finalizar' && pinModal.columna?.etapa_codigo === 'LAV'
             ? (() => {
