@@ -15,6 +15,7 @@ import {
   Eye,
   Percent,
   RefreshCw,
+  LayoutGrid,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -255,10 +256,16 @@ export default function ListasPreciosList() {
             className="pl-9"
           />
         </div>
-        <Button onClick={() => handleOpenModal()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva Lista
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/servicios/matriz-precios')}>
+            <LayoutGrid className="h-4 w-4 mr-2" />
+            Gestor masivo
+          </Button>
+          <Button onClick={() => handleOpenModal()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Lista
+          </Button>
+        </div>
       </div>
 
       {/* Tabla */}

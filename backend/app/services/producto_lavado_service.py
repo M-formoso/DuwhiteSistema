@@ -279,6 +279,189 @@ class ProductoLavadoService:
 
             return precio
 
+    # ==================== MATRIZ DE PRECIOS ====================
+
+    @staticmethod
+    def get_matriz_precios(
+        db: Session,
+        categoria: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> dict:
+        """
+        Devuelve una matriz productos × listas de precios para edición masiva.
+        Cada producto trae todos los precios indexados por lista_precios_id.
+        """
+        from app.models.lista_precios import ListaPrecios
+
+        listas = (
+            db.query(ListaPrecios)
+            .filter(ListaPrecios.activa == True)
+            .order_by(ListaPrecios.codigo)
+            .all()
+        )
+        lista_ids = [l.id for l in listas]
+
+        productos = ProductoLavadoService.get_all(
+            db, categoria=categoria, solo_activos=True, search=search
+        )
+
+        # Cargar todos los precios activos en una sola query
+        precios_rows = (
+            db.query(PrecioProductoLavado)
+            .filter(
+                PrecioProductoLavado.activo == True,
+                PrecioProductoLavado.lista_precios_id.in_(lista_ids) if lista_ids else False,
+            )
+            .all()
+        )
+        precios_por_clave: dict = {}
+        for p in precios_rows:
+            clave = (str(p.producto_id), str(p.lista_precios_id))
+            precios_por_clave[clave] = float(p.precio_unitario)
+
+        productos_out = []
+        for prod in productos:
+            precios_dict = {}
+            for lista in listas:
+                clave = (str(prod.id), str(lista.id))
+                precios_dict[str(lista.id)] = precios_por_clave.get(clave)  # None si no tiene
+            productos_out.append({
+                "producto_id": str(prod.id),
+                "producto_codigo": prod.codigo,
+                "producto_nombre": prod.nombre,
+                "categoria": prod.categoria,
+                "peso_promedio_kg": float(prod.peso_promedio_kg) if prod.peso_promedio_kg else None,
+                "precios": precios_dict,
+            })
+
+        listas_out = [
+            {
+                "id": str(l.id),
+                "codigo": l.codigo,
+                "nombre": l.nombre,
+                "es_lista_base": l.es_lista_base,
+            }
+            for l in listas
+        ]
+
+        return {
+            "listas": listas_out,
+            "productos": productos_out,
+        }
+
+    @staticmethod
+    def bulk_set_precios(
+        db: Session,
+        precios: List[dict],
+        usuario_id: UUID,
+    ) -> int:
+        """
+        Aplica varios precios de una sola vez.
+        `precios` es una lista de dicts con {lista_precios_id, producto_id, precio_unitario}.
+        Crea o actualiza según corresponda. Devuelve la cantidad de cambios.
+        """
+        cambios = 0
+        for item in precios:
+            try:
+                lista_id = UUID(str(item["lista_precios_id"]))
+                producto_id = UUID(str(item["producto_id"]))
+                precio = Decimal(str(item["precio_unitario"]))
+            except (KeyError, ValueError, TypeError):
+                continue
+            if precio < 0:
+                continue
+
+            existente = (
+                db.query(PrecioProductoLavado)
+                .filter(
+                    PrecioProductoLavado.lista_precios_id == lista_id,
+                    PrecioProductoLavado.producto_id == producto_id,
+                )
+                .first()
+            )
+            if existente:
+                if existente.precio_unitario != precio or not existente.activo:
+                    existente.precio_unitario = precio
+                    existente.activo = True
+                    cambios += 1
+            else:
+                db.add(PrecioProductoLavado(
+                    lista_precios_id=lista_id,
+                    producto_id=producto_id,
+                    precio_unitario=precio,
+                    activo=True,
+                ))
+                cambios += 1
+
+        if cambios > 0:
+            db.commit()
+            LogService.log(
+                db=db,
+                usuario_id=usuario_id,
+                accion="bulk_actualizar",
+                modulo="precios_productos_lavado",
+                descripcion=f"Bulk update de {cambios} precios",
+                entidad_tipo="precio_producto_lavado",
+                entidad_id=None,
+            )
+        return cambios
+
+    @staticmethod
+    def aplicar_incremento_porcentaje(
+        db: Session,
+        porcentaje: Decimal,
+        lista_ids: Optional[List[UUID]],
+        producto_ids: Optional[List[UUID]],
+        usuario_id: UUID,
+        redondeo: int = 2,
+    ) -> int:
+        """
+        Aplica un porcentaje (+/-) a los precios filtrados por listas y/o productos.
+        Si lista_ids es None/vacío: aplica a TODAS las listas activas.
+        Si producto_ids es None/vacío: aplica a TODOS los productos.
+        Devuelve la cantidad de precios actualizados.
+        """
+        factor = Decimal(1) + (Decimal(porcentaje) / Decimal(100))
+        if factor < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El porcentaje resultaría en precios negativos",
+            )
+
+        query = db.query(PrecioProductoLavado).filter(
+            PrecioProductoLavado.activo == True
+        )
+        if lista_ids:
+            query = query.filter(PrecioProductoLavado.lista_precios_id.in_(lista_ids))
+        if producto_ids:
+            query = query.filter(PrecioProductoLavado.producto_id.in_(producto_ids))
+
+        precios = query.all()
+        cuantizador = Decimal(10) ** (-redondeo)
+        actualizados = 0
+        for p in precios:
+            nuevo = (Decimal(p.precio_unitario) * factor).quantize(cuantizador)
+            if nuevo != p.precio_unitario:
+                p.precio_unitario = nuevo
+                actualizados += 1
+
+        if actualizados > 0:
+            db.commit()
+            LogService.log(
+                db=db,
+                usuario_id=usuario_id,
+                accion="aplicar_incremento",
+                modulo="precios_productos_lavado",
+                descripcion=(
+                    f"Incremento {porcentaje}% aplicado a {actualizados} precios "
+                    f"(listas: {len(lista_ids) if lista_ids else 'todas'}, "
+                    f"productos: {len(producto_ids) if producto_ids else 'todos'})"
+                ),
+                entidad_tipo="precio_producto_lavado",
+                entidad_id=None,
+            )
+        return actualizados
+
     @staticmethod
     def get_productos_con_precios(
         db: Session,

@@ -76,7 +76,7 @@ import UsuariosPage from '@/pages/usuarios/UsuariosPage';
 import { MisPedidosPage, MiCuentaCorrientePage } from '@/pages/cliente-portal';
 
 // Servicios y Listas de Precios
-import { ServiciosPage, ListaPreciosDetail } from '@/pages/servicios';
+import { ServiciosPage, ListaPreciosDetail, MatrizPreciosPage } from '@/pages/servicios';
 
 // Liquidaciones de Pedidos
 import { LiquidacionesPedidosPage, LiquidacionDetail } from '@/pages/liquidaciones';
@@ -185,6 +185,7 @@ function App() {
         {/* Servicios y Listas de Precios */}
         <Route path="/servicios" element={<ServiciosPage />} />
         <Route path="/servicios/listas/:id" element={<ListaPreciosDetail />} />
+        <Route path="/servicios/matriz-precios" element={<MatrizPreciosPage />} />
 
         {/* Liquidaciones de Pedidos */}
         <Route path="/liquidaciones" element={<LiquidacionesPedidosPage />} />

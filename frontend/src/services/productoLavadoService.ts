@@ -111,6 +111,56 @@ export const productoLavadoService = {
     const response = await api.get(`${BASE_URL}/precios/${listaPreciosId}/${productoId}`);
     return response.data;
   },
+
+  // ==================== MATRIZ DE PRECIOS ====================
+
+  /**
+   * Devuelve la matriz productos × listas para edición masiva.
+   */
+  async getMatrizPrecios(params?: {
+    categoria?: CategoriaProductoLavado;
+    search?: string;
+  }): Promise<{
+    listas: Array<{ id: string; codigo: string; nombre: string; es_lista_base: boolean }>;
+    productos: Array<{
+      producto_id: string;
+      producto_codigo: string;
+      producto_nombre: string;
+      categoria: CategoriaProductoLavado;
+      peso_promedio_kg: number | null;
+      precios: Record<string, number | null>;
+    }>;
+  }> {
+    const response = await api.get(`${BASE_URL}/matriz-precios`, { params });
+    return response.data;
+  },
+
+  /**
+   * Guarda múltiples precios en una sola pasada.
+   */
+  async bulkSetPrecios(
+    precios: Array<{
+      lista_precios_id: string;
+      producto_id: string;
+      precio_unitario: number;
+    }>
+  ): Promise<{ cambios: number }> {
+    const response = await api.post(`${BASE_URL}/precios/bulk`, { precios });
+    return response.data;
+  },
+
+  /**
+   * Aplica un porcentaje (+/-) a precios filtrados.
+   * Si lista_ids o producto_ids quedan vacíos, aplica a todos.
+   */
+  async incrementarPrecios(payload: {
+    porcentaje: number;
+    lista_ids?: string[];
+    producto_ids?: string[];
+  }): Promise<{ actualizados: number; porcentaje: number }> {
+    const response = await api.post(`${BASE_URL}/precios/incrementar`, payload);
+    return response.data;
+  },
 };
 
 export default productoLavadoService;

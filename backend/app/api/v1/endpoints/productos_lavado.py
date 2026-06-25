@@ -76,6 +76,82 @@ def obtener_productos_con_precios(
     return ProductoLavadoService.get_productos_con_precios(db, lista_precios_id, categoria)
 
 
+# ==================== MATRIZ DE PRECIOS (gestor masivo) ====================
+
+
+@router.get("/matriz-precios")
+def obtener_matriz_precios(
+    categoria: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "comercial"))
+):
+    """
+    Devuelve productos × listas de precios para edición masiva tipo grilla.
+    """
+    return ProductoLavadoService.get_matriz_precios(db, categoria=categoria, search=search)
+
+
+@router.post("/precios/bulk")
+def bulk_set_precios(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "comercial"))
+):
+    """
+    Guarda varios precios de una pasada.
+    Body: { "precios": [{"lista_precios_id": "...", "producto_id": "...", "precio_unitario": 730.0}, ...] }
+    """
+    precios = payload.get("precios", [])
+    if not isinstance(precios, list):
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="`precios` debe ser una lista")
+    cambios = ProductoLavadoService.bulk_set_precios(db, precios, current_user.id)
+    return {"cambios": cambios}
+
+
+@router.post("/precios/incrementar")
+def incrementar_precios(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "comercial"))
+):
+    """
+    Aplica un porcentaje (+/-) a precios filtrados por listas y/o productos.
+
+    Body:
+    {
+      "porcentaje": 10,
+      "lista_ids": ["..."]   # opcional. Si vacío/nulo: todas las listas.
+      "producto_ids": ["..."] # opcional. Si vacío/nulo: todos los productos.
+    }
+    """
+    from decimal import Decimal
+    from fastapi import HTTPException, status
+
+    try:
+        porcentaje = Decimal(str(payload.get("porcentaje", 0)))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="`porcentaje` inválido")
+
+    lista_ids_raw = payload.get("lista_ids") or []
+    producto_ids_raw = payload.get("producto_ids") or []
+    try:
+        lista_ids = [UUID(str(x)) for x in lista_ids_raw] if lista_ids_raw else None
+        producto_ids = [UUID(str(x)) for x in producto_ids_raw] if producto_ids_raw else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="IDs inválidos")
+
+    actualizados = ProductoLavadoService.aplicar_incremento_porcentaje(
+        db=db,
+        porcentaje=porcentaje,
+        lista_ids=lista_ids,
+        producto_ids=producto_ids,
+        usuario_id=current_user.id,
+    )
+    return {"actualizados": actualizados, "porcentaje": float(porcentaje)}
+
+
 @router.get("/{producto_id}", response_model=ProductoLavadoResponse)
 def obtener_producto(
     producto_id: UUID,
