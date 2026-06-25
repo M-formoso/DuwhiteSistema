@@ -18,6 +18,7 @@ import {
   Plus,
   Percent,
   AlertTriangle,
+  Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { clienteService } from '@/services/clienteService';
 import {
   Select,
   SelectContent,
@@ -97,6 +99,16 @@ export default function MatrizPreciosPage() {
     es_lista_base: false,
   });
 
+  // Modal "Asignar a clientes"
+  const [asignarLista, setAsignarLista] = useState<{ id: string; codigo: string; nombre: string } | null>(null);
+  const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>([]);
+  const [busquedaClientes, setBusquedaClientes] = useState('');
+
+  const { data: clientesLista = [] } = useQuery({
+    queryKey: ['clientes-lista'],
+    queryFn: clienteService.getClientesLista,
+  });
+
   const { data: matriz, isLoading } = useQuery({
     queryKey: ['matriz-precios', { categoria, search: busqueda }],
     queryFn: () =>
@@ -133,6 +145,42 @@ export default function MatrizPreciosPage() {
     },
     onError: (err) => toast.error(getErrorMessage(err) || 'Error al aplicar incremento'),
   });
+
+  // Asignar lista a clientes
+  const asignarMutation = useMutation({
+    mutationFn: ({ listaId, clienteIds }: { listaId: string; clienteIds: string[] }) =>
+      clienteService.asignarListaPreciosAClientes(listaId, clienteIds),
+    onSuccess: (res) => {
+      toast.success(`${res.actualizados} cliente(s) actualizado(s)`);
+      setAsignarLista(null);
+      setClientesSeleccionados([]);
+      setBusquedaClientes('');
+      queryClient.invalidateQueries({ queryKey: ['clientes-lista'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    },
+    onError: (err) => toast.error(getErrorMessage(err) || 'Error al asignar lista'),
+  });
+
+  const desasignarMutation = useMutation({
+    mutationFn: ({ clienteIds }: { clienteIds: string[] }) =>
+      clienteService.asignarListaPreciosAClientes(null, clienteIds),
+    onSuccess: (res) => {
+      toast.success(`${res.actualizados} cliente(s) ya no tienen lista asignada`);
+      queryClient.invalidateQueries({ queryKey: ['clientes-lista'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    },
+    onError: (err) => toast.error(getErrorMessage(err) || 'Error al desasignar lista'),
+  });
+
+  const abrirAsignar = (lista: { id: string; codigo: string; nombre: string }) => {
+    setAsignarLista(lista);
+    // Pre-seleccionar los clientes que ya tienen esta lista
+    const yaAsignados = clientesLista
+      .filter((c: any) => c.lista_precios_id === lista.id)
+      .map((c: any) => c.id);
+    setClientesSeleccionados(yaAsignados);
+    setBusquedaClientes('');
+  };
 
   // Crear lista mutation
   const crearListaMutation = useMutation({
@@ -329,20 +377,34 @@ export default function MatrizPreciosPage() {
                   <tr>
                     <th className="px-3 py-3 text-left font-semibold border-b border-r min-w-[80px]">Código</th>
                     <th className="px-3 py-3 text-left font-semibold border-b border-r min-w-[180px]">Producto</th>
-                    {listas.map((l) => (
-                      <th
-                        key={l.id}
-                        className="px-2 py-2 text-center font-semibold border-b border-r min-w-[120px]"
-                      >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-xs font-mono text-muted-foreground">{l.codigo}</span>
-                          <span className="text-xs">{l.nombre}</span>
-                          {l.es_lista_base && (
-                            <Badge variant="outline" className="text-[9px] py-0 h-4">base</Badge>
-                          )}
-                        </div>
-                      </th>
-                    ))}
+                    {listas.map((l) => {
+                      const clientesConEsta = clientesLista.filter(
+                        (c: any) => c.lista_precios_id === l.id,
+                      ).length;
+                      return (
+                        <th
+                          key={l.id}
+                          className="px-2 py-2 text-center font-semibold border-b border-r min-w-[120px]"
+                        >
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-xs font-mono text-muted-foreground">{l.codigo}</span>
+                            <span className="text-xs">{l.nombre}</span>
+                            {l.es_lista_base && (
+                              <Badge variant="outline" className="text-[9px] py-0 h-4">base</Badge>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => abrirAsignar(l)}
+                              className="mt-0.5 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+                              title="Asignar esta lista a clientes"
+                            >
+                              <Users className="h-3 w-3" />
+                              {clientesConEsta > 0 ? `${clientesConEsta} cliente${clientesConEsta === 1 ? '' : 's'}` : 'Asignar'}
+                            </button>
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -566,6 +628,145 @@ export default function MatrizPreciosPage() {
             >
               {crearListaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Crear lista
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: asignar lista a clientes */}
+      <Dialog open={!!asignarLista} onOpenChange={(v) => !v && setAsignarLista(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Asignar lista a clientes</DialogTitle>
+            <DialogDescription>
+              {asignarLista && (
+                <>
+                  Lista <span className="font-mono">{asignarLista.codigo}</span> · {asignarLista.nombre}
+                  <br />
+                  Marcá los clientes a los que querés asignarles esta lista.
+                  Los que destildés pero ya la tenían quedarán con otra lista
+                  asignada (la borrás solo si las dejás todas vacías).
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Input
+              placeholder="Buscar cliente..."
+              value={busquedaClientes}
+              onChange={(e) => setBusquedaClientes(e.target.value)}
+            />
+
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">
+                {clientesSeleccionados.length} de {clientesLista.length} seleccionado(s)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setClientesSeleccionados(clientesLista.map((c: any) => c.id))}
+                >
+                  todos
+                </button>
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setClientesSeleccionados([])}
+                >
+                  ninguno
+                </button>
+              </div>
+            </div>
+
+            <div className="border rounded divide-y max-h-72 overflow-y-auto">
+              {clientesLista
+                .filter((c: any) => {
+                  const q = busquedaClientes.toLowerCase();
+                  if (!q) return true;
+                  return (
+                    (c.nombre || '').toLowerCase().includes(q) ||
+                    (c.codigo || '').toLowerCase().includes(q)
+                  );
+                })
+                .map((c: any) => {
+                  const seleccionado = clientesSeleccionados.includes(c.id);
+                  const tieneOtra = c.lista_precios_id && c.lista_precios_id !== asignarLista?.id;
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/30 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={seleccionado}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setClientesSeleccionados((prev) => [...prev, c.id]);
+                          } else {
+                            setClientesSeleccionados((prev) => prev.filter((x) => x !== c.id));
+                          }
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{c.nombre}</div>
+                        {c.cuit && (
+                          <div className="text-xs text-muted-foreground font-mono">{c.cuit}</div>
+                        )}
+                      </div>
+                      {c.lista_precios_id === asignarLista?.id && (
+                        <Badge variant="outline" className="text-[10px]">tiene esta</Badge>
+                      )}
+                      {tieneOtra && (
+                        <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">
+                          tiene otra
+                        </Badge>
+                      )}
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setAsignarLista(null)}
+              className="sm:mr-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (clientesSeleccionados.length === 0) {
+                  toast.error('Seleccioná clientes para quitarles esta lista');
+                  return;
+                }
+                desasignarMutation.mutate({ clienteIds: clientesSeleccionados });
+              }}
+              disabled={desasignarMutation.isPending || asignarMutation.isPending}
+              title="Quita esta lista de los clientes seleccionados"
+            >
+              Quitar lista
+            </Button>
+            <Button
+              onClick={() => {
+                if (!asignarLista) return;
+                if (clientesSeleccionados.length === 0) {
+                  toast.error('Seleccioná al menos un cliente');
+                  return;
+                }
+                asignarMutation.mutate({
+                  listaId: asignarLista.id,
+                  clienteIds: clientesSeleccionados,
+                });
+              }}
+              disabled={asignarMutation.isPending || desasignarMutation.isPending}
+            >
+              {asignarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Asignar a {clientesSeleccionados.length} cliente(s)
             </Button>
           </DialogFooter>
         </DialogContent>

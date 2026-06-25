@@ -149,6 +149,17 @@ export async function cancelarPedido(id: string): Promise<{ message: string }> {
   return response.data;
 }
 
+export async function asignarListaPreciosAClientes(
+  listaPreciosId: string | null,
+  clienteIds: string[],
+): Promise<{ actualizados: number; lista_precios_id: string | null }> {
+  const response = await api.post('/clientes/asignar-lista-precios', {
+    lista_precios_id: listaPreciosId,
+    cliente_ids: clienteIds,
+  });
+  return response.data;
+}
+
 // ==================== EXPORTS ====================
 
 export const clienteService = {
@@ -159,6 +170,7 @@ export const clienteService = {
   createCliente,
   updateCliente,
   deleteCliente,
+  asignarListaPreciosAClientes,
   // Cuenta Corriente
   getEstadoCuenta,
   getMovimientosCuenta,

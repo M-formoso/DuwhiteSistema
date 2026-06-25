@@ -85,6 +85,42 @@ def listar_clientes_select(
     return service.get_clientes_lista()
 
 
+@router.post("/asignar-lista-precios")
+def asignar_lista_a_clientes(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Asigna una lista de precios a varios clientes en una sola pasada.
+
+    Body:
+      { "lista_precios_id": "...", "cliente_ids": ["...", "..."] }
+
+    Si `lista_precios_id` es null o "", limpia la asignación de esos clientes.
+    Cualquier cliente no incluido en `cliente_ids` queda como estaba.
+    """
+    from app.models.cliente import Cliente
+
+    lista_id_raw = payload.get("lista_precios_id")
+    lista_id = str(lista_id_raw) if lista_id_raw else None
+    cliente_ids_raw = payload.get("cliente_ids", [])
+    if not isinstance(cliente_ids_raw, list) or not cliente_ids_raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="`cliente_ids` debe ser una lista no vacía",
+        )
+    cliente_ids = [str(c) for c in cliente_ids_raw]
+
+    actualizados = (
+        db.query(Cliente)
+        .filter(Cliente.id.in_(cliente_ids))
+        .update({Cliente.lista_precios_id: lista_id}, synchronize_session=False)
+    )
+    db.commit()
+    return {"actualizados": actualizados, "lista_precios_id": lista_id}
+
+
 @router.get("/tipos")
 def obtener_tipos_cliente():
     """Obtiene los tipos de cliente disponibles."""
