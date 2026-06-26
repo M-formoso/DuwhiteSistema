@@ -94,6 +94,7 @@ export default function ConteoFinalizacionPage() {
   const [observaciones, setObservaciones] = useState('');
   const [tieneRelevado, setTieneRelevado] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [imprimirConPrecios, setImprimirConPrecios] = useState(false);
   const [showRelevadoInfo, setShowRelevadoInfo] = useState(false);
 
   // Estado del buscador por código
@@ -305,9 +306,9 @@ export default function ConteoFinalizacionPage() {
   // Dispara la impresión del remito vía iframe oculto.
   // Si el navegador bloquea print() (algunos kioscos / tablets), se abre
   // el PDF en pestaña nueva y el operario presiona imprimir manualmente.
-  const imprimirRemitoAuto = async (remitoId: string) => {
+  const imprimirRemitoAuto = async (remitoId: string, conPrecios: boolean = false) => {
     try {
-      const blob = await remitoService.getPdfBlob(remitoId);
+      const blob = await remitoService.getPdfBlob(remitoId, conPrecios);
       const blobUrl = URL.createObjectURL(blob);
 
       const iframe = document.createElement('iframe');
@@ -372,7 +373,7 @@ export default function ConteoFinalizacionPage() {
         toast.info(`Se creó lote de relevado: ${response.lote_relevado_numero}`);
       }
       // Dispara impresión y deja navegar; el iframe queda vivo en background.
-      imprimirRemitoAuto(response.remito_id);
+      imprimirRemitoAuto(response.remito_id, imprimirConPrecios);
       setTimeout(() => navigate('/produccion'), 600);
     },
     onError: (error: unknown) => {
@@ -844,6 +845,18 @@ export default function ConteoFinalizacionPage() {
                     </p>
                   )}
                 </div>
+                <label className="flex items-center gap-2 p-3 border border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                  <Checkbox
+                    checked={imprimirConPrecios}
+                    onCheckedChange={(v) => setImprimirConPrecios(v === true)}
+                  />
+                  <span>
+                    <strong>Imprimir con precios</strong>
+                    <span className="block text-xs text-gray-500">
+                      Por defecto el remito sale sin precios. Marcá para incluir subtotal por ítem y TOTAL al pie.
+                    </span>
+                  </span>
+                </label>
                 <p className="text-gray-500">Esta acción generará un cargo en la cuenta corriente del cliente.</p>
               </div>
             </AlertDialogDescription>

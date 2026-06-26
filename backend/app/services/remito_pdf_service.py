@@ -54,31 +54,37 @@ PAGE_HEIGHT_MM = 200   # 20 cm alto total del papel
 HOJA_WIDTH_MM = 165    # cada hoja ocupa la mitad horizontal
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 22
-COORD_FECHA_LEFT_MM = 110
-COORD_FECHA_WIDTH_MM = 45
+COORD_FECHA_TOP_MM = 28
+COORD_FECHA_LEFT_MM = 85
+COORD_FECHA_WIDTH_MM = 40
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
 COORD_CLIENTE_TOP_MM = 50
-COORD_CLIENTE_LEFT_MM = 10
+COORD_CLIENTE_LEFT_MM = 5
 COORD_CLIENTE_WIDTH_MM = 150
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
 COORD_ITEMS_TOP_MM = 88           # primera fila debajo del header de columnas
-COORD_CANTIDAD_LEFT_MM = 8        # margen izquierdo de la columna CANTIDAD
+COORD_CANTIDAD_LEFT_MM = 4        # margen izquierdo de la columna CANTIDAD
 COORD_CANTIDAD_WIDTH_MM = 28
 COORD_DETALLE_GAP_MM = 4
+COORD_PRECIO_WIDTH_MM = 28        # ancho columna precio (solo si con_precios=True)
 COORD_ITEMS_WIDTH_MM = 150        # ancho total CANTIDAD + DETALLE
 COORD_ITEMS_HEIGHT_MM = 85        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
+
+# Total al pie (solo si con_precios=True)
+COORD_TOTAL_TOP_MM = 178
+COORD_TOTAL_LEFT_MM = 4
+COORD_TOTAL_WIDTH_MM = 150
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
 OVERFLOW_NOTE_TOP_MM = 175
 
 # Número de remito (traza chica, al pie de la hoja)
 COORD_NUMERO_TOP_MM = 190
-COORD_NUMERO_LEFT_MM = 8
+COORD_NUMERO_LEFT_MM = 4
 
 
 def _cantidad_para_mostrar() -> int:
@@ -96,6 +102,19 @@ def _format_cantidad(cantidad) -> str:
         return f"{d:.2f}".replace(".", ",").rstrip("0").rstrip(",")
     except Exception:
         return str(cantidad)
+
+
+def _format_monto(monto) -> str:
+    """Formatea monto en pesos: $ 1.234,56"""
+    try:
+        from decimal import Decimal
+        d = Decimal(str(monto or 0))
+        entero = int(d)
+        decimales = int(round((d - entero) * 100))
+        entero_fmt = f"{entero:,}".replace(",", ".")
+        return f"$ {entero_fmt},{decimales:02d}"
+    except Exception:
+        return f"$ {monto}"
 
 
 def _formatear_fecha(d: Optional[date]) -> str:
@@ -118,8 +137,11 @@ def _get_env():
     )
 
 
-def generar_pdf(db: Session, remito: Remito) -> bytes:
-    """Renderiza el remito a PDF y devuelve los bytes."""
+def generar_pdf(db: Session, remito: Remito, con_precios: bool = False) -> bytes:
+    """Renderiza el remito a PDF y devuelve los bytes.
+
+    Si con_precios=True, agrega columna de subtotal por ítem y el TOTAL al pie.
+    """
     try:
         from weasyprint import HTML
     except ImportError as exc:
@@ -137,17 +159,15 @@ def generar_pdf(db: Session, remito: Remito) -> bytes:
     items_visibles = []
     for det in detalles[:max_items]:
         nombre = ""
-        codigo = ""
         if det.producto:
             nombre = det.producto.nombre or ""
-            codigo = det.producto.codigo or ""
         if not nombre:
             nombre = det.descripcion or "Producto sin nombre"
         items_visibles.append(
             {
                 "cantidad_fmt": _format_cantidad(det.cantidad),
                 "nombre": nombre,
-                "codigo": codigo,
+                "subtotal_fmt": _format_monto(det.subtotal),
             }
         )
 
@@ -169,6 +189,8 @@ def generar_pdf(db: Session, remito: Remito) -> bytes:
             items_visibles=items_visibles,
             items_overflow=items_overflow,
             copias=["ORIGINAL", "DUPLICADO"],
+            con_precios=con_precios,
+            total_fmt=_format_monto(remito.total),
             # Coordenadas (mm)
             page_width_mm=PAGE_WIDTH_MM,
             page_height_mm=PAGE_HEIGHT_MM,
@@ -180,6 +202,7 @@ def generar_pdf(db: Session, remito: Remito) -> bytes:
             coord_cantidad_left_mm=COORD_CANTIDAD_LEFT_MM,
             coord_cantidad_width_mm=COORD_CANTIDAD_WIDTH_MM,
             coord_detalle_gap_mm=COORD_DETALLE_GAP_MM,
+            coord_precio_width_mm=COORD_PRECIO_WIDTH_MM,
             coord_items_width_mm=COORD_ITEMS_WIDTH_MM,
             coord_items_height_mm=COORD_ITEMS_HEIGHT_MM,
             coord_row_height_mm=COORD_ROW_HEIGHT_MM,
@@ -189,6 +212,9 @@ def generar_pdf(db: Session, remito: Remito) -> bytes:
             coord_cliente_width_mm=COORD_CLIENTE_WIDTH_MM,
             coord_numero_top_mm=COORD_NUMERO_TOP_MM,
             coord_numero_left_mm=COORD_NUMERO_LEFT_MM,
+            coord_total_top_mm=COORD_TOTAL_TOP_MM,
+            coord_total_left_mm=COORD_TOTAL_LEFT_MM,
+            coord_total_width_mm=COORD_TOTAL_WIDTH_MM,
         )
     except Exception as exc:
         logger.exception(

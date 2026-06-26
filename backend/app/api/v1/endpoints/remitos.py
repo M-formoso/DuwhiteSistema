@@ -166,6 +166,7 @@ def obtener_remito(
 @router.get("/{remito_id}/pdf")
 def descargar_remito_pdf(
     remito_id: UUID,
+    con_precios: bool = Query(False, description="Incluir columna de precios y total"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
@@ -179,7 +180,7 @@ def descargar_remito_pdf(
     if not remito:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Remito no encontrado")
 
-    pdf_bytes = remito_pdf_service.generar_pdf(db, remito)
+    pdf_bytes = remito_pdf_service.generar_pdf(db, remito, con_precios=con_precios)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

@@ -100,12 +100,26 @@
             letter-spacing: 0.2px;
         }
 
-        .item-row .codigo {
-            display: inline-block;
-            margin-right: 3mm;
-            font-family: "Courier New", monospace;
+        .item-row .subtotal {
+            width: {{ coord_precio_width_mm }}mm;
+            flex-shrink: 0;
+            text-align: right;
             font-weight: 600;
-            color: #555;
+            font-variant-numeric: tabular-nums;
+            padding-right: 1mm;
+        }
+
+        .total-overlay {
+            position: absolute;
+            top: {{ coord_total_top_mm }}mm;
+            left: {{ coord_total_left_mm }}mm;
+            width: {{ coord_total_width_mm }}mm;
+            font-size: 12pt;
+            font-weight: 700;
+            text-align: right;
+            padding-right: 2mm;
+            border-top: 0.4mm solid #000;
+            padding-top: 1mm;
         }
 
         .overflow-note {
@@ -137,10 +151,8 @@
             {% for it in items_visibles %}
             <div class="item-row">
                 <div class="cantidad">{{ it.cantidad_fmt }}</div>
-                <div class="detalle">
-                    {% if it.codigo %}<span class="codigo">{{ it.codigo }}</span>{% endif %}
-                    {{ it.nombre }}
-                </div>
+                <div class="detalle">{{ it.nombre }}</div>
+                {% if con_precios %}<div class="subtotal">{{ it.subtotal_fmt }}</div>{% endif %}
             </div>
             {% endfor %}
         </div>
@@ -149,6 +161,10 @@
         <div class="overflow-note">
             + {{ items_overflow }} ítems más (ver remito digital R-{{ remito.numero }})
         </div>
+        {% endif %}
+
+        {% if con_precios %}
+        <div class="total-overlay">TOTAL: {{ total_fmt }}</div>
         {% endif %}
 
         <div class="numero-overlay">R-{{ remito.numero }} · {{ copia }}</div>
