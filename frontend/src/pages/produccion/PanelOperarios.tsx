@@ -326,7 +326,7 @@ function LoteCard({
               INICIAR ETAPA
             </button>
           )
-        ) : columna.etapa_codigo === 'CONT' ? (
+        ) : (columna.etapa_codigo === 'CONT' || (lote as unknown as { _estaEnConteo?: boolean })._estaEnConteo) ? (
           <button
             onClick={onIrConteo}
             className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
@@ -1384,80 +1384,35 @@ export default function PanelOperariosPage() {
       {/* Tablero Kanban */}
       <div className="p-3 sm:p-6 overflow-x-auto flex-1 overflow-y-hidden">
         <div className="flex gap-3 sm:gap-6 h-full" style={{ minWidth: 'max-content' }}>
-          {/* Columnas normales (excluye CONT) */}
-          {kanban?.columnas.filter((c) => c.etapa_codigo !== 'CONT').map((columna) => (
-            <EtapaColumna
-              key={columna.etapa_id}
-              columna={columna}
-              onIniciar={handleIniciar}
-              onFinalizar={handleFinalizar}
-              onDividir={handleDividir}
-              onCorregir={handleCorregir}
-              onIrConteo={handleIrConteo}
-              onRevertir={handleRevertir}
-              esSuperadmin={user?.rol === 'superadmin'}
-              getLoteEnProceso={getLoteEnProceso}
-            />
-          ))}
-
-          {/* Columna especial: Listos para Conteo */}
+          {/* Columnas — los lotes en CONT se fusionan en la columna FIN
+              (con flag _estaEnConteo para que la card muestre "IR A CONTEO"). */}
           {(() => {
-            const contLotes = kanban?.columnas.find((c) => c.etapa_codigo === 'CONT')?.lotes ?? [];
-            return (
-              <div className="flex-shrink-0 w-64 sm:w-72 flex flex-col h-full">
-                <div className="bg-white rounded-2xl border-2 border-green-300 shadow-sm flex flex-col h-full overflow-hidden">
-                  <div className="px-4 py-3 border-b border-green-200 bg-green-50 flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                        <span className="font-bold text-green-800 text-sm">Listos para Conteo</span>
-                      </div>
-                      <span className="bg-green-200 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                        {contLotes.length}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                    {contLotes.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-400 py-8">
-                        <Package className="h-10 w-10 mb-2 opacity-40" />
-                        <span className="text-sm">Sin lotes</span>
-                      </div>
-                    ) : (
-                      contLotes.map((lote) => (
-                        <div
-                          key={lote.id}
-                          className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-2"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono font-bold text-base text-gray-800">{lote.numero}</span>
-                            {lote.peso_entrada_kg && (
-                              <span className="text-xs text-gray-500">
-                                {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
-                              </span>
-                            )}
-                          </div>
-                          {lote.cliente_nombre && (
-                            <p className="text-sm text-gray-600 truncate">{lote.cliente_nombre}</p>
-                          )}
-                          <button
-                            onClick={() => navigate(`/produccion/lotes/${lote.id}/conteo`)}
-                            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
-                                       text-white text-sm font-bold flex items-center justify-center gap-2
-                                       hover:from-emerald-600 hover:to-emerald-700 active:scale-98
-                                       transition-all shadow-md shadow-emerald-100"
-                          >
-                            <Calculator className="h-4 w-4" />
-                            IR A CONTEO
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
+            const contLotes = (kanban?.columnas.find((c) => c.etapa_codigo === 'CONT')?.lotes ?? [])
+              .map((l) => ({ ...l, _estaEnConteo: true }));
+            return kanban?.columnas
+              .filter((c) => c.etapa_codigo !== 'CONT')
+              .map((columna) => {
+                const columnaFinal =
+                  columna.etapa_codigo === 'FIN'
+                    ? { ...columna, lotes: [...contLotes, ...columna.lotes] }
+                    : columna;
+                return (
+                  <EtapaColumna
+                    key={columna.etapa_id}
+                    columna={columnaFinal}
+                    onIniciar={handleIniciar}
+                    onFinalizar={handleFinalizar}
+                    onDividir={handleDividir}
+                    onCorregir={handleCorregir}
+                    onIrConteo={handleIrConteo}
+                    onRevertir={handleRevertir}
+                    esSuperadmin={user?.rol === 'superadmin'}
+                    getLoteEnProceso={getLoteEnProceso}
+                  />
+                );
+              });
           })()}
+
         </div>
       </div>
 
