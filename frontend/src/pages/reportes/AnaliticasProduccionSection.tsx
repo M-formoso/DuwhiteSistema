@@ -259,14 +259,16 @@ export function AnaliticasProduccionSection({
         : getRendimientoProductos({ dias_atras: diasAtras }),
   });
 
-  // "Kg ingresados HOY" — siempre del día actual, independiente del rango externo.
-  // Esto permite que al cambiar el filtro de fechas (p. ej. para ver el mes)
-  // el reporte del día siga visible y al alcance.
+  // Kg ingresados — respeta el rango del filtro externo (Reportes).
+  // Si no hay rango, cae al día actual.
   const hoyStr = getLocalDateString(new Date());
+  const kgDesde = fechaDesde || hoyStr;
+  const kgHasta = fechaHasta || hoyStr;
+  const esHoy = kgDesde === hoyStr && kgHasta === hoyStr;
   const { data: kgIngresados, isLoading: loadingKgIngresados } = useQuery({
-    queryKey: ['kg-ingresados-hoy', hoyStr],
-    queryFn: () => getKgIngresados({ fecha_desde: hoyStr, fecha_hasta: hoyStr }),
-    refetchInterval: 60_000,
+    queryKey: ['kg-ingresados', kgDesde, kgHasta],
+    queryFn: () => getKgIngresados({ fecha_desde: kgDesde, fecha_hasta: kgHasta }),
+    refetchInterval: esHoy ? 60_000 : false,
   });
 
   const [kgIngresadosOpen, setKgIngresadosOpen] = useState(false);
@@ -275,13 +277,23 @@ export function AnaliticasProduccionSection({
   const rangoLabel = (() => {
     if (!fechaDesde || !fechaHasta) return 'Hoy';
     if (fechaDesde === fechaHasta) {
-      return new Date(fechaDesde).toLocaleDateString('es-AR');
+      return new Date(fechaDesde + 'T00:00:00').toLocaleDateString('es-AR');
     }
-    return `${new Date(fechaDesde).toLocaleDateString('es-AR')} → ${new Date(
-      fechaHasta
+    return `${new Date(fechaDesde + 'T00:00:00').toLocaleDateString('es-AR')} → ${new Date(
+      fechaHasta + 'T00:00:00'
     ).toLocaleDateString('es-AR')}`;
   })();
   const hoyLabel = new Date().toLocaleDateString('es-AR');
+  const kgRangoLabel = (() => {
+    if (esHoy) return hoyLabel;
+    if (kgDesde === kgHasta) return new Date(kgDesde + 'T00:00:00').toLocaleDateString('es-AR');
+    return `${new Date(kgDesde + 'T00:00:00').toLocaleDateString('es-AR')} → ${new Date(
+      kgHasta + 'T00:00:00'
+    ).toLocaleDateString('es-AR')}`;
+  })();
+  const kgTituloCard = esHoy ? 'Kg ingresados hoy' : 'Kg ingresados';
+  const kgTituloDialog = esHoy ? 'Kg ingresados hoy — desglose' : 'Kg ingresados — desglose';
+  const kgLeyendaLotes = esHoy ? 'en el día' : 'en el período';
 
   const horaPicoLabel = (() => {
     if (!kgIngresados?.hora_pico) return null;
@@ -308,16 +320,16 @@ export function AnaliticasProduccionSection({
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide flex flex-wrap items-center gap-1.5 sm:gap-2">
-                    Kg ingresados hoy
+                    {kgTituloCard}
                     <Badge variant="outline" className="text-[10px] font-normal">
-                      {hoyLabel}
+                      {kgRangoLabel}
                     </Badge>
                   </p>
                   <p className="text-2xl sm:text-3xl font-bold text-cyan-700 leading-tight">
                     {loadingKgIngresados ? '–' : `${formatNumber(kgIngresados?.total_kg || 0, 1)} kg`}
                   </p>
                   <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
-                    {kgIngresados?.total_lotes ?? 0} lote{kgIngresados?.total_lotes === 1 ? '' : 's'} en el día
+                    {kgIngresados?.total_lotes ?? 0} lote{kgIngresados?.total_lotes === 1 ? '' : 's'} {kgLeyendaLotes}
                   </p>
                 </div>
               </div>
@@ -343,10 +355,10 @@ export function AnaliticasProduccionSection({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-cyan-700" />
-              Kg ingresados hoy — desglose
+              {kgTituloDialog}
             </DialogTitle>
             <DialogDescription>
-              {hoyLabel}. Suma de peso de entrada de los lotes creados en el día, sin importar el estado actual.
+              {kgRangoLabel}. Suma de peso de entrada de los lotes creados en el rango, sin importar el estado actual.
             </DialogDescription>
           </DialogHeader>
 
@@ -356,7 +368,7 @@ export function AnaliticasProduccionSection({
             </div>
           ) : !kgIngresados || kgIngresados.total_lotes === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">
-              No hay lotes ingresados hoy todavía.
+              {esHoy ? 'No hay lotes ingresados hoy todavía.' : 'No hay lotes ingresados en este rango.'}
             </div>
           ) : (
             <div className="space-y-5">

@@ -260,7 +260,7 @@ export default function ReportesPage() {
               <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Ventas Hoy</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-tight">Ventas Hoy</p>
                     <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(estadisticas.hoy.total)}</p>
                     <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {estadisticas.hoy.pedidos} pedidos
@@ -277,7 +277,7 @@ export default function ReportesPage() {
               <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Ventas del Mes</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-tight">Ventas del Mes</p>
                     <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(estadisticas.mes.total)}</p>
                     <p className="text-[11px] sm:text-xs text-muted-foreground">
                       {estadisticas.mes.pedidos} pedidos
@@ -294,7 +294,7 @@ export default function ReportesPage() {
               <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">En Producción</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-tight">En Producción</p>
                     <p className="text-lg sm:text-2xl font-bold">
                       {estadisticas.produccion.lotes_en_proceso}
                     </p>
@@ -311,7 +311,7 @@ export default function ReportesPage() {
               <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">Stock Crítico</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-tight">Stock Crítico</p>
                     <p className="text-lg sm:text-2xl font-bold">{estadisticas.stock.critico}</p>
                     <p className="text-[11px] sm:text-xs text-muted-foreground">insumos bajo mínimo</p>
                   </div>
@@ -335,12 +335,73 @@ export default function ReportesPage() {
 
       {/* Filtros de Fecha */}
       <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-wrap gap-3 sm:gap-4 items-end">
-            <div className="space-y-2 w-full sm:w-auto">
-              <Label className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4" />
-                Período
+        <CardContent className="py-4 space-y-3">
+          {/* Botón Hoy destacado + atajos rápidos */}
+          {(() => {
+            const hoyStr = getLocalDateString(new Date());
+            const esHoy = fechaDesde === hoyStr && fechaHasta === hoyStr;
+            return (
+              <div className="flex flex-wrap gap-2 items-center">
+                <Button
+                  variant={esHoy ? 'default' : 'outline'}
+                  size="sm"
+                  className="font-semibold"
+                  onClick={() => {
+                    setFechaDesde(hoyStr);
+                    setFechaHasta(hoyStr);
+                  }}
+                >
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Hoy
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const hoy = new Date();
+                    const inicioSemana = new Date(hoy);
+                    inicioSemana.setDate(hoy.getDate() - hoy.getDay());
+                    setFechaDesde(getLocalDateString(inicioSemana));
+                    setFechaHasta(getLocalDateString(hoy));
+                  }}
+                >
+                  Esta semana
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const hoy = new Date();
+                    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                    setFechaDesde(getLocalDateString(inicioMes));
+                    setFechaHasta(getLocalDateString(hoy));
+                  }}
+                >
+                  Este mes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const hoy = new Date();
+                    const hace30 = new Date(hoy);
+                    hace30.setDate(hoy.getDate() - 30);
+                    setFechaDesde(getLocalDateString(hace30));
+                    setFechaHasta(getLocalDateString(hoy));
+                  }}
+                >
+                  Últimos 30
+                </Button>
+              </div>
+            );
+          })()}
+
+          {/* Período personalizado + agrupación */}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-end">
+            <div className="space-y-1.5 w-full sm:w-auto">
+              <Label className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                Período personalizado
               </Label>
               <div className="flex gap-2 items-center">
                 <Input
@@ -359,8 +420,8 @@ export default function ReportesPage() {
               </div>
             </div>
 
-            <div className="space-y-2 w-full sm:w-auto">
-              <Label className="text-sm">Agrupar por</Label>
+            <div className="space-y-1.5 w-full sm:w-auto">
+              <Label className="text-xs sm:text-sm text-muted-foreground">Agrupar por</Label>
               <Select value={agrupacion} onValueChange={(v) => setAgrupacion(v as Agrupacion)}>
                 <SelectTrigger className="w-full sm:w-32">
                   <SelectValue />
@@ -371,58 +432,6 @@ export default function ReportesPage() {
                   <SelectItem value="mes">Mes</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const hoy = getLocalDateString(new Date());
-                  setFechaDesde(hoy);
-                  setFechaHasta(hoy);
-                }}
-              >
-                Hoy
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const hoy = new Date();
-                  const inicioSemana = new Date(hoy);
-                  inicioSemana.setDate(hoy.getDate() - hoy.getDay());
-                  setFechaDesde(getLocalDateString(inicioSemana));
-                  setFechaHasta(getLocalDateString(hoy));
-                }}
-              >
-                Esta semana
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const hoy = new Date();
-                  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-                  setFechaDesde(getLocalDateString(inicioMes));
-                  setFechaHasta(getLocalDateString(hoy));
-                }}
-              >
-                Este mes
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const hoy = new Date();
-                  const hace30 = new Date(hoy);
-                  hace30.setDate(hoy.getDate() - 30);
-                  setFechaDesde(getLocalDateString(hace30));
-                  setFechaHasta(getLocalDateString(hoy));
-                }}
-              >
-                Últimos 30 días
-              </Button>
             </div>
           </div>
         </CardContent>
