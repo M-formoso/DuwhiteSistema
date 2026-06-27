@@ -1245,13 +1245,21 @@ export default function PanelOperariosPage() {
         maquinasConKg,
       });
     } else {
+      // Al finalizar LAV el lote SIEMPRE debe pasar por DIVISIÓN
+      // antes de cualquier bifurcación a SEC/PLA. Si existe una columna
+      // que permite bifurcación (División), se fuerza como siguiente etapa.
+      let overrideSiguiente = siguienteEtapaId;
+      if (columna.etapa_codigo === 'LAV' && !overrideSiguiente) {
+        const divCol = kanban?.columnas.find((c) => c.permite_bifurcacion);
+        if (divCol) overrideSiguiente = divCol.etapa_id;
+      }
       finalizarMutation.mutate({
         loteId: lote.id,
         etapaId: columna.etapa_id,
         responsable_id: operarioId,
         canastos_ids: canastosIds,
         peso_kg: pesoKg,
-        siguiente_etapa_id: siguienteEtapaId,
+        siguiente_etapa_id: overrideSiguiente,
       });
     }
 
@@ -1428,18 +1436,7 @@ export default function PanelOperariosPage() {
         accion={pinModal.accion}
         requiereMaquina={!!pinModal.columna?.requiere_maquina}
         tipoMaquina={pinModal.columna?.tipo_maquina ?? null}
-        routingOptions={
-          pinModal.accion === 'finalizar' && pinModal.columna?.etapa_codigo === 'LAV'
-            ? (() => {
-                const divCol = kanban?.columnas.find((c) => c.permite_bifurcacion);
-                const secCol = kanban?.columnas.find((c) => c.etapa_codigo === 'SEC');
-                const opts: RoutingOption[] = [];
-                if (secCol) opts.push({ label: 'Solo Secado', etapaId: secCol.etapa_id, description: 'El lote pasa directo a Secado' });
-                if (divCol) opts.push({ label: 'Secado + Planchado', etapaId: divCol.etapa_id, description: 'El lote se divide entre Secado y Planchado' });
-                return opts.length > 0 ? opts : undefined;
-              })()
-            : undefined
-        }
+        routingOptions={undefined}
       />
 
       {/* Modal Dividir lote (bifurcación: Estirado, Planchado/Secado) */}
