@@ -66,21 +66,21 @@ COORD_CLIENTE_WIDTH_MM = 140
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
 # Pegado al borde izquierdo de la hoja; ancho reducido para que la columna
-# de precios quede bien adentro y no toque la perforación entre original y
-# duplicado.
+# de precios quede bien adentro del cuadro DETALLE del preimpreso y no
+# caiga en el espacio en blanco hacia la perforación.
 COORD_ITEMS_TOP_MM = 88           # primera fila debajo del header de columnas
 COORD_CANTIDAD_LEFT_MM = 2        # margen izquierdo de la columna CANTIDAD
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 135        # ancho total CANTIDAD + DETALLE (deja margen a la derecha)
+COORD_ITEMS_WIDTH_MM = 112        # ancho total cantidad+detalle+subtotal
 COORD_ITEMS_HEIGHT_MM = 85        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
 COORD_TOTAL_TOP_MM = 178
 COORD_TOTAL_LEFT_MM = 2
-COORD_TOTAL_WIDTH_MM = 135
+COORD_TOTAL_WIDTH_MM = 112
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
 OVERFLOW_NOTE_TOP_MM = 175
