@@ -105,16 +105,15 @@ def _format_cantidad(cantidad) -> str:
 
 
 def _format_monto(monto) -> str:
-    """Formatea monto en pesos: $ 1.234,56"""
+    """Formatea monto al estilo plano del papel preimpreso: 1234.00 (sin separador
+    de miles, sin signo $, dos decimales con punto). Imita la tira clásica del
+    sistema viejo de DUWHITE."""
     try:
         from decimal import Decimal
         d = Decimal(str(monto or 0))
-        entero = int(d)
-        decimales = int(round((d - entero) * 100))
-        entero_fmt = f"{entero:,}".replace(",", ".")
-        return f"$ {entero_fmt},{decimales:02d}"
+        return f"{d:.2f}"
     except Exception:
-        return f"$ {monto}"
+        return f"{monto}"
 
 
 def _formatear_fecha(d: Optional[date]) -> str:
@@ -181,11 +180,14 @@ def generar_pdf(db: Session, remito: Remito, con_precios: bool = False) -> bytes
             or ""
         )
 
+    remito_anulado = (remito.estado or "").lower() == "anulado"
+
     try:
         html_str = template.render(
             remito=remito,
             fecha_formateada=_formatear_fecha(remito.fecha_emision),
             cliente_nombre=cliente_nombre,
+            remito_anulado=remito_anulado,
             items_visibles=items_visibles,
             items_overflow=items_overflow,
             copias=["ORIGINAL", "DUPLICADO"],

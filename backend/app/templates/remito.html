@@ -67,6 +67,12 @@
             color: #000;
         }
 
+        .cliente-overlay.anulado {
+            text-align: center;
+            font-size: 14pt;
+            letter-spacing: 2px;
+        }
+
         .items {
             position: absolute;
             top: {{ coord_items_top_mm }}mm;
@@ -118,8 +124,14 @@
             font-weight: 700;
             text-align: right;
             padding-right: 2mm;
-            border-top: 0.4mm solid #000;
-            padding-top: 1mm;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .total-overlay .asterisks {
+            font-family: "Courier New", monospace;
+            font-weight: 700;
+            margin-right: 4mm;
+            letter-spacing: 1px;
         }
 
         .overflow-note {
@@ -145,7 +157,9 @@
     {% for copia in copias %}
     <div class="hoja {{ copia|lower }}">
         <div class="fecha">{{ fecha_formateada }}</div>
-        <div class="cliente-overlay">{{ cliente_nombre }}</div>
+        <div class="cliente-overlay{% if remito_anulado %} anulado{% endif %}">
+            {% if remito_anulado %}ANULADO{% else %}{{ cliente_nombre }}{% endif %}
+        </div>
 
         <div class="items">
             {% for it in items_visibles %}
@@ -164,7 +178,9 @@
         {% endif %}
 
         {% if con_precios %}
-        <div class="total-overlay">TOTAL: {{ total_fmt }}</div>
+        <div class="total-overlay">
+            <span class="asterisks">****</span>{{ total_fmt }}
+        </div>
         {% endif %}
 
         <div class="numero-overlay">R-{{ remito.numero }} · {{ copia }}</div>
