@@ -94,7 +94,9 @@ export default function ConteoFinalizacionPage() {
   const [observaciones, setObservaciones] = useState('');
   const [tieneRelevado, setTieneRelevado] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [imprimirConPrecios, setImprimirConPrecios] = useState(false);
+  // Por defecto se imprime CON precios. El checkbox del dialog lo invierte:
+  // marcar "Imprimir sin precios" → imprimirConPrecios = false.
+  const [imprimirConPrecios, setImprimirConPrecios] = useState(true);
   const [showRelevadoInfo, setShowRelevadoInfo] = useState(false);
 
   // Estado del buscador por código
@@ -131,16 +133,20 @@ export default function ConteoFinalizacionPage() {
     enabled: !!cliente?.lista_precios_id,
   });
 
-  // Foco inicial en el campo de código
+  // Foco inicial en el campo de cantidad (orden: cantidad → código → agregar)
   useEffect(() => {
-    if (!loadingProductos) codigoRef.current?.focus();
+    if (!loadingProductos) {
+      cantidadRef.current?.focus();
+      cantidadRef.current?.select();
+    }
   }, [loadingProductos]);
 
   // Resolver producto al escribir el código (acepta con o sin ceros a la izquierda)
-  const resolverCodigo = (codigo: string) => {
+  // Devuelve el producto encontrado para encadenar acciones.
+  const resolverCodigo = (codigo: string): ProductoConPrecio | null => {
     setErrorCodigo('');
     setProductoEncontrado(null);
-    if (!codigo.trim()) return;
+    if (!codigo.trim()) return null;
 
     const buscado = normalizarCodigo(codigo);
     const encontrado = productosConPrecios.find(
@@ -149,12 +155,10 @@ export default function ConteoFinalizacionPage() {
     if (encontrado) {
       setProductoEncontrado(encontrado);
       setErrorCodigo('');
-      setCampoActivo('cantidad');
-      cantidadRef.current?.focus();
-      cantidadRef.current?.select();
-    } else {
-      setErrorCodigo(`No se encontró producto con código "${codigo}"`);
+      return encontrado;
     }
+    setErrorCodigo(`No se encontró producto con código "${codigo}"`);
+    return null;
   };
 
   // F4 abre el modal de búsqueda (estilo POS viejo)
@@ -173,10 +177,11 @@ export default function ConteoFinalizacionPage() {
     setProductoEncontrado(p);
     setCodigoInput(formatearCodigo(p.producto_codigo));
     setErrorCodigo('');
-    setCampoActivo('cantidad');
+    // El usuario ya completó la cantidad antes de buscar; va directo a agregar.
+    setCampoActivo('codigo');
     setTimeout(() => {
-      cantidadRef.current?.focus();
-      cantidadRef.current?.select();
+      codigoRef.current?.focus();
+      codigoRef.current?.select();
     }, 50);
   };
 
@@ -207,44 +212,56 @@ export default function ConteoFinalizacionPage() {
   };
 
   const tecladoEnter = () => {
-    if (campoActivo === 'codigo') {
-      resolverCodigo(codigoInput);
+    // Cantidad → saltar a código. Código → resolver y agregar.
+    if (campoActivo === 'cantidad') {
+      setCampoActivo('codigo');
+      codigoRef.current?.focus();
+      codigoRef.current?.select();
     } else {
       agregarItem();
+    }
+  };
+
+  const handleCantidadKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const cantidad = parseInt(cantidadInput) || 0;
+      if (cantidad <= 0) {
+        toast.error('La cantidad debe ser mayor a 0');
+        return;
+      }
+      setCampoActivo('codigo');
+      codigoRef.current?.focus();
+      codigoRef.current?.select();
     }
   };
 
   const handleCodigoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      resolverCodigo(codigoInput);
+      // Resolver el código y, si encuentra producto, agregar en el mismo Enter.
+      const encontrado = resolverCodigo(codigoInput);
+      if (encontrado) {
+        agregarItemConProducto(encontrado);
+      }
     }
   };
 
-  const handleCantidadKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      agregarItem();
-    }
-  };
-
-  const agregarItem = () => {
-    if (!productoEncontrado) {
-      resolverCodigo(codigoInput);
-      return;
-    }
+  const agregarItemConProducto = (producto: ProductoConPrecio) => {
     const cantidad = parseInt(cantidadInput) || 0;
     if (cantidad <= 0) {
       toast.error('La cantidad debe ser mayor a 0');
+      setCampoActivo('cantidad');
       cantidadRef.current?.focus();
+      cantidadRef.current?.select();
       return;
     }
 
     setConteoItems((prev) => {
-      const existente = prev.find((i) => i.producto_id === productoEncontrado.producto_id);
+      const existente = prev.find((i) => i.producto_id === producto.producto_id);
       if (existente) {
         return prev.map((i) =>
-          i.producto_id === productoEncontrado.producto_id
+          i.producto_id === producto.producto_id
             ? { ...i, cantidad: i.cantidad + cantidad }
             : i
         );
@@ -252,22 +269,37 @@ export default function ConteoFinalizacionPage() {
       return [
         ...prev,
         {
-          producto_id: productoEncontrado.producto_id,
-          producto_codigo: productoEncontrado.producto_codigo,
-          producto_nombre: productoEncontrado.producto_nombre,
-          precio_unitario: productoEncontrado.precio_unitario || 0,
+          producto_id: producto.producto_id,
+          producto_codigo: producto.producto_codigo,
+          producto_nombre: producto.producto_nombre,
+          precio_unitario: producto.precio_unitario || 0,
           cantidad,
           cantidad_relevado: 0,
         },
       ];
     });
 
-    // Reset para siguiente entrada
+    // Reset para siguiente entrada — foco vuelve a Cantidad (orden actual)
     setCodigoInput('');
     setCantidadInput('1');
     setProductoEncontrado(null);
     setErrorCodigo('');
-    codigoRef.current?.focus();
+    setCampoActivo('cantidad');
+    setTimeout(() => {
+      cantidadRef.current?.focus();
+      cantidadRef.current?.select();
+    }, 0);
+  };
+
+  const agregarItem = () => {
+    if (productoEncontrado) {
+      agregarItemConProducto(productoEncontrado);
+      return;
+    }
+    const encontrado = resolverCodigo(codigoInput);
+    if (encontrado) {
+      agregarItemConProducto(encontrado);
+    }
   };
 
   const quitarItem = (productoId: string) => {
@@ -505,7 +537,23 @@ export default function ConteoFinalizacionPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-            {/* Código */}
+            {/* Cantidad — primero */}
+            <div className="w-full sm:w-28">
+              <Label className="text-xs text-gray-500 mb-1 block">Cantidad</Label>
+              <Input
+                ref={cantidadRef}
+                type="number"
+                min={1}
+                value={cantidadInput}
+                onChange={(e) => setCantidadInput(e.target.value)}
+                onFocus={(e) => { setCampoActivo('cantidad'); e.currentTarget.select(); }}
+                onKeyDown={handleCantidadKeyDown}
+                className="text-lg text-center"
+                inputMode={showTeclado ? 'none' : 'numeric'}
+              />
+            </div>
+
+            {/* Código — a la derecha de cantidad */}
             <div className="w-full sm:w-32">
               <Label className="text-xs text-gray-500 mb-1 block">Código</Label>
               <Input
@@ -558,7 +606,7 @@ export default function ConteoFinalizacionPage() {
                   ? productoEncontrado.producto_nombre
                   : errorCodigo
                   ? errorCodigo
-                  : 'Ingrese un código y presione Enter, o buscá con F4'}
+                  : 'Ingrese cantidad, después el código y presione Enter (o F4 para buscar)'}
               </div>
             </div>
 
@@ -572,26 +620,10 @@ export default function ConteoFinalizacionPage() {
               </div>
             )}
 
-            {/* Cantidad */}
-            <div className="w-full sm:w-28">
-              <Label className="text-xs text-gray-500 mb-1 block">Cantidad</Label>
-              <Input
-                ref={cantidadRef}
-                type="number"
-                min={1}
-                value={cantidadInput}
-                onChange={(e) => setCantidadInput(e.target.value)}
-                onFocus={() => setCampoActivo('cantidad')}
-                onKeyDown={handleCantidadKeyDown}
-                className="text-lg text-center"
-                inputMode={showTeclado ? 'none' : 'numeric'}
-              />
-            </div>
-
             {/* Botón agregar */}
             <Button
               onClick={agregarItem}
-              disabled={!productoEncontrado}
+              disabled={!productoEncontrado && !codigoInput.trim()}
               className="w-full sm:w-auto h-10"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
@@ -599,7 +631,7 @@ export default function ConteoFinalizacionPage() {
             </Button>
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Tip: <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">Enter</kbd> en el código resuelve, <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">Enter</kbd> en la cantidad agrega, <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">F4</kbd> abre la lista.
+            Tip: <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">Enter</kbd> en la cantidad pasa al código, <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">Enter</kbd> en el código agrega el ítem, <kbd className="px-1 py-0.5 bg-gray-100 rounded text-[11px]">F4</kbd> abre la lista.
           </p>
 
           {/* Teclado numérico en pantalla (tablets) */}
@@ -847,13 +879,13 @@ export default function ConteoFinalizacionPage() {
                 </div>
                 <label className="flex items-center gap-2 p-3 border border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
                   <Checkbox
-                    checked={imprimirConPrecios}
-                    onCheckedChange={(v) => setImprimirConPrecios(v === true)}
+                    checked={!imprimirConPrecios}
+                    onCheckedChange={(v) => setImprimirConPrecios(v !== true)}
                   />
                   <span>
-                    <strong>Imprimir con precios</strong>
+                    <strong>Imprimir sin precios</strong>
                     <span className="block text-xs text-gray-500">
-                      Por defecto el remito sale sin precios. Marcá para incluir subtotal por ítem y TOTAL al pie.
+                      Por defecto el remito sale con precios (subtotal por ítem y TOTAL al pie). Marcá para imprimir sin precios.
                     </span>
                   </span>
                 </label>
