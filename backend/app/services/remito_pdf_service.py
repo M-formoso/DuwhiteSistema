@@ -55,36 +55,39 @@ HOJA_WIDTH_MM = 165    # cada hoja ocupa la mitad horizontal
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
 COORD_FECHA_TOP_MM = 28
-COORD_FECHA_LEFT_MM = 85
-COORD_FECHA_WIDTH_MM = 40
+COORD_FECHA_LEFT_MM = 72
+COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
 COORD_CLIENTE_TOP_MM = 50
-COORD_CLIENTE_LEFT_MM = 5
-COORD_CLIENTE_WIDTH_MM = 150
+COORD_CLIENTE_LEFT_MM = 2
+COORD_CLIENTE_WIDTH_MM = 140
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
+# Pegado al borde izquierdo de la hoja; ancho reducido para que la columna
+# de precios quede bien adentro y no toque la perforación entre original y
+# duplicado.
 COORD_ITEMS_TOP_MM = 88           # primera fila debajo del header de columnas
-COORD_CANTIDAD_LEFT_MM = 4        # margen izquierdo de la columna CANTIDAD
-COORD_CANTIDAD_WIDTH_MM = 28
-COORD_DETALLE_GAP_MM = 4
-COORD_PRECIO_WIDTH_MM = 28        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 150        # ancho total CANTIDAD + DETALLE
+COORD_CANTIDAD_LEFT_MM = 2        # margen izquierdo de la columna CANTIDAD
+COORD_CANTIDAD_WIDTH_MM = 22
+COORD_DETALLE_GAP_MM = 3
+COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
+COORD_ITEMS_WIDTH_MM = 135        # ancho total CANTIDAD + DETALLE (deja margen a la derecha)
 COORD_ITEMS_HEIGHT_MM = 85        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
 COORD_TOTAL_TOP_MM = 178
-COORD_TOTAL_LEFT_MM = 4
-COORD_TOTAL_WIDTH_MM = 150
+COORD_TOTAL_LEFT_MM = 2
+COORD_TOTAL_WIDTH_MM = 135
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
 OVERFLOW_NOTE_TOP_MM = 175
 
 # Número de remito (traza chica, al pie de la hoja)
 COORD_NUMERO_TOP_MM = 190
-COORD_NUMERO_LEFT_MM = 4
+COORD_NUMERO_LEFT_MM = 2
 
 
 def _cantidad_para_mostrar() -> int:
