@@ -1599,6 +1599,7 @@ class ProduccionService:
                 .filter(
                     LoteProduccion.etapa_actual_id == etapa.id,
                     LoteProduccion.activo == True,
+                    LoteProduccion.archivado_at.is_(None),
                     LoteProduccion.estado.in_([
                         EstadoLote.PENDIENTE.value,
                         EstadoLote.EN_PROCESO.value,

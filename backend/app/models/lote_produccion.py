@@ -141,6 +141,10 @@ class LoteProduccion(Base, BaseModelMixin):
     tiene_manchas = Column(Boolean, default=False)
     tiene_roturas = Column(Boolean, default=False)
 
+    # Archivado: si !=NULL el lote no aparece en el Kanban. Un job posterior
+    # purga físicamente los archivados con más de 30 días sin remitos.
+    archivado_at = Column(DateTime, nullable=True, index=True)
+
     # Relaciones
     cliente = relationship("Cliente", back_populates="lotes")
     pedido = relationship("Pedido", back_populates="lotes")
