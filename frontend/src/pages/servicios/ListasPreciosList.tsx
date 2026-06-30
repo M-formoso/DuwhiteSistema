@@ -16,6 +16,7 @@ import {
   Percent,
   RefreshCw,
   LayoutGrid,
+  Loader2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -521,6 +522,9 @@ export default function ListasPreciosList() {
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
+              {(createMutation.isPending || updateMutation.isPending) && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               {listaEditar ? 'Guardar Cambios' : 'Crear Lista'}
             </Button>
           </DialogFooter>
