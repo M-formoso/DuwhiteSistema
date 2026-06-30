@@ -301,7 +301,19 @@ function LoteCard({
         )}
 
         {/* Botón de acción */}
-        {!enProceso ? (
+        {(columna.etapa_codigo === 'CONT' || (lote as unknown as { _estaEnConteo?: boolean })._estaEnConteo) ? (
+          // Última posta (Conteo): saltar el "iniciar etapa" y abrir directo la página de conteo
+          <button
+            onClick={onIrConteo}
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
+                       text-white text-sm font-bold flex items-center justify-center gap-2
+                       hover:from-emerald-600 hover:to-emerald-700 active:scale-98
+                       transition-all shadow-md shadow-emerald-100"
+          >
+            <Calculator className="h-4 w-4" />
+            IR A CONTEO
+          </button>
+        ) : !enProceso ? (
           columna.permite_bifurcacion ? (
             // División: al llegar, abrir directamente el modal de dividir
             <button
@@ -326,17 +338,6 @@ function LoteCard({
               INICIAR ETAPA
             </button>
           )
-        ) : (columna.etapa_codigo === 'CONT' || (lote as unknown as { _estaEnConteo?: boolean })._estaEnConteo) ? (
-          <button
-            onClick={onIrConteo}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
-                       text-white text-sm font-bold flex items-center justify-center gap-2
-                       hover:from-emerald-600 hover:to-emerald-700 active:scale-98
-                       transition-all shadow-md shadow-emerald-100"
-          >
-            <Calculator className="h-4 w-4" />
-            IR A CONTEO
-          </button>
         ) : (
           <button
             onClick={onFinalizar}
