@@ -27,7 +27,7 @@ import ProveedorDetail from '@/pages/proveedores/ProveedorDetail';
 import ProductosProveedorPage from '@/pages/proveedores/ProductosProveedorPage';
 
 // Producción
-import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage, PanelOperariosPage } from '@/pages/produccion';
+import { KanbanBoardPage, LotesListPage, LoteFormPage, LoteDetailPage, EtapasProduccionPage, MaquinasPage, PanelOperariosPage, ArchivadosPage } from '@/pages/produccion';
 import CanastosPage from '@/pages/produccion/CanastosPage';
 import ProductosLavadoPage from '@/pages/produccion/ProductosLavadoPage';
 import ConteoFinalizacionPage from '@/pages/produccion/ConteoFinalizacionPage';
@@ -158,6 +158,7 @@ function App() {
         <Route path="/produccion/productos" element={<ProductosLavadoPage />} />
         <Route path="/produccion/lotes/:id/conteo" element={<ConteoFinalizacionPage />} />
         <Route path="/produccion/recursos" element={<EstadoRecursosPage />} />
+        <Route path="/produccion/archivados" element={<ArchivadosPage />} />
 
         {/* Recolección (mobile-first para el chico que retira) */}
         <Route path="/recoleccion" element={<RecoleccionPage />} />

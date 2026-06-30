@@ -541,6 +541,7 @@ class ProduccionService:
         )
 
         query = query.filter(LoteProduccion.activo == True)
+        query = query.filter(LoteProduccion.archivado_at.is_(None))
 
         if estado:
             query = query.filter(LoteProduccion.estado == estado.value)
@@ -598,6 +599,53 @@ class ProduccionService:
             .filter(LoteProduccion.id == lote_id)
             .first()
         )
+
+    def get_lotes_archivados(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+        cliente_id: Optional[UUID] = None,
+        etapa_id: Optional[UUID] = None,
+        fecha_desde: Optional[date] = None,
+        fecha_hasta: Optional[date] = None,
+    ) -> Tuple[List[LoteProduccion], int]:
+        """Lista lotes archivados (archivado_at != NULL)."""
+        query = self.db.query(LoteProduccion).options(
+            joinedload(LoteProduccion.cliente),
+            joinedload(LoteProduccion.etapa_actual),
+        ).filter(
+            LoteProduccion.archivado_at.isnot(None),
+            LoteProduccion.activo == True,
+        )
+
+        if cliente_id:
+            query = query.filter(LoteProduccion.cliente_id == cliente_id)
+        if etapa_id:
+            query = query.filter(LoteProduccion.etapa_actual_id == etapa_id)
+        if fecha_desde:
+            query = query.filter(func.date(LoteProduccion.archivado_at) >= fecha_desde)
+        if fecha_hasta:
+            query = query.filter(func.date(LoteProduccion.archivado_at) <= fecha_hasta)
+
+        total = query.count()
+        lotes = (
+            query.order_by(LoteProduccion.archivado_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return lotes, total
+
+    def desarchivar_lote(self, lote_id: UUID) -> Optional[LoteProduccion]:
+        """Quita el flag archivado para que el lote vuelva al Kanban."""
+        lote = self.db.query(LoteProduccion).filter(LoteProduccion.id == lote_id).first()
+        if not lote:
+            return None
+        lote.archivado_at = None
+        lote.updated_at = datetime.utcnow()
+        self.db.commit()
+        self.db.refresh(lote)
+        return lote
 
     def get_lote_by_numero(self, numero: str) -> Optional[LoteProduccion]:
         """Obtiene un lote por número."""

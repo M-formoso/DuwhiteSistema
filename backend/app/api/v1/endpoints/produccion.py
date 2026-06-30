@@ -30,6 +30,7 @@ from app.schemas.lote_produccion import (
     LoteProduccionUpdate,
     LoteProduccionResponse,
     LoteProduccionList,
+    LoteArchivadoList,
     LoteEtapaResponse,
     ConsumoInsumoLoteCreate,
     ConsumoInsumoLoteResponse,
@@ -555,6 +556,72 @@ def listar_lotes(
         skip=skip,
         limit=limit,
     )
+
+
+@router.get("/lotes/archivados", response_model=PaginatedResponse)
+def listar_lotes_archivados(
+    skip: int = 0,
+    limit: int = 50,
+    cliente_id: Optional[UUID] = None,
+    etapa_id: Optional[UUID] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista lotes archivados (ocultos del Kanban)."""
+    from app.models.remito import Remito
+
+    service = ProduccionService(db)
+    lotes, total = service.get_lotes_archivados(
+        skip=skip,
+        limit=limit,
+        cliente_id=cliente_id,
+        etapa_id=etapa_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+    )
+
+    ids = [l.id for l in lotes]
+    con_remito_ids = set()
+    if ids:
+        rows = db.query(Remito.lote_id).filter(Remito.lote_id.in_(ids)).all()
+        con_remito_ids = {r[0] for r in rows}
+
+    items = [
+        LoteArchivadoList(
+            id=l.id,
+            numero=l.numero,
+            cliente_nombre=l.cliente.razon_social if l.cliente else None,
+            estado=l.estado,
+            etapa_actual_codigo=l.etapa_actual.codigo if l.etapa_actual else None,
+            etapa_actual_nombre=l.etapa_actual.nombre if l.etapa_actual else None,
+            peso_entrada_kg=l.peso_entrada_kg,
+            fecha_ingreso=l.fecha_ingreso,
+            archivado_at=l.archivado_at,
+            tiene_remito=l.id in con_remito_ids,
+        )
+        for l in lotes
+    ]
+
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
+@router.post("/lotes/{lote_id}/desarchivar", response_model=MessageResponse)
+def desarchivar_lote(
+    lote_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Quita el flag de archivado para que el lote vuelva al Kanban."""
+    service = ProduccionService(db)
+    lote = service.desarchivar_lote(lote_id)
+    if not lote:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lote no encontrado",
+        )
+    return MessageResponse(mensaje=f"Lote {lote.numero} desarchivado")
 
 
 @router.get("/lotes/{lote_id}", response_model=LoteProduccionResponse)

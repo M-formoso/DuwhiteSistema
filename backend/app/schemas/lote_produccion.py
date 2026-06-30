@@ -217,6 +217,23 @@ class LoteProduccionList(BaseModel):
         from_attributes = True
 
 
+class LoteArchivadoList(BaseModel):
+    """Schema para lista de lotes archivados."""
+    id: UUID
+    numero: str
+    cliente_nombre: Optional[str] = None
+    estado: EstadoLote
+    etapa_actual_codigo: Optional[str] = None
+    etapa_actual_nombre: Optional[str] = None
+    peso_entrada_kg: Optional[Decimal] = None
+    fecha_ingreso: datetime
+    archivado_at: datetime
+    tiene_remito: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== KANBAN ====================
 
 class KanbanCanasto(BaseModel):

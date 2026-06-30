@@ -197,6 +197,38 @@ export async function deleteLote(id: string): Promise<{ message: string }> {
   return response.data;
 }
 
+// ==================== LOTES ARCHIVADOS ====================
+
+export interface LoteArchivado {
+  id: string;
+  numero: string;
+  cliente_nombre: string | null;
+  estado: EstadoLote;
+  etapa_actual_codigo: string | null;
+  etapa_actual_nombre: string | null;
+  peso_entrada_kg: string | number | null;
+  fecha_ingreso: string;
+  archivado_at: string;
+  tiene_remito: boolean;
+}
+
+export async function getLotesArchivados(params?: {
+  skip?: number;
+  limit?: number;
+  cliente_id?: string;
+  etapa_id?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}): Promise<PaginatedResponse<LoteArchivado>> {
+  const response = await api.get('/produccion/lotes/archivados', { params });
+  return response.data;
+}
+
+export async function desarchivarLote(id: string): Promise<{ mensaje: string }> {
+  const response = await api.post(`/produccion/lotes/${id}/desarchivar`);
+  return response.data;
+}
+
 export interface LiberarMaquinaResponse {
   ok: boolean;
   maquina_codigo: string;
@@ -446,6 +478,9 @@ export const produccionService = {
   // Bifurcación / División
   getBifurcacionInfo,
   dividirLote,
+  // Archivados
+  getLotesArchivados,
+  desarchivarLote,
 };
 
 export default produccionService;

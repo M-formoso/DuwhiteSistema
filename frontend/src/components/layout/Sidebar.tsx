@@ -33,6 +33,7 @@ import {
   Clock,
   Banknote,
   Receipt,
+  Archive,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -104,6 +105,12 @@ const navSectionsInternal: NavSection[] = [
         href: '/produccion',
         icon: Factory,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador', 'solo_lectura'],
+      },
+      {
+        title: 'Archivados',
+        href: '/produccion/archivados',
+        icon: Archive,
+        roles: ['superadmin', 'administrador', 'jefe_produccion'],
       },
       {
         title: 'Recolección',
