@@ -76,6 +76,10 @@ class Pedido(Base, BaseModelMixin):
     # Control
     creado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
 
+    # Recolección (chico que retira la ropa del cliente)
+    retirado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    hora_inicio_retiro = Column(DateTime, nullable=True)
+
     # Observaciones
     notas = Column(Text, nullable=True)
     notas_internas = Column(Text, nullable=True)
@@ -84,6 +88,7 @@ class Pedido(Base, BaseModelMixin):
     # Relaciones
     cliente = relationship("Cliente", back_populates="pedidos")
     creado_por = relationship("Usuario", foreign_keys=[creado_por_id])
+    retirado_por = relationship("Usuario", foreign_keys=[retirado_por_id])
     detalles = relationship("DetallePedido", back_populates="pedido", cascade="all, delete-orphan")
     lotes = relationship("LoteProduccion", back_populates="pedido", lazy="dynamic")
     facturas = relationship(

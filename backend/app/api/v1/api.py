@@ -35,6 +35,7 @@ from app.api.v1.endpoints import (
     facturas,
     aplicaciones_pago,
     cobranzas,
+    recoleccion,
 )
 
 api_router = APIRouter()
@@ -239,6 +240,13 @@ api_router.include_router(
     facturas.router,
     prefix="/facturas",
     tags=["Facturación"],
+)
+
+# Recolección (chico que retira la ropa del cliente)
+api_router.include_router(
+    recoleccion.router,
+    prefix="/recoleccion",
+    tags=["Recolección"],
 )
 
 # Los siguientes routers se agregarán a medida que se implementen los módulos:

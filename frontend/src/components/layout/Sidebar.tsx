@@ -105,6 +105,12 @@ const navSectionsInternal: NavSection[] = [
         icon: Factory,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador', 'solo_lectura'],
       },
+      {
+        title: 'Recolección',
+        href: '/recoleccion',
+        icon: Truck,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador'],
+      },
     ],
   },
   {
