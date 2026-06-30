@@ -73,14 +73,14 @@ COORD_CANTIDAD_LEFT_MM = 2        # margen izquierdo de la columna CANTIDAD
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 112        # ancho total cantidad+detalle+subtotal
+COORD_ITEMS_WIDTH_MM = 88         # ancho total cantidad+detalle+subtotal
 COORD_ITEMS_HEIGHT_MM = 85        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
 COORD_TOTAL_TOP_MM = 178
 COORD_TOTAL_LEFT_MM = 2
-COORD_TOTAL_WIDTH_MM = 112
+COORD_TOTAL_WIDTH_MM = 88
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
 OVERFLOW_NOTE_TOP_MM = 175
