@@ -54,40 +54,39 @@ PAGE_HEIGHT_MM = 200   # 20 cm alto total del papel
 HOJA_WIDTH_MM = 165    # cada hoja ocupa la mitad horizontal
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 28
-COORD_FECHA_LEFT_MM = 72
+COORD_FECHA_TOP_MM = 20
+COORD_FECHA_LEFT_MM = 60
 COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
-COORD_CLIENTE_TOP_MM = 50
-COORD_CLIENTE_LEFT_MM = 2
-COORD_CLIENTE_WIDTH_MM = 140
+COORD_CLIENTE_TOP_MM = 40
+COORD_CLIENTE_LEFT_MM = 0
+COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
-# Pegado al borde izquierdo de la hoja; ancho reducido para que la columna
-# de precios quede bien adentro del cuadro DETALLE del preimpreso y no
-# caiga en el espacio en blanco hacia la perforación.
-COORD_ITEMS_TOP_MM = 88           # primera fila debajo del header de columnas
-COORD_CANTIDAD_LEFT_MM = 2        # margen izquierdo de la columna CANTIDAD
+# Todo pegado al borde izquierdo (left=0) y subido para arrancar bajo
+# el header de columnas del preimpreso.
+COORD_ITEMS_TOP_MM = 75           # primera fila debajo del header de columnas
+COORD_CANTIDAD_LEFT_MM = 0        # margen izquierdo de la columna CANTIDAD
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 88         # ancho total cantidad+detalle+subtotal
-COORD_ITEMS_HEIGHT_MM = 85        # alto disponible para las filas
+COORD_ITEMS_WIDTH_MM = 100        # ancho total cantidad+detalle+subtotal
+COORD_ITEMS_HEIGHT_MM = 90        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
-COORD_TOTAL_TOP_MM = 178
-COORD_TOTAL_LEFT_MM = 2
-COORD_TOTAL_WIDTH_MM = 88
+COORD_TOTAL_TOP_MM = 168
+COORD_TOTAL_LEFT_MM = 0
+COORD_TOTAL_WIDTH_MM = 100
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
-OVERFLOW_NOTE_TOP_MM = 175
+OVERFLOW_NOTE_TOP_MM = 165
 
 # Número de remito (traza chica, al pie de la hoja)
-COORD_NUMERO_TOP_MM = 190
-COORD_NUMERO_LEFT_MM = 2
+COORD_NUMERO_TOP_MM = 188
+COORD_NUMERO_LEFT_MM = 0
 
 
 def _cantidad_para_mostrar() -> int:
