@@ -301,8 +301,8 @@ function LoteCard({
         )}
 
         {/* Botón de acción */}
-        {(columna.etapa_codigo === 'CONT' || (lote as unknown as { _estaEnConteo?: boolean })._estaEnConteo) ? (
-          // Última posta (Conteo): saltar el "iniciar etapa" y abrir directo la página de conteo
+        {(columna.etapa_codigo === 'CONT' || columna.etapa_codigo === 'FIN' || (lote as unknown as { _estaEnConteo?: boolean })._estaEnConteo) ? (
+          // Última posta (Finalizada/Conteo): saltar el "iniciar etapa" y abrir directo la página de conteo
           <button
             onClick={onIrConteo}
             className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600
