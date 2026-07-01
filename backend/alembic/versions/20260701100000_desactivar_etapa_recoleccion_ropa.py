@@ -11,7 +11,7 @@ Si el ambiente todavía tenía es_inicial=True en esa etapa, se pasa a
 la siguiente etapa activa por orden.
 
 Revision ID: 20260701100000
-Revises: 20260630120000
+Revises: 20260630130000
 Create Date: 2026-07-01
 """
 
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 
 revision = "20260701100000"
-down_revision = "20260630120000"
+down_revision = "20260630130000"
 branch_labels = None
 depends_on = None
 
