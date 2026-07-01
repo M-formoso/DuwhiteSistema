@@ -624,6 +624,34 @@ def desarchivar_lote(
     return MessageResponse(mensaje=f"Lote {lote.numero} desarchivado")
 
 
+@router.post("/admin/purgar-archivados")
+def purgar_archivados(
+    dias_minimos: int = 30,
+    dry_run: bool = False,
+    max_lotes: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Borra físicamente lotes archivados con más de N días y sin remitos
+    asociados. Solo admin/jefe_produccion.
+
+    dry_run=true devuelve la lista de lotes a borrar sin tocar nada.
+    """
+    if current_user.rol not in ("superadmin", "administrador", "jefe_produccion"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenés permisos para purgar lotes",
+        )
+    service = ProduccionService(db)
+    return service.purgar_lotes_archivados(
+        dias_minimos=dias_minimos,
+        dry_run=dry_run,
+        max_lotes=max_lotes,
+        usuario_id=current_user.id,
+    )
+
+
 @router.get("/lotes/{lote_id}", response_model=LoteProduccionResponse)
 def obtener_lote(
     lote_id: UUID,

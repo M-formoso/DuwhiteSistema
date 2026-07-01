@@ -2,12 +2,12 @@
 Servicio de Producción (Lotes, Etapas, Kanban).
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.etapa_produccion import EtapaProduccion
@@ -646,6 +646,123 @@ class ProduccionService:
         self.db.commit()
         self.db.refresh(lote)
         return lote
+
+    def purgar_lotes_archivados(
+        self,
+        dias_minimos: int = 30,
+        dry_run: bool = False,
+        max_lotes: Optional[int] = None,
+        usuario_id: Optional[UUID] = None,
+    ) -> Dict[str, Any]:
+        """
+        Borra físicamente lotes archivados de más de `dias_minimos` días que
+        no tengan remitos asociados. Los lotes con remito quedan protegidos.
+
+        Cascada manual:
+          lotes_etapas_maquinas (vía CASCADE de lotes_etapas)
+          lotes_etapas, lotes_canastos, consumos_insumo_lote,
+          analisis_costos_lotes, incidencias_produccion, detalles_liquidacion
+          → finalmente lotes_produccion.
+
+        dry_run=True: solo lista los lotes que se borrarían, sin tocar nada.
+        """
+        from app.models.remito import Remito
+        from app.models.canasto import LoteCanasto
+        from app.models.log_actividad import LogActividad
+
+        umbral = datetime.utcnow() - timedelta(days=dias_minimos)
+
+        query = (
+            self.db.query(LoteProduccion)
+            .filter(
+                LoteProduccion.archivado_at.isnot(None),
+                LoteProduccion.archivado_at < umbral,
+            )
+            .order_by(LoteProduccion.archivado_at)
+        )
+        if max_lotes:
+            query = query.limit(max_lotes)
+
+        candidatos = query.all()
+
+        # Filtrar los que tienen remito (protegidos)
+        ids_candidatos = [l.id for l in candidatos]
+        ids_con_remito: set = set()
+        if ids_candidatos:
+            rows = (
+                self.db.query(Remito.lote_id)
+                .filter(Remito.lote_id.in_(ids_candidatos))
+                .all()
+            )
+            ids_con_remito = {r[0] for r in rows}
+
+        a_borrar = [l for l in candidatos if l.id not in ids_con_remito]
+        protegidos = [l for l in candidatos if l.id in ids_con_remito]
+
+        resultado: Dict[str, Any] = {
+            "dry_run": dry_run,
+            "dias_minimos": dias_minimos,
+            "umbral": umbral.isoformat(),
+            "lotes_borrados": 0,
+            "lotes_protegidos_por_remito": len(protegidos),
+            "numeros_borrados": [l.numero for l in a_borrar],
+            "numeros_protegidos": [l.numero for l in protegidos],
+        }
+
+        if dry_run or not a_borrar:
+            return resultado
+
+        ids_borrar = [l.id for l in a_borrar]
+
+        # Cascada manual: borrar dependencias primero. lotes_etapas_maquinas
+        # se borra solo por ondelete=CASCADE de la FK a lotes_etapas.
+        for table_name in [
+            "lotes_etapas",
+            "lotes_canastos",
+            "consumos_insumo_lote",
+            "analisis_costos_lotes",
+            "incidencias_produccion",
+            "detalles_liquidacion",
+        ]:
+            self.db.execute(
+                text(f"DELETE FROM {table_name} WHERE lote_id = ANY(:ids)"),
+                {"ids": ids_borrar},
+            )
+
+        # Limpiar self-reference (lote_padre_id) en lotes que apunten a estos
+        self.db.execute(
+            text(
+                "UPDATE lotes_produccion SET lote_padre_id = NULL "
+                "WHERE lote_padre_id = ANY(:ids)"
+            ),
+            {"ids": ids_borrar},
+        )
+
+        # Borrar los lotes
+        self.db.execute(
+            text("DELETE FROM lotes_produccion WHERE id = ANY(:ids)"),
+            {"ids": ids_borrar},
+        )
+
+        # Auditoría
+        if usuario_id:
+            self.db.add(
+                LogActividad(
+                    usuario_id=usuario_id,
+                    accion="eliminar",
+                    modulo="produccion",
+                    entidad_tipo="lote_produccion",
+                    descripcion=(
+                        f"Purga automática de {len(a_borrar)} lotes archivados "
+                        f"con más de {dias_minimos} días."
+                    ),
+                    datos_anteriores={"numeros": resultado["numeros_borrados"]},
+                )
+            )
+
+        self.db.commit()
+        resultado["lotes_borrados"] = len(a_borrar)
+        return resultado
 
     def get_lote_by_numero(self, numero: str) -> Optional[LoteProduccion]:
         """Obtiene un lote por número."""

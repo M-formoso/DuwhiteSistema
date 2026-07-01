@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Receipt,
+  Trash2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/components/ui/use-toast';
 
-import { produccionService, LoteArchivado } from '@/services/produccionService';
+import { produccionService, LoteArchivado, PurgaResultado } from '@/services/produccionService';
 import { formatNumber } from '@/utils/formatters';
 
 const PAGE_SIZE = 50;
@@ -71,6 +72,7 @@ export default function ArchivadosPage() {
 
   const [skip, setSkip] = useState(0);
   const [confirmDesarchivar, setConfirmDesarchivar] = useState<LoteArchivado | null>(null);
+  const [purgaPreview, setPurgaPreview] = useState<PurgaResultado | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['lotes-archivados', skip],
@@ -90,6 +92,25 @@ export default function ArchivadosPage() {
     },
   });
 
+  const purgaPreviewMutation = useMutation({
+    mutationFn: () => produccionService.purgarArchivados({ dry_run: true, dias_minimos: 30 }),
+    onSuccess: (res) => setPurgaPreview(res),
+    onError: () => toast({ title: 'Error al previsualizar purga', variant: 'destructive' }),
+  });
+
+  const purgaMutation = useMutation({
+    mutationFn: () => produccionService.purgarArchivados({ dry_run: false, dias_minimos: 30 }),
+    onSuccess: (res) => {
+      toast({
+        title: 'Purga ejecutada',
+        description: `${res.lotes_borrados} lotes borrados (${res.lotes_protegidos_por_remito} protegidos por remito).`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['lotes-archivados'] });
+      setPurgaPreview(null);
+    },
+    onError: () => toast({ title: 'Error al purgar', variant: 'destructive' }),
+  });
+
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -107,10 +128,21 @@ export default function ArchivadosPage() {
             Lotes ocultos del Kanban. Se purgan automáticamente a los 30 días si no tienen remito.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-1.5" />
-          Refrescar
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => purgaPreviewMutation.mutate()}
+            disabled={purgaPreviewMutation.isPending}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Purgar &gt;30 días
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+            Refrescar
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -259,6 +291,59 @@ export default function ArchivadosPage() {
               onClick={() => confirmDesarchivar && desarchivarMutation.mutate(confirmDesarchivar.id)}
             >
               Desarchivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!purgaPreview} onOpenChange={(open) => !open && setPurgaPreview(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Purgar lotes archivados con más de 30 días</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Esto borra <strong>físicamente</strong> de la base de datos los lotes que estén
+                  archivados hace más de 30 días y no tengan remito asociado. Es irreversible.
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-sm bg-gray-50 rounded p-3">
+                  <div>
+                    A borrar:{' '}
+                    <strong className="text-red-600">
+                      {purgaPreview?.numeros_borrados.length ?? 0}
+                    </strong>
+                  </div>
+                  <div>
+                    Protegidos por remito:{' '}
+                    <strong className="text-blue-600">
+                      {purgaPreview?.lotes_protegidos_por_remito ?? 0}
+                    </strong>
+                  </div>
+                </div>
+                {purgaPreview && purgaPreview.numeros_borrados.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto bg-gray-50 rounded p-2 text-xs font-mono">
+                    {purgaPreview.numeros_borrados.slice(0, 100).join(', ')}
+                    {purgaPreview.numeros_borrados.length > 100 && (
+                      <span className="text-gray-500">
+                        {' '}
+                        ... y {purgaPreview.numeros_borrados.length - 100} más
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={
+                !purgaPreview || purgaPreview.numeros_borrados.length === 0 || purgaMutation.isPending
+              }
+              onClick={() => purgaMutation.mutate()}
+            >
+              Confirmar y borrar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

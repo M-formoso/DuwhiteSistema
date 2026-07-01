@@ -229,6 +229,25 @@ export async function desarchivarLote(id: string): Promise<{ mensaje: string }> 
   return response.data;
 }
 
+export interface PurgaResultado {
+  dry_run: boolean;
+  dias_minimos: number;
+  umbral: string;
+  lotes_borrados: number;
+  lotes_protegidos_por_remito: number;
+  numeros_borrados: string[];
+  numeros_protegidos: string[];
+}
+
+export async function purgarArchivados(params?: {
+  dias_minimos?: number;
+  dry_run?: boolean;
+  max_lotes?: number;
+}): Promise<PurgaResultado> {
+  const response = await api.post('/produccion/admin/purgar-archivados', null, { params });
+  return response.data;
+}
+
 export interface LiberarMaquinaResponse {
   ok: boolean;
   maquina_codigo: string;
@@ -481,6 +500,7 @@ export const produccionService = {
   // Archivados
   getLotesArchivados,
   desarchivarLote,
+  purgarArchivados,
 };
 
 export default produccionService;
