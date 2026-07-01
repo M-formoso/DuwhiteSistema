@@ -99,7 +99,10 @@ export default function FacturasListPage() {
           <h1 className="text-2xl font-bold text-text-primary">Facturación</h1>
           <p className="text-text-secondary">Remitos pendientes y facturas emitidas</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => navigate('/remitos/manual')}>
+            + Remito manual
+          </Button>
           <Button variant="outline" onClick={() => setShowMesModal(true)}>
             Factura mensual cliente
           </Button>

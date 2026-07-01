@@ -33,6 +33,7 @@ import ProductosLavadoPage from '@/pages/produccion/ProductosLavadoPage';
 import ConteoFinalizacionPage from '@/pages/produccion/ConteoFinalizacionPage';
 import EstadoRecursosPage from '@/pages/produccion/EstadoRecursosPage';
 import RecoleccionPage from '@/pages/recoleccion/RecoleccionPage';
+import RemitoManualPage from '@/pages/remitos/RemitoManualPage';
 
 // Clientes
 import { ClientesListPage, ClienteFormPage, ClienteDetailPage, ClienteCuentaCorrientePage } from '@/pages/clientes';
@@ -162,6 +163,9 @@ function App() {
 
         {/* Recolección (mobile-first para el chico que retira) */}
         <Route path="/recoleccion" element={<RecoleccionPage />} />
+
+        {/* Remito manual (sin flujo de producción) */}
+        <Route path="/remitos/manual" element={<RemitoManualPage />} />
 
         {/* Clientes */}
         <Route path="/clientes" element={<ClientesListPage />} />

@@ -16,6 +16,7 @@ from app.schemas.remito import (
     RemitoListResponse,
     DetalleRemitoResponse,
     GenerarRemitoRequest,
+    GenerarRemitoManualRequest,
     GenerarRemitoResponse,
     EntregarRemitoRequest,
     AnularRemitoRequest,
@@ -211,6 +212,21 @@ def generar_remito_desde_lote(
     return RemitoService.generar_remito_desde_lote(
         db, lote_id, request, current_user.id
     )
+
+
+@router.post("/manual", response_model=GenerarRemitoResponse)
+def generar_remito_manual(
+    request: GenerarRemitoManualRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador", "jefe_produccion", "comercial")
+    ),
+):
+    """Genera un remito directamente para un cliente, sin pasar por el
+    flujo de producción (recepción/lavado/etc). Crea un Lote sombra
+    completado y usa el flujo estándar de remito para cargar en CC.
+    """
+    return RemitoService.generar_remito_manual(db, request, current_user.id)
 
 
 @router.post("/lotes/{lote_id}/generar-complementario", response_model=GenerarRemitoResponse)

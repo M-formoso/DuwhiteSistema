@@ -20,6 +20,7 @@ from app.schemas.remito import (
     RemitoCreate,
     RemitoUpdate,
     GenerarRemitoRequest,
+    GenerarRemitoManualRequest,
     GenerarRemitoResponse,
     EmitirRemitoResponse,
     DetalleRemitoCreate,
@@ -257,6 +258,143 @@ class RemitoService:
             lote_relevado_id=lote_relevado_id,
             lote_relevado_numero=lote_relevado_numero,
             mensaje=f"Remito {numero} generado y cargado a cuenta corriente"
+        )
+
+    @staticmethod
+    def generar_remito_manual(
+        db: Session,
+        request: GenerarRemitoManualRequest,
+        usuario_id: UUID,
+    ) -> GenerarRemitoResponse:
+        """Genera un remito sin pasar por el flujo de producción.
+
+        Crea un Lote "sombra" ya completado (para respetar el FK
+        obligatorio de Remito.lote_id) y después arma el remito
+        reutilizando la lógica normal: detalles, cargo en cuenta
+        corriente y numeración.
+
+        No crea LoteEtapa ni asigna máquinas: el lote sombra nace y
+        muere completado, sirve sólo como contenedor.
+        """
+        # Validar cliente
+        cliente = (
+            db.query(Cliente)
+            .filter(Cliente.id == request.cliente_id, Cliente.activo == True)
+            .first()
+        )
+        if not cliente:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cliente no encontrado",
+            )
+
+        # Crear Lote sombra (COMPLETADO, sin etapas)
+        prefijo = f"L{date.today().strftime('%y%m%d')}-M"
+        count_mismo_dia = (
+            db.query(LoteProduccion)
+            .filter(LoteProduccion.numero.like(f"{prefijo}%"))
+            .count()
+        )
+        numero_lote = f"{prefijo}{count_mismo_dia + 1:04d}"
+        ahora = datetime.utcnow()
+
+        lote_sombra = LoteProduccion(
+            id=uuid4(),
+            numero=numero_lote,
+            cliente_id=cliente.id,
+            tipo_lote=TipoLote.NORMAL.value,
+            estado=EstadoLote.COMPLETADO.value,
+            prioridad=PrioridadLote.NORMAL.value,
+            fecha_ingreso=ahora,
+            fecha_inicio_proceso=ahora,
+            fecha_fin_proceso=ahora,
+            peso_entrada_kg=request.peso_total_kg,
+            peso_salida_kg=request.peso_total_kg,
+            creado_por_id=usuario_id,
+            descripcion="Remito manual — no pasó por producción",
+        )
+        db.add(lote_sombra)
+        db.flush()
+
+        # Calcular totales
+        subtotal = Decimal(0)
+        for det in request.detalles:
+            subtotal += det.cantidad * det.precio_unitario
+
+        descuento = Decimal(0)
+        if cliente.descuento_general and cliente.descuento_general > 0:
+            descuento = subtotal * (cliente.descuento_general / 100)
+        total = subtotal - descuento
+
+        # Crear remito
+        numero_remito = RemitoService._generar_numero_remito(db, TipoRemito.NORMAL.value)
+        remito = Remito(
+            numero=numero_remito,
+            lote_id=lote_sombra.id,
+            cliente_id=cliente.id,
+            tipo=TipoRemito.NORMAL.value,
+            estado=EstadoRemito.BORRADOR.value,
+            fecha_emision=date.today(),
+            peso_total_kg=request.peso_total_kg,
+            subtotal=subtotal,
+            descuento=descuento,
+            total=total,
+            notas=request.notas,
+            emitido_por_id=usuario_id,
+        )
+        db.add(remito)
+        db.flush()
+
+        # Detalles
+        for detalle_data in request.detalles:
+            producto = (
+                db.query(ProductoLavado)
+                .filter(ProductoLavado.id == detalle_data.producto_id)
+                .first()
+            )
+            if not producto:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Producto {detalle_data.producto_id} no encontrado",
+                )
+            item_subtotal = detalle_data.cantidad * detalle_data.precio_unitario
+            db.add(DetalleRemito(
+                remito_id=remito.id,
+                producto_id=detalle_data.producto_id,
+                cantidad=detalle_data.cantidad,
+                precio_unitario=detalle_data.precio_unitario,
+                subtotal=item_subtotal,
+                descripcion=detalle_data.descripcion,
+            ))
+
+        # Cargo en cuenta corriente
+        movimiento_cc = RemitoService._crear_cargo_cc(db, remito, cliente, usuario_id)
+        remito.movimiento_cc_id = movimiento_cc.id
+        remito.estado = EstadoRemito.EMITIDO.value
+
+        db.commit()
+
+        # Log
+        LogService().registrar(
+            db=db,
+            usuario_id=usuario_id,
+            accion="generar_remito_manual",
+            modulo="remitos",
+            descripcion=f"Remito manual {numero_remito} generado para cliente {cliente.razon_social}. Total: ${total}",
+            entidad_tipo="remito",
+            entidad_id=remito.id,
+        )
+
+        return GenerarRemitoResponse(
+            remito_id=remito.id,
+            remito_numero=remito.numero,
+            tipo=remito.tipo,
+            total=remito.total,
+            movimiento_cc_id=movimiento_cc.id,
+            lote_estado=lote_sombra.estado,
+            lote_relevado_id=None,
+            lote_relevado_numero=None,
+            mensaje=f"Remito manual {numero_remito} generado y cargado a cuenta corriente",
         )
 
     @staticmethod

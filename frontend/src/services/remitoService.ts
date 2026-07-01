@@ -90,6 +90,25 @@ export const remitoService = {
   },
 
   /**
+   * Genera un remito manual (sin flujo de producción). Backend crea un
+   * lote sombra internamente y sigue el flujo normal.
+   */
+  async generarManual(request: {
+    cliente_id: string;
+    detalles: Array<{
+      producto_id: string;
+      cantidad: number;
+      precio_unitario: number;
+      descripcion?: string;
+    }>;
+    peso_total_kg?: number;
+    notas?: string;
+  }): Promise<GenerarRemitoResponse> {
+    const response = await api.post(`${BASE_URL}/manual`, request);
+    return response.data;
+  },
+
+  /**
    * Genera remito complementario (para lotes de relevado)
    */
   async generarComplementario(

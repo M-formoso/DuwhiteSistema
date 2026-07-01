@@ -167,6 +167,17 @@ class GenerarRemitoResponse(BaseModel):
     mensaje: str
 
 
+# ==================== REMITO MANUAL (sin flujo de producción) ====================
+
+class GenerarRemitoManualRequest(BaseModel):
+    """Genera un remito directamente para un cliente, sin pasar por producción.
+    Ej: ropa que se entregó en mostrador, ajustes, ventas puntuales."""
+    cliente_id: UUID
+    detalles: List[DetalleRemitoCreate] = Field(..., min_length=1)
+    peso_total_kg: Optional[Decimal] = Field(None, ge=0)
+    notas: Optional[str] = None
+
+
 # ==================== CONSTANTES ====================
 
 TIPOS_REMITO = [
