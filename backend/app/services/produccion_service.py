@@ -1508,6 +1508,11 @@ class ProduccionService:
                             estado_facturacion=estado_facturacion or "sin_facturar",
                         )
 
+        # Reunificar sublote con su padre si ambos alcanzaron FIN.
+        # Se hace acá para que el lote quede unificado antes del conteo.
+        if lote:
+            self._reunificar_en_fin_si_corresponde(lote, usuario_id)
+
         self.db.commit()
         self.db.refresh(lote_etapa)
 
@@ -2651,6 +2656,103 @@ class ProduccionService:
                     info.etapa_destino_alternativa_nombre = etapa_alt.nombre
 
         return info
+
+    def _reunificar_en_fin_si_corresponde(
+        self, lote: LoteProduccion, usuario_id: UUID
+    ) -> None:
+        """
+        Reunifica un sublote de división (`-B`) con su lote padre cuando
+        ambos alcanzan la etapa Finalizada (FIN). Al conteo llega un único
+        lote consolidado con el peso total.
+
+        Reglas:
+          - Solo aplica si el lote recién movido tiene etapa_actual = FIN.
+          - Se busca el gemelo (padre si el lote es sublote, o hijo -B si es
+            padre). Ambos deben estar en FIN, activos, no archivados y no
+            haber empezado conteo todavía.
+          - El sublote se archiva (archivado_at = NOW) con nota de fusión.
+            Su peso se suma al padre y sus canastos activos migran al padre.
+        """
+        etapa_actual = self.get_etapa(lote.etapa_actual_id) if lote.etapa_actual_id else None
+        if not etapa_actual or etapa_actual.codigo != "FIN":
+            return
+
+        # Determinar padre / hijo. Solo trabajamos con el par 1:1 creado en
+        # dividir_lote (hijo con lote_padre_id y tipo_lote='relevado').
+        if lote.lote_padre_id:
+            padre = self.get_lote(lote.lote_padre_id)
+            hijo = lote
+        else:
+            hijo = (
+                self.db.query(LoteProduccion)
+                .filter(
+                    LoteProduccion.lote_padre_id == lote.id,
+                    LoteProduccion.tipo_lote == "relevado",
+                    LoteProduccion.activo == True,
+                    LoteProduccion.archivado_at.is_(None),
+                )
+                .first()
+            )
+            padre = lote
+
+        if not padre or not hijo or padre.id == hijo.id:
+            return
+
+        # Ambos deben estar en FIN
+        etapa_padre = self.get_etapa(padre.etapa_actual_id) if padre.etapa_actual_id else None
+        etapa_hijo = self.get_etapa(hijo.etapa_actual_id) if hijo.etapa_actual_id else None
+        if not (etapa_padre and etapa_padre.codigo == "FIN"):
+            return
+        if not (etapa_hijo and etapa_hijo.codigo == "FIN"):
+            return
+
+        # Salvaguarda: si el hijo ya arrancó conteo o está completado, no tocar
+        if hijo.estado == EstadoLote.COMPLETADO.value or hijo.archivado_at is not None:
+            return
+
+        # Sumar peso al padre
+        peso_padre = Decimal(padre.peso_entrada_kg or 0)
+        peso_hijo = Decimal(hijo.peso_entrada_kg or 0)
+        padre.peso_entrada_kg = peso_padre + peso_hijo
+
+        # Migrar canastos activos del hijo al padre
+        for lc in hijo.canastos:
+            if lc.fecha_liberacion is None and lc.activo:
+                lc.lote_id = padre.id
+
+        # Trazabilidad en notas
+        ahora = datetime.utcnow()
+        padre.notas_internas = (padre.notas_internas or "") + (
+            f"\n{ahora}: [Reunificación] Sublote {hijo.numero} "
+            f"({peso_hijo} kg) fusionado en Finalizada."
+        )
+        hijo.notas_internas = (hijo.notas_internas or "") + (
+            f"\n{ahora}: [Reunificación] Fusionado en lote padre {padre.numero}."
+        )
+
+        # Archivar el hijo (no borrado físico — queda para trazabilidad).
+        hijo.archivado_at = ahora
+        hijo.estado = EstadoLote.COMPLETADO.value
+        hijo.fecha_fin_proceso = ahora
+
+        try:
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="reunificar_sublote",
+                modulo="produccion",
+                entidad_tipo="LoteProduccion",
+                entidad_id=padre.id,
+                datos_nuevos={
+                    "padre": padre.numero,
+                    "hijo_archivado": hijo.numero,
+                    "peso_sumado_kg": float(peso_hijo),
+                    "peso_total_kg": float(padre.peso_entrada_kg),
+                },
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("No se pudo registrar log de reunificación")
 
     def dividir_lote(
         self,
