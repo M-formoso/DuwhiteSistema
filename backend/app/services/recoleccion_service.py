@@ -14,8 +14,16 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.cliente import Cliente
+from app.models.etapa_produccion import EtapaProduccion
 from app.models.pedido import EstadoPedido, Pedido
-from app.models.lote_produccion import LoteProduccion
+from app.models.lote_produccion import (
+    EstadoLote,
+    LoteEtapa,
+    LoteProduccion,
+    PrioridadLote,
+    TipoLote,
+    TipoServicio,
+)
 from app.models.usuario import Usuario
 from app.schemas.recoleccion import (
     IniciarRecoleccionRequest,
@@ -49,6 +57,42 @@ class RecoleccionService:
             numero = 1
 
         return f"{prefijo}-{numero:04d}"
+
+    def _generar_numero_lote(self) -> str:
+        """Mismo formato que produccion_service: Lyymmdd-NNNN."""
+        hoy = date.today()
+        prefijo = f"L{hoy.strftime('%y%m%d')}-"
+
+        numeros = (
+            self.db.query(LoteProduccion.numero)
+            .filter(LoteProduccion.numero.like(f"{prefijo}%"))
+            .all()
+        )
+        max_num = 0
+        for (numero,) in numeros:
+            sufijo = numero[len(prefijo):]
+            if sufijo.isdigit():
+                n = int(sufijo)
+                if n > max_num:
+                    max_num = n
+        return f"{prefijo}{max_num + 1:04d}"
+
+    def _get_etapa_inicial(self) -> Optional[EtapaProduccion]:
+        """Etapa inicial: primero busca es_inicial=True, luego cae al menor orden."""
+        etapa = (
+            self.db.query(EtapaProduccion)
+            .filter(EtapaProduccion.es_inicial == True, EtapaProduccion.activo == True)
+            .order_by(EtapaProduccion.orden.asc())
+            .first()
+        )
+        if etapa:
+            return etapa
+        return (
+            self.db.query(EtapaProduccion)
+            .filter(EtapaProduccion.activo == True)
+            .order_by(EtapaProduccion.orden.asc())
+            .first()
+        )
 
     def iniciar_recoleccion(
         self,
@@ -97,7 +141,7 @@ class RecoleccionService:
             id=uuid4(),
             numero=self._generar_numero_pedido(),
             cliente_id=cliente.id,
-            estado=EstadoPedido.CONFIRMADO.value,
+            estado=EstadoPedido.EN_PROCESO.value,
             fecha_pedido=date.today(),
             fecha_retiro=date.today(),
             creado_por_id=usuario_logueado_id,
@@ -110,6 +154,61 @@ class RecoleccionService:
             saldo_pendiente=0,
         )
         self.db.add(pedido)
+        self.db.flush()
+
+        # 4. Crear el Lote de producción vinculado a este pedido.
+        etapa_inicial = self._get_etapa_inicial()
+        if not etapa_inicial:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No hay etapas de producción configuradas.",
+            )
+
+        lote = LoteProduccion(
+            id=uuid4(),
+            numero=self._generar_numero_lote(),
+            cliente_id=cliente.id,
+            pedido_id=pedido.id,
+            tipo_servicio=TipoServicio.LAVADO_NORMAL.value,
+            tipo_lote=TipoLote.NORMAL.value,
+            estado=EstadoLote.EN_PROCESO.value,
+            prioridad=PrioridadLote.NORMAL.value,
+            etapa_actual_id=etapa_inicial.id,
+            fecha_ingreso=ahora,
+            fecha_inicio_proceso=ahora,
+            creado_por_id=usuario_logueado_id,
+            descripcion=f"Retiro iniciado por {repartidor.nombre_completo}",
+            notas_internas=data.notas,
+        )
+        self.db.add(lote)
+        self.db.flush()
+
+        # 5. Crear los registros de LoteEtapa. La etapa inicial arranca
+        #    directo en 'en_proceso' — el operario de recepción solo va a
+        #    finalizarla cuando llegue la ropa (con peso + canastos).
+        etapas_activas = (
+            self.db.query(EtapaProduccion)
+            .filter(EtapaProduccion.activo == True)
+            .order_by(EtapaProduccion.orden.asc())
+            .all()
+        )
+        for i, etapa in enumerate(etapas_activas):
+            es_inicial = etapa.id == etapa_inicial.id
+            lote_etapa = LoteEtapa(
+                lote_id=lote.id,
+                etapa_id=etapa.id,
+                orden=i,
+                estado="en_proceso" if es_inicial else "pendiente",
+                fecha_inicio=ahora if es_inicial else None,
+                responsable_id=repartidor.id if es_inicial else None,
+                observaciones=(
+                    "Recepción auto-iniciada desde recolección — falta pesar y asignar canastos."
+                    if es_inicial else None
+                ),
+            )
+            self.db.add(lote_etapa)
+
         self.db.commit()
         self.db.refresh(pedido)
 
@@ -121,7 +220,10 @@ class RecoleccionService:
             repartidor_id=repartidor.id,
             repartidor_nombre=repartidor.nombre_completo,
             hora_inicio_retiro=ahora,
-            mensaje=f"Recolección iniciada para {cliente.razon_social or 'cliente'}.",
+            mensaje=(
+                f"Recolección iniciada para {cliente.razon_social or 'cliente'}. "
+                f"Lote {lote.numero} en Recepción."
+            ),
         )
 
     def listar_recolecciones_del_dia(
