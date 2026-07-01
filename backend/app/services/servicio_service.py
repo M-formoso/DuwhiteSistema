@@ -298,7 +298,22 @@ def update_lista_precios(db: Session, lista: ListaPrecios, data: ListaPreciosUpd
 
 
 def delete_lista_precios(db: Session, lista: ListaPrecios) -> None:
-    """Elimina (soft delete) una lista de precios."""
+    """
+    Elimina (soft delete) una lista de precios.
+
+    Además renombra el código a `<codigo>~<id_short>` para liberarlo. El
+    índice único de PostgreSQL sobre `codigo` no filtra por `activa`, así
+    que si se dejara el código original quedaría "reservado" y bloquearía
+    a otra lista activa de usarlo (bug de UniqueViolation 500 al editar).
+    El sufijo `~xxxxxxxx` es único y ocupa 9 chars — dentro de los 20 del
+    campo mientras el código original tenga hasta 11.
+    """
+    id_short = str(lista.id)[:8]
+    marker = f"~{id_short}"
+    if marker not in (lista.codigo or ""):
+        max_original = 20 - len(marker)
+        original = (lista.codigo or "")[:max_original]
+        lista.codigo = f"{original}{marker}"
     lista.activa = False
     db.commit()
 

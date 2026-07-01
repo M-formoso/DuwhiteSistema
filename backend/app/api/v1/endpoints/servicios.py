@@ -6,6 +6,7 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user
@@ -374,7 +375,23 @@ def actualizar_lista_precios(
                 detail=f"Ya existe una lista activa con el código {data.codigo}"
             )
 
-    lista = servicio_service.update_lista_precios(db, lista, data)
+    try:
+        lista = servicio_service.update_lista_precios(db, lista, data)
+    except IntegrityError as exc:
+        db.rollback()
+        # El índice único global de `codigo` puede chocar con una lista
+        # soft-deleted (activa=false) que quedó "reservando" el código.
+        # Delete debería liberar el código (marker ~) pero puede haber
+        # data antigua sin el marker. Damos un 400 accionable.
+        if "ix_listas_precios_codigo" in str(exc.orig):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"El código {data.codigo} está ocupado por una lista "
+                    "eliminada. Contactá al administrador para liberarlo."
+                ),
+            ) from exc
+        raise
     response = ListaPreciosResponse.model_validate(lista)
     response.cantidad_items = servicio_service.contar_items_lista(db, lista.id)
     return response
