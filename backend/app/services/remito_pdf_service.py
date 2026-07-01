@@ -138,10 +138,19 @@ def _get_env():
     )
 
 
-def generar_pdf(db: Session, remito: Remito, con_precios: bool = False) -> bytes:
+def generar_pdf(
+    db: Session,
+    remito: Remito,
+    con_precios: bool = False,
+    preview_preimpreso: bool = False,
+) -> bytes:
     """Renderiza el remito a PDF y devuelve los bytes.
 
-    Si con_precios=True, agrega columna de subtotal por ítem y el TOTAL al pie.
+    - con_precios=True: agrega columna de subtotal por ítem y TOTAL al pie.
+    - preview_preimpreso=True: dibuja los cuadros del papel preimpreso
+      (DUWHITE, RETIRO, FECHA, CANTIDAD, DETALLE) en tono cyan claro para
+      ver en pantalla que los datos variables encajan. Solo para preview,
+      NO usar en la impresión real sobre el papel preimpreso.
     """
     try:
         from weasyprint import HTML
@@ -194,6 +203,7 @@ def generar_pdf(db: Session, remito: Remito, con_precios: bool = False) -> bytes
             items_overflow=items_overflow,
             copias=["ORIGINAL", "DUPLICADO"],
             con_precios=con_precios,
+            preview_preimpreso=preview_preimpreso,
             total_fmt=_format_monto(remito.total),
             # Coordenadas (mm)
             page_width_mm=PAGE_WIDTH_MM,

@@ -151,11 +151,119 @@
             color: #777;
             font-family: "Courier New", monospace;
         }
+
+        /* ==== MODO PREVIEW ====
+           Solo se activa con ?preview=true. Dibuja los cuadros y textos
+           del papel preimpreso en un tono cyan claro para poder verificar
+           en pantalla que los datos variables caen donde tienen que caer,
+           sin gastar papel real. NO afecta la impresión sobre el papel
+           preimpreso (basta con imprimir sin ?preview=true). */
+        {% if preview_preimpreso %}
+        .mock {
+            position: absolute;
+            border: 0.4mm solid #00959f;
+            color: #00959f;
+            font-family: Arial, sans-serif;
+        }
+        .mock-logo {
+            top: 8mm; left: 4mm;
+            font-weight: 900;
+            letter-spacing: 2px;
+            font-size: 18pt;
+            border: none;
+        }
+        .mock-logo small {
+            display: block;
+            font-size: 8pt;
+            font-weight: 600;
+            letter-spacing: 3px;
+            margin-top: 1mm;
+        }
+        .mock-retiro {
+            top: 6mm; left: 55mm;
+            width: 50mm; height: 12mm;
+            padding: 2mm;
+            font-weight: 900;
+            font-size: 14pt;
+            letter-spacing: 3px;
+            background: rgba(0, 149, 159, 0.08);
+            border-radius: 1mm;
+        }
+        .mock-retiro small {
+            display: block;
+            font-size: 5pt;
+            letter-spacing: 1px;
+            margin-top: 0.5mm;
+            font-weight: 400;
+        }
+        .mock-fecha-caja {
+            top: 20mm; left: 60mm;
+            width: 40mm; height: 10mm;
+            border-radius: 1mm;
+        }
+        .mock-fecha-caja::before {
+            content: "FECHA";
+            position: absolute;
+            top: 1mm; left: 2mm;
+            font-size: 5pt;
+            letter-spacing: 1px;
+        }
+        .mock-cliente-caja {
+            top: 36mm; left: 2mm;
+            width: 145mm; height: 14mm;
+            border-radius: 1mm;
+        }
+        .mock-tabla {
+            top: 55mm; left: 2mm;
+            width: 145mm; height: 105mm;
+            border-radius: 1mm;
+        }
+        .mock-tabla-headers {
+            top: 55mm; left: 2mm;
+            width: 145mm; height: 8mm;
+            border-bottom: 0.3mm solid #00959f;
+            border-left: 0.4mm solid #00959f;
+            border-right: 0.4mm solid #00959f;
+            border-top: 0.4mm solid #00959f;
+            background: rgba(0, 149, 159, 0.05);
+            display: flex;
+            align-items: center;
+            font-size: 6pt;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+        .mock-tabla-headers .cant-label {
+            width: 24mm;
+            text-align: center;
+            border-right: 0.3mm solid #00959f;
+        }
+        .mock-tabla-headers .det-label {
+            flex: 1;
+            text-align: center;
+        }
+        .mock-total-caja {
+            top: 163mm; left: 2mm;
+            width: 145mm; height: 16mm;
+            border-radius: 1mm;
+        }
+        {% endif %}
     </style>
 </head>
 <body>
     {% for copia in copias %}
     <div class="hoja {{ copia|lower }}">
+        {% if preview_preimpreso %}
+        <div class="mock mock-logo">DUWHITE<small>LAVADERO INDUSTRIAL</small></div>
+        <div class="mock mock-retiro">X RETIRO<small>DOCUMENTO NO VALIDO COMO FACTURA</small></div>
+        <div class="mock mock-fecha-caja"></div>
+        <div class="mock mock-cliente-caja"></div>
+        <div class="mock mock-tabla"></div>
+        <div class="mock mock-tabla-headers">
+            <span class="cant-label">CANTIDAD</span>
+            <span class="det-label">DETALLE</span>
+        </div>
+        <div class="mock mock-total-caja"></div>
+        {% endif %}
         <div class="fecha">{{ fecha_formateada }}</div>
         <div class="cliente-overlay{% if remito_anulado %} anulado{% endif %}">
             {% if remito_anulado %}ANULADO{% else %}{{ cliente_nombre }}{% endif %}
