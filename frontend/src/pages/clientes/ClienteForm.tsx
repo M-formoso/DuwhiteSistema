@@ -133,6 +133,20 @@ export default function ClienteFormPage() {
     }
   }, [cliente, reset]);
 
+  // Radix Select no re-renderiza el display cuando el value se setea antes
+  // de que exista el <SelectItem> correspondiente. Si cliente resuelve
+  // antes que listasPrecios (o al revés), el reset queda con la lista
+  // cargada en el form state pero el select visualmente dice "Sin lista".
+  // Re-aplicar el valor cuando ambos ya están disponibles fuerza el sync.
+  useEffect(() => {
+    if (
+      cliente?.lista_precios_id &&
+      listasPrecios.items.some((l) => l.id === cliente.lista_precios_id)
+    ) {
+      setValue('lista_precios_id', cliente.lista_precios_id);
+    }
+  }, [cliente?.lista_precios_id, listasPrecios.items, setValue]);
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: (data: ClienteCreate) => clienteService.createCliente(data),
