@@ -197,6 +197,54 @@ class EmpleadoService:
         self.db.commit()
         return True
 
+    def desvincular_empleado(
+        self,
+        empleado_id: UUID,
+        fecha_egreso: Optional[date] = None,
+        motivo: Optional[str] = None,
+    ) -> Optional[Empleado]:
+        """
+        Desvincula un empleado preservando su historial (asistencias,
+        nómina, jornales). Marca estado=desvinculado, activo=False y
+        registra fecha_egreso. El motivo se agrega a notas.
+        """
+        empleado = self.get_empleado(empleado_id)
+        if not empleado:
+            return None
+
+        empleado.estado = EstadoEmpleado.DESVINCULADO.value
+        empleado.activo = False
+        empleado.fecha_egreso = fecha_egreso or date.today()
+
+        if motivo:
+            marca = f"\n[Desvinculado {empleado.fecha_egreso}] {motivo}"
+            empleado.notas = (empleado.notas or "") + marca
+
+        self.db.commit()
+        self.db.refresh(empleado)
+        return empleado
+
+    def reactivar_empleado(self, empleado_id: UUID) -> Optional[Empleado]:
+        """
+        Reactiva un empleado desvinculado. Deja fecha_ingreso original,
+        borra fecha_egreso y devuelve estado a activo. Notas quedan
+        intactas como historial.
+        """
+        empleado = self.get_empleado(empleado_id)
+        if not empleado:
+            return None
+
+        empleado.estado = EstadoEmpleado.ACTIVO.value
+        empleado.activo = True
+        empleado.fecha_egreso = None
+
+        marca = f"\n[Reactivado {date.today()}]"
+        empleado.notas = (empleado.notas or "") + marca
+
+        self.db.commit()
+        self.db.refresh(empleado)
+        return empleado
+
     # ==================== ASISTENCIA ====================
 
     def registrar_asistencia(

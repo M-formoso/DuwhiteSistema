@@ -35,6 +35,8 @@ import { toast } from 'sonner';
 import {
   getEmpleado,
   deleteEmpleado,
+  desvincularEmpleado,
+  reactivarEmpleado,
   getAsistencias,
   getMovimientosNomina,
   createMovimientoNomina,
@@ -76,6 +78,11 @@ export default function EmpleadoDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDesvincularModal, setShowDesvincularModal] = useState(false);
+  const [desvincularForm, setDesvincularForm] = useState<{ fecha: string; motivo: string }>({
+    fecha: getLocalDateString(new Date()),
+    motivo: '',
+  });
   const [showMovimientoModal, setShowMovimientoModal] = useState(false);
   const [showPagoModal, setShowPagoModal] = useState(false);
   const [selectedMovimiento, setSelectedMovimiento] = useState<string | null>(null);
@@ -126,6 +133,32 @@ export default function EmpleadoDetailPage() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Error al eliminar empleado');
+    },
+  });
+
+  const desvincularMutation = useMutation({
+    mutationFn: (data: { fecha_egreso?: string | null; motivo?: string | null }) =>
+      desvincularEmpleado(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['empleado', id] });
+      queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      toast.success('Empleado desvinculado. Pasó a la lista de inactivos.');
+      setShowDesvincularModal(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al desvincular');
+    },
+  });
+
+  const reactivarMutation = useMutation({
+    mutationFn: () => reactivarEmpleado(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['empleado', id] });
+      queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      toast.success('Empleado reactivado.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Error al reactivar');
     },
   });
 
@@ -294,7 +327,7 @@ export default function EmpleadoDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link
             to={`/empleados/${id}/editar`}
             className="inline-flex items-center gap-2 px-4 py-2 border border-input rounded-lg text-text-primary hover:bg-muted transition-colors"
@@ -302,6 +335,24 @@ export default function EmpleadoDetailPage() {
             <Edit className="w-4 h-4" />
             Editar
           </Link>
+          {empleado.estado === 'desvinculado' ? (
+            <button
+              onClick={() => reactivarMutation.mutate()}
+              disabled={reactivarMutation.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-60"
+            >
+              <UserCheck className="w-4 h-4" />
+              Reactivar
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowDesvincularModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-600 rounded-lg hover:bg-amber-500/20 transition-colors"
+            >
+              <XCircle className="w-4 h-4" />
+              Desvincular
+            </button>
+          )}
           <button
             onClick={() => setShowDeleteModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
@@ -311,6 +362,23 @@ export default function EmpleadoDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Banner de desvinculado */}
+      {empleado.estado === 'desvinculado' && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-800">Empleado desvinculado</p>
+            <p className="text-amber-700">
+              Fecha de egreso:{' '}
+              <span className="font-medium">
+                {empleado.fecha_egreso ? formatDate(empleado.fecha_egreso) : '—'}
+              </span>
+              . Su historial de asistencias, jornales y nómina se conserva.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
@@ -946,6 +1014,77 @@ export default function EmpleadoDetailPage() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   'Eliminar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Desvincular */}
+      {showDesvincularModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-amber-500/10 rounded-full">
+                <XCircle className="w-6 h-6 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary">Desvincular empleado</h3>
+            </div>
+            <p className="text-muted-foreground mb-4">
+              <strong className="text-text-primary">{empleado.nombre_completo}</strong> va a pasar
+              a la lista de inactivos. Su historial se conserva y podés reactivarlo cuando quieras.
+            </p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-sm font-medium text-text-primary block mb-1.5">
+                  Fecha de egreso
+                </label>
+                <input
+                  type="date"
+                  value={desvincularForm.fecha}
+                  onChange={(e) =>
+                    setDesvincularForm((f) => ({ ...f, fecha: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 border border-input rounded-lg bg-background"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-text-primary block mb-1.5">
+                  Motivo (opcional)
+                </label>
+                <textarea
+                  value={desvincularForm.motivo}
+                  onChange={(e) =>
+                    setDesvincularForm((f) => ({ ...f, motivo: e.target.value }))
+                  }
+                  placeholder="Renuncia, fin de contrato, etc."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-input rounded-lg bg-background resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDesvincularModal(false)}
+                className="px-4 py-2 border border-input rounded-lg text-text-primary hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() =>
+                  desvincularMutation.mutate({
+                    fecha_egreso: desvincularForm.fecha || null,
+                    motivo: desvincularForm.motivo.trim() || null,
+                  })
+                }
+                disabled={desvincularMutation.isPending}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+              >
+                {desvincularMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Desvincular'
                 )}
               </button>
             </div>

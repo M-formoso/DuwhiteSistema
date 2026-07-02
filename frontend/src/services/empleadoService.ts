@@ -52,6 +52,19 @@ export async function deleteEmpleado(empleadoId: string): Promise<void> {
   await api.delete(`/empleados/${empleadoId}`);
 }
 
+export async function desvincularEmpleado(
+  empleadoId: string,
+  data: { fecha_egreso?: string | null; motivo?: string | null } = {},
+): Promise<Empleado> {
+  const response = await api.post(`/empleados/${empleadoId}/desvincular`, data);
+  return response.data;
+}
+
+export async function reactivarEmpleado(empleadoId: string): Promise<Empleado> {
+  const response = await api.post(`/empleados/${empleadoId}/reactivar`);
+  return response.data;
+}
+
 export async function getDepartamentos(): Promise<string[]> {
   const response = await api.get('/empleados/departamentos');
   return response.data;

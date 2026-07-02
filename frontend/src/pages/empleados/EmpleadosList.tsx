@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, Users, Filter, Phone, Mail, Building2 } from 'lucide-react';
+import { Plus, Search, Users, Filter, Phone, Mail, Building2, UserX } from 'lucide-react';
 
 import { formatDateAR } from '@/lib/utils';
 import { getEmpleados, getDepartamentos } from '@/services/empleadoService';
@@ -70,13 +70,22 @@ export default function EmpleadosListPage() {
           <h1 className="text-2xl font-bold text-text-primary">Empleados</h1>
           <p className="text-muted-foreground">Gestión del personal de la empresa</p>
         </div>
-        <Link
-          to="/empleados/nuevo"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo Empleado
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            to="/empleados/inactivos"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-input rounded-lg text-text-primary hover:bg-muted transition-colors"
+          >
+            <UserX className="w-4 h-4" />
+            Inactivos
+          </Link>
+          <Link
+            to="/empleados/nuevo"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo Empleado
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

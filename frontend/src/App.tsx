@@ -50,7 +50,7 @@ import FacturaManualPage from '@/pages/facturacion/FacturaManualPage';
 import TesoreriaPage from '@/pages/tesoreria/TesoreriaPage';
 
 // Empleados
-import { EmpleadosListPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage, NominaPage, LiquidacionesPage } from '@/pages/empleados';
+import { EmpleadosListPage, EmpleadosInactivosPage, EmpleadoFormPage, EmpleadoDetailPage, AsistenciaPage, NominaPage, LiquidacionesPage } from '@/pages/empleados';
 import JornalesPage from '@/pages/empleados/JornalesPage';
 
 // Órdenes de Compra
@@ -213,6 +213,7 @@ function App() {
 
         {/* Empleados */}
         <Route path="/empleados" element={<EmpleadosListPage />} />
+        <Route path="/empleados/inactivos" element={<EmpleadosInactivosPage />} />
         <Route path="/empleados/nuevo" element={<EmpleadoFormPage />} />
         <Route path="/empleados/:id" element={<EmpleadoDetailPage />} />
         <Route path="/empleados/:id/editar" element={<EmpleadoFormPage />} />

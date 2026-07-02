@@ -289,6 +289,7 @@ class EmpleadoList(BaseModel):
     puesto: Optional[str]
     departamento: Optional[str]
     fecha_ingreso: date
+    fecha_egreso: Optional[date] = None
     telefono: Optional[str]
     email: Optional[str]
     tipo_contratacion: str
@@ -296,6 +297,12 @@ class EmpleadoList(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class DesvincularRequest(BaseModel):
+    """Payload para desvincular un empleado."""
+    fecha_egreso: Optional[date] = None  # None → hoy
+    motivo: Optional[str] = None
 
 
 # ==================== ASISTENCIA ====================

@@ -17,6 +17,7 @@ from app.models.usuario import Usuario
 from app.services.empleado_service import EmpleadoService
 from app.schemas.empleado import (
     EmpleadoCreate, EmpleadoUpdate, EmpleadoResponse, EmpleadoList,
+    DesvincularRequest,
     AsistenciaCreate, AsistenciaResponse,
     JornadaLaboralResponse, JornadaJustificacion,
     MovimientoNominaCreate, MovimientoNominaResponse, PagarMovimientoRequest,
@@ -121,6 +122,7 @@ def list_empleados(
             puesto=e.puesto,
             departamento=e.departamento,
             fecha_ingreso=e.fecha_ingreso,
+            fecha_egreso=e.fecha_egreso,
             telefono=e.telefono,
             email=e.email,
             tipo_contratacion=e.tipo_contratacion,
@@ -248,6 +250,48 @@ def delete_empleado(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Empleado no encontrado"
         )
+
+
+@router.post("/{empleado_id}/desvincular", response_model=EmpleadoResponse)
+def desvincular_empleado(
+    empleado_id: UUID,
+    data: DesvincularRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Desvincula (marca como inactivo) un empleado preservando su
+    historial. Deja de aparecer en la lista principal.
+    """
+    service = EmpleadoService(db)
+    empleado = service.desvincular_empleado(
+        empleado_id=empleado_id,
+        fecha_egreso=data.fecha_egreso,
+        motivo=data.motivo,
+    )
+    if not empleado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empleado no encontrado",
+        )
+    return _empleado_to_response(empleado)
+
+
+@router.post("/{empleado_id}/reactivar", response_model=EmpleadoResponse)
+def reactivar_empleado(
+    empleado_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Reactiva un empleado desvinculado."""
+    service = EmpleadoService(db)
+    empleado = service.reactivar_empleado(empleado_id)
+    if not empleado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empleado no encontrado",
+        )
+    return _empleado_to_response(empleado)
 
 
 # ==================== ASISTENCIA ====================

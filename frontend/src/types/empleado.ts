@@ -103,6 +103,7 @@ export interface EmpleadoList {
   puesto: string | null;
   departamento: string | null;
   fecha_ingreso: string;
+  fecha_egreso: string | null;
   telefono: string | null;
   email: string | null;
   tipo_contratacion: TipoContratacion;
