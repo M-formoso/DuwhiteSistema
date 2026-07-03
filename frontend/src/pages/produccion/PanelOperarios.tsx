@@ -28,6 +28,8 @@ import {
   Calculator,
   Plus,
   Undo2,
+  Search,
+  Eye,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -377,12 +379,29 @@ function EtapaColumna({
   esSuperadmin: boolean;
   getLoteEnProceso: (lote: KanbanLote) => boolean;
 }) {
+  const [search, setSearch] = useState('');
+  const [showDetalleModal, setShowDetalleModal] = useState(false);
+
   const lotesAtrasados = columna.lotes.filter((l) => l.esta_atrasado).length;
   const lotesUrgentes = columna.lotes.filter((l) => l.prioridad === 'urgente').length;
   const totalKgColumna = columna.lotes.reduce(
     (sum, l) => sum + (Number(l.peso_entrada_kg) || 0),
     0,
   );
+
+  // Filtro por número o cliente (case-insensitive)
+  const searchNorm = search.trim().toLowerCase();
+  const lotesFiltrados = searchNorm
+    ? columna.lotes.filter(
+        (l) =>
+          l.numero.toLowerCase().includes(searchNorm) ||
+          (l.cliente_nombre || '').toLowerCase().includes(searchNorm),
+      )
+    : columna.lotes;
+
+  // La columna FIN (Finalizada) recibe además el botón "Ver detalle"
+  // porque suele acumular muchos lotes esperando conteo.
+  const esUltimaPosta = columna.etapa_codigo === 'FIN';
 
   return (
     <div className="flex-shrink-0 w-[88vw] sm:w-[320px] lg:w-[340px] flex flex-col h-full">
@@ -433,6 +452,40 @@ function EtapaColumna({
         )}
       </div>
 
+      {/* Buscador/filtro fijo por columna */}
+      <div className="bg-gray-100 px-2 sm:px-3 pt-2 pb-1.5 border-b border-gray-200 flex items-center gap-1.5">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar lote o cliente…"
+            className="w-full pl-7 pr-7 py-1.5 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100"
+            >
+              <X className="h-3.5 w-3.5 text-gray-500" />
+            </button>
+          )}
+        </div>
+        {esUltimaPosta && columna.lotes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDetalleModal(true)}
+            className="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition-all"
+            title="Ver detalle de todos los lotes"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ver detalle</span>
+          </button>
+        )}
+      </div>
+
       {/* Lista de lotes */}
       <div className="bg-gray-100 rounded-b-2xl p-2 sm:p-3 flex-1 overflow-y-auto space-y-3">
         {columna.lotes.length === 0 ? (
@@ -440,8 +493,13 @@ function EtapaColumna({
             <Package className="h-16 w-16 mb-4 opacity-50" />
             <span className="text-xl">Sin lotes en esta etapa</span>
           </div>
+        ) : lotesFiltrados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+            <Search className="h-8 w-8 mb-2 opacity-50" />
+            <span className="text-sm">Sin resultados para «{search}»</span>
+          </div>
         ) : (
-          columna.lotes.map((lote) => (
+          lotesFiltrados.map((lote) => (
             <LoteCard
               key={lote.id}
               lote={lote}
@@ -457,6 +515,167 @@ function EtapaColumna({
             />
           ))
         )}
+      </div>
+
+      {/* Modal Ver detalle (solo en FIN) */}
+      {esUltimaPosta && (
+        <VerDetalleModal
+          open={showDetalleModal}
+          onClose={() => setShowDetalleModal(false)}
+          columna={columna}
+          onIrConteo={onIrConteo}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Modal "Ver detalle" para la columna FIN — lista consolidada,
+ * ordenable, buscable, click abre el conteo.
+ */
+function VerDetalleModal({
+  open,
+  onClose,
+  columna,
+  onIrConteo,
+}: {
+  open: boolean;
+  onClose: () => void;
+  columna: KanbanColumna;
+  onIrConteo: (lote: KanbanLote, columna: KanbanColumna) => void;
+}) {
+  const [search, setSearch] = useState('');
+
+  if (!open) return null;
+
+  const searchNorm = search.trim().toLowerCase();
+  const lotes = searchNorm
+    ? columna.lotes.filter(
+        (l) =>
+          l.numero.toLowerCase().includes(searchNorm) ||
+          (l.cliente_nombre || '').toLowerCase().includes(searchNorm),
+      )
+    : columna.lotes;
+
+  const totalKg = lotes.reduce((s, l) => s + (Number(l.peso_entrada_kg) || 0), 0);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between p-4 sm:p-5 rounded-t-2xl text-white"
+          style={{ backgroundColor: columna.etapa_color }}
+        >
+          <div className="min-w-0">
+            <h3 className="text-lg sm:text-xl font-bold">{columna.etapa_nombre}</h3>
+            <p className="text-white/90 text-xs sm:text-sm">
+              {lotes.length} de {columna.lotes.length} lote{columna.lotes.length === 1 ? '' : 's'}
+              {totalKg > 0 && (
+                <> · <Scale className="inline h-3 w-3 mb-0.5" /> {formatNumber(totalKg, 1)} kg</>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+            aria-label="Cerrar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div className="p-3 sm:p-4 border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por número o cliente…"
+              autoFocus
+              className="w-full pl-9 pr-9 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-100"
+              >
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2">
+          {lotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+              <Package className="h-10 w-10 mb-2 opacity-50" />
+              <span>{searchNorm ? `Sin resultados para «${search}»` : 'Sin lotes'}</span>
+            </div>
+          ) : (
+            lotes.map((lote) => (
+              <button
+                key={lote.id}
+                type="button"
+                onClick={() => {
+                  onIrConteo(lote, columna);
+                  onClose();
+                }}
+                className="w-full text-left flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-bold text-base">{lote.numero}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                      {PRIORIDAD_CONFIG[lote.prioridad].label}
+                    </span>
+                    {lote.esta_atrasado && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 flex items-center gap-0.5">
+                        <AlertTriangle className="h-3 w-3" />
+                        atrasado
+                      </span>
+                    )}
+                  </div>
+                  {lote.cliente_nombre && (
+                    <div className="text-sm text-gray-600 truncate flex items-center gap-1 mt-0.5">
+                      <User className="h-3 w-3 flex-shrink-0" />
+                      {lote.cliente_nombre}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                    {lote.peso_entrada_kg && (
+                      <span className="flex items-center gap-0.5">
+                        <Scale className="h-3 w-3" />
+                        {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
+                      </span>
+                    )}
+                    {lote.cantidad_prendas && (
+                      <span className="flex items-center gap-0.5">
+                        <Shirt className="h-3 w-3" />
+                        {lote.cantidad_prendas}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold group-hover:bg-emerald-700">
+                  <Calculator className="h-4 w-4" />
+                  Conteo
+                </div>
+              </button>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
