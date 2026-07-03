@@ -88,6 +88,15 @@ OVERFLOW_NOTE_TOP_MM = 165
 COORD_NUMERO_TOP_MM = 188
 COORD_NUMERO_LEFT_MM = 0
 
+# --- Offsets asimétricos por hoja ---
+# El papel preimpreso a veces tiene los recuadros de la mitad izquierda
+# (ORIGINAL) y la derecha (DUPLICADO) desplazados entre sí, aunque el
+# template renderiza ambas hojas idénticas. Estos offsets compensan esa
+# diferencia sin afectar el bloque simétrico.
+# Negativo = mover a la izquierda; positivo = mover a la derecha.
+COORD_ORIGINAL_ITEMS_OFFSET_MM = -12   # items+total en ORIGINAL van más a la izquierda
+COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
+
 
 def _cantidad_para_mostrar() -> int:
     """Cuántos ítems entran físicamente en una hoja."""
@@ -229,6 +238,8 @@ def generar_pdf(
             coord_total_top_mm=COORD_TOTAL_TOP_MM,
             coord_total_left_mm=COORD_TOTAL_LEFT_MM,
             coord_total_width_mm=COORD_TOTAL_WIDTH_MM,
+            coord_original_items_offset_mm=COORD_ORIGINAL_ITEMS_OFFSET_MM,
+            coord_duplicado_fecha_offset_mm=COORD_DUPLICADO_FECHA_OFFSET_MM,
         )
     except Exception as exc:
         logger.exception(

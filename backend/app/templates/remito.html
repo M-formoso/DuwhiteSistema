@@ -47,6 +47,15 @@
         .hoja.original  { left: 0; }
         .hoja.duplicado { left: {{ hoja_width_mm }}mm; }
 
+        /* Compensa que el papel preimpreso puede tener los recuadros de
+           ORIGINAL y DUPLICADO ligeramente desplazados entre sí. Estos
+           offsets se aplican al bloque de datos variables solo en la hoja
+           que lo necesita. Ajustar valores en remito_pdf_service.py. */
+        .hoja.original .items         { margin-left: {{ coord_original_items_offset_mm }}mm; }
+        .hoja.original .total-overlay { margin-left: {{ coord_original_items_offset_mm }}mm; }
+        .hoja.original .overflow-note { margin-left: {{ coord_original_items_offset_mm }}mm; }
+        .hoja.duplicado .fecha        { margin-left: {{ coord_duplicado_fecha_offset_mm }}mm; }
+
         .fecha {
             position: absolute;
             top: {{ coord_fecha_top_mm }}mm;
