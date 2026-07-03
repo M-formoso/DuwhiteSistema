@@ -1485,6 +1485,13 @@ class ProduccionService:
         # Verificar si hay siguiente etapa
         lote = self.get_lote(lote_id)
         if lote:
+            # Si el lote todavía no tiene peso_entrada_kg (típico cuando se
+            # creó desde Recolección sin peso pre-cargado), heredar el peso
+            # ingresado al finalizar esta etapa. Sin esto, el card no muestra
+            # peso y las etapas siguientes (División) no pueden repartir.
+            if data.peso_kg is not None and not lote.peso_entrada_kg:
+                lote.peso_entrada_kg = data.peso_kg
+
             siguiente_etapa_override = getattr(data, 'siguiente_etapa_id', None)
             if siguiente_etapa_override:
                 # Override explícito: saltar a la etapa indicada (ej: LAV → SEC, saltando DIV)
