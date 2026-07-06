@@ -23,6 +23,32 @@ from app.models.producto_lavado import ProductoLavado
 from app.models.remito import Remito, DetalleRemito, EstadoRemito
 
 
+# ==================== ANÁLISIS DE PRODUCCIÓN ====================
+#
+# Los datos históricos previos al arranque real de producción están
+# contaminados con lotes de prueba / de calibración inicial que
+# distorsionan promedios (tiempos por posta, throughput, ciclo de lote,
+# esperas entre etapas). Por eso las funciones de analítica de
+# producción aplican esta fecha de corte como mínimo, incluso si el
+# usuario elige un rango que abarca fechas anteriores.
+#
+# Si en el futuro se quiere volver a incluir data histórica, bajar esta
+# fecha o setear a None para no filtrar.
+FECHA_CORTE_ANALITICA_PRODUCCION: Optional[date] = date(2026, 7, 1)
+
+
+def _aplicar_corte_analitica(fecha_desde: Optional[date]) -> Optional[date]:
+    """
+    Devuelve la fecha_desde efectiva a usar en análisis de producción,
+    aplicando FECHA_CORTE_ANALITICA_PRODUCCION como piso.
+    """
+    if FECHA_CORTE_ANALITICA_PRODUCCION is None:
+        return fecha_desde
+    if fecha_desde is None:
+        return FECHA_CORTE_ANALITICA_PRODUCCION
+    return max(fecha_desde, FECHA_CORTE_ANALITICA_PRODUCCION)
+
+
 # ==================== REPORTES DE VENTAS ====================
 
 def get_ventas_por_periodo(
@@ -151,6 +177,11 @@ def get_produccion_por_periodo(
     agrupacion: str = "dia"
 ) -> List[Dict[str, Any]]:
     """Reporte de producción por período"""
+    # Filtro histórico: nunca considerar lotes anteriores al arranque real.
+    fecha_desde = _aplicar_corte_analitica(fecha_desde) or fecha_desde
+    if fecha_hasta < fecha_desde:
+        fecha_hasta = fecha_desde
+
     if agrupacion == "dia":
         group_expr = func.date(LoteProduccion.fecha_ingreso)
     elif agrupacion == "semana":
@@ -290,6 +321,11 @@ def get_produccion_por_etapa(
     """Reporte de tiempo en cada etapa de producción"""
     from app.models.etapa_produccion import EtapaProduccion
 
+    # Filtro histórico: nunca considerar lotes anteriores al arranque real.
+    fecha_desde = _aplicar_corte_analitica(fecha_desde) or fecha_desde
+    if fecha_hasta < fecha_desde:
+        fecha_hasta = fecha_desde
+
     result = db.query(
         LoteEtapa.etapa_id,
         EtapaProduccion.nombre.label('etapa_nombre'),
@@ -327,6 +363,11 @@ def get_produccion_por_usuario_posta(
     """Producción (kg y lotes) por operario y etapa en el rango dado."""
     from app.models.usuario import Usuario
     from app.models.etapa_produccion import EtapaProduccion
+
+    # Filtro histórico: nunca considerar lotes anteriores al arranque real.
+    fecha_desde = _aplicar_corte_analitica(fecha_desde) or fecha_desde
+    if fecha_hasta < fecha_desde:
+        fecha_hasta = fecha_desde
 
     inicio = datetime.combine(fecha_desde, datetime.min.time())
     fin = datetime.combine(fecha_hasta, datetime.max.time())
@@ -455,6 +496,11 @@ def get_tiempo_muerto_produccion(
     tiempo_muerto = (última fecha_fin etapa - primera fecha_inicio etapa) - Σ(duración de cada etapa)
     Solo para lotes con al menos una etapa completada en el rango.
     """
+    # Filtro histórico: nunca considerar etapas anteriores al arranque real.
+    fecha_desde = _aplicar_corte_analitica(fecha_desde) or fecha_desde
+    if fecha_hasta < fecha_desde:
+        fecha_hasta = fecha_desde
+
     inicio = datetime.combine(fecha_desde, datetime.min.time())
     fin = datetime.combine(fecha_hasta, datetime.max.time())
 
@@ -550,10 +596,17 @@ def get_analitica_produccion(
     - throughput_kg_hora: kg finalizados / horas activas (sólo si hay actividad)
 
     Y un bloque `totales` con sumatorias globales del rango.
+
+    Nota: aplica FECHA_CORTE_ANALITICA_PRODUCCION como piso — los lotes
+    y etapas previos a esa fecha no cuentan ni siquiera si el rango
+    pedido los incluye. Esto mantiene los promedios limpios.
     """
     hoy = date.today()
-    desde = fecha_desde or hoy
+    desde = _aplicar_corte_analitica(fecha_desde or hoy)
     hasta = fecha_hasta or hoy
+    # Si el rango pedido queda totalmente por debajo del corte, no hay data.
+    if desde and hasta < desde:
+        hasta = desde
     inicio_rango = datetime.combine(desde, datetime.min.time())
     fin_rango = datetime.combine(hasta, datetime.max.time())
     ahora = datetime.utcnow()
