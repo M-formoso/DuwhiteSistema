@@ -53,6 +53,35 @@ export async function getKanbanBoard(): Promise<KanbanBoard> {
   return response.data;
 }
 
+// ==================== PORTAL CLIENTE ====================
+
+export async function getMiKanban(): Promise<KanbanBoard> {
+  const response = await api.get('/produccion/mi-kanban');
+  return response.data;
+}
+
+export interface MiHistorialLote {
+  id: string;
+  numero: string;
+  fecha_ingreso: string | null;
+  fecha_fin_proceso: string | null;
+  peso_entrada_kg: number | null;
+  peso_salida_kg: number | null;
+  cantidad_prendas: number | null;
+  descripcion: string | null;
+  estado: string;
+}
+
+export async function getMiHistorial(params?: {
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<PaginatedResponse<MiHistorialLote>> {
+  const response = await api.get('/produccion/mi-historial', { params });
+  return response.data;
+}
+
 export interface PedidoEnCamino {
   id: string;
   numero: string;
@@ -501,6 +530,9 @@ export const produccionService = {
   getLotesArchivados,
   desarchivarLote,
   purgarArchivados,
+  // Portal cliente
+  getMiKanban,
+  getMiHistorial,
 };
 
 export default produccionService;

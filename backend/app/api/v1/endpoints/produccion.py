@@ -110,6 +110,87 @@ def obtener_kanban(
     return service.get_kanban_board(etapas_permitidas=etapas_permitidas)
 
 
+@router.get("/mi-kanban", response_model=KanbanBoard)
+def obtener_mi_kanban(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Vista Kanban read-only para el portal del cliente. Devuelve solo los
+    lotes en curso del cliente logueado. Solo accesible con rol=cliente
+    y cliente_id asociado al usuario.
+    """
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+    service = ProduccionService(db)
+    return service.get_kanban_board(cliente_id=current_user.cliente_id)
+
+
+@router.get("/mi-historial", response_model=PaginatedResponse)
+def obtener_mi_historial(
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Historial de lotes entregados/completados del cliente logueado.
+    Solo accesible con rol=cliente.
+    """
+    from app.models.lote_produccion import LoteProduccion, EstadoLote
+    from sqlalchemy import and_
+
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+
+    query = db.query(LoteProduccion).filter(
+        LoteProduccion.cliente_id == current_user.cliente_id,
+        LoteProduccion.activo == True,
+        LoteProduccion.estado == EstadoLote.COMPLETADO.value,
+    )
+    if fecha_desde:
+        query = query.filter(LoteProduccion.fecha_fin_proceso >= fecha_desde)
+    if fecha_hasta:
+        # incluye el día completo
+        from datetime import datetime as _dt, time as _time
+        query = query.filter(
+            LoteProduccion.fecha_fin_proceso <= _dt.combine(fecha_hasta, _time.max)
+        )
+
+    total = query.count()
+    lotes = (
+        query.order_by(LoteProduccion.fecha_fin_proceso.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    items = [
+        {
+            "id": str(l.id),
+            "numero": l.numero,
+            "fecha_ingreso": l.fecha_ingreso.isoformat() if l.fecha_ingreso else None,
+            "fecha_fin_proceso": (
+                l.fecha_fin_proceso.isoformat() if l.fecha_fin_proceso else None
+            ),
+            "peso_entrada_kg": float(l.peso_entrada_kg) if l.peso_entrada_kg else None,
+            "peso_salida_kg": float(l.peso_salida_kg) if l.peso_salida_kg else None,
+            "cantidad_prendas": l.cantidad_prendas,
+            "descripcion": l.descripcion,
+            "estado": l.estado,
+        }
+        for l in lotes
+    ]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
 @router.get("/pedidos-en-camino", response_model=List[Dict[str, Any]])
 def obtener_pedidos_en_camino(
     db: Session = Depends(get_db),

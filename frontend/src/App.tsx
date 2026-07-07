@@ -75,7 +75,7 @@ import { PerfilPage } from '@/pages/perfil';
 import UsuariosPage from '@/pages/usuarios/UsuariosPage';
 
 // Portal Cliente
-import { MisPedidosPage, MiCuentaCorrientePage } from '@/pages/cliente-portal';
+import { MisPedidosPage, MiCuentaCorrientePage, MiProduccionPage } from '@/pages/cliente-portal';
 
 // Servicios y Listas de Precios
 import { ServiciosPage, ListaPreciosDetail, MatrizPreciosPage } from '@/pages/servicios';
@@ -240,6 +240,7 @@ function App() {
         {/* Portal Cliente */}
         <Route path="/mis-pedidos" element={<MisPedidosPage />} />
         <Route path="/mi-cuenta" element={<MiCuentaCorrientePage />} />
+        <Route path="/mi-produccion" element={<MiProduccionPage />} />
       </Route>
 
       {/* Página de acceso no autorizado */}

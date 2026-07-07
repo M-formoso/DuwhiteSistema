@@ -1749,12 +1749,20 @@ class ProduccionService:
 
     # ==================== KANBAN ====================
 
-    def get_kanban_board(self, etapas_permitidas: Optional[List[str]] = None) -> KanbanBoard:
+    def get_kanban_board(
+        self,
+        etapas_permitidas: Optional[List[str]] = None,
+        cliente_id: Optional[UUID] = None,
+    ) -> KanbanBoard:
         """
         Obtiene el tablero Kanban.
 
         Si `etapas_permitidas` es una lista no vacía, filtra las columnas
         a solo esas etapas (por id como string). Lista vacía o None = todas.
+
+        Si `cliente_id` está seteado, solo devuelve lotes de ese cliente.
+        Usado por el portal de clientes para mostrar la vista read-only
+        del progreso de sus propios lotes.
         """
         etapas = self.get_etapas(solo_activas=True)
         if etapas_permitidas:
@@ -1767,7 +1775,7 @@ class ProduccionService:
 
         for etapa in etapas:
             # Obtener lotes en esta etapa
-            lotes_en_etapa = (
+            base_query = (
                 self.db.query(LoteProduccion)
                 .options(
                     joinedload(LoteProduccion.cliente),
@@ -1783,7 +1791,11 @@ class ProduccionService:
                         EstadoLote.PAUSADO.value,
                     ]),
                 )
-                .order_by(
+            )
+            if cliente_id is not None:
+                base_query = base_query.filter(LoteProduccion.cliente_id == cliente_id)
+            lotes_en_etapa = (
+                base_query.order_by(
                     LoteProduccion.prioridad.desc(),
                     LoteProduccion.fecha_ingreso,
                 )

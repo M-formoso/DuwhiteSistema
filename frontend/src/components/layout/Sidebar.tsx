@@ -236,6 +236,11 @@ const getClientNavSections = (clienteId: string | null): NavSection[] => [
         icon: Building2,
       },
       {
+        title: 'Mi Producción',
+        href: '/mi-produccion',
+        icon: Factory,
+      },
+      {
         title: 'Mis Pedidos',
         href: '/mis-pedidos',
         icon: FileText,
