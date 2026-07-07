@@ -1859,6 +1859,7 @@ class ProduccionService:
                 etapas_resumen: List[KanbanEtapaResumen] = []
                 peso_total_procesado: Optional[Decimal] = None
                 duracion_total = 0
+                fecha_llegada_etapa: Optional[datetime] = None
                 if etapa.codigo == "FIN":
                     etapas_previas = (
                         self.db.query(LoteEtapa)
@@ -1881,6 +1882,10 @@ class ProduccionService:
                         ))
                         duracion_total += le.duracion_minutos
                     peso_total_procesado = lote.peso_entrada_kg
+                    # Cuándo llegó a Finalizada = fecha_fin de la última etapa
+                    # productiva completada (Secado o Planchado).
+                    if etapas_previas:
+                        fecha_llegada_etapa = etapas_previas[-1].fecha_fin
 
                 kanban_lotes.append(KanbanLote(
                     id=lote.id,
@@ -1904,6 +1909,7 @@ class ProduccionService:
                     etapas_resumen=etapas_resumen,
                     peso_total_procesado_kg=peso_total_procesado,
                     duracion_total_minutos=duracion_total,
+                    fecha_llegada_etapa=fecha_llegada_etapa,
                 ))
 
                 total_lotes += 1

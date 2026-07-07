@@ -277,6 +277,11 @@ class KanbanLote(BaseModel):
     etapas_resumen: List[KanbanEtapaResumen] = []
     peso_total_procesado_kg: Optional[Decimal] = None
     duracion_total_minutos: int = 0
+    # Fecha en la que el lote llegó a la etapa actual. Se calcula como el
+    # fecha_fin de la última LoteEtapa completada antes de la actual. Usado
+    # típicamente en la posta FIN para saber cuándo terminó de procesarse
+    # cada lote y ordenar los pendientes de conteo.
+    fecha_llegada_etapa: Optional[datetime] = None
 
     class Config:
         from_attributes = True

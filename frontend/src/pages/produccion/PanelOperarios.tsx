@@ -653,7 +653,7 @@ function VerDetalleModal({
                       {lote.cliente_nombre}
                     </div>
                   )}
-                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-1 flex-wrap">
                     {lote.peso_entrada_kg && (
                       <span className="flex items-center gap-0.5">
                         <Scale className="h-3 w-3" />
@@ -664,6 +664,22 @@ function VerDetalleModal({
                       <span className="flex items-center gap-0.5">
                         <Shirt className="h-3 w-3" />
                         {lote.cantidad_prendas}
+                      </span>
+                    )}
+                    {lote.fecha_llegada_etapa && (
+                      <span
+                        className="flex items-center gap-0.5 text-emerald-700 font-medium"
+                        title="Fecha y hora en que el lote terminó su última etapa productiva"
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        Terminó{' '}
+                        {new Date(lote.fecha_llegada_etapa).toLocaleString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </span>
                     )}
                   </div>

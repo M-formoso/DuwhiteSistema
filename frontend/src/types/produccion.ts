@@ -217,6 +217,9 @@ export interface KanbanLote {
   etapas_resumen?: KanbanEtapaResumen[];
   peso_total_procesado_kg?: number | null;
   duracion_total_minutos?: number;
+  // Fecha/hora en que el lote llegó a la etapa actual (fecha_fin de la
+  // última etapa productiva completada). Solo se llena en posta FIN.
+  fecha_llegada_etapa?: string | null;
 }
 
 export interface KanbanColumna {
