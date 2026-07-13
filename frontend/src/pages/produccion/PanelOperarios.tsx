@@ -30,17 +30,12 @@ import {
   Undo2,
   Search,
   Eye,
+  Loader2,
+  Check,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 import { produccionService } from '@/services/produccionService';
@@ -731,7 +726,8 @@ function PinModalGrande({
   requiereMaquina?: boolean;
   tipoMaquina?: string | null;
 }) {
-  const [selectedOperario, setSelectedOperario] = useState('');
+  const [operarioReconocido, setOperarioReconocido] = useState<{ id: string; nombre: string } | null>(null);
+  const [identificando, setIdentificando] = useState(false);
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [pesoKg, setPesoKg] = useState('');
   const [pin, setPin] = useState('');
@@ -787,12 +783,6 @@ function PinModalGrande({
   const muestraMaquinasSimple = requiereMaquinaIniciar && !muestraMaquinasLav;
   const tipoMaquinaQuery = muestraMaquinasLav ? 'lavadora' : (tipoMaquinaEfectivo || undefined);
 
-  const { data: operarios } = useQuery({
-    queryKey: ['operarios-pin'],
-    queryFn: () => produccionService.getOperariosConPin(),
-    enabled: open,
-  });
-
   const { data: canastos = [] } = useQuery<CanastoDisponible[]>({
     queryKey: ['canastos-disponibles'],
     queryFn: () => canastoService.getDisponibles(),
@@ -815,7 +805,8 @@ function PinModalGrande({
 
   useEffect(() => {
     if (open) {
-      setSelectedOperario('');
+      setOperarioReconocido(null);
+      setIdentificando(false);
       setSelectedCanastos([]);
       setPesoKg('');
       setPin('');
@@ -823,6 +814,7 @@ function PinModalGrande({
       setSelectedRoutingId(null);
       setMaquinasConKg([]);
       setSelectedMaquinas([]);
+      setTimeout(() => pinInputRef.current?.focus(), 50);
     }
   }, [open]);
 
@@ -832,15 +824,46 @@ function PinModalGrande({
     }
   }, [muestraMaquinasLav, lavadoras]);
 
+  // Auto-identifica al operario cuando el PIN alcanza 4-6 dígitos.
+  // Why: se eliminó el paso de seleccionar operario — el PIN identifica solo.
   useEffect(() => {
-    if (selectedOperario && pinInputRef.current) {
-      pinInputRef.current.focus();
+    if (!open) return;
+    if (pin.length < 4) {
+      if (operarioReconocido) setOperarioReconocido(null);
+      return;
     }
-  }, [selectedOperario]);
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIdentificando(true);
+      try {
+        const result = await produccionService.identificarPorPin(pin);
+        if (cancelled) return;
+        if (result.valido && result.operario_id && result.operario_nombre) {
+          setOperarioReconocido({ id: result.operario_id, nombre: result.operario_nombre });
+          setError('');
+        } else {
+          setOperarioReconocido(null);
+          const esAmbiguo = result.mensaje?.toLowerCase().includes('duplicado');
+          if (pin.length >= 6 || esAmbiguo) {
+            setError(result.mensaje || 'PIN no reconocido');
+          } else {
+            setError('');
+          }
+        }
+      } catch {
+        if (!cancelled) setOperarioReconocido(null);
+      } finally {
+        if (!cancelled) setIdentificando(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pin, open]);
 
   const handleConfirm = async () => {
-    if (!selectedOperario) { setError('Seleccione un operario'); return; }
-    if (pin.length < 4) { setError('Ingrese su PIN completo'); return; }
+    if (!operarioReconocido) { setError('Ingresá tu PIN para identificarte'); return; }
     if (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) {
       setError('Debe ingresar el peso del lote');
       return;
@@ -869,35 +892,25 @@ function PinModalGrande({
     setError('');
 
     try {
-      const result = await produccionService.validarPin(selectedOperario, pin);
-      if (result.valido) {
-        const maqKgFinal = muestraMaquinasLav && maquinasConKg.some((m) => m.kg > 0)
-          ? maquinasConKg.filter((m) => m.kg > 0)
-          : undefined;
-        onConfirm(
-          result.operario_id,
-          result.operario_nombre,
-          selectedCanastos.length > 0 ? selectedCanastos : undefined,
-          pesoKg ? parseFloat(pesoKg) : undefined,
-          selectedRoutingId ?? undefined,
-          maqKgFinal,
-          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
-        );
-        setPin('');
-        setSelectedOperario('');
-        setSelectedCanastos([]);
-        setPesoKg('');
-        setSelectedRoutingId(null);
-        setMaquinasConKg([]);
-        setSelectedMaquinas([]);
-      } else {
-        setError(result.mensaje || 'PIN incorrecto');
-        setPin('');
-        pinInputRef.current?.focus();
-      }
-    } catch {
-      setError('Error al validar');
+      const maqKgFinal = muestraMaquinasLav && maquinasConKg.some((m) => m.kg > 0)
+        ? maquinasConKg.filter((m) => m.kg > 0)
+        : undefined;
+      onConfirm(
+        operarioReconocido.id,
+        operarioReconocido.nombre,
+        selectedCanastos.length > 0 ? selectedCanastos : undefined,
+        pesoKg ? parseFloat(pesoKg) : undefined,
+        selectedRoutingId ?? undefined,
+        maqKgFinal,
+        selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
+      );
       setPin('');
+      setOperarioReconocido(null);
+      setSelectedCanastos([]);
+      setPesoKg('');
+      setSelectedRoutingId(null);
+      setMaquinasConKg([]);
+      setSelectedMaquinas([]);
     } finally {
       setLoading(false);
     }
@@ -910,7 +923,7 @@ function PinModalGrande({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && selectedOperario && pin.length >= 4) handleConfirm();
+    if (e.key === 'Enter' && operarioReconocido) handleConfirm();
   };
 
   if (!open) return null;
@@ -943,29 +956,7 @@ function PinModalGrande({
         </div>
 
         <div className="space-y-3 sm:space-y-4 flex-1 overflow-y-auto pr-1">
-          {/* Selector de operario */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Operario
-            </label>
-            <Select value={selectedOperario} onValueChange={setSelectedOperario}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar operario..." />
-              </SelectTrigger>
-              <SelectContent>
-                {operarios?.map((op) => (
-                  <SelectItem key={op.id} value={op.id}>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      {op.nombre}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Input de PIN + teclado numérico en pantalla */}
+          {/* Input de PIN + teclado numérico en pantalla — identifica al operario */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-700">
@@ -994,14 +985,29 @@ function PinModalGrande({
                 setError('');
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Ingrese PIN de 4-6 dígitos"
-              disabled={!selectedOperario}
-              className="w-full h-12 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono bg-white disabled:bg-gray-50"
+              placeholder="Ingresá tu PIN de 4-6 dígitos"
+              autoFocus
+              className="w-full h-12 px-3 rounded-md border border-gray-300 text-center text-2xl tracking-widest font-mono bg-white"
             />
-            {!selectedOperario && (
-              <p className="text-xs text-amber-600">
-                Seleccioná un operario para habilitar el PIN.
-              </p>
+            {identificando && pin.length >= 4 && !operarioReconocido && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Identificando...
+              </div>
+            )}
+            {operarioReconocido && (
+              <div className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-green-700 font-medium">Operario identificado</div>
+                  <div className="text-sm font-semibold text-green-900 truncate flex items-center gap-1">
+                    <User className="h-3.5 w-3.5" />
+                    {operarioReconocido.nombre}
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Teclado numérico en pantalla — funciona sin depender del teclado del SO */}
@@ -1011,7 +1017,6 @@ function PinModalGrande({
                 <button
                   key={d}
                   type="button"
-                  disabled={!selectedOperario}
                   onClick={() => {
                     if (pin.length >= 6) return;
                     setPin((p) => p + d);
@@ -1025,7 +1030,7 @@ function PinModalGrande({
               ))}
               <button
                 type="button"
-                disabled={!selectedOperario || pin.length === 0}
+                disabled={pin.length === 0}
                 onClick={() => {
                   setPin('');
                   setError('');
@@ -1037,7 +1042,6 @@ function PinModalGrande({
               </button>
               <button
                 type="button"
-                disabled={!selectedOperario}
                 onClick={() => {
                   if (pin.length >= 6) return;
                   setPin((p) => p + '0');
@@ -1050,7 +1054,7 @@ function PinModalGrande({
               </button>
               <button
                 type="button"
-                disabled={!selectedOperario || pin.length === 0}
+                disabled={pin.length === 0}
                 onClick={() => {
                   setPin((p) => p.slice(0, -1));
                   setError('');
@@ -1272,8 +1276,7 @@ function PinModalGrande({
             onClick={handleConfirm}
             disabled={
               loading ||
-              !selectedOperario ||
-              pin.length < 4 ||
+              !operarioReconocido ||
               (requierePeso && (!pesoKg || parseFloat(pesoKg) <= 0)) ||
               (esRecepcion && selectedCanastos.length === 0) ||
               (muestraRouting && !selectedRoutingId)
