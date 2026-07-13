@@ -397,6 +397,19 @@ class ValidarPinResponse(BaseModel):
     mensaje: Optional[str] = None
 
 
+class IdentificarPorPinRequest(BaseModel):
+    """Schema para identificar un operario a partir de su PIN."""
+    pin: str = Field(..., min_length=4, max_length=6)
+
+
+class IdentificarPorPinResponse(BaseModel):
+    """Schema de respuesta al identificar por PIN."""
+    valido: bool
+    operario_id: Optional[UUID] = None
+    operario_nombre: Optional[str] = None
+    mensaje: Optional[str] = None
+
+
 # ==================== LOTE DIRECTO (con cargo automático a CC) ====================
 
 class LoteDirectoCreate(BaseModel):

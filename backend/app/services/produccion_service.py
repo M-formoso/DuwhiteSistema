@@ -105,6 +105,39 @@ class ProduccionService:
                 return (False, error)
         return (True, None)
 
+    def identificar_operario_por_pin(
+        self,
+        pin: str,
+    ) -> Tuple[bool, Optional[UUID], Optional[str], Optional[str]]:
+        """
+        Identifica un operario a partir de su PIN, sin necesidad de seleccionarlo antes.
+
+        Returns:
+            Tuple[valido, operario_id, operario_nombre, mensaje_error]
+        """
+        roles_operativos = ["operador", "jefe_produccion", "administrador", "superadmin"]
+        candidatos = (
+            self.db.query(Usuario)
+            .filter(
+                Usuario.activo == True,
+                Usuario.pin == pin,
+                Usuario.rol.in_(roles_operativos),
+            )
+            .all()
+        )
+
+        if len(candidatos) == 0:
+            return (False, None, None, "PIN no reconocido")
+
+        if len(candidatos) > 1:
+            # PIN duplicado: no se puede identificar unívocamente.
+            # Why: el modelo permite PINs repetidos, así que hay que avisar al admin
+            # en lugar de aceptar cualquiera de los usuarios.
+            return (False, None, None, "PIN duplicado, contactá al administrador")
+
+        usuario = candidatos[0]
+        return (True, usuario.id, usuario.nombre_completo, None)
+
     def get_operarios_con_pin(self) -> List[dict]:
         """Obtiene lista de operarios que tienen PIN configurado."""
         usuarios = (

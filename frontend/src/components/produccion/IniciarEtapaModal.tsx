@@ -17,24 +17,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 
 import { produccionService } from '@/services/produccionService';
 import { canastoService } from '@/services/canastoService';
-
-interface Operario {
-  id: string;
-  nombre: string;
-  rol: string;
-}
 
 interface Canasto {
   id: string;
@@ -106,8 +93,9 @@ export function IniciarEtapaModal({
   requiereMaquina = false,
   tipoMaquina = null,
 }: IniciarEtapaModalProps) {
-  const [operarioId, setOperarioId] = useState<string>('');
   const [pin, setPin] = useState('');
+  const [operarioReconocido, setOperarioReconocido] = useState<{ id: string; nombre: string } | null>(null);
+  const [identificando, setIdentificando] = useState(false);
   const [selectedCanastos, setSelectedCanastos] = useState<string[]>([]);
   const [pesoKg, setPesoKg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -163,12 +151,6 @@ export function IniciarEtapaModal({
   const muestraMaquinasSimple = requiereMaquinaIniciar && !muestraMaquinasLav;
   const tipoMaquinaQuery = muestraMaquinasLav ? 'lavadora' : (tipoMaquinaEfectivo || undefined);
 
-  const { data: operarios = [], isLoading: loadingOperarios } = useQuery<Operario[]>({
-    queryKey: ['operarios-con-pin'],
-    queryFn: () => produccionService.getOperariosConPin(),
-    enabled: open,
-  });
-
   const { data: canastosDisponibles = [], isLoading: loadingCanastos, refetch: refetchCanastos } = useQuery<Canasto[]>({
     queryKey: ['canastos-disponibles'],
     queryFn: () => canastoService.getDisponibles(),
@@ -200,8 +182,9 @@ export function IniciarEtapaModal({
 
   useEffect(() => {
     if (open) {
-      setOperarioId('');
       setPin('');
+      setOperarioReconocido(null);
+      setIdentificando(false);
       setSelectedCanastos([]);
       setPesoKg('');
       setError(null);
@@ -209,8 +192,54 @@ export function IniciarEtapaModal({
       setMaquinasConKg([]);
       setSelectedMaquinas([]);
       if (muestraCanastos) refetchCanastos();
+      // Foco automático al PIN al abrir el modal.
+      setTimeout(() => pinInputRef.current?.focus(), 50);
     }
   }, [open, refetchCanastos, muestraCanastos]);
+
+  // Auto-identifica al operario mientras el PIN se va tipeando.
+  // Why: el operario ya no selecciona su nombre — el PIN identifica solo.
+  // Con debounce de 300ms para no golpear el backend cada tecla y para dar
+  // margen a PINs de 5 o 6 dígitos antes de decidir que es inválido.
+  useEffect(() => {
+    if (!open) return;
+    if (pin.length < 4) {
+      if (operarioReconocido) setOperarioReconocido(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIdentificando(true);
+      try {
+        const result = await produccionService.identificarPorPin(pin);
+        if (cancelled) return;
+        if (result.valido && result.operario_id && result.operario_nombre) {
+          setOperarioReconocido({ id: result.operario_id, nombre: result.operario_nombre });
+          setError(null);
+        } else {
+          setOperarioReconocido(null);
+          // Solo mostrar error cuando el PIN llegó al largo máximo o
+          // cuando el backend indica ambigüedad (PIN duplicado).
+          const esAmbiguo = result.mensaje?.toLowerCase().includes('duplicado');
+          if (pin.length >= 6 || esAmbiguo) {
+            setError(result.mensaje || 'PIN no reconocido');
+          } else {
+            setError(null);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setOperarioReconocido(null);
+        }
+      } finally {
+        if (!cancelled) setIdentificando(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pin, open]);
 
   // Init lavadoras rows when list loads
   useEffect(() => {
@@ -225,15 +254,9 @@ export function IniciarEtapaModal({
     }
   }, [canastosDelLote, esEtapaRecepcion]);
 
-  useEffect(() => {
-    if (operarioId && pinInputRef.current) {
-      pinInputRef.current.focus();
-    }
-  }, [operarioId]);
-
   const handleValidate = async () => {
-    if (!operarioId || !pin) {
-      setError('Selecciona un operario e ingresa el PIN');
+    if (!operarioReconocido) {
+      setError('Ingresá tu PIN para identificarte');
       return;
     }
     if (esEtapaRecepcion && selectedCanastos.length === 0) {
@@ -264,35 +287,26 @@ export function IniciarEtapaModal({
     setError(null);
 
     try {
-      const result = await produccionService.validarPin(operarioId, pin);
-      if (result.valido) {
-        const maqConKgFiltradas = maquinasConKg
-          .filter(m => m.kg && parseFloat(m.kg) > 0)
-          .map(m => ({ maquinaId: m.maquinaId, kg: parseFloat(m.kg) }));
-        onConfirm(
-          operarioId,
-          result.operario_nombre,
-          selectedCanastos.length > 0 ? selectedCanastos : undefined,
-          pesoKg ? parseFloat(pesoKg) : undefined,
-          selectedRoutingId ?? undefined,
-          maqConKgFiltradas.length > 0 ? maqConKgFiltradas : undefined,
-          selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
-        );
-        onClose();
-      } else {
-        setError(result.mensaje || 'PIN incorrecto');
-        setPin('');
-        pinInputRef.current?.focus();
-      }
-    } catch {
-      setError('Error al validar el PIN');
+      const maqConKgFiltradas = maquinasConKg
+        .filter(m => m.kg && parseFloat(m.kg) > 0)
+        .map(m => ({ maquinaId: m.maquinaId, kg: parseFloat(m.kg) }));
+      onConfirm(
+        operarioReconocido.id,
+        operarioReconocido.nombre,
+        selectedCanastos.length > 0 ? selectedCanastos : undefined,
+        pesoKg ? parseFloat(pesoKg) : undefined,
+        selectedRoutingId ?? undefined,
+        maqConKgFiltradas.length > 0 ? maqConKgFiltradas : undefined,
+        selectedMaquinas.length > 0 ? selectedMaquinas : undefined,
+      );
+      onClose();
     } finally {
       setValidating(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && operarioId && pin.length >= 4) {
+    if (e.key === 'Enter' && operarioReconocido) {
       handleValidate();
     }
   };
@@ -323,7 +337,7 @@ export function IniciarEtapaModal({
         ];
       })();
 
-  const isLoading = loadingOperarios || loadingCanastos || loadingCanastosLote || loadingMaquinas;
+  const isLoading = loadingCanastos || loadingCanastosLote || loadingMaquinas;
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
@@ -344,40 +358,7 @@ export function IniciarEtapaModal({
         </DialogHeader>
 
         <div className="space-y-3 sm:space-y-4 py-3 sm:py-4 overflow-y-auto flex-1">
-          {/* Selector de operario */}
-          <div className="space-y-2">
-            <Label>Operario</Label>
-            {loadingOperarios ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Cargando operarios...
-              </div>
-            ) : operarios.length === 0 ? (
-              <Alert>
-                <AlertDescription>
-                  No hay operarios con PIN configurado.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Select value={operarioId || undefined} onValueChange={setOperarioId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar operario..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {operarios.map((op) => (
-                    <SelectItem key={op.id} value={op.id}>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        {op.nombre}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {/* PIN */}
+          {/* PIN — identifica al operario automáticamente */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>PIN</Label>
@@ -404,12 +385,30 @@ export function IniciarEtapaModal({
                 setError(null);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Ingrese PIN de 4-6 dígitos"
-              disabled={!operarioId}
+              placeholder="Ingresá tu PIN de 4-6 dígitos"
+              autoFocus
               className="text-center text-2xl tracking-widest font-mono"
             />
-            {!operarioId && (
-              <p className="text-xs text-amber-600">Seleccioná un operario para habilitar el PIN.</p>
+            {/* Estado de identificación */}
+            {identificando && pin.length >= 4 && !operarioReconocido && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Identificando...
+              </div>
+            )}
+            {operarioReconocido && (
+              <div className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-green-700 font-medium">Operario identificado</div>
+                  <div className="text-sm font-semibold text-green-900 truncate flex items-center gap-1">
+                    <User className="h-3.5 w-3.5" />
+                    {operarioReconocido.nombre}
+                  </div>
+                </div>
+              </div>
             )}
             {mostrarTeclado && (
             <div className="grid grid-cols-3 gap-2 pt-1 select-none">
@@ -417,7 +416,6 @@ export function IniciarEtapaModal({
                 <button
                   key={d}
                   type="button"
-                  disabled={!operarioId}
                   onClick={() => {
                     if (pin.length >= 6) return;
                     setPin((p) => p + d);
@@ -431,7 +429,7 @@ export function IniciarEtapaModal({
               ))}
               <button
                 type="button"
-                disabled={!operarioId || pin.length === 0}
+                disabled={pin.length === 0}
                 onClick={() => { setPin(''); setError(null); }}
                 className="h-12 rounded-md border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
                            active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -440,7 +438,6 @@ export function IniciarEtapaModal({
               </button>
               <button
                 type="button"
-                disabled={!operarioId}
                 onClick={() => {
                   if (pin.length >= 6) return;
                   setPin((p) => p + '0');
@@ -453,7 +450,7 @@ export function IniciarEtapaModal({
               </button>
               <button
                 type="button"
-                disabled={!operarioId || pin.length === 0}
+                disabled={pin.length === 0}
                 onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); }}
                 className="h-12 rounded-md border border-gray-300 bg-white text-base font-semibold text-gray-700
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -697,8 +694,7 @@ export function IniciarEtapaModal({
             onClick={handleValidate}
             className="w-full sm:w-auto"
             disabled={
-              !operarioId ||
-              pin.length < 4 ||
+              !operarioReconocido ||
               validating ||
               isLoading ||
               (esEtapaRecepcion && selectedCanastos.length === 0) ||

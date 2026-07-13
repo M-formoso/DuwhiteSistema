@@ -42,6 +42,8 @@ from app.schemas.lote_produccion import (
     KanbanBoard,
     ValidarPinRequest,
     ValidarPinResponse,
+    IdentificarPorPinRequest,
+    IdentificarPorPinResponse,
     LoteDirectoCreate,
     LoteDirectoResponse,
     DividirLoteRequest,
@@ -93,6 +95,24 @@ def validar_pin_operario(
         valido=valido,
         operario_id=data.operario_id,
         operario_nombre=nombre or "Desconocido",
+        mensaje=error,
+    )
+
+
+@router.post("/identificar-por-pin", response_model=IdentificarPorPinResponse)
+def identificar_operario_por_pin(
+    data: IdentificarPorPinRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Identifica un operario a partir de su PIN, sin selección previa."""
+    service = ProduccionService(db)
+    valido, operario_id, nombre, error = service.identificar_operario_por_pin(data.pin)
+
+    return IdentificarPorPinResponse(
+        valido=valido,
+        operario_id=operario_id,
+        operario_nombre=nombre,
         mensaje=error,
     )
 

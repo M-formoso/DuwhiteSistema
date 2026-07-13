@@ -46,6 +46,20 @@ export async function validarPin(
   return response.data;
 }
 
+export interface IdentificarPorPinResponse {
+  valido: boolean;
+  operario_id: string | null;
+  operario_nombre: string | null;
+  mensaje?: string | null;
+}
+
+export async function identificarPorPin(
+  pin: string
+): Promise<IdentificarPorPinResponse> {
+  const response = await api.post('/produccion/identificar-por-pin', { pin });
+  return response.data;
+}
+
 // ==================== KANBAN ====================
 
 export async function getKanbanBoard(): Promise<KanbanBoard> {
@@ -489,6 +503,7 @@ export const produccionService = {
   // Operarios y PIN
   getOperariosConPin,
   validarPin,
+  identificarPorPin,
   // Kanban
   getKanbanBoard,
   getPedidosEnCamino,
