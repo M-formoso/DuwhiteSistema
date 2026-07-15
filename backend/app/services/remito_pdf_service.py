@@ -97,6 +97,23 @@ COORD_NUMERO_LEFT_MM = 0
 COORD_ORIGINAL_ITEMS_OFFSET_MM = -12   # items+total en ORIGINAL van más a la izquierda
 COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 
+# --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
+# El alimentador de la impresora rara vez agarra el papel exactamente igual
+# entre corridas, y los lotes de papel preimpreso pueden variar 5–15mm en
+# la posición de los cuadros. Estos dos números corren TODO el bloque de
+# datos variables (fecha + cliente + items + total + nota + número) para
+# compensar sin tener que tocar cada COORD_* individual.
+#
+#   GLOBAL_OFFSET_X_MM > 0  → mueve todo a la DERECHA
+#   GLOBAL_OFFSET_X_MM < 0  → mueve todo a la IZQUIERDA
+#   GLOBAL_OFFSET_Y_MM > 0  → mueve todo hacia ABAJO
+#   GLOBAL_OFFSET_Y_MM < 0  → mueve todo hacia ARRIBA
+#
+# También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
+# para probar en vivo sin reiniciar el backend.
+GLOBAL_OFFSET_X_MM = 0
+GLOBAL_OFFSET_Y_MM = 15   # calibrado 2026-07-13: papel entraba ~15mm alto
+
 
 def _cantidad_para_mostrar() -> int:
     """Cuántos ítems entran físicamente en una hoja."""
@@ -152,6 +169,8 @@ def generar_pdf(
     remito: Remito,
     con_precios: bool = False,
     preview_preimpreso: bool = False,
+    offset_x_mm: Optional[float] = None,
+    offset_y_mm: Optional[float] = None,
 ) -> bytes:
     """Renderiza el remito a PDF y devuelve los bytes.
 
@@ -160,6 +179,8 @@ def generar_pdf(
       (DUWHITE, RETIRO, FECHA, CANTIDAD, DETALLE) en tono cyan claro para
       ver en pantalla que los datos variables encajan. Solo para preview,
       NO usar en la impresión real sobre el papel preimpreso.
+    - offset_x_mm / offset_y_mm: overrides puntuales para calibración en
+      vivo (si None, se usan GLOBAL_OFFSET_X_MM / GLOBAL_OFFSET_Y_MM).
     """
     try:
         from weasyprint import HTML
@@ -171,6 +192,9 @@ def generar_pdf(
 
     env = _get_env()
     template = env.get_template("remito.html")
+
+    off_x = GLOBAL_OFFSET_X_MM if offset_x_mm is None else float(offset_x_mm)
+    off_y = GLOBAL_OFFSET_Y_MM if offset_y_mm is None else float(offset_y_mm)
 
     max_items = _cantidad_para_mostrar()
     detalles = list(remito.detalles or [])
@@ -214,29 +238,31 @@ def generar_pdf(
             con_precios=con_precios,
             preview_preimpreso=preview_preimpreso,
             total_fmt=_format_monto(remito.total),
-            # Coordenadas (mm)
+            # Coordenadas (mm) — cada TOP y LEFT ya lleva sumado el offset
+            # global (off_x / off_y). Así toda calibración global se aplica
+            # con dos números y no hay que tocar cada COORD_* individual.
             page_width_mm=PAGE_WIDTH_MM,
             page_height_mm=PAGE_HEIGHT_MM,
             hoja_width_mm=HOJA_WIDTH_MM,
-            coord_fecha_top_mm=COORD_FECHA_TOP_MM,
-            coord_fecha_left_mm=COORD_FECHA_LEFT_MM,
+            coord_fecha_top_mm=COORD_FECHA_TOP_MM + off_y,
+            coord_fecha_left_mm=COORD_FECHA_LEFT_MM + off_x,
             coord_fecha_width_mm=COORD_FECHA_WIDTH_MM,
-            coord_items_top_mm=COORD_ITEMS_TOP_MM,
-            coord_cantidad_left_mm=COORD_CANTIDAD_LEFT_MM,
+            coord_items_top_mm=COORD_ITEMS_TOP_MM + off_y,
+            coord_cantidad_left_mm=COORD_CANTIDAD_LEFT_MM + off_x,
             coord_cantidad_width_mm=COORD_CANTIDAD_WIDTH_MM,
             coord_detalle_gap_mm=COORD_DETALLE_GAP_MM,
             coord_precio_width_mm=COORD_PRECIO_WIDTH_MM,
             coord_items_width_mm=COORD_ITEMS_WIDTH_MM,
             coord_items_height_mm=COORD_ITEMS_HEIGHT_MM,
             coord_row_height_mm=COORD_ROW_HEIGHT_MM,
-            overflow_note_top_mm=OVERFLOW_NOTE_TOP_MM,
-            coord_cliente_top_mm=COORD_CLIENTE_TOP_MM,
-            coord_cliente_left_mm=COORD_CLIENTE_LEFT_MM,
+            overflow_note_top_mm=OVERFLOW_NOTE_TOP_MM + off_y,
+            coord_cliente_top_mm=COORD_CLIENTE_TOP_MM + off_y,
+            coord_cliente_left_mm=COORD_CLIENTE_LEFT_MM + off_x,
             coord_cliente_width_mm=COORD_CLIENTE_WIDTH_MM,
-            coord_numero_top_mm=COORD_NUMERO_TOP_MM,
-            coord_numero_left_mm=COORD_NUMERO_LEFT_MM,
-            coord_total_top_mm=COORD_TOTAL_TOP_MM,
-            coord_total_left_mm=COORD_TOTAL_LEFT_MM,
+            coord_numero_top_mm=COORD_NUMERO_TOP_MM + off_y,
+            coord_numero_left_mm=COORD_NUMERO_LEFT_MM + off_x,
+            coord_total_top_mm=COORD_TOTAL_TOP_MM + off_y,
+            coord_total_left_mm=COORD_TOTAL_LEFT_MM + off_x,
             coord_total_width_mm=COORD_TOTAL_WIDTH_MM,
             coord_original_items_offset_mm=COORD_ORIGINAL_ITEMS_OFFSET_MM,
             coord_duplicado_fecha_offset_mm=COORD_DUPLICADO_FECHA_OFFSET_MM,

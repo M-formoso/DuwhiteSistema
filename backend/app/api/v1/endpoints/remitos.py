@@ -169,6 +169,8 @@ def descargar_remito_pdf(
     remito_id: UUID,
     con_precios: bool = Query(False, description="Incluir columna de precios y total"),
     preview: bool = Query(False, description="Dibujar los cuadros del papel preimpreso para preview en pantalla"),
+    off_x: Optional[float] = Query(None, description="Offset horizontal en mm para calibrar el preimpreso (positivo=derecha)"),
+    off_y: Optional[float] = Query(None, description="Offset vertical en mm para calibrar el preimpreso (positivo=abajo)"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
@@ -177,6 +179,8 @@ def descargar_remito_pdf(
     preimpreso DUWHITE (33×20 cm apaisado, original + duplicado).
     Con preview=true agrega el diseño del preimpreso simulado para
     verificar alineación sin gastar papel.
+    off_x / off_y permiten calibrar en vivo el corrimiento global de los
+    datos variables sobre el papel (útil si el alimentador entra distinto).
     """
     from fastapi.responses import Response
 
@@ -185,7 +189,11 @@ def descargar_remito_pdf(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Remito no encontrado")
 
     pdf_bytes = remito_pdf_service.generar_pdf(
-        db, remito, con_precios=con_precios, preview_preimpreso=preview
+        db, remito,
+        con_precios=con_precios,
+        preview_preimpreso=preview,
+        offset_x_mm=off_x,
+        offset_y_mm=off_y,
     )
     return Response(
         content=pdf_bytes,
