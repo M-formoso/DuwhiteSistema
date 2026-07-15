@@ -2,9 +2,9 @@
  * Vista de Recolección — mobile-first.
  *
  * El chico que va a buscar la ropa al cliente entra acá desde su celular,
- * elige el cliente, su nombre de la lista de operarios y escribe su PIN.
- * Al confirmar, queda un pedido "en camino" listo para que recepción lo
- * pese cuando llega al lavadero.
+ * elige el cliente y escribe su PIN. El PIN identifica solo al operario
+ * (sin lista previa) y al confirmar queda un pedido "en camino" listo
+ * para que recepción lo pese cuando llega al lavadero.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -17,6 +17,7 @@ import {
   Loader2,
   Plus,
   Clock,
+  UserCheck,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +28,7 @@ import { clienteService } from '@/services/clienteService';
 import { produccionService } from '@/services/produccionService';
 import { recoleccionService, type RecoleccionItem } from '@/services/recoleccionService';
 
-type Paso = 'cliente' | 'repartidor' | 'pin' | 'confirmado';
+type Paso = 'cliente' | 'pin' | 'confirmado';
 
 export default function RecoleccionPage() {
   const [paso, setPaso] = useState<Paso>('cliente');
@@ -35,6 +36,8 @@ export default function RecoleccionPage() {
   const [clienteSel, setClienteSel] = useState<{ id: string; nombre: string } | null>(null);
   const [repartidorSel, setRepartidorSel] = useState<{ id: string; nombre: string } | null>(null);
   const [pin, setPin] = useState('');
+  const [identificando, setIdentificando] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
   const [confirmacion, setConfirmacion] = useState<{
     cliente: string;
     repartidor: string;
@@ -45,11 +48,6 @@ export default function RecoleccionPage() {
   const { data: clientes = [], isLoading: loadingClientes } = useQuery({
     queryKey: ['clientes-lista'],
     queryFn: () => clienteService.getClientesLista(),
-  });
-
-  const { data: operarios = [], isLoading: loadingOperarios } = useQuery({
-    queryKey: ['operarios-pin'],
-    queryFn: () => produccionService.getOperariosConPin(),
   });
 
   const { data: recoleccionesHoy = [], refetch: refetchRecolecciones } = useQuery({
@@ -101,6 +99,8 @@ export default function RecoleccionPage() {
     setClienteSel(null);
     setRepartidorSel(null);
     setPin('');
+    setPinError(null);
+    setIdentificando(false);
     setConfirmacion(null);
     setPaso('cliente');
   };
@@ -112,12 +112,53 @@ export default function RecoleccionPage() {
   const tecladoBorrar = () => setPin((prev) => prev.slice(0, -1));
   const tecladoLimpiar = () => setPin('');
 
-  // Auto-confirm si el PIN llega a 4 dígitos (modo rápido) — opcional, lo dejo
-  // como botón explícito para evitar errores de tipeo.
-
   useEffect(() => {
-    if (paso === 'pin') setPin('');
+    if (paso === 'pin') {
+      setPin('');
+      setRepartidorSel(null);
+      setPinError(null);
+    }
   }, [paso]);
+
+  // Auto-identifica al operario mientras se tipea el PIN (debounce 300ms).
+  // Mismo patrón que IniciarEtapaModal: el PIN identifica solo, no hay
+  // selección manual previa de la persona.
+  useEffect(() => {
+    if (paso !== 'pin') return;
+    if (pin.length < 4) {
+      if (repartidorSel) setRepartidorSel(null);
+      setPinError(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIdentificando(true);
+      try {
+        const result = await produccionService.identificarPorPin(pin);
+        if (cancelled) return;
+        if (result.valido && result.operario_id && result.operario_nombre) {
+          setRepartidorSel({ id: result.operario_id, nombre: result.operario_nombre });
+          setPinError(null);
+        } else {
+          setRepartidorSel(null);
+          const esAmbiguo = result.mensaje?.toLowerCase().includes('duplicado');
+          if (pin.length >= 6 || esAmbiguo) {
+            setPinError(result.mensaje || 'PIN no reconocido');
+          } else {
+            setPinError(null);
+          }
+        }
+      } catch {
+        if (!cancelled) setRepartidorSel(null);
+      } finally {
+        if (!cancelled) setIdentificando(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pin, paso, repartidorSel]);
 
   return (
     <div className="min-h-[calc(100vh-120px)] max-w-md mx-auto px-3 py-3 space-y-4">
@@ -167,7 +208,7 @@ export default function RecoleccionPage() {
                     type="button"
                     onClick={() => {
                       setClienteSel({ id: c.id, nombre: c.nombre });
-                      setPaso('repartidor');
+                      setPaso('pin');
                     }}
                     className="w-full text-left px-3 py-3 rounded-lg border border-gray-200 active:bg-primary/5 hover:border-primary/40 transition"
                   >
@@ -184,10 +225,10 @@ export default function RecoleccionPage() {
         </Card>
       )}
 
-      {/* Paso 2: Repartidor */}
-      {paso === 'repartidor' && (
+      {/* Paso 2: PIN (identifica al operario automáticamente) */}
+      {paso === 'pin' && (
         <Card>
-          <CardContent className="pt-4 space-y-3">
+          <CardContent className="pt-4 space-y-4">
             <div className="flex items-center gap-2 text-xs">
               <button
                 type="button"
@@ -199,62 +240,8 @@ export default function RecoleccionPage() {
               <span className="text-gray-500">Cliente:</span>
               <span className="font-semibold text-gray-800 truncate">{clienteSel?.nombre}</span>
             </div>
-            <div className="text-sm font-semibold text-gray-700">2. ¿Quién retira?</div>
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto -mx-1 px-1">
-              {loadingOperarios ? (
-                <div className="flex items-center justify-center py-8 text-gray-400">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
-              ) : operarios.length === 0 ? (
-                <div className="text-center py-8 text-sm text-gray-500">
-                  No hay operarios con PIN configurado.
-                </div>
-              ) : (
-                operarios.map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => {
-                      setRepartidorSel({ id: o.id, nombre: o.nombre });
-                      setPaso('pin');
-                    }}
-                    className="w-full text-left px-3 py-3 rounded-lg border border-gray-200 active:bg-primary/5 hover:border-primary/40 transition"
-                  >
-                    <div className="font-semibold text-sm text-gray-900">{o.nombre}</div>
-                    <div className="text-[11px] text-gray-500 capitalize">{o.rol}</div>
-                  </button>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Paso 3: PIN */}
-      {paso === 'pin' && (
-        <Card>
-          <CardContent className="pt-4 space-y-4">
-            <div className="flex items-center gap-2 text-xs flex-wrap">
-              <button
-                type="button"
-                onClick={() => setPaso('repartidor')}
-                className="text-primary underline"
-              >
-                ← cambiar
-              </button>
-              <div className="flex flex-col text-[11px] flex-1 min-w-0">
-                <span className="truncate">
-                  <span className="text-gray-500">Cliente:</span>{' '}
-                  <span className="font-semibold text-gray-800">{clienteSel?.nombre}</span>
-                </span>
-                <span className="truncate">
-                  <span className="text-gray-500">Retira:</span>{' '}
-                  <span className="font-semibold text-gray-800">{repartidorSel?.nombre}</span>
-                </span>
-              </div>
-            </div>
-
-            <div className="text-sm font-semibold text-gray-700">3. Ingresá tu PIN</div>
+            <div className="text-sm font-semibold text-gray-700">2. Ingresá tu PIN</div>
 
             <div className="flex gap-2 justify-center">
               {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -269,6 +256,30 @@ export default function RecoleccionPage() {
                   {pin[i] ? '●' : ''}
                 </div>
               ))}
+            </div>
+
+            {/* Feedback de identificación del operario */}
+            <div className="min-h-[44px]">
+              {identificando ? (
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-500 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Identificando…
+                </div>
+              ) : repartidorSel ? (
+                <div className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm">
+                  <UserCheck className="h-4 w-4 text-green-600 flex-shrink-0" />
+                  <span className="text-gray-600">Retira:</span>
+                  <span className="font-semibold text-green-800 truncate">
+                    {repartidorSel.nombre}
+                  </span>
+                </div>
+              ) : pinError ? (
+                <div className="text-xs text-red-600 text-center py-2">{pinError}</div>
+              ) : (
+                <div className="text-[11px] text-gray-400 text-center py-2">
+                  Tu nombre aparece acá cuando el PIN es válido.
+                </div>
+              )}
             </div>
 
             {/* Teclado numérico grande */}
@@ -309,7 +320,7 @@ export default function RecoleccionPage() {
             <Button
               size="lg"
               className="w-full h-14 text-base font-bold"
-              disabled={pin.length < 4 || iniciarMutation.isPending}
+              disabled={!repartidorSel || iniciarMutation.isPending}
               onClick={() => iniciarMutation.mutate()}
             >
               {iniciarMutation.isPending ? (
