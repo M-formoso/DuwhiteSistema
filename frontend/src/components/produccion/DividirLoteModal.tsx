@@ -88,6 +88,31 @@ export function DividirLoteModal({
   const [pesoPrincipal, setPesoPrincipal] = useState('');
   const [pesoAlternativo, setPesoAlternativo] = useState('');
 
+  // Auto-linkea los dos campos de peso: cuando el usuario cambia UNO,
+  // el otro se completa con (total - ese) para que la suma siempre cuadre
+  // con el peso del lote. Esto evita el error "suma excede peso del lote"
+  // (que aparecía cuando la gente tipeaba el total en los dos campos).
+  const cambiarPesoPrincipal = (valor: string) => {
+    setPesoPrincipal(valor);
+    if (pesoTotalKg > 0) {
+      const v = parseFloat(valor);
+      if (!isNaN(v) && v >= 0 && v <= pesoTotalKg) {
+        const resto = Math.round((pesoTotalKg - v) * 100) / 100;
+        setPesoAlternativo(resto > 0 ? String(resto) : '0');
+      }
+    }
+  };
+  const cambiarPesoAlternativo = (valor: string) => {
+    setPesoAlternativo(valor);
+    if (pesoTotalKg > 0) {
+      const v = parseFloat(valor);
+      if (!isNaN(v) && v >= 0 && v <= pesoTotalKg) {
+        const resto = Math.round((pesoTotalKg - v) * 100) / 100;
+        setPesoPrincipal(resto > 0 ? String(resto) : '0');
+      }
+    }
+  };
+
   const { data: bifurcacionInfo, isLoading: loadingBifurcacion } = useQuery<EtapaBifurcacionInfo>({
     queryKey: ['bifurcacion-info', etapaId],
     queryFn: () => produccionService.getBifurcacionInfo(etapaId),
@@ -239,8 +264,13 @@ export function DividirLoteModal({
     if (modo === 'principal') return !!destPrinId;
     if (modo === 'alternativo') return !!destAltId;
     if (modo === 'dividir') {
-      const p = parseFloat(pesoPrincipal);
-      return p > 0;
+      const p = parseFloat(pesoPrincipal) || 0;
+      const a = parseFloat(pesoAlternativo) || 0;
+      if (p <= 0) return false;
+      // Bloquear si la suma se pasa del peso del lote (evita el error
+      // "suma de pesos excede el peso del lote" del backend).
+      if (pesoTotalKg > 0 && (p + a) > pesoTotalKg + 0.01) return false;
+      return true;
     }
     return false;
   })();
@@ -357,7 +387,7 @@ export function DividirLoteModal({
                           min="0"
                           max={pesoTotalKg || undefined}
                           value={pesoPrincipal}
-                          onChange={e => setPesoPrincipal(e.target.value)}
+                          onChange={e => cambiarPesoPrincipal(e.target.value)}
                           className="mt-1"
                         />
                       </div>
@@ -401,8 +431,9 @@ export function DividirLoteModal({
                           type="number"
                           step="0.1"
                           min="0"
+                          max={pesoTotalKg || undefined}
                           value={pesoAlternativo}
-                          onChange={e => setPesoAlternativo(e.target.value)}
+                          onChange={e => cambiarPesoAlternativo(e.target.value)}
                           className="mt-1"
                         />
                       </div>
@@ -438,20 +469,27 @@ export function DividirLoteModal({
                     </div>
                   </div>
 
-                  {/* Validación de pesos */}
-                  {pesoPrincipal && pesoAlternativo && pesoTotalKg > 0 && (
+                  {/* Resumen de pesos: total / asignado / resto */}
+                  {pesoTotalKg > 0 && (
                     (() => {
                       const suma = (parseFloat(pesoPrincipal) || 0) + (parseFloat(pesoAlternativo) || 0);
-                      const diff = Math.abs(suma - pesoTotalKg);
-                      if (diff > 0.1) {
-                        return (
-                          <p className="text-xs text-amber-600 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            La suma ({suma.toFixed(1)} kg) no coincide con el peso total ({pesoTotalKg} kg)
-                          </p>
-                        );
-                      }
-                      return null;
+                      const resto = Math.round((pesoTotalKg - suma) * 100) / 100;
+                      const excede = suma > pesoTotalKg + 0.01;
+                      const cuadra = Math.abs(resto) <= 0.1;
+                      return (
+                        <div className={`text-xs rounded-md border px-2 py-1.5 flex items-center justify-between gap-2 ${
+                          excede ? 'border-red-400 bg-red-50 text-red-700'
+                          : cuadra ? 'border-green-300 bg-green-50 text-green-800'
+                          : 'border-amber-300 bg-amber-50 text-amber-800'
+                        }`}>
+                          <div className="flex items-center gap-1">
+                            {excede && <AlertTriangle className="h-3 w-3" />}
+                            <span>Total: <b>{pesoTotalKg}</b> kg</span>
+                          </div>
+                          <span>Asignado: <b>{suma.toFixed(2)}</b> kg</span>
+                          <span>{excede ? 'Se pasa por' : 'Resto'}: <b>{Math.abs(resto).toFixed(2)}</b> kg</span>
+                        </div>
+                      );
                     })()
                   )}
 
