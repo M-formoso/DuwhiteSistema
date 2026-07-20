@@ -171,6 +171,7 @@ def descargar_remito_pdf(
     preview: bool = Query(False, description="Dibujar los cuadros del papel preimpreso para preview en pantalla"),
     off_x: Optional[float] = Query(None, description="Offset horizontal en mm para calibrar el preimpreso (positivo=derecha)"),
     off_y: Optional[float] = Query(None, description="Offset vertical en mm para calibrar el preimpreso (positivo=abajo)"),
+    grid: Optional[float] = Query(None, description="Dibuja regla en mm cada N milímetros (ej. 5) + marcadores de bloques"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
 ):
@@ -194,6 +195,7 @@ def descargar_remito_pdf(
         preview_preimpreso=preview,
         offset_x_mm=off_x,
         offset_y_mm=off_y,
+        grid_mm=grid,
     )
     return Response(
         content=pdf_bytes,

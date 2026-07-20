@@ -256,11 +256,73 @@
             border-radius: 1mm;
         }
         {% endif %}
+
+        /* ==== MODO GRILLA (calibración) ====
+           Se activa con ?grid=<mm> (ej. ?grid=5). Dibuja una regla en
+           milímetros sobre toda la hoja y un badge por cada bloque de
+           datos con su posición actual. Sirve para poner la hoja al lado
+           del papel preimpreso, medir dónde debería caer cada dato y
+           anotarme los mm exactos, en lugar de tantear a ciegas. */
+        {% if grid_mm %}
+        .grid-line-v, .grid-line-h {
+            position: absolute;
+            background: rgba(255, 0, 128, 0.18);
+        }
+        .grid-line-v { width: 0.1mm; height: {{ page_height_mm }}mm; top: 0; }
+        .grid-line-h { height: 0.1mm; width: {{ hoja_width_mm }}mm; left: 0; }
+        .grid-line-v.major { background: rgba(255, 0, 128, 0.55); width: 0.15mm; }
+        .grid-line-h.major { background: rgba(255, 0, 128, 0.55); height: 0.15mm; }
+        .grid-label {
+            position: absolute;
+            font-size: 5pt;
+            color: #c81e7a;
+            font-family: "Courier New", monospace;
+            line-height: 1;
+        }
+        .grid-label.x { top: 1mm; transform: translateX(-50%); }
+        .grid-label.y { left: 1mm; transform: translateY(-50%); }
+        .grid-badge {
+            position: absolute;
+            font-size: 6pt;
+            font-family: "Courier New", monospace;
+            color: #0a5;
+            background: rgba(0, 170, 85, 0.12);
+            border: 0.2mm solid #0a5;
+            padding: 0.3mm 1mm;
+            border-radius: 0.6mm;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        {% endif %}
     </style>
 </head>
 <body>
     {% for copia in copias %}
     <div class="hoja {{ copia|lower }}">
+        {% if grid_mm %}
+        {% for x in grid_ticks_x %}
+        <div class="grid-line-v {% if x % 10 == 0 %}major{% endif %}" style="left: {{ x }}mm;"></div>
+        {% if x % 10 == 0 %}<div class="grid-label x" style="left: {{ x }}mm;">{{ x }}</div>{% endif %}
+        {% endfor %}
+        {% for y in grid_ticks_y %}
+        <div class="grid-line-h {% if y % 10 == 0 %}major{% endif %}" style="top: {{ y }}mm;"></div>
+        {% if y % 10 == 0 %}<div class="grid-label y" style="top: {{ y }}mm;">{{ y }}</div>{% endif %}
+        {% endfor %}
+        <div class="grid-badge" style="top: {{ coord_fecha_top_mm }}mm; left: {{ coord_fecha_left_mm }}mm;">
+            FECHA · x={{ coord_fecha_left_mm }} y={{ coord_fecha_top_mm }}
+        </div>
+        <div class="grid-badge" style="top: {{ coord_cliente_top_mm }}mm; left: {{ coord_cliente_left_mm }}mm;">
+            CLIENTE · x={{ coord_cliente_left_mm }} y={{ coord_cliente_top_mm }} w={{ coord_cliente_width_mm }}
+        </div>
+        <div class="grid-badge" style="top: {{ coord_items_top_mm }}mm; left: {{ coord_cantidad_left_mm }}mm;">
+            ITEMS · x={{ coord_cantidad_left_mm }} y={{ coord_items_top_mm }} w={{ coord_items_width_mm }} cant_w={{ coord_cantidad_width_mm }}
+        </div>
+        {% if con_precios %}
+        <div class="grid-badge" style="top: {{ coord_total_top_mm }}mm; left: {{ coord_total_left_mm }}mm;">
+            TOTAL · x={{ coord_total_left_mm }} y={{ coord_total_top_mm }} w={{ coord_total_width_mm }}
+        </div>
+        {% endif %}
+        {% endif %}
         {% if preview_preimpreso %}
         <div class="mock mock-logo">DUWHITE<small>LAVADERO INDUSTRIAL</small></div>
         <div class="mock mock-retiro">X RETIRO<small>DOCUMENTO NO VALIDO COMO FACTURA</small></div>

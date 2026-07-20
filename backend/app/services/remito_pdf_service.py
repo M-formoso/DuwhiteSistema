@@ -171,6 +171,7 @@ def generar_pdf(
     preview_preimpreso: bool = False,
     offset_x_mm: Optional[float] = None,
     offset_y_mm: Optional[float] = None,
+    grid_mm: Optional[float] = None,
 ) -> bytes:
     """Renderiza el remito a PDF y devuelve los bytes.
 
@@ -181,6 +182,12 @@ def generar_pdf(
       NO usar en la impresión real sobre el papel preimpreso.
     - offset_x_mm / offset_y_mm: overrides puntuales para calibración en
       vivo (si None, se usan GLOBAL_OFFSET_X_MM / GLOBAL_OFFSET_Y_MM).
+    - grid_mm: si se pasa un número (ej. 5), imprime encima del PDF una
+      regla en mm con líneas cada `grid_mm` milímetros y etiquetas cada
+      10mm, más un cartel por cada bloque (fecha, cliente, items, total)
+      indicando su posición actual. Sirve para calibrar sobre el papel
+      preimpreso: imprimís UNA hoja con grid, la superponés con el papel
+      real y medís exactamente dónde deberían caer los datos.
     """
     try:
         from weasyprint import HTML
@@ -266,6 +273,15 @@ def generar_pdf(
             coord_total_width_mm=COORD_TOTAL_WIDTH_MM,
             coord_original_items_offset_mm=COORD_ORIGINAL_ITEMS_OFFSET_MM,
             coord_duplicado_fecha_offset_mm=COORD_DUPLICADO_FECHA_OFFSET_MM,
+            grid_mm=grid_mm,
+            grid_ticks_x=(
+                list(range(0, int(HOJA_WIDTH_MM) + 1, int(grid_mm)))
+                if grid_mm and grid_mm > 0 else []
+            ),
+            grid_ticks_y=(
+                list(range(0, int(PAGE_HEIGHT_MM) + 1, int(grid_mm)))
+                if grid_mm and grid_mm > 0 else []
+            ),
         )
     except Exception as exc:
         logger.exception(
