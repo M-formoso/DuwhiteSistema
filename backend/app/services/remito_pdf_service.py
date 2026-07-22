@@ -94,7 +94,7 @@ COORD_NUMERO_LEFT_MM = 0
 # template renderiza ambas hojas idénticas. Estos offsets compensan esa
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
-COORD_ORIGINAL_ITEMS_OFFSET_MM = -12   # items+total en ORIGINAL van más a la izquierda
+COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # mismo alineado que DUPLICADO (papel simétrico)
 COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
