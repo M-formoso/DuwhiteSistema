@@ -49,42 +49,43 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templa
 # DENTRO de UNA hoja (top-left de la hoja = 0,0).
 # Para calibrar imprimí un remito de prueba y ajustá los mm.
 
-PAGE_WIDTH_MM = 297    # A4 apaisado ancho
-PAGE_HEIGHT_MM = 210   # A4 apaisado alto
-HOJA_WIDTH_MM = 148    # cada hoja ocupa la mitad (297/2 ≈ 148.5)
+PAGE_WIDTH_MM = 330    # ancho total del papel preimpreso
+PAGE_HEIGHT_MM = 200   # alto total del papel preimpreso
+HOJA_WIDTH_MM = 165    # cada hoja ocupa la mitad horizontal
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
 COORD_FECHA_TOP_MM = 20
-COORD_FECHA_LEFT_MM = 55
-COORD_FECHA_WIDTH_MM = 36
+COORD_FECHA_LEFT_MM = 60
+COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
-COORD_CLIENTE_TOP_MM = 36
+COORD_CLIENTE_TOP_MM = 40
 COORD_CLIENTE_LEFT_MM = 0
-COORD_CLIENTE_WIDTH_MM = 115
+COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
-# Subido para arrancar justo debajo del header CANTIDAD/DETALLE del preimpreso.
-COORD_ITEMS_TOP_MM = 42           # primera fila debajo del header de columnas
+# Subido 25mm respecto al valor anterior (75→50) para que los ítems
+# arranquen más cerca del header CANTIDAD/DETALLE del preimpreso.
+COORD_ITEMS_TOP_MM = 50           # primera fila debajo del header de columnas
 COORD_CANTIDAD_LEFT_MM = 0        # margen izquierdo de la columna CANTIDAD
-COORD_CANTIDAD_WIDTH_MM = 20
+COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
-COORD_PRECIO_WIDTH_MM = 24        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 95         # ancho total cantidad+detalle+subtotal
-COORD_ITEMS_HEIGHT_MM = 100       # alto disponible para las filas
+COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
+COORD_ITEMS_WIDTH_MM = 100        # ancho total cantidad+detalle+subtotal
+COORD_ITEMS_HEIGHT_MM = 90        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
-COORD_TOTAL_TOP_MM = 148
+COORD_TOTAL_TOP_MM = 168
 COORD_TOTAL_LEFT_MM = 0
-COORD_TOTAL_WIDTH_MM = 95
+COORD_TOTAL_WIDTH_MM = 100
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
-OVERFLOW_NOTE_TOP_MM = 145
+OVERFLOW_NOTE_TOP_MM = 165
 
 # Número de remito (traza chica, al pie de la hoja)
-COORD_NUMERO_TOP_MM = 165
+COORD_NUMERO_TOP_MM = 188
 COORD_NUMERO_LEFT_MM = 0
 
 # --- Offsets asimétricos por hoja ---
