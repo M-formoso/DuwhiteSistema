@@ -34,6 +34,7 @@ import { Link } from 'react-router-dom';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { getDashboardCompleto } from '@/services/dashboardService';
 import api, { getErrorMessage } from '@/services/api';
@@ -92,6 +93,11 @@ const getEstadoBadge = (estado: string) => {
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+
+  // Los clientes no tienen acceso al dashboard de operaciones
+  if (user?.rol === 'cliente') {
+    return <Navigate to="/mis-pedidos" replace />;
+  }
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
 
   const { data: dashboard, isLoading, error } = useQuery({

@@ -56,7 +56,9 @@ export default function LoginPage() {
         description: 'Has iniciado sesión correctamente.',
       });
 
-      navigate('/dashboard');
+      // Redirige a "/" para que HomeRedirect elija la ruta según el rol
+      // (clientes van a /mis-pedidos, el resto a /dashboard).
+      navigate('/');
     } catch (error) {
       toast({
         variant: 'destructive',
