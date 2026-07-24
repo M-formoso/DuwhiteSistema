@@ -95,8 +95,8 @@ import {
 function HomeRedirect() {
   const user = useAuthStore((state) => state.user);
 
-  if (user?.rol === 'cliente' && user?.cliente_id) {
-    return <Navigate to={`/clientes/${user.cliente_id}`} replace />;
+  if (user?.rol === 'cliente') {
+    return <Navigate to="/mis-pedidos" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;

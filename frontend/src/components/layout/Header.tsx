@@ -2,7 +2,7 @@
  * Header principal de la aplicación
  */
 
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
+  onMobileMenuToggle: () => void;
 }
 
 const PAGE_TITLES: Record<string, string> = {
@@ -38,7 +39,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/perfil': 'Mi Perfil',
 };
 
-export function Header({ sidebarCollapsed }: HeaderProps) {
+export function Header({ sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -86,13 +87,21 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 h-16 bg-white border-b border-border transition-all duration-300 ${
-        sidebarCollapsed ? 'left-16' : 'left-64'
+      className={`fixed top-0 right-0 z-30 h-16 bg-white border-b border-border transition-all duration-300 left-0 ${
+        sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'
       }`}
     >
-      <div className="flex h-full items-center justify-between px-6">
-        {/* Título de la página */}
-        <div>
+      <div className="flex h-full items-center justify-between px-4 lg:px-6">
+        {/* Botón hamburguesa mobile */}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={onMobileMenuToggle}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
           <h1 className="text-lg font-semibold text-text-primary">
             {getPageTitle()}
           </h1>

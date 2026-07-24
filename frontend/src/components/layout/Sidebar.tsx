@@ -43,6 +43,7 @@ import { useAuthStore } from '@/stores/authStore';
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
+  onMobileClose?: () => void;
 }
 
 interface NavItem {
@@ -232,7 +233,7 @@ const getClientNavSections = (clienteId: string | null): NavSection[] => [
     items: [
       {
         title: 'Mi Perfil',
-        href: clienteId ? `/clientes/${clienteId}` : '/perfil',
+        href: '/perfil',
         icon: Building2,
       },
       {
@@ -259,7 +260,7 @@ const getClientNavSections = (clienteId: string | null): NavSection[] => [
   },
 ];
 
-export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
 
@@ -375,6 +376,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                       <Link
                         key={item.href}
                         to={item.href}
+                        onClick={onMobileClose}
                         className={cn(
                           'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                           isActive

@@ -111,7 +111,7 @@ COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 #
 # También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
 # para probar en vivo sin reiniciar el backend.
-GLOBAL_OFFSET_X_MM = 0
+GLOBAL_OFFSET_X_MM = -40
 GLOBAL_OFFSET_Y_MM = 15   # calibrado 2026-07-13: papel entraba ~15mm alto
 
 

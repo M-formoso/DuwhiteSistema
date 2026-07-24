@@ -6,11 +6,9 @@ import { useState } from 'react';
 import {
   User,
   Mail,
-  Phone,
   Shield,
   Key,
   Camera,
-  Save,
   Eye,
   EyeOff,
   Clock,
@@ -35,31 +33,6 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDate, formatDateTime } from '@/utils/formatters';
-
-interface UsuarioPerfil {
-  id: string;
-  nombre: string;
-  apellido: string;
-  email: string;
-  telefono?: string;
-  rol: string;
-  rolLabel: string;
-  avatar?: string;
-  fechaCreacion: string;
-  ultimoAcceso: string;
-}
-
-const USUARIO_EJEMPLO: UsuarioPerfil = {
-  id: '1',
-  nombre: 'Admin',
-  apellido: 'Sistema',
-  email: 'admin@duwhite.com.ar',
-  telefono: '+54 351 123-4567',
-  rol: 'administrador',
-  rolLabel: 'Administrador',
-  fechaCreacion: '2024-01-15',
-  ultimoAcceso: '2025-03-03T10:30:00',
-};
 
 const ROLES_INFO: Record<string, { label: string; descripcion: string; color: string }> = {
   superadmin: {
@@ -101,16 +74,14 @@ const ROLES_INFO: Record<string, { label: string; descripcion: string; color: st
 
 export default function PerfilPage() {
   const { toast } = useToast();
-  const logout = useAuthStore((state) => state.logout);
-  const [usuario, setUsuario] = useState<UsuarioPerfil>(USUARIO_EJEMPLO);
+  const { user, logout } = useAuthStore();
   const [saving, setSaving] = useState(false);
 
   // Estados del formulario de edición
   const [editando, setEditando] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: usuario.nombre,
-    apellido: usuario.apellido,
-    telefono: usuario.telefono || '',
+    nombre: user?.nombre || '',
+    apellido: user?.apellido || '',
   });
 
   // Estados del diálogo de cambio de contraseña
@@ -126,20 +97,13 @@ export default function PerfilPage() {
     confirmar: false,
   });
 
-  const rolInfo = ROLES_INFO[usuario.rol] || ROLES_INFO.solo_lectura;
+  const rolInfo = ROLES_INFO[user?.rol || ''] || ROLES_INFO.solo_lectura;
 
   const handleGuardarPerfil = async () => {
     setSaving(true);
     try {
-      // En producción esto iría al backend
+      // TODO: llamar al backend para actualizar nombre/apellido
       await new Promise((r) => setTimeout(r, 1000));
-
-      setUsuario({
-        ...usuario,
-        nombre: formData.nombre,
-        apellido: formData.apellido,
-        telefono: formData.telefono,
-      });
 
       toast({
         title: 'Perfil actualizado',
@@ -249,9 +213,8 @@ export default function PerfilPage() {
                       onClick={() => {
                         setEditando(false);
                         setFormData({
-                          nombre: usuario.nombre,
-                          apellido: usuario.apellido,
-                          telefono: usuario.telefono || '',
+                          nombre: user?.nombre || '',
+                          apellido: user?.apellido || '',
                         });
                       }}
                     >
@@ -269,9 +232,9 @@ export default function PerfilPage() {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-20 w-20">
-                    <AvatarImage src={usuario.avatar} />
+                    <AvatarImage src={user?.avatar} />
                     <AvatarFallback className="text-xl bg-primary text-white">
-                      {usuario.nombre.charAt(0)}{usuario.apellido.charAt(0)}
+                      {user?.nombre?.charAt(0)}{user?.apellido?.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
                   {editando && (
@@ -286,7 +249,7 @@ export default function PerfilPage() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold">
-                    {usuario.nombre} {usuario.apellido}
+                    {user?.nombre} {user?.apellido}
                   </h3>
                   <Badge className={rolInfo.color}>{rolInfo.label}</Badge>
                 </div>
@@ -315,18 +278,10 @@ export default function PerfilPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Email</Label>
-                    <Input value={usuario.email} disabled className="bg-gray-50" />
+                    <Input value={user?.email || ''} disabled className="bg-gray-50" />
                     <p className="text-xs text-muted-foreground">
                       El email no puede modificarse. Contacta al administrador si necesitas cambiarlo.
                     </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Teléfono</Label>
-                    <Input
-                      value={formData.telefono}
-                      onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                      placeholder="+54 XXX XXX-XXXX"
-                    />
                   </div>
                 </div>
               ) : (
@@ -335,14 +290,7 @@ export default function PerfilPage() {
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="font-medium">{usuario.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Teléfono</p>
-                      <p className="font-medium">{usuario.telefono || 'No especificado'}</p>
+                      <p className="font-medium">{user?.email}</p>
                     </div>
                   </div>
                 </div>
@@ -420,11 +368,11 @@ export default function PerfilPage() {
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground">Miembro desde</p>
-                <p className="font-medium">{formatFecha(usuario.fechaCreacion)}</p>
+                <p className="font-medium">{user?.created_at ? formatFecha(user.created_at) : '-'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Último acceso</p>
-                <p className="font-medium">{formatFechaHora(usuario.ultimoAcceso)}</p>
+                <p className="font-medium">{user?.ultimo_acceso ? formatFechaHora(user.ultimo_acceso) : '-'}</p>
               </div>
             </CardContent>
           </Card>
