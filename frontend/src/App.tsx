@@ -8,6 +8,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { UpdatePrompt } from '@/components/pwa/UpdatePrompt';
 
 // Pages
 import LoginPage from '@/pages/auth/LoginPage';
@@ -111,6 +113,9 @@ function App() {
   }, [checkAuth]);
 
   return (
+    <>
+    <InstallPrompt />
+    <UpdatePrompt />
     <Routes>
       {/* Rutas públicas */}
       <Route path="/login" element={<LoginPage />} />
@@ -274,6 +279,7 @@ function App() {
         }
       />
     </Routes>
+    </>
   );
 }
 

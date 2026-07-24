@@ -1,7 +1,3 @@
-/**
- * Sidebar de navegación principal con secciones agrupadas
- */
-
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -22,18 +18,15 @@ import {
   UserCog,
   Contact,
   ShoppingCart,
-  ClipboardList,
-  Boxes,
   FolderOpen,
   User,
   Building2,
   Tag,
-  CreditCard,
-  Landmark,
-  Clock,
   Banknote,
+  Clock,
   Receipt,
   Archive,
+  X,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -59,7 +52,6 @@ interface NavSection {
   defaultOpen?: boolean;
 }
 
-// Navegación para usuarios internos (no clientes)
 const navSectionsInternal: NavSection[] = [
   {
     title: 'Principal',
@@ -225,37 +217,16 @@ const navSectionsInternal: NavSection[] = [
   },
 ];
 
-// Navegación especial para clientes - Solo ven su propia información
-const getClientNavSections = (clienteId: string | null): NavSection[] => [
+const getClientNavSections = (_clienteId: string | null): NavSection[] => [
   {
     title: 'Mi Cuenta',
     defaultOpen: true,
     items: [
-      {
-        title: 'Mi Perfil',
-        href: '/perfil',
-        icon: Building2,
-      },
-      {
-        title: 'Mi Producción',
-        href: '/mi-produccion',
-        icon: Factory,
-      },
-      {
-        title: 'Mis Pedidos',
-        href: '/mis-pedidos',
-        icon: FileText,
-      },
-      {
-        title: 'Cuenta Corriente',
-        href: '/mi-cuenta',
-        icon: Wallet,
-      },
-      {
-        title: 'Mi Usuario',
-        href: '/perfil',
-        icon: User,
-      },
+      { title: 'Mi Perfil',        href: '/perfil',        icon: Building2 },
+      { title: 'Mi Producción',    href: '/mi-produccion', icon: Factory   },
+      { title: 'Mis Pedidos',      href: '/mis-pedidos',   icon: FileText  },
+      { title: 'Cuenta Corriente', href: '/mi-cuenta',     icon: Wallet    },
+      { title: 'Mi Usuario',       href: '/perfil',        icon: User      },
     ],
   },
 ];
@@ -264,13 +235,11 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
 
-  // Determinar qué navegación usar según el rol
   const isCliente = user?.rol === 'cliente';
   const navSections = isCliente
     ? getClientNavSections(user?.cliente_id || null)
     : navSectionsInternal;
 
-  // Estado para secciones colapsadas
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     navSections.forEach((section) => {
@@ -280,13 +249,9 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
   });
 
   const toggleSection = (sectionTitle: string) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [sectionTitle]: !prev[sectionTitle],
-    }));
+    setCollapsedSections((prev) => ({ ...prev, [sectionTitle]: !prev[sectionTitle] }));
   };
 
-  // Filtrar items según rol del usuario
   const filterItems = (items: NavItem[]) => {
     return items.filter((item) => {
       if (!item.roles) return true;
@@ -294,45 +259,60 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
     });
   };
 
-  // Filtrar secciones que tienen al menos un item visible
   const visibleSections = navSections
-    .map((section) => ({
-      ...section,
-      items: filterItems(section.items),
-    }))
+    .map((section) => ({ ...section, items: filterItems(section.items) }))
     .filter((section) => section.items.length > 0);
 
   return (
+    // ⚠ Sin `position: fixed` aquí — el posicionamiento lo maneja el wrapper en MainLayout.
+    // En desktop se colapsa (w-16 / w-64); en mobile siempre se muestra expandido cuando está abierto.
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen bg-sidebar text-white transition-all duration-300 flex flex-col',
-        isCollapsed ? 'w-16' : 'w-64'
+        'h-full bg-sidebar text-white transition-all duration-300 flex flex-col',
+        isCollapsed ? 'lg:w-16 w-64' : 'w-64'
       )}
     >
       {/* Header con Logo */}
       <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 flex-shrink-0">
-        {!isCollapsed ? (
-          <Link to="/dashboard" className="flex items-center">
-            <img
-              src="/logo-white.svg"
-              alt="DUWHITE"
-              className="h-10 w-auto"
-            />
-          </Link>
-        ) : (
-          <Link
-            to="/dashboard"
-            className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mx-auto"
-            title="DUWHITE"
-          >
-            <span className="text-sm font-bold text-white">DW</span>
-          </Link>
-        )}
+        {/* Logo completo — siempre visible en mobile, en desktop solo si no colapsado */}
+        <Link
+          to="/dashboard"
+          onClick={onMobileClose}
+          className={cn('flex items-center', isCollapsed && 'hidden')}
+        >
+          <img src="/logo-white.svg" alt="DUWHITE" className="h-10 w-auto" />
+        </Link>
+
+        {/* Ícono DW — solo en desktop colapsado */}
+        <Link
+          to="/dashboard"
+          className={cn(
+            'w-8 h-8 bg-primary rounded-md items-center justify-center mx-auto',
+            isCollapsed ? 'hidden lg:flex' : 'hidden'
+          )}
+          title="DUWHITE"
+        >
+          <span className="text-sm font-bold text-white">DW</span>
+        </Link>
+
+        {/* Botón cerrar — solo mobile */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onMobileClose}
+          className="text-white hover:bg-white/10 lg:hidden"
+          aria-label="Cerrar menú"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+
+        {/* Botón colapsar — solo desktop */}
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggle}
-          className="text-white hover:bg-white/10"
+          className="text-white hover:bg-white/10 hidden lg:flex"
+          aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
         >
           {isCollapsed ? (
             <ChevronRight className="h-5 w-5" />
@@ -347,27 +327,26 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
         {visibleSections.map((section) => {
           const isSectionCollapsed = collapsedSections[section.title];
 
+          // En mobile el sidebar nunca está "colapsado" (isCollapsed=false siempre en drawer)
+          // pero aun así respetamos la clase para desktop. En mobile siempre mostramos texto.
+          const showText = !isCollapsed;
+
           return (
             <div key={section.title} className="mb-2">
-              {/* Título de sección (solo si no está colapsado el sidebar) */}
-              {!isCollapsed && (
+              {showText && (
                 <button
                   onClick={() => toggleSection(section.title)}
                   className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold text-white/50 uppercase tracking-wider hover:text-white/70 transition-colors"
                 >
                   <span>{section.title}</span>
                   <ChevronDown
-                    className={cn(
-                      'h-4 w-4 transition-transform',
-                      isSectionCollapsed && '-rotate-90'
-                    )}
+                    className={cn('h-4 w-4 transition-transform', isSectionCollapsed && '-rotate-90')}
                   />
                 </button>
               )}
 
-              {/* Items de la sección */}
-              {(!isSectionCollapsed || isCollapsed) && (
-                <div className={cn('flex flex-col gap-1', !isCollapsed && 'mt-1')}>
+              {(!isSectionCollapsed || !showText) && (
+                <div className={cn('flex flex-col gap-1', showText && 'mt-1')}>
                   {section.items.map((item) => {
                     const isActive = location.pathname.startsWith(item.href);
                     const Icon = item.icon;
@@ -382,20 +361,19 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
                           isActive
                             ? 'bg-primary text-white'
                             : 'text-white/70 hover:bg-white/10 hover:text-white',
-                          isCollapsed && 'justify-center px-2'
+                          !showText && 'justify-center px-2'
                         )}
-                        title={isCollapsed ? item.title : undefined}
+                        title={!showText ? item.title : undefined}
                       >
                         <Icon className="h-5 w-5 flex-shrink-0" />
-                        {!isCollapsed && <span>{item.title}</span>}
+                        {showText && <span>{item.title}</span>}
                       </Link>
                     );
                   })}
                 </div>
               )}
 
-              {/* Separador entre secciones */}
-              {!isCollapsed && (
+              {showText && (
                 <div className="mx-3 my-2 border-b border-white/10" />
               )}
             </div>
@@ -403,12 +381,9 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
         })}
       </nav>
 
-      {/* Footer con versión */}
       {!isCollapsed && (
         <div className="flex-shrink-0 p-4 border-t border-white/10">
-          <p className="text-xs text-white/30 text-center">
-            DUWHITE ERP v1.0
-          </p>
+          <p className="text-xs text-white/30 text-center">DUWHITE ERP v1.0</p>
         </div>
       )}
     </aside>

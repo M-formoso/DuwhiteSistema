@@ -1,7 +1,3 @@
-/**
- * Layout principal de la aplicación (con sidebar y header)
- */
-
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
@@ -15,7 +11,7 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Backdrop mobile */}
+      {/* Backdrop mobile — toca fuera para cerrar */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 lg:hidden"
@@ -23,10 +19,17 @@ export function MainLayout() {
         />
       )}
 
-      {/* Sidebar */}
+      {/*
+       * Wrapper del sidebar.
+       * - En mobile: empieza fuera de pantalla (-translate-x-full) y entra
+       *   con translate-x-0 al abrir. El `position: fixed` aquí contiene al
+       *   <aside> hijo, que ya NO tiene fixed propio.
+       * - En desktop: siempre visible (lg:translate-x-0).
+       * - La anchura del wrapper se adapta a la del <aside> (w-64 / lg:w-16).
+       */}
       <div
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen transition-transform duration-300 lg:translate-x-0',
+          'fixed left-0 top-0 z-40 h-screen transition-transform duration-300 ease-in-out lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -43,7 +46,7 @@ export function MainLayout() {
         onMobileMenuToggle={() => setMobileOpen(!mobileOpen)}
       />
 
-      {/* Main Content */}
+      {/* Contenido principal */}
       <main
         className={cn(
           'pt-16 min-h-screen transition-all duration-300',
