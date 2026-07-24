@@ -44,8 +44,8 @@
             overflow: hidden;
         }
 
-        .hoja.original  { left: 0; }
-        .hoja.duplicado { left: {{ hoja_width_mm }}mm; }
+        .hoja.original  { left: {{ hoja_original_left_mm }}mm; }
+        .hoja.duplicado { left: {{ hoja_duplicado_left_mm }}mm; }
 
         /* Compensa que el papel preimpreso puede tener los recuadros de
            ORIGINAL y DUPLICADO ligeramente desplazados entre sí. Estos

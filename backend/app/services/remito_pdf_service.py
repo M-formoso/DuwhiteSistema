@@ -203,6 +203,18 @@ def generar_pdf(
     off_x = GLOBAL_OFFSET_X_MM if offset_x_mm is None else float(offset_x_mm)
     off_y = GLOBAL_OFFSET_Y_MM if offset_y_mm is None else float(offset_y_mm)
 
+    # Para off_x negativo: ampliar la página hacia la izquierda ("bleed") y
+    # desplazar las hojas a la derecha en la misma cantidad. Así elementos con
+    # COORD_LEFT=0 que con off_x negativo quedarían en left:-N (cortados por
+    # overflow:hidden) terminan en posición absoluta 0 dentro de la página.
+    # Ejemplo: off_x=-40 → bleed=40, hoja.original empieza en left:40mm,
+    # un elemento con left=0+(-40)=-40mm relativo a la hoja queda en
+    # posición absoluta 40+(-40)=0mm — sin corte.
+    bleed_left_mm = max(0.0, -off_x)
+    effective_page_width_mm = PAGE_WIDTH_MM + bleed_left_mm
+    hoja_original_left_mm = bleed_left_mm
+    hoja_duplicado_left_mm = bleed_left_mm + HOJA_WIDTH_MM
+
     max_items = _cantidad_para_mostrar()
     detalles = list(remito.detalles or [])
 
@@ -248,9 +260,11 @@ def generar_pdf(
             # Coordenadas (mm) — cada TOP y LEFT ya lleva sumado el offset
             # global (off_x / off_y). Así toda calibración global se aplica
             # con dos números y no hay que tocar cada COORD_* individual.
-            page_width_mm=PAGE_WIDTH_MM,
+            page_width_mm=effective_page_width_mm,
             page_height_mm=PAGE_HEIGHT_MM,
             hoja_width_mm=HOJA_WIDTH_MM,
+            hoja_original_left_mm=hoja_original_left_mm,
+            hoja_duplicado_left_mm=hoja_duplicado_left_mm,
             coord_fecha_top_mm=COORD_FECHA_TOP_MM + off_y,
             coord_fecha_left_mm=COORD_FECHA_LEFT_MM + off_x,
             coord_fecha_width_mm=COORD_FECHA_WIDTH_MM,
