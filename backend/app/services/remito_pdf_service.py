@@ -2,9 +2,9 @@
 Servicio de generación de PDF para Remito X RETIRO.
 
 Imprime los datos variables (fecha, cantidad, descripción) en las
-posiciones exactas del papel preimpreso DUWHITE (formato 33cm × 20cm
-apaisado, 2 hojas idénticas por hoja física separadas por perforación
-horizontal: ORIGINAL arriba, DUPLICADO abajo).
+posiciones exactas del papel preimpreso DUWHITE (formato 34cm × 22cm
+apaisado, 2 hojas idénticas side-by-side separadas por perforación
+vertical: ORIGINAL a la izquierda, DUPLICADO a la derecha).
 
 Si el papel sale corrido al imprimir, ajustar las constantes COORD_*
 de este archivo. Están todas declaradas explícitamente para facilitar
@@ -49,9 +49,9 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templa
 # DENTRO de UNA hoja (top-left de la hoja = 0,0).
 # Para calibrar imprimí un remito de prueba y ajustá los mm.
 
-PAGE_WIDTH_MM = 330    # ancho total del papel preimpreso
-PAGE_HEIGHT_MM = 200   # alto total del papel preimpreso
-HOJA_WIDTH_MM = 165    # cada hoja ocupa la mitad horizontal
+PAGE_WIDTH_MM = 340    # ancho total del papel preimpreso (34cm)
+PAGE_HEIGHT_MM = 220   # alto total del papel preimpreso (22cm)
+HOJA_WIDTH_MM = 170    # cada hoja ocupa la mitad horizontal (17cm)
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
 COORD_FECHA_TOP_MM = 20
@@ -94,7 +94,7 @@ COORD_NUMERO_LEFT_MM = 0
 # template renderiza ambas hojas idénticas. Estos offsets compensan esa
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
-COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # mismo alineado que DUPLICADO (papel simétrico)
+COORD_ORIGINAL_ITEMS_OFFSET_MM = -5    # original: mover cantidades 5mm a la izquierda
 COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
@@ -112,7 +112,7 @@ COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 # También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
 # para probar en vivo sin reiniciar el backend.
 GLOBAL_OFFSET_X_MM = 0
-GLOBAL_OFFSET_Y_MM = 15   # calibrado 2026-07-13: papel entraba ~15mm alto
+GLOBAL_OFFSET_Y_MM = 0    # calibrado 2026-07-28: reducido de 15 a 0 (estaba 15mm abajo)
 
 
 def _cantidad_para_mostrar() -> int:
