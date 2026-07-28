@@ -54,20 +54,18 @@ PAGE_HEIGHT_MM = 220   # alto total del papel preimpreso (22cm)
 HOJA_WIDTH_MM = 170    # cada hoja ocupa la mitad horizontal (17cm)
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 20
+COORD_FECHA_TOP_MM = 25            # +5mm respecto a 20 (calibrado 2026-07-28)
 COORD_FECHA_LEFT_MM = 60
 COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
-COORD_CLIENTE_TOP_MM = 40
+COORD_CLIENTE_TOP_MM = 45          # +5mm respecto a 40 (calibrado 2026-07-28)
 COORD_CLIENTE_LEFT_MM = 0
 COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
-# Subido 25mm respecto al valor anterior (75→50) para que los ítems
-# arranquen más cerca del header CANTIDAD/DETALLE del preimpreso.
-COORD_ITEMS_TOP_MM = 50           # primera fila debajo del header de columnas
+COORD_ITEMS_TOP_MM = 65            # +15mm respecto a 50 (calibrado 2026-07-28)
 COORD_CANTIDAD_LEFT_MM = 0        # margen izquierdo de la columna CANTIDAD
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
@@ -94,7 +92,7 @@ COORD_NUMERO_LEFT_MM = 0
 # template renderiza ambas hojas idénticas. Estos offsets compensan esa
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
-COORD_ORIGINAL_ITEMS_OFFSET_MM = -5    # original: mover cantidades 5mm a la izquierda
+COORD_ORIGINAL_ITEMS_OFFSET_MM = -10   # original: mover cantidades 10mm a la izquierda
 COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
