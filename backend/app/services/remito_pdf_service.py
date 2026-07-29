@@ -60,7 +60,7 @@ COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
-COORD_CLIENTE_TOP_MM = 45          # +5mm respecto a 40 (calibrado 2026-07-28)
+COORD_CLIENTE_TOP_MM = 30          # subido otros 8mm (calibrado 2026-07-29)
 COORD_CLIENTE_LEFT_MM = 10         # 10mm: pasa el margen físico no imprimible de la HP DeskJet (~12mm)
 COORD_CLIENTE_WIDTH_MM = 130
 
@@ -70,7 +70,7 @@ COORD_CANTIDAD_LEFT_MM = 10        # 10mm: "1" en x=21mm (un poquito más a la d
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 100        # ancho total cantidad+detalle+subtotal
+COORD_ITEMS_WIDTH_MM = 87         # ancho total cantidad+detalle+subtotal (reducido para evitar overflow en duplicado)
 COORD_ITEMS_HEIGHT_MM = 90        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
@@ -93,6 +93,7 @@ COORD_NUMERO_LEFT_MM = 10
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
 COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra (el global -8mm aplica a ambos)
+COORD_ORIGINAL_FECHA_OFFSET_MM = 22   # fecha en ORIGINAL va bastante más a la derecha (calibrado 2026-07-29)
 COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
@@ -284,6 +285,7 @@ def generar_pdf(
             coord_total_left_mm=COORD_TOTAL_LEFT_MM + off_x,
             coord_total_width_mm=COORD_TOTAL_WIDTH_MM,
             coord_original_items_offset_mm=COORD_ORIGINAL_ITEMS_OFFSET_MM,
+            coord_original_fecha_offset_mm=COORD_ORIGINAL_FECHA_OFFSET_MM,
             coord_duplicado_fecha_offset_mm=COORD_DUPLICADO_FECHA_OFFSET_MM,
             grid_mm=grid_mm,
             grid_ticks_x=(
