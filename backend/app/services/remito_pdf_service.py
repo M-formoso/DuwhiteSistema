@@ -54,7 +54,7 @@ PAGE_HEIGHT_MM = 220   # alto total del papel preimpreso (22cm)
 HOJA_WIDTH_MM = 170    # cada hoja ocupa la mitad horizontal (17cm)
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 25            # +5mm respecto a 20 (calibrado 2026-07-28)
+COORD_FECHA_TOP_MM = 19            # subida solo la fecha (calibrado 2026-07-29)
 COORD_FECHA_LEFT_MM = 60
 COORD_FECHA_WIDTH_MM = 38
 
@@ -109,7 +109,7 @@ COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 #
 # También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
 # para probar en vivo sin reiniciar el backend.
-GLOBAL_OFFSET_X_MM = 75   # +75mm derecha
+GLOBAL_OFFSET_X_MM = 68   # +68mm derecha
 GLOBAL_OFFSET_Y_MM = 18   # +18mm abajo
 
 
