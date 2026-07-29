@@ -22,6 +22,7 @@ celery==5.3.6
 redis==5.0.1
 
 # PDF & Excel
+pypdf==4.3.1            # Rotación de páginas PDF tras generación WeasyPrint
 weasyprint==60.2
 pydyf==0.8.0           # Compatible con weasyprint 60.2 — versiones >=0.10 cambian la API
 openpyxl==3.1.2

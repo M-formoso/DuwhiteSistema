@@ -312,4 +312,24 @@ def generar_pdf(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al renderizar PDF (WeasyPrint): {exc}",
         )
+
+    # Rotar 180° para compensar que el papel entra girado a la impresora.
+    # La HP DeskJet tiene ~12mm de margen no imprimible en el extremo por donde
+    # entra el papel. Al insertar el papel girado 180°, ese margen queda del lado
+    # derecho (donde no hay contenido crítico), y el lado izquierdo queda libre.
+    # La rotación del PDF cancela el giro visual del papel.
+    try:
+        import io
+        from pypdf import PdfReader, PdfWriter
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.rotate(180)
+            writer.add_page(page)
+        buf = io.BytesIO()
+        writer.write(buf)
+        pdf_bytes = buf.getvalue()
+    except Exception as exc:
+        logger.warning("pypdf no pudo rotar el PDF: %s — se devuelve sin rotar", exc)
+
     return pdf_bytes

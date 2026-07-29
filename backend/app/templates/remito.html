@@ -297,7 +297,6 @@
     </style>
 </head>
 <body>
-<div style="position:absolute;top:0;left:0;width:{{ page_width_mm }}mm;height:{{ page_height_mm }}mm;transform:rotate(180deg);transform-origin:50% 50%;">
     {% for copia in copias %}
     <div class="hoja {{ copia|lower }}">
         {% if grid_mm %}
@@ -366,6 +365,5 @@
         <div class="numero-overlay">R-{{ remito.numero }} · {{ copia }}</div>
     </div>
     {% endfor %}
-</div>
 </body>
 </html>
