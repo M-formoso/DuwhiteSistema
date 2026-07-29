@@ -109,7 +109,7 @@ COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 #
 # También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
 # para probar en vivo sin reiniciar el backend.
-GLOBAL_OFFSET_X_MM = 55   # +55mm derecha
+GLOBAL_OFFSET_X_MM = 75   # +75mm derecha
 GLOBAL_OFFSET_Y_MM = 18   # +18mm abajo
 
 
