@@ -60,7 +60,7 @@ COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
-COORD_CLIENTE_TOP_MM = 30          # subido otros 8mm (calibrado 2026-07-29)
+COORD_CLIENTE_TOP_MM = 34          # bajado 4mm (calibrado 2026-07-29)
 COORD_CLIENTE_LEFT_MM = 10         # 10mm: pasa el margen físico no imprimible de la HP DeskJet (~12mm)
 COORD_CLIENTE_WIDTH_MM = 130
 
