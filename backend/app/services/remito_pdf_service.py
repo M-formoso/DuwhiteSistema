@@ -109,8 +109,8 @@ COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 #
 # También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
 # para probar en vivo sin reiniciar el backend.
-GLOBAL_OFFSET_X_MM = 0
-GLOBAL_OFFSET_Y_MM = 0    # calibrado 2026-07-28: reducido de 15 a 0 (estaba 15mm abajo)
+GLOBAL_OFFSET_X_MM = 10   # +10mm derecha
+GLOBAL_OFFSET_Y_MM = 10   # +10mm abajo
 
 
 def _cantidad_para_mostrar() -> int:
