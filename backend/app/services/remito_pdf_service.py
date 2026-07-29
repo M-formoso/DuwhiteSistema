@@ -61,12 +61,12 @@ COORD_FECHA_WIDTH_MM = 38
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
 COORD_CLIENTE_TOP_MM = 45          # +5mm respecto a 40 (calibrado 2026-07-28)
-COORD_CLIENTE_LEFT_MM = 0
+COORD_CLIENTE_LEFT_MM = 10         # 10mm: pasa el margen físico no imprimible de la HP DeskJet (~12mm)
 COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
 COORD_ITEMS_TOP_MM = 65            # +15mm respecto a 50 (calibrado 2026-07-28)
-COORD_CANTIDAD_LEFT_MM = 2        # 2mm desde borde: evita margen no imprimible de la impresora
+COORD_CANTIDAD_LEFT_MM = 8         # 8mm: "1" queda en x=19mm, dentro del área imprimible
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
@@ -84,7 +84,7 @@ OVERFLOW_NOTE_TOP_MM = 165
 
 # Número de remito (traza chica, al pie de la hoja)
 COORD_NUMERO_TOP_MM = 188
-COORD_NUMERO_LEFT_MM = 0
+COORD_NUMERO_LEFT_MM = 10
 
 # --- Offsets asimétricos por hoja ---
 # El papel preimpreso a veces tiene los recuadros de la mitad izquierda
