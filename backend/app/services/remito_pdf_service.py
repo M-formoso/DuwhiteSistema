@@ -66,7 +66,7 @@ COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
 COORD_ITEMS_TOP_MM = 65            # +15mm respecto a 50 (calibrado 2026-07-28)
-COORD_CANTIDAD_LEFT_MM = 8         # 8mm: "1" queda en x=19mm, dentro del área imprimible
+COORD_CANTIDAD_LEFT_MM = 10        # 10mm: "1" en x=21mm (un poquito más a la derecha)
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
