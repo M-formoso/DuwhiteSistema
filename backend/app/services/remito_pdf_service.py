@@ -66,18 +66,18 @@ COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
 COORD_ITEMS_TOP_MM = 65            # +15mm respecto a 50 (calibrado 2026-07-28)
-COORD_CANTIDAD_LEFT_MM = 10        # 10mm: "1" en x=21mm (un poquito más a la derecha)
+COORD_CANTIDAD_LEFT_MM = -45       # items en x=5mm desde hoja (calibrado 2026-07-30)
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
-COORD_ITEMS_WIDTH_MM = 87         # ancho total cantidad+detalle+subtotal (reducido para evitar overflow en duplicado)
+COORD_ITEMS_WIDTH_MM = 145        # ancho total: precios llegan a ~150mm desde hoja left
 COORD_ITEMS_HEIGHT_MM = 90        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
 COORD_TOTAL_TOP_MM = 168
-COORD_TOTAL_LEFT_MM = 0
-COORD_TOTAL_WIDTH_MM = 100
+COORD_TOTAL_LEFT_MM = -45         # alineado con items (5mm desde hoja)
+COORD_TOTAL_WIDTH_MM = 145        # mismo ancho que items
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
 OVERFLOW_NOTE_TOP_MM = 165
@@ -92,7 +92,7 @@ COORD_NUMERO_LEFT_MM = 10
 # template renderiza ambas hojas idénticas. Estos offsets compensan esa
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
-COORD_ORIGINAL_ITEMS_OFFSET_MM = -12   # ORIGINAL items 12mm más a la izquierda que DUPLICADO (calibrado 2026-07-30)
+COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra (items base ya está en 5mm)
 COORD_ORIGINAL_FECHA_OFFSET_MM = 5    # fecha en ORIGINAL (calibrado 2026-07-30)
 COORD_DUPLICADO_FECHA_OFFSET_MM = 20   # fecha en DUPLICADO más a la derecha (calibrado 2026-07-30)
 
