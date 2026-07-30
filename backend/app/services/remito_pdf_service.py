@@ -92,7 +92,7 @@ COORD_NUMERO_LEFT_MM = 10
 # template renderiza ambas hojas idénticas. Estos offsets compensan esa
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
-COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra (el global -8mm aplica a ambos)
+COORD_ORIGINAL_ITEMS_OFFSET_MM = -12   # ORIGINAL items 12mm más a la izquierda que DUPLICADO (calibrado 2026-07-30)
 COORD_ORIGINAL_FECHA_OFFSET_MM = 22   # fecha en ORIGINAL va bastante más a la derecha (calibrado 2026-07-29)
 COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 
@@ -110,8 +110,8 @@ COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
 #
 # También se pueden pasar por query param al endpoint /pdf?off_x=..&off_y=..
 # para probar en vivo sin reiniciar el backend.
-GLOBAL_OFFSET_X_MM = 68   # +68mm derecha
-GLOBAL_OFFSET_Y_MM = 18   # +18mm abajo
+GLOBAL_OFFSET_X_MM = 50   # +50mm derecha (calibrado 2026-07-30 impresora cliente)
+GLOBAL_OFFSET_Y_MM = 10   # +10mm abajo (calibrado 2026-07-30 impresora cliente)
 
 
 def _cantidad_para_mostrar() -> int:
