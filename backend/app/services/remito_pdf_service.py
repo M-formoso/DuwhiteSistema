@@ -95,7 +95,8 @@ COORD_NUMERO_LEFT_MM = 10
 COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra
 COORD_ORIGINAL_FECHA_OFFSET_MM = 5    # fecha en ORIGINAL (calibrado 2026-07-30)
 COORD_DUPLICADO_OFFSET_MM = 48        # todo el DUPLICADO va más a la derecha (calibrado 2026-07-30)
-COORD_DUPLICADO_FECHA_OFFSET_MM = 55   # fecha en DUPLICADO (calibrado 2026-07-30)
+COORD_DUPLICADO_ITEMS_WIDTH_MM = 100  # ancho máx items/total en DUPLICADO para no overflow (170-68-2)
+COORD_DUPLICADO_FECHA_OFFSET_MM = 15   # fecha en DUPLICADO (calibrado 2026-07-30)
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
 # El alimentador de la impresora rara vez agarra el papel exactamente igual
@@ -288,6 +289,7 @@ def generar_pdf(
             coord_original_items_offset_mm=COORD_ORIGINAL_ITEMS_OFFSET_MM,
             coord_original_fecha_offset_mm=COORD_ORIGINAL_FECHA_OFFSET_MM,
             coord_duplicado_offset_mm=COORD_DUPLICADO_OFFSET_MM,
+            coord_duplicado_items_width_mm=COORD_DUPLICADO_ITEMS_WIDTH_MM,
             coord_duplicado_fecha_offset_mm=COORD_DUPLICADO_FECHA_OFFSET_MM,
             grid_mm=grid_mm,
             grid_ticks_x=(
