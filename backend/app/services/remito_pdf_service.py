@@ -94,7 +94,7 @@ COORD_NUMERO_LEFT_MM = 10
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
 COORD_ORIGINAL_ITEMS_OFFSET_MM = -12   # ORIGINAL items 12mm más a la izquierda que DUPLICADO (calibrado 2026-07-30)
 COORD_ORIGINAL_FECHA_OFFSET_MM = 22   # fecha en ORIGINAL va bastante más a la derecha (calibrado 2026-07-29)
-COORD_DUPLICADO_FECHA_OFFSET_MM = 8    # fecha en DUPLICADO va más a la derecha
+COORD_DUPLICADO_FECHA_OFFSET_MM = 20   # fecha en DUPLICADO más a la derecha (calibrado 2026-07-30)
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
 # El alimentador de la impresora rara vez agarra el papel exactamente igual
