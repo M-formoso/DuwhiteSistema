@@ -75,7 +75,7 @@ COORD_ITEMS_HEIGHT_MM = 90        # alto disponible para las filas
 COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
-COORD_TOTAL_TOP_MM = 168
+COORD_TOTAL_TOP_MM = 183
 COORD_TOTAL_LEFT_MM = -30         # alineado con items (20mm desde hoja)
 COORD_TOTAL_WIDTH_MM = 145        # mismo ancho que items
 
@@ -94,7 +94,7 @@ COORD_NUMERO_LEFT_MM = 10
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
 COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra
 COORD_ORIGINAL_FECHA_OFFSET_MM = 5    # fecha en ORIGINAL (calibrado 2026-07-30)
-COORD_DUPLICADO_OFFSET_MM = 20        # todo el DUPLICADO va 20mm más a la derecha (calibrado 2026-07-30)
+COORD_DUPLICADO_OFFSET_MM = 32        # todo el DUPLICADO va más a la derecha (calibrado 2026-07-30)
 COORD_DUPLICADO_FECHA_OFFSET_MM = 20   # fecha en DUPLICADO (se suma al DUPLICADO_OFFSET)
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
