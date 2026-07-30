@@ -54,13 +54,13 @@ PAGE_HEIGHT_MM = 220   # alto total del papel preimpreso (22cm)
 HOJA_WIDTH_MM = 170    # cada hoja ocupa la mitad horizontal (17cm)
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 19            # subida solo la fecha (calibrado 2026-07-29)
+COORD_FECHA_TOP_MM = 12            # subida (calibrado 2026-07-30)
 COORD_FECHA_LEFT_MM = 60
 COORD_FECHA_WIDTH_MM = 38
 
 # --- Nombre del cliente: dentro del recuadro horizontal que está debajo
 #     del header DUWHITE y arriba de la tabla CANTIDAD/DETALLE.
-COORD_CLIENTE_TOP_MM = 34          # bajado 4mm (calibrado 2026-07-29)
+COORD_CLIENTE_TOP_MM = 26          # subido (calibrado 2026-07-30)
 COORD_CLIENTE_LEFT_MM = 10         # 10mm: pasa el margen físico no imprimible de la HP DeskJet (~12mm)
 COORD_CLIENTE_WIDTH_MM = 130
 
