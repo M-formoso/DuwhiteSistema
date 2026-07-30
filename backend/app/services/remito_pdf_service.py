@@ -54,7 +54,7 @@ PAGE_HEIGHT_MM = 220   # alto total del papel preimpreso (22cm)
 HOJA_WIDTH_MM = 170    # cada hoja ocupa la mitad horizontal (17cm)
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 7             # subida más (calibrado 2026-07-30)
+COORD_FECHA_TOP_MM = 4             # subida más (calibrado 2026-07-30)
 COORD_FECHA_LEFT_MM = 60
 COORD_FECHA_WIDTH_MM = 38
 
@@ -92,9 +92,10 @@ COORD_NUMERO_LEFT_MM = 10
 # template renderiza ambas hojas idénticas. Estos offsets compensan esa
 # diferencia sin afectar el bloque simétrico.
 # Negativo = mover a la izquierda; positivo = mover a la derecha.
-COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra (items base ya está en 5mm)
+COORD_ORIGINAL_ITEMS_OFFSET_MM = 0     # sin offset extra
 COORD_ORIGINAL_FECHA_OFFSET_MM = 5    # fecha en ORIGINAL (calibrado 2026-07-30)
-COORD_DUPLICADO_FECHA_OFFSET_MM = 20   # fecha en DUPLICADO más a la derecha (calibrado 2026-07-30)
+COORD_DUPLICADO_OFFSET_MM = 20        # todo el DUPLICADO va 20mm más a la derecha (calibrado 2026-07-30)
+COORD_DUPLICADO_FECHA_OFFSET_MM = 20   # fecha en DUPLICADO (se suma al DUPLICADO_OFFSET)
 
 # --- Offset GLOBAL X/Y (calibración por lote de papel / alimentación) ---
 # El alimentador de la impresora rara vez agarra el papel exactamente igual
@@ -286,6 +287,7 @@ def generar_pdf(
             coord_total_width_mm=COORD_TOTAL_WIDTH_MM,
             coord_original_items_offset_mm=COORD_ORIGINAL_ITEMS_OFFSET_MM,
             coord_original_fecha_offset_mm=COORD_ORIGINAL_FECHA_OFFSET_MM,
+            coord_duplicado_offset_mm=COORD_DUPLICADO_OFFSET_MM,
             coord_duplicado_fecha_offset_mm=COORD_DUPLICADO_FECHA_OFFSET_MM,
             grid_mm=grid_mm,
             grid_ticks_x=(
