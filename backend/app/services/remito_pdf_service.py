@@ -54,7 +54,7 @@ PAGE_HEIGHT_MM = 220   # alto total del papel preimpreso (22cm)
 HOJA_WIDTH_MM = 170    # cada hoja ocupa la mitad horizontal (17cm)
 
 # --- Cuadro FECHA (dentro del recuadro "X RETIRO" en la zona superior derecha)
-COORD_FECHA_TOP_MM = 12            # subida (calibrado 2026-07-30)
+COORD_FECHA_TOP_MM = 7             # subida más (calibrado 2026-07-30)
 COORD_FECHA_LEFT_MM = 60
 COORD_FECHA_WIDTH_MM = 38
 
@@ -66,7 +66,7 @@ COORD_CLIENTE_WIDTH_MM = 130
 
 # --- Bloque de ítems (tabla CANTIDAD + DETALLE)
 COORD_ITEMS_TOP_MM = 65            # +15mm respecto a 50 (calibrado 2026-07-28)
-COORD_CANTIDAD_LEFT_MM = -45       # items en x=5mm desde hoja (calibrado 2026-07-30)
+COORD_CANTIDAD_LEFT_MM = -30       # items en x=20mm desde hoja (calibrado 2026-07-30)
 COORD_CANTIDAD_WIDTH_MM = 22
 COORD_DETALLE_GAP_MM = 3
 COORD_PRECIO_WIDTH_MM = 26        # ancho columna precio (solo si con_precios=True)
@@ -76,7 +76,7 @@ COORD_ROW_HEIGHT_MM = 6.5         # alto de cada fila
 
 # Total al pie (solo si con_precios=True)
 COORD_TOTAL_TOP_MM = 168
-COORD_TOTAL_LEFT_MM = -45         # alineado con items (5mm desde hoja)
+COORD_TOTAL_LEFT_MM = -30         # alineado con items (20mm desde hoja)
 COORD_TOTAL_WIDTH_MM = 145        # mismo ancho que items
 
 # Mensaje "+N ítems más" si no entran todos (al pie del bloque)
