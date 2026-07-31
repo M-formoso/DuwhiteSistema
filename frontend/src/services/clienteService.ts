@@ -98,6 +98,30 @@ export async function registrarPago(
   return response.data;
 }
 
+export interface RegistrarAjusteRequest {
+  monto: number;
+  direccion: 'aumentar' | 'disminuir';
+  concepto: string;
+  fecha: string;
+  notas?: string;
+}
+
+export async function registrarAjuste(
+  clienteId: string,
+  data: RegistrarAjusteRequest
+): Promise<{
+  id: string;
+  mensaje: string;
+  saldo_anterior: number;
+  saldo_posterior: number;
+}> {
+  const response = await api.post(
+    `/clientes/cuenta-corriente/${clienteId}/ajuste`,
+    data
+  );
+  return response.data;
+}
+
 // ==================== PEDIDOS ====================
 
 export async function getPedidos(params?: {
@@ -175,6 +199,7 @@ export const clienteService = {
   getEstadoCuenta,
   getMovimientosCuenta,
   registrarPago,
+  registrarAjuste,
   // Pedidos
   getPedidos,
   getPedido,

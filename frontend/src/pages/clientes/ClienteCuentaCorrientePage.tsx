@@ -20,6 +20,7 @@ import {
   TrendingDown,
   Package,
   Receipt,
+  Sliders,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 
-import { clienteService } from '@/services/clienteService';
+import { clienteService, type RegistrarAjusteRequest } from '@/services/clienteService';
 import {
   cuentaCorrienteClienteService,
   type RegistrarCobranzaRequest,
@@ -76,6 +77,14 @@ export default function ClienteCuentaCorrientePage() {
   const [fechaHasta, setFechaHasta] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos');
   const [page, setPage] = useState(0);
+
+  // Estados del modal de ajuste manual
+  const [showAjusteModal, setShowAjusteModal] = useState(false);
+  const [ajusteDireccion, setAjusteDireccion] = useState<'aumentar' | 'disminuir'>('disminuir');
+  const [ajusteMonto, setAjusteMonto] = useState('');
+  const [ajusteConcepto, setAjusteConcepto] = useState('');
+  const [ajusteFecha, setAjusteFecha] = useState('');
+  const [ajusteNotas, setAjusteNotas] = useState('');
 
   // Estados del modal de cobranza completo
   const [showPagoModal, setShowPagoModal] = useState(false);
@@ -160,6 +169,66 @@ export default function ClienteCuentaCorrientePage() {
       });
     },
   });
+
+  // Mutation para registrar ajuste manual
+  const ajusteMutation = useMutation({
+    mutationFn: (data: RegistrarAjusteRequest) =>
+      clienteService.registrarAjuste(id!, data),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['cliente', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-estado-cuenta', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-movimientos', id] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-deuda'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-resumen'] });
+      toast({
+        title: 'Ajuste registrado',
+        description: `Saldo actualizado a ${formatNumber(result.saldo_posterior, 'currency')}.`,
+      });
+      cerrarModalAjuste();
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.detail || 'No se pudo registrar el ajuste.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const abrirModalAjuste = () => {
+    setAjusteDireccion('disminuir');
+    setAjusteMonto('');
+    setAjusteConcepto('');
+    setAjusteFecha(getLocalDateString());
+    setAjusteNotas('');
+    setShowAjusteModal(true);
+  };
+
+  const cerrarModalAjuste = () => {
+    setShowAjusteModal(false);
+    setAjusteMonto('');
+    setAjusteConcepto('');
+    setAjusteNotas('');
+  };
+
+  const handleRegistrarAjuste = () => {
+    const monto = parseFloat(ajusteMonto);
+    if (!monto || monto <= 0 || !ajusteConcepto.trim() || !ajusteFecha) return;
+
+    ajusteMutation.mutate({
+      monto,
+      direccion: ajusteDireccion,
+      concepto: ajusteConcepto.trim(),
+      fecha: ajusteFecha,
+      notas: ajusteNotas || undefined,
+    });
+  };
+
+  const saldoActualNum = Number(cliente?.saldo_cuenta_corriente || 0);
+  const deltaAjuste = ajusteMonto
+    ? (ajusteDireccion === 'aumentar' ? 1 : -1) * parseFloat(ajusteMonto || '0')
+    : 0;
+  const saldoPreview = saldoActualNum + (isFinite(deltaAjuste) ? deltaAjuste : 0);
 
   const abrirModalCobranza = () => {
     setCobranzaMonto(cliente?.saldo_cuenta_corriente?.toString() || '');
@@ -299,6 +368,10 @@ export default function ClienteCuentaCorrientePage() {
           >
             <Download className="h-4 w-4 mr-2" />
             Exportar PDF
+          </Button>
+          <Button variant="outline" onClick={abrirModalAjuste}>
+            <Sliders className="h-4 w-4 mr-2" />
+            Ajustar Saldo
           </Button>
           <Button onClick={abrirModalCobranza} disabled={!cliente.tiene_deuda}>
             <CreditCard className="h-4 w-4 mr-2" />
@@ -478,34 +551,35 @@ export default function ClienteCuentaCorrientePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movimientosFiltrados.map((mov: any) => (
-                      <TableRow key={mov.id}>
-                        <TableCell className="font-mono text-sm">
-                          {formatDate(mov.fecha_movimiento)}
-                        </TableCell>
-                        <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
-                        <TableCell>{mov.concepto}</TableCell>
-                        <TableCell className="text-gray-500 text-sm">
-                          {mov.factura?.numero_completo
-                            ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
-                            : (mov.factura_numero || mov.recibo_numero || mov.referencia_pago || '-')}
-                        </TableCell>
-                        <TableCell>{getEstadoFacturacionBadge(mov)}</TableCell>
-                        <TableCell className="text-right font-medium text-red-600">
-                          {mov.tipo === 'cargo'
-                            ? formatNumber(mov.monto, 'currency')
-                            : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-green-600">
-                          {mov.tipo === 'pago'
-                            ? formatNumber(mov.monto, 'currency')
-                            : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          {formatNumber(mov.saldo_posterior, 'currency')}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {movimientosFiltrados.map((mov: any) => {
+                      const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
+                      const esDebe = mov.tipo === 'cargo' || (mov.tipo === 'ajuste' && delta > 0);
+                      const esHaber = mov.tipo === 'pago' || (mov.tipo === 'ajuste' && delta < 0);
+                      return (
+                        <TableRow key={mov.id}>
+                          <TableCell className="font-mono text-sm">
+                            {formatDate(mov.fecha_movimiento)}
+                          </TableCell>
+                          <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
+                          <TableCell>{mov.concepto}</TableCell>
+                          <TableCell className="text-gray-500 text-sm">
+                            {mov.factura?.numero_completo
+                              ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
+                              : (mov.factura_numero || mov.recibo_numero || mov.referencia_pago || '-')}
+                          </TableCell>
+                          <TableCell>{getEstadoFacturacionBadge(mov)}</TableCell>
+                          <TableCell className="text-right font-medium text-red-600">
+                            {esDebe ? formatNumber(mov.monto, 'currency') : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-green-600">
+                            {esHaber ? formatNumber(mov.monto, 'currency') : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {formatNumber(mov.saldo_posterior, 'currency')}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -552,6 +626,153 @@ export default function ClienteCuentaCorrientePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Ajuste Manual de Saldo */}
+      {showAjusteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
+          <Card className="w-full max-w-lg m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sliders className="h-5 w-5" />
+                Ajustar Saldo Manualmente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="font-medium">{cliente.nombre_fantasia || cliente.razon_social}</p>
+                <p className="text-sm text-gray-500">
+                  Saldo actual:{' '}
+                  <span className={`font-semibold ${saldoActualNum > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatNumber(saldoActualNum, 'currency')}
+                  </span>
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo de ajuste *</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAjusteDireccion('aumentar')}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
+                      ajusteDireccion === 'aumentar'
+                        ? 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                    <span className="text-sm font-medium">Aumentar deuda</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAjusteDireccion('disminuir')}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
+                      ajusteDireccion === 'disminuir'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <TrendingDown className="h-4 w-4" />
+                    <span className="text-sm font-medium">Disminuir deuda</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={ajusteMonto}
+                    onChange={(e) => setAjusteMonto(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha *</Label>
+                  <Input
+                    type="date"
+                    value={ajusteFecha}
+                    onChange={(e) => setAjusteFecha(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Concepto *</Label>
+                <Input
+                  value={ajusteConcepto}
+                  onChange={(e) => setAjusteConcepto(e.target.value)}
+                  placeholder="Ej: Bonificación acordada, Diferencia por redondeo, Nota de crédito manual..."
+                  maxLength={255}
+                />
+                <p className="text-xs text-gray-400">
+                  Describí el motivo del ajuste. Queda registrado en el historial.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas internas</Label>
+                <Textarea
+                  value={ajusteNotas}
+                  onChange={(e) => setAjusteNotas(e.target.value)}
+                  placeholder="Detalles adicionales (opcional)..."
+                  rows={2}
+                />
+              </div>
+
+              {ajusteMonto && parseFloat(ajusteMonto) > 0 && (
+                <div className="bg-blue-50 p-3 rounded-lg text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Saldo actual:</span>
+                    <span className="font-mono">{formatNumber(saldoActualNum, 'currency')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">
+                      Ajuste ({ajusteDireccion === 'aumentar' ? '+' : '−'}):
+                    </span>
+                    <span className={`font-mono font-semibold ${ajusteDireccion === 'aumentar' ? 'text-red-600' : 'text-green-600'}`}>
+                      {ajusteDireccion === 'aumentar' ? '+' : '−'}
+                      {formatNumber(parseFloat(ajusteMonto), 'currency')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-blue-200">
+                    <span className="font-medium">Saldo resultante:</span>
+                    <span className={`font-mono font-bold ${saldoPreview > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                      {formatNumber(saldoPreview, 'currency')}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="ghost" onClick={cerrarModalAjuste}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleRegistrarAjuste}
+                  disabled={
+                    !ajusteMonto ||
+                    parseFloat(ajusteMonto) <= 0 ||
+                    !ajusteConcepto.trim() ||
+                    !ajusteFecha ||
+                    ajusteMutation.isPending
+                  }
+                >
+                  {ajusteMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sliders className="h-4 w-4 mr-2" />
+                  )}
+                  Registrar Ajuste
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Modal de Cobranza Completo */}
       {showPagoModal && (

@@ -81,6 +81,19 @@ class RegistrarCobranzaRequest(BaseModel):
     factura_numero: Optional[str] = None  # Si ya está facturado
 
 
+# ==================== AJUSTE MANUAL ====================
+
+
+class RegistrarAjusteRequest(BaseModel):
+    """Request para registrar un ajuste manual de saldo de cuenta corriente."""
+    monto: Decimal = Field(..., gt=0, description="Importe (siempre positivo)")
+    direccion: str = Field(..., pattern="^(aumentar|disminuir)$",
+                           description="'aumentar' suma al saldo (débito), 'disminuir' resta (crédito)")
+    concepto: str = Field(..., min_length=3, max_length=255)
+    fecha: date
+    notas: Optional[str] = None
+
+
 # ==================== PAGO (LEGACY - mantener compatibilidad) ====================
 
 class RegistrarPagoRequest(BaseModel):

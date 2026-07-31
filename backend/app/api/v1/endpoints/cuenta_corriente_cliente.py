@@ -16,6 +16,7 @@ from app.schemas.cuenta_corriente import (
     MovimientoCCList,
     RegistrarPagoRequest,
     RegistrarCobranzaRequest,
+    RegistrarAjusteRequest,
     EstadoCuentaResponse,
     TIPOS_MOVIMIENTO_CC,
     MEDIOS_PAGO,
@@ -340,6 +341,48 @@ def registrar_pago_cliente(
         "id": str(movimiento.id),
         "recibo_numero": recibo.numero,
         "mensaje": "Pago registrado correctamente",
+        "saldo_posterior": float(movimiento.saldo_posterior),
+    }
+
+
+# ==================== AJUSTE MANUAL ====================
+
+@router.post("/{cliente_id}/ajuste", status_code=status.HTTP_201_CREATED)
+def registrar_ajuste_cliente(
+    cliente_id: str,
+    data: RegistrarAjusteRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """
+    Registra un ajuste manual de saldo en la cuenta corriente del cliente.
+
+    Crea un movimiento tipo AJUSTE (débito o crédito) sin tocar movimientos
+    anteriores. Mantiene la trazabilidad contable — cualquier corrección
+    de un pago/cargo mal cargado se hace con dos ajustes que compensen.
+    """
+    service = ClienteService(db)
+
+    try:
+        movimiento = service.registrar_ajuste(
+            cliente_id=cliente_id,
+            monto=data.monto,
+            direccion=data.direccion,
+            concepto=data.concepto,
+            fecha=data.fecha,
+            usuario_id=str(current_user.id),
+            notas=data.notas,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return {
+        "id": str(movimiento.id),
+        "mensaje": "Ajuste registrado correctamente",
+        "saldo_anterior": float(movimiento.saldo_anterior),
         "saldo_posterior": float(movimiento.saldo_posterior),
     }
 

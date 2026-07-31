@@ -477,6 +477,60 @@ class ClienteService:
 
         return movimiento
 
+    def registrar_ajuste(
+        self,
+        cliente_id: str,
+        monto: Decimal,
+        direccion: str,
+        concepto: str,
+        fecha: date,
+        usuario_id: str,
+        notas: Optional[str] = None,
+    ) -> MovimientoCuentaCorriente:
+        """
+        Registra un ajuste manual de saldo en la cuenta corriente del cliente.
+
+        `direccion='aumentar'` suma al saldo (débito, aumenta deuda).
+        `direccion='disminuir'` resta al saldo (crédito, reduce deuda).
+
+        Queda como un movimiento tipo AJUSTE inmutable — el signo se infiere
+        del delta `saldo_posterior - saldo_anterior`.
+        """
+        if direccion not in ("aumentar", "disminuir"):
+            raise ValueError("direccion debe ser 'aumentar' o 'disminuir'")
+        if monto is None or Decimal(monto) <= 0:
+            raise ValueError("El monto del ajuste debe ser positivo")
+
+        cliente = self.get_cliente(cliente_id)
+        if not cliente:
+            raise ValueError("Cliente no encontrado")
+
+        monto_pos = Decimal(monto)
+        delta = monto_pos if direccion == "aumentar" else -monto_pos
+        saldo_anterior = cliente.saldo_cuenta_corriente or Decimal(0)
+        saldo_posterior = saldo_anterior + delta
+
+        movimiento = MovimientoCuentaCorriente(
+            id=str(uuid4()),
+            cliente_id=cliente_id,
+            tipo=TipoMovimientoCC.AJUSTE.value,
+            concepto=concepto,
+            monto=monto_pos,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            fecha_movimiento=fecha,
+            registrado_por_id=usuario_id,
+            notas=notas,
+        )
+
+        self.db.add(movimiento)
+        cliente.saldo_cuenta_corriente = saldo_posterior
+
+        self.db.commit()
+        self.db.refresh(movimiento)
+
+        return movimiento
+
     def registrar_pago(
         self,
         data: RegistrarPagoRequest,
