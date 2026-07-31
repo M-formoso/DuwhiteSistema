@@ -24,7 +24,7 @@ from app.schemas.canasto import (
     LiberarCanastosRequest,
     LoteCanastoResponse,
 )
-from app.services.log_service import LogService
+from app.services.log_service import log_service
 
 
 class CanastoService:
@@ -127,7 +127,7 @@ class CanastoService:
         db.refresh(canasto)
 
         # Log
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="actualizar",
@@ -182,7 +182,7 @@ class CanastoService:
         db.refresh(canasto)
 
         # Log
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="cambiar_estado",
@@ -324,7 +324,7 @@ class CanastoService:
 
         # Log
         codigos = [CanastoService.get_by_id(db, cid).codigo for cid in request.canasto_ids]
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="asignar_canastos",
@@ -388,7 +388,7 @@ class CanastoService:
 
         # Log
         codigos = [a.canasto.codigo for a in liberados]
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="liberar_canastos",

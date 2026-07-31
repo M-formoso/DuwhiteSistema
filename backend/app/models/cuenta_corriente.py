@@ -3,6 +3,7 @@ Modelo de Cuenta Corriente y Movimientos.
 """
 
 from enum import Enum
+from uuid import uuid4
 from sqlalchemy import Column, String, Numeric, Text, Date, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -143,7 +144,7 @@ class DetalleRecibo(Base):
     """
     __tablename__ = "detalles_recibo"
 
-    id = Column(UUID(as_uuid=True), primary_key=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
 
     # Recibo
     recibo_id = Column(UUID(as_uuid=True), ForeignKey("recibos.id"), nullable=False)

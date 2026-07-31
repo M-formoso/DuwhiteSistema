@@ -16,7 +16,7 @@ from app.schemas.producto_lavado import (
     PrecioProductoLavadoCreate,
     PrecioProductoLavadoUpdate,
 )
-from app.services.log_service import LogService
+from app.services.log_service import log_service
 
 
 class ProductoLavadoService:
@@ -95,7 +95,7 @@ class ProductoLavadoService:
         db.refresh(producto)
 
         # Log
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="crear",
@@ -151,7 +151,7 @@ class ProductoLavadoService:
         db.refresh(producto)
 
         # Log
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="actualizar",
@@ -177,7 +177,7 @@ class ProductoLavadoService:
         db.commit()
 
         # Log
-        LogService.log(
+        log_service.registrar(
             db=db,
             usuario_id=usuario_id,
             accion="eliminar",
@@ -267,7 +267,7 @@ class ProductoLavadoService:
             db.refresh(precio)
 
             # Log
-            LogService.log(
+            log_service.registrar(
                 db=db,
                 usuario_id=usuario_id,
                 accion="crear",
@@ -395,7 +395,7 @@ class ProductoLavadoService:
 
         if cambios > 0:
             db.commit()
-            LogService.log(
+            log_service.registrar(
                 db=db,
                 usuario_id=usuario_id,
                 accion="bulk_actualizar",
@@ -447,7 +447,7 @@ class ProductoLavadoService:
 
         if actualizados > 0:
             db.commit()
-            LogService.log(
+            log_service.registrar(
                 db=db,
                 usuario_id=usuario_id,
                 accion="aplicar_incremento",
