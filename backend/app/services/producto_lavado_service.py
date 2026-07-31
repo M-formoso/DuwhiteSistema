@@ -304,6 +304,7 @@ class ProductoLavadoService:
         productos = ProductoLavadoService.get_all(
             db, categoria=categoria, solo_activos=True, search=search
         )
+        productos = sorted(productos, key=lambda p: (p.nombre or "").lower())
 
         # Cargar todos los precios activos en una sola query
         precios_rows = (
