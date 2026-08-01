@@ -94,6 +94,15 @@ class RegistrarAjusteRequest(BaseModel):
     notas: Optional[str] = None
 
 
+class EditarAjusteRequest(BaseModel):
+    """Request para editar un movimiento tipo AJUSTE ya cargado."""
+    monto: Optional[Decimal] = Field(None, gt=0)
+    direccion: Optional[str] = Field(None, pattern="^(aumentar|disminuir)$")
+    concepto: Optional[str] = Field(None, min_length=3, max_length=255)
+    fecha: Optional[date] = None
+    notas: Optional[str] = None
+
+
 # ==================== PAGO (LEGACY - mantener compatibilidad) ====================
 
 class RegistrarPagoRequest(BaseModel):

@@ -21,6 +21,7 @@ import {
   Package,
   Receipt,
   Sliders,
+  Pencil,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 
-import { clienteService, type RegistrarAjusteRequest } from '@/services/clienteService';
+import {
+  clienteService,
+  type RegistrarAjusteRequest,
+  type EditarAjusteRequest,
+} from '@/services/clienteService';
 import {
   cuentaCorrienteClienteService,
   type RegistrarCobranzaRequest,
@@ -85,6 +90,14 @@ export default function ClienteCuentaCorrientePage() {
   const [ajusteConcepto, setAjusteConcepto] = useState('');
   const [ajusteFecha, setAjusteFecha] = useState('');
   const [ajusteNotas, setAjusteNotas] = useState('');
+
+  // Estados del modal de edición de movimiento
+  const [editandoMovimientoId, setEditandoMovimientoId] = useState<string | null>(null);
+  const [editDireccion, setEditDireccion] = useState<'aumentar' | 'disminuir'>('disminuir');
+  const [editMonto, setEditMonto] = useState('');
+  const [editConcepto, setEditConcepto] = useState('');
+  const [editFecha, setEditFecha] = useState('');
+  const [editNotas, setEditNotas] = useState('');
 
   // Estados del modal de cobranza completo
   const [showPagoModal, setShowPagoModal] = useState(false);
@@ -229,6 +242,65 @@ export default function ClienteCuentaCorrientePage() {
     ? (ajusteDireccion === 'aumentar' ? 1 : -1) * parseFloat(ajusteMonto || '0')
     : 0;
   const saldoPreview = saldoActualNum + (isFinite(deltaAjuste) ? deltaAjuste : 0);
+
+  // Mutation para editar un movimiento tipo AJUSTE
+  const editMutation = useMutation({
+    mutationFn: (payload: { movimientoId: string; data: EditarAjusteRequest }) =>
+      clienteService.editarAjuste(id!, payload.movimientoId, payload.data),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['cliente', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-estado-cuenta', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-movimientos', id] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-deuda'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-resumen'] });
+      toast({
+        title: 'Movimiento actualizado',
+        description: `Nuevo saldo: ${formatNumber(result.saldo_posterior, 'currency')}.`,
+      });
+      cerrarModalEditar();
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.detail || 'No se pudo editar el movimiento.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const abrirModalEditar = (mov: any) => {
+    const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
+    setEditandoMovimientoId(mov.id);
+    setEditDireccion(delta >= 0 ? 'aumentar' : 'disminuir');
+    setEditMonto(String(mov.monto));
+    setEditConcepto(mov.concepto || '');
+    setEditFecha((mov.fecha_movimiento || '').slice(0, 10));
+    setEditNotas(mov.notas || '');
+  };
+
+  const cerrarModalEditar = () => {
+    setEditandoMovimientoId(null);
+    setEditMonto('');
+    setEditConcepto('');
+    setEditNotas('');
+  };
+
+  const handleGuardarEdicion = () => {
+    if (!editandoMovimientoId) return;
+    const monto = parseFloat(editMonto);
+    if (!monto || monto <= 0 || !editConcepto.trim() || !editFecha) return;
+
+    editMutation.mutate({
+      movimientoId: editandoMovimientoId,
+      data: {
+        monto,
+        direccion: editDireccion,
+        concepto: editConcepto.trim(),
+        fecha: editFecha,
+        notas: editNotas || undefined,
+      },
+    });
+  };
 
   const abrirModalCobranza = () => {
     setCobranzaMonto(cliente?.saldo_cuenta_corriente?.toString() || '');
@@ -548,6 +620,7 @@ export default function ClienteCuentaCorrientePage() {
                       <TableHead className="text-right">Debe</TableHead>
                       <TableHead className="text-right">Haber</TableHead>
                       <TableHead className="text-right">Saldo</TableHead>
+                      <TableHead className="w-[60px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -576,6 +649,18 @@ export default function ClienteCuentaCorrientePage() {
                           </TableCell>
                           <TableCell className="text-right font-bold">
                             {formatNumber(mov.saldo_posterior, 'currency')}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {mov.tipo === 'ajuste' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => abrirModalEditar(mov)}
+                                title="Editar ajuste"
+                              >
+                                <Pencil className="h-4 w-4 text-gray-500" />
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -626,6 +711,119 @@ export default function ClienteCuentaCorrientePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Edición de Movimiento (Ajuste) */}
+      {editandoMovimientoId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
+          <Card className="w-full max-w-lg m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5" />
+                Editar Ajuste
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg text-sm text-yellow-800">
+                Cambiar monto o dirección recalcula automáticamente los saldos
+                de este movimiento y de todos los posteriores.
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo de ajuste *</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditDireccion('aumentar')}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
+                      editDireccion === 'aumentar'
+                        ? 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                    <span className="text-sm font-medium">Aumentar deuda</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditDireccion('disminuir')}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
+                      editDireccion === 'disminuir'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <TrendingDown className="h-4 w-4" />
+                    <span className="text-sm font-medium">Disminuir deuda</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editMonto}
+                    onChange={(e) => setEditMonto(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha *</Label>
+                  <Input
+                    type="date"
+                    value={editFecha}
+                    onChange={(e) => setEditFecha(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Concepto *</Label>
+                <Input
+                  value={editConcepto}
+                  onChange={(e) => setEditConcepto(e.target.value)}
+                  maxLength={255}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas internas</Label>
+                <Textarea
+                  value={editNotas}
+                  onChange={(e) => setEditNotas(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="ghost" onClick={cerrarModalEditar}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleGuardarEdicion}
+                  disabled={
+                    !editMonto ||
+                    parseFloat(editMonto) <= 0 ||
+                    !editConcepto.trim() ||
+                    !editFecha ||
+                    editMutation.isPending
+                  }
+                >
+                  {editMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Pencil className="h-4 w-4 mr-2" />
+                  )}
+                  Guardar Cambios
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Modal de Ajuste Manual de Saldo */}
       {showAjusteModal && (

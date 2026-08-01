@@ -122,6 +122,31 @@ export async function registrarAjuste(
   return response.data;
 }
 
+export interface EditarAjusteRequest {
+  monto?: number;
+  direccion?: 'aumentar' | 'disminuir';
+  concepto?: string;
+  fecha?: string;
+  notas?: string;
+}
+
+export async function editarAjuste(
+  clienteId: string,
+  movimientoId: string,
+  data: EditarAjusteRequest
+): Promise<{
+  id: string;
+  mensaje: string;
+  saldo_anterior: number;
+  saldo_posterior: number;
+}> {
+  const response = await api.put(
+    `/clientes/cuenta-corriente/${clienteId}/movimientos/${movimientoId}`,
+    data
+  );
+  return response.data;
+}
+
 // ==================== PEDIDOS ====================
 
 export async function getPedidos(params?: {
@@ -200,6 +225,7 @@ export const clienteService = {
   getMovimientosCuenta,
   registrarPago,
   registrarAjuste,
+  editarAjuste,
   // Pedidos
   getPedidos,
   getPedido,

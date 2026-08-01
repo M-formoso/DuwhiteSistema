@@ -17,6 +17,7 @@ from app.schemas.cuenta_corriente import (
     RegistrarPagoRequest,
     RegistrarCobranzaRequest,
     RegistrarAjusteRequest,
+    EditarAjusteRequest,
     EstadoCuentaResponse,
     TIPOS_MOVIMIENTO_CC,
     MEDIOS_PAGO,
@@ -382,6 +383,51 @@ def registrar_ajuste_cliente(
     return {
         "id": str(movimiento.id),
         "mensaje": "Ajuste registrado correctamente",
+        "saldo_anterior": float(movimiento.saldo_anterior),
+        "saldo_posterior": float(movimiento.saldo_posterior),
+    }
+
+
+@router.put("/{cliente_id}/movimientos/{movimiento_id}", status_code=status.HTTP_200_OK)
+def editar_movimiento_ajuste(
+    cliente_id: str,
+    movimiento_id: str,
+    data: EditarAjusteRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """
+    Edita un movimiento tipo AJUSTE ya cargado.
+
+    Solo AJUSTES son editables. Al cambiar monto/direccion, los saldos
+    posteriores del cliente se recalculan automáticamente.
+    """
+    service = ClienteService(db)
+
+    try:
+        movimiento = service.editar_ajuste(
+            movimiento_id=movimiento_id,
+            monto=data.monto,
+            direccion=data.direccion,
+            concepto=data.concepto,
+            fecha=data.fecha,
+            notas=data.notas,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    if str(movimiento.cliente_id) != cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El movimiento no pertenece a este cliente",
+        )
+
+    return {
+        "id": str(movimiento.id),
+        "mensaje": "Movimiento actualizado correctamente",
         "saldo_anterior": float(movimiento.saldo_anterior),
         "saldo_posterior": float(movimiento.saldo_posterior),
     }

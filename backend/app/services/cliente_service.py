@@ -531,6 +531,96 @@ class ClienteService:
 
         return movimiento
 
+    def editar_ajuste(
+        self,
+        movimiento_id: str,
+        monto: Optional[Decimal] = None,
+        direccion: Optional[str] = None,
+        concepto: Optional[str] = None,
+        fecha: Optional[date] = None,
+        notas: Optional[str] = None,
+    ) -> MovimientoCuentaCorriente:
+        """
+        Edita un movimiento tipo AJUSTE.
+
+        Si cambia el monto/dirección, recalcula saldo_anterior/posterior de este
+        movimiento y de todos los movimientos POSTERIORES del mismo cliente
+        (ordenados por created_at), y actualiza el saldo del cliente.
+
+        Solo se permite editar AJUSTES. Cargos ligados a factura y pagos con
+        recibo emitido no son editables.
+        """
+        movimiento = self.db.query(MovimientoCuentaCorriente).filter(
+            MovimientoCuentaCorriente.id == movimiento_id
+        ).first()
+        if not movimiento:
+            raise ValueError("Movimiento no encontrado")
+        if movimiento.tipo != TipoMovimientoCC.AJUSTE.value:
+            raise ValueError("Solo se pueden editar movimientos de tipo AJUSTE")
+
+        cliente = self.get_cliente(str(movimiento.cliente_id))
+        if not cliente:
+            raise ValueError("Cliente del movimiento no encontrado")
+
+        # Dirección actual inferida del delta original
+        delta_actual = Decimal(movimiento.saldo_posterior) - Decimal(movimiento.saldo_anterior)
+        direccion_actual = "aumentar" if delta_actual >= 0 else "disminuir"
+
+        nueva_direccion = direccion or direccion_actual
+        if nueva_direccion not in ("aumentar", "disminuir"):
+            raise ValueError("direccion debe ser 'aumentar' o 'disminuir'")
+
+        nuevo_monto = Decimal(monto) if monto is not None else Decimal(movimiento.monto)
+        if nuevo_monto <= 0:
+            raise ValueError("El monto debe ser positivo")
+
+        # Actualizar campos "seguros" (no afectan saldos)
+        if concepto is not None:
+            movimiento.concepto = concepto
+        if fecha is not None:
+            movimiento.fecha_movimiento = fecha
+        if notas is not None:
+            movimiento.notas = notas
+
+        monto_anterior = Decimal(movimiento.monto)
+        cambio_montos = nuevo_monto != monto_anterior or nueva_direccion != direccion_actual
+
+        movimiento.monto = nuevo_monto
+
+        if not cambio_montos:
+            self.db.commit()
+            self.db.refresh(movimiento)
+            return movimiento
+
+        # Recálculo de saldos: este movimiento y todos los posteriores del cliente.
+        nuevo_saldo_posterior_este = Decimal(movimiento.saldo_anterior) + (
+            nuevo_monto if nueva_direccion == "aumentar" else -nuevo_monto
+        )
+        movimiento.saldo_posterior = nuevo_saldo_posterior_este
+
+        posteriores = (
+            self.db.query(MovimientoCuentaCorriente)
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == movimiento.cliente_id,
+                MovimientoCuentaCorriente.created_at > movimiento.created_at,
+            )
+            .order_by(MovimientoCuentaCorriente.created_at.asc())
+            .all()
+        )
+
+        saldo_running = nuevo_saldo_posterior_este
+        for mov_post in posteriores:
+            delta_post = Decimal(mov_post.saldo_posterior) - Decimal(mov_post.saldo_anterior)
+            mov_post.saldo_anterior = saldo_running
+            mov_post.saldo_posterior = saldo_running + delta_post
+            saldo_running = mov_post.saldo_posterior
+
+        cliente.saldo_cuenta_corriente = saldo_running
+
+        self.db.commit()
+        self.db.refresh(movimiento)
+        return movimiento
+
     def registrar_pago(
         self,
         data: RegistrarPagoRequest,
