@@ -621,6 +621,57 @@ class ClienteService:
         self.db.refresh(movimiento)
         return movimiento
 
+    def eliminar_ajuste(self, movimiento_id: str) -> dict:
+        """
+        Elimina un movimiento tipo AJUSTE y recalcula los saldos posteriores
+        del cliente. Devuelve un dict con info del cliente + nuevo saldo.
+
+        Solo se pueden eliminar movimientos tipo AJUSTE (mismo criterio que
+        editar_ajuste). Los cargos ligados a factura y pagos con recibo NO
+        se pueden eliminar por esta vía.
+        """
+        movimiento = self.db.query(MovimientoCuentaCorriente).filter(
+            MovimientoCuentaCorriente.id == movimiento_id
+        ).first()
+        if not movimiento:
+            raise ValueError("Movimiento no encontrado")
+        if movimiento.tipo != TipoMovimientoCC.AJUSTE.value:
+            raise ValueError("Solo se pueden eliminar movimientos de tipo AJUSTE")
+
+        cliente = self.get_cliente(str(movimiento.cliente_id))
+        if not cliente:
+            raise ValueError("Cliente del movimiento no encontrado")
+
+        cliente_id = movimiento.cliente_id
+        saldo_base = Decimal(movimiento.saldo_anterior)
+
+        posteriores = (
+            self.db.query(MovimientoCuentaCorriente)
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.created_at > movimiento.created_at,
+            )
+            .order_by(MovimientoCuentaCorriente.created_at.asc())
+            .all()
+        )
+
+        # Recalcular preservando el delta original de cada posterior
+        saldo_running = saldo_base
+        for mov_post in posteriores:
+            delta = Decimal(mov_post.saldo_posterior) - Decimal(mov_post.saldo_anterior)
+            mov_post.saldo_anterior = saldo_running
+            mov_post.saldo_posterior = saldo_running + delta
+            saldo_running = mov_post.saldo_posterior
+
+        cliente.saldo_cuenta_corriente = saldo_running
+        self.db.delete(movimiento)
+        self.db.commit()
+
+        return {
+            "cliente_id": str(cliente_id),
+            "saldo_posterior_cliente": float(saldo_running),
+        }
+
     def registrar_pago(
         self,
         data: RegistrarPagoRequest,

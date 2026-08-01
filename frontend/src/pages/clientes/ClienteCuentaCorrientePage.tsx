@@ -22,6 +22,9 @@ import {
   Receipt,
   Sliders,
   Pencil,
+  Eye,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -98,6 +101,10 @@ export default function ClienteCuentaCorrientePage() {
   const [editConcepto, setEditConcepto] = useState('');
   const [editFecha, setEditFecha] = useState('');
   const [editNotas, setEditNotas] = useState('');
+
+  // Estados del modal de detalle y eliminación
+  const [movimientoDetalle, setMovimientoDetalle] = useState<any | null>(null);
+  const [movimientoAEliminar, setMovimientoAEliminar] = useState<any | null>(null);
 
   // Estados del modal de cobranza completo
   const [showPagoModal, setShowPagoModal] = useState(false);
@@ -300,6 +307,36 @@ export default function ClienteCuentaCorrientePage() {
         notas: editNotas || undefined,
       },
     });
+  };
+
+  // Mutation para eliminar un movimiento tipo AJUSTE
+  const eliminarMutation = useMutation({
+    mutationFn: (movimientoId: string) => clienteService.eliminarAjuste(id!, movimientoId),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['cliente', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-estado-cuenta', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-movimientos', id] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-deuda'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-resumen'] });
+      toast({
+        title: 'Movimiento eliminado',
+        description: `Nuevo saldo: ${formatNumber(result.saldo_posterior_cliente, 'currency')}.`,
+      });
+      setMovimientoAEliminar(null);
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.detail || 'No se pudo eliminar el movimiento.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const confirmarEliminar = () => {
+    if (movimientoAEliminar) {
+      eliminarMutation.mutate(movimientoAEliminar.id);
+    }
   };
 
   const abrirModalCobranza = () => {
@@ -620,7 +657,7 @@ export default function ClienteCuentaCorrientePage() {
                       <TableHead className="text-right">Debe</TableHead>
                       <TableHead className="text-right">Haber</TableHead>
                       <TableHead className="text-right">Saldo</TableHead>
-                      <TableHead className="w-[60px]"></TableHead>
+                      <TableHead className="w-[140px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -651,16 +688,36 @@ export default function ClienteCuentaCorrientePage() {
                             {formatNumber(mov.saldo_posterior, 'currency')}
                           </TableCell>
                           <TableCell className="text-right">
-                            {mov.tipo === 'ajuste' && (
+                            <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => abrirModalEditar(mov)}
-                                title="Editar ajuste"
+                                onClick={() => setMovimientoDetalle(mov)}
+                                title="Ver detalle"
                               >
-                                <Pencil className="h-4 w-4 text-gray-500" />
+                                <Eye className="h-4 w-4 text-gray-500" />
                               </Button>
-                            )}
+                              {mov.tipo === 'ajuste' && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => abrirModalEditar(mov)}
+                                    title="Editar ajuste"
+                                  >
+                                    <Pencil className="h-4 w-4 text-gray-500" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setMovimientoAEliminar(mov)}
+                                    title="Eliminar ajuste"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -711,6 +768,206 @@ export default function ClienteCuentaCorrientePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Detalle de Movimiento */}
+      {movimientoDetalle && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
+          <Card className="w-full max-w-lg m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Detalle del Movimiento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                {getTipoBadge(movimientoDetalle.tipo)}
+                <span className="text-sm text-gray-500 font-mono">
+                  {formatDate(movimientoDetalle.fecha_movimiento)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <p className="text-gray-500 text-xs">Concepto</p>
+                  <p className="font-medium">{movimientoDetalle.concepto || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Monto</p>
+                  <p className="font-mono font-semibold">
+                    {formatNumber(movimientoDetalle.monto, 'currency')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Saldo anterior</p>
+                  <p className="font-mono">
+                    {formatNumber(movimientoDetalle.saldo_anterior, 'currency')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Saldo posterior</p>
+                  <p className="font-mono font-bold">
+                    {formatNumber(movimientoDetalle.saldo_posterior, 'currency')}
+                  </p>
+                </div>
+                {movimientoDetalle.medio_pago && (
+                  <div>
+                    <p className="text-gray-500 text-xs">Medio de pago</p>
+                    <p className="font-medium capitalize">
+                      {movimientoDetalle.medio_pago.replace('_', ' ')}
+                    </p>
+                  </div>
+                )}
+                {movimientoDetalle.referencia_pago && (
+                  <div>
+                    <p className="text-gray-500 text-xs">Referencia</p>
+                    <p className="font-mono">{movimientoDetalle.referencia_pago}</p>
+                  </div>
+                )}
+                {movimientoDetalle.recibo_numero && (
+                  <div>
+                    <p className="text-gray-500 text-xs">Recibo</p>
+                    <p className="font-mono">{movimientoDetalle.recibo_numero}</p>
+                  </div>
+                )}
+                {movimientoDetalle.factura_numero && (
+                  <div>
+                    <p className="text-gray-500 text-xs">Factura</p>
+                    <p className="font-mono">{movimientoDetalle.factura_numero}</p>
+                  </div>
+                )}
+                {movimientoDetalle.factura && (
+                  <div className="col-span-2">
+                    <p className="text-gray-500 text-xs mb-1">Factura vinculada</p>
+                    <button
+                      onClick={() => navigate(`/facturacion/${movimientoDetalle.factura.id}`)}
+                      className="text-blue-600 hover:underline font-mono text-sm"
+                    >
+                      {movimientoDetalle.factura.numero_completo} —{' '}
+                      {formatNumber(movimientoDetalle.factura.total, 'currency')}
+                    </button>
+                  </div>
+                )}
+                {movimientoDetalle.registrado_por_nombre && (
+                  <div>
+                    <p className="text-gray-500 text-xs">Registrado por</p>
+                    <p>{movimientoDetalle.registrado_por_nombre}</p>
+                  </div>
+                )}
+                {movimientoDetalle.created_at && (
+                  <div>
+                    <p className="text-gray-500 text-xs">Fecha de carga</p>
+                    <p className="font-mono text-xs">
+                      {new Date(movimientoDetalle.created_at).toLocaleString('es-AR')}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {movimientoDetalle.notas && (
+                <div className="pt-2 border-t">
+                  <p className="text-gray-500 text-xs mb-1">Notas</p>
+                  <p className="text-sm whitespace-pre-wrap">{movimientoDetalle.notas}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                {movimientoDetalle.tipo === 'ajuste' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const mov = movimientoDetalle;
+                        setMovimientoDetalle(null);
+                        abrirModalEditar(mov);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        const mov = movimientoDetalle;
+                        setMovimientoDetalle(null);
+                        setMovimientoAEliminar(mov);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Eliminar
+                    </Button>
+                  </>
+                )}
+                <Button onClick={() => setMovimientoDetalle(null)}>Cerrar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de confirmación de eliminación */}
+      {movimientoAEliminar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Eliminar Ajuste
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm">
+                ¿Confirmás eliminar este ajuste? Esta acción no se puede deshacer.
+              </p>
+
+              <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Fecha:</span>
+                  <span>{formatDate(movimientoAEliminar.fecha_movimiento)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Concepto:</span>
+                  <span className="font-medium">{movimientoAEliminar.concepto}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Monto:</span>
+                  <span className="font-mono font-semibold">
+                    {formatNumber(movimientoAEliminar.monto, 'currency')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg text-sm text-yellow-800">
+                Los saldos de los movimientos posteriores se recalculan
+                automáticamente.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setMovimientoAEliminar(null)}
+                  disabled={eliminarMutation.isPending}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={confirmarEliminar}
+                  disabled={eliminarMutation.isPending}
+                >
+                  {eliminarMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Eliminar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Modal de Edición de Movimiento (Ajuste) */}
       {editandoMovimientoId && (

@@ -147,6 +147,19 @@ export async function editarAjuste(
   return response.data;
 }
 
+export async function eliminarAjuste(
+  clienteId: string,
+  movimientoId: string
+): Promise<{
+  mensaje: string;
+  saldo_posterior_cliente: number;
+}> {
+  const response = await api.delete(
+    `/clientes/cuenta-corriente/${clienteId}/movimientos/${movimientoId}`
+  );
+  return response.data;
+}
+
 // ==================== PEDIDOS ====================
 
 export async function getPedidos(params?: {
@@ -226,6 +239,7 @@ export const clienteService = {
   registrarPago,
   registrarAjuste,
   editarAjuste,
+  eliminarAjuste,
   // Pedidos
   getPedidos,
   getPedido,

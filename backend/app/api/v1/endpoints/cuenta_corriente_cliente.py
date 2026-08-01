@@ -187,6 +187,15 @@ def _serializar_movimiento(m) -> dict:
             "cae": f.cae,
         }
 
+    registrado_por_nombre = None
+    if getattr(m, "registrado_por", None):
+        u = m.registrado_por
+        registrado_por_nombre = (
+            getattr(u, "nombre_completo", None)
+            or getattr(u, "nombre", None)
+            or getattr(u, "email", None)
+        )
+
     return {
         "id": str(m.id),
         "tipo": m.tipo,
@@ -205,6 +214,9 @@ def _serializar_movimiento(m) -> dict:
         "pedido_id": str(m.pedido_id) if m.pedido_id else None,
         "lote_id": str(m.lote_id) if m.lote_id else None,
         "factura": factura_info,
+        "notas": m.notas,
+        "registrado_por_nombre": registrado_por_nombre,
+        "created_at": m.created_at.isoformat() if getattr(m, "created_at", None) else None,
     }
 
 
@@ -430,6 +442,49 @@ def editar_movimiento_ajuste(
         "mensaje": "Movimiento actualizado correctamente",
         "saldo_anterior": float(movimiento.saldo_anterior),
         "saldo_posterior": float(movimiento.saldo_posterior),
+    }
+
+
+@router.delete("/{cliente_id}/movimientos/{movimiento_id}", status_code=status.HTTP_200_OK)
+def eliminar_movimiento_ajuste(
+    cliente_id: str,
+    movimiento_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """
+    Elimina un movimiento tipo AJUSTE y recalcula los saldos posteriores
+    del cliente. Solo se permiten AJUSTES.
+    """
+    from app.models.cuenta_corriente import MovimientoCuentaCorriente
+
+    movimiento = db.query(MovimientoCuentaCorriente).filter(
+        MovimientoCuentaCorriente.id == movimiento_id
+    ).first()
+
+    if not movimiento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movimiento no encontrado",
+        )
+    if str(movimiento.cliente_id) != cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El movimiento no pertenece a este cliente",
+        )
+
+    service = ClienteService(db)
+    try:
+        resultado = service.eliminar_ajuste(movimiento_id=movimiento_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return {
+        "mensaje": "Movimiento eliminado correctamente",
+        "saldo_posterior_cliente": resultado["saldo_posterior_cliente"],
     }
 
 
