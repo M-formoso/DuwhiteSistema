@@ -84,6 +84,20 @@ export interface RegistrarCobranzaRequest {
   lote_id?: string;
   estado_facturacion: string;  // sin_facturar, factura_a, factura_b, ticket
   factura_numero?: string;
+  // Detalle Cheque (obligatorios cuando medio_pago === 'cheque')
+  cheque_numero?: string;
+  cheque_banco?: string;
+  cheque_fecha_emision?: string;
+  cheque_fecha_vencimiento?: string;
+  cheque_librador?: string;
+  cheque_cuit_librador?: string;
+  cheque_tipo?: 'fisico' | 'echeq';
+  // Detalle Transferencia
+  transferencia_banco_origen?: string;
+  transferencia_numero?: string;
+  cuenta_destino_id?: string;
+  // Detalle Efectivo
+  caja_id?: string;
 }
 
 export interface PedidoPendiente {

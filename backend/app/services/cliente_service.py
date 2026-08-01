@@ -18,7 +18,21 @@ from app.models.cuenta_corriente import (
     DetalleRecibo,
     TipoMovimientoCC,
 )
-from app.models.tesoreria import MovimientoTesoreria, TipoMovimientoTesoreria
+from app.models.tesoreria import (
+    MovimientoTesoreria,
+    TipoMovimientoTesoreria,
+    Cheque,
+    TipoCheque,
+    OrigenCheque,
+    EstadoCheque,
+)
+from app.models.caja import (
+    Caja,
+    MovimientoCaja,
+    EstadoCaja,
+    TipoMovimientoCaja,
+    CategoriaMovimiento,
+)
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.schemas.pedido import PedidoCreate, PedidoUpdate, DetallePedidoCreate
 from app.schemas.cuenta_corriente import MovimientoCCCreate, RegistrarPagoRequest
@@ -718,15 +732,69 @@ class ClienteService:
 
         self.db.add(movimiento)
 
-        # Crear movimiento de tesorería en paralelo (refleja el ingreso real de plata)
+        # ==================== Tesorería ====================
+        # Cada pago genera un MovimientoTesoreria (ingreso real de plata).
+        # Según el medio_pago, se completan campos específicos y se crean
+        # entidades asociadas (Cheque para cheques, MovimientoCaja para efectivo).
         tipo_tesoreria_map = {
             "efectivo": TipoMovimientoTesoreria.INGRESO_EFECTIVO.value,
             "transferencia": TipoMovimientoTesoreria.INGRESO_TRANSFERENCIA.value,
             "cheque": TipoMovimientoTesoreria.INGRESO_CHEQUE.value,
         }
         metodo_pago_norm = (data.medio_pago or "efectivo").lower()
-        tipo_tesoreria = tipo_tesoreria_map.get(metodo_pago_norm, TipoMovimientoTesoreria.INGRESO_EFECTIVO.value)
-        metodo_pago_tesoreria = metodo_pago_norm if metodo_pago_norm in tipo_tesoreria_map else "efectivo"
+        tipo_tesoreria = tipo_tesoreria_map.get(
+            metodo_pago_norm, TipoMovimientoTesoreria.INGRESO_EFECTIVO.value
+        )
+        metodo_pago_tesoreria = (
+            metodo_pago_norm if metodo_pago_norm in tipo_tesoreria_map else "efectivo"
+        )
+
+        # Validaciones y creación de entidades asociadas según medio
+        cheque_creado: Optional[Cheque] = None
+        cuenta_destino_id: Optional[str] = None
+        transferencia_banco_origen: Optional[str] = None
+        transferencia_numero: Optional[str] = None
+        fecha_valor: Optional[date] = None
+
+        if metodo_pago_norm == "cheque":
+            # Requiere al menos número, banco emisor y fecha de vencimiento
+            if not getattr(data, "cheque_numero", None):
+                raise ValueError("Número de cheque es obligatorio para pagos con cheque")
+            if not getattr(data, "cheque_banco", None):
+                raise ValueError("Banco emisor es obligatorio para pagos con cheque")
+            if not getattr(data, "cheque_fecha_vencimiento", None):
+                raise ValueError(
+                    "Fecha de vencimiento es obligatoria para pagos con cheque"
+                )
+
+            cheque_tipo_val = getattr(data, "cheque_tipo", None) or TipoCheque.FISICO.value
+            cheque_creado = Cheque(
+                id=str(uuid4()),
+                numero=str(data.cheque_numero).strip(),
+                tipo=cheque_tipo_val,
+                origen=OrigenCheque.RECIBIDO_CLIENTE.value,
+                estado=EstadoCheque.EN_CARTERA.value,
+                monto=data.monto,
+                fecha_emision=getattr(data, "cheque_fecha_emision", None),
+                fecha_vencimiento=data.cheque_fecha_vencimiento,
+                banco_origen=data.cheque_banco,
+                cliente_id=data.cliente_id,
+                librador=getattr(data, "cheque_librador", None),
+                cuit_librador=getattr(data, "cheque_cuit_librador", None),
+                registrado_por_id=usuario_id,
+                fecha_registro=datetime.utcnow(),
+                notas=data.notas,
+            )
+            self.db.add(cheque_creado)
+            self.db.flush()  # asegurar id disponible antes del movimiento
+            fecha_valor = data.cheque_fecha_vencimiento
+
+        elif metodo_pago_norm == "transferencia":
+            transferencia_banco_origen = getattr(data, "transferencia_banco_origen", None)
+            transferencia_numero = (
+                getattr(data, "transferencia_numero", None) or data.referencia_pago
+            )
+            cuenta_destino_id = getattr(data, "cuenta_destino_id", None)
 
         movimiento_tesoreria = MovimientoTesoreria(
             id=str(uuid4()),
@@ -735,11 +803,16 @@ class ClienteService:
             monto=data.monto,
             es_ingreso=True,
             fecha_movimiento=data.fecha,
+            fecha_valor=fecha_valor,
             metodo_pago=metodo_pago_tesoreria,
             cliente_id=data.cliente_id,
             registrado_por_id=usuario_id,
             notas=data.notas,
             comprobante=data.referencia_pago,
+            cheque_id=str(cheque_creado.id) if cheque_creado else None,
+            banco_origen=transferencia_banco_origen,
+            numero_transferencia=transferencia_numero,
+            cuenta_destino_id=cuenta_destino_id,
         )
         self.db.add(movimiento_tesoreria)
 
@@ -765,6 +838,49 @@ class ClienteService:
 
         # Actualizar saldo del cliente
         cliente.saldo_cuenta_corriente = saldo_posterior
+
+        # ==================== Movimiento en Caja (solo efectivo) ====================
+        # Si el pago es en efectivo, además se registra un ingreso en la caja
+        # abierta (auto-detect si no se pasó caja_id explícita).
+        if metodo_pago_norm == "efectivo":
+            caja_para_ingreso: Optional[Caja] = None
+            caja_id_solicitada = getattr(data, "caja_id", None)
+            if caja_id_solicitada:
+                caja_para_ingreso = (
+                    self.db.query(Caja)
+                    .filter(Caja.id == caja_id_solicitada)
+                    .filter(Caja.estado == EstadoCaja.ABIERTA.value)
+                    .first()
+                )
+                if not caja_para_ingreso:
+                    raise ValueError(
+                        "La caja indicada no existe o no está abierta"
+                    )
+            else:
+                caja_para_ingreso = (
+                    self.db.query(Caja)
+                    .filter(Caja.estado == EstadoCaja.ABIERTA.value)
+                    .order_by(Caja.fecha_apertura.desc())
+                    .first()
+                )
+
+            if caja_para_ingreso is not None:
+                mov_caja = MovimientoCaja(
+                    id=str(uuid4()),
+                    caja_id=str(caja_para_ingreso.id),
+                    tipo=TipoMovimientoCaja.INGRESO.value,
+                    categoria=CategoriaMovimiento.COBRO_CLIENTE.value,
+                    concepto=concepto,
+                    monto=data.monto,
+                    medio_pago="efectivo",
+                    referencia=numero_recibo,
+                    cliente_id=data.cliente_id,
+                    recibo_id=str(recibo.id),
+                    registrado_por_id=usuario_id,
+                )
+                self.db.add(mov_caja)
+            # Si no hay caja abierta, el ingreso queda en tesorería pero no
+            # impacta caja física — el usuario debe abrir caja para registrarlo.
 
         # Si se especificaron pedidos, actualizar sus saldos
         if data.aplicar_a_pedidos:

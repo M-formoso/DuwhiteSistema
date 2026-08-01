@@ -63,6 +63,7 @@ import {
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
+import { BANCOS_ARGENTINA, TIPOS_CHEQUE } from '@/types/tesoreria';
 
 const ESTADOS_FACTURACION = [
   { value: 'sin_facturar', label: 'Sin Facturar' },
@@ -117,6 +118,18 @@ export default function ClienteCuentaCorrientePage() {
   const [cobranzaFacturaNumero, setCobranzaFacturaNumero] = useState('');
   const [cobranzaPedidoId, setCobranzaPedidoId] = useState<string>('');
   const [cobranzaLoteId, setCobranzaLoteId] = useState<string>('');
+
+  // Detalle Cheque
+  const [chequeNumero, setChequeNumero] = useState('');
+  const [chequeBanco, setChequeBanco] = useState('');
+  const [chequeFechaEmision, setChequeFechaEmision] = useState('');
+  const [chequeFechaVencimiento, setChequeFechaVencimiento] = useState('');
+  const [chequeLibrador, setChequeLibrador] = useState('');
+  const [chequeCuitLibrador, setChequeCuitLibrador] = useState('');
+  const [chequeTipo, setChequeTipo] = useState<'fisico' | 'echeq'>('fisico');
+  // Detalle Transferencia
+  const [transferenciaBanco, setTransferenciaBanco] = useState('');
+  const [transferenciaNumero, setTransferenciaNumero] = useState('');
 
   // Query del cliente
   const { data: cliente, isLoading: loadingCliente } = useQuery({
@@ -362,10 +375,31 @@ export default function ClienteCuentaCorrientePage() {
     setCobranzaFacturaNumero('');
     setCobranzaPedidoId('');
     setCobranzaLoteId('');
+    setChequeNumero('');
+    setChequeBanco('');
+    setChequeFechaEmision('');
+    setChequeFechaVencimiento('');
+    setChequeLibrador('');
+    setChequeCuitLibrador('');
+    setChequeTipo('fisico');
+    setTransferenciaBanco('');
+    setTransferenciaNumero('');
   };
 
   const handleRegistrarCobranza = () => {
     if (!cobranzaMonto) return;
+
+    // Validación cliente-side de campos obligatorios por medio de pago
+    if (cobranzaMedio === 'cheque') {
+      if (!chequeNumero.trim() || !chequeBanco || !chequeFechaVencimiento) {
+        toast({
+          title: 'Faltan datos del cheque',
+          description: 'Número, banco emisor y fecha de vencimiento son obligatorios.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     cobranzaMutation.mutate({
       monto: parseFloat(cobranzaMonto),
@@ -378,6 +412,25 @@ export default function ClienteCuentaCorrientePage() {
       lote_id: cobranzaLoteId || undefined,
       estado_facturacion: cobranzaEstadoFacturacion,
       factura_numero: cobranzaFacturaNumero || undefined,
+      // Cheque
+      cheque_numero: cobranzaMedio === 'cheque' ? chequeNumero.trim() : undefined,
+      cheque_banco: cobranzaMedio === 'cheque' ? chequeBanco : undefined,
+      cheque_fecha_emision:
+        cobranzaMedio === 'cheque' && chequeFechaEmision ? chequeFechaEmision : undefined,
+      cheque_fecha_vencimiento:
+        cobranzaMedio === 'cheque' ? chequeFechaVencimiento : undefined,
+      cheque_librador:
+        cobranzaMedio === 'cheque' && chequeLibrador ? chequeLibrador : undefined,
+      cheque_cuit_librador:
+        cobranzaMedio === 'cheque' && chequeCuitLibrador ? chequeCuitLibrador : undefined,
+      cheque_tipo: cobranzaMedio === 'cheque' ? chequeTipo : undefined,
+      // Transferencia
+      transferencia_banco_origen:
+        cobranzaMedio === 'transferencia' && transferenciaBanco ? transferenciaBanco : undefined,
+      transferencia_numero:
+        cobranzaMedio === 'transferencia' && transferenciaNumero
+          ? transferenciaNumero
+          : undefined,
     });
   };
 
@@ -1249,8 +1302,19 @@ export default function ClienteCuentaCorrientePage() {
               </div>
 
               <Tabs defaultValue="basico" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList
+                  className={`grid w-full ${
+                    cobranzaMedio === 'cheque' || cobranzaMedio === 'transferencia'
+                      ? 'grid-cols-4'
+                      : 'grid-cols-3'
+                  }`}
+                >
                   <TabsTrigger value="basico">Datos Básicos</TabsTrigger>
+                  {(cobranzaMedio === 'cheque' || cobranzaMedio === 'transferencia') && (
+                    <TabsTrigger value="detalle">
+                      {cobranzaMedio === 'cheque' ? 'Cheque' : 'Transferencia'}
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="asociar">Asociar a</TabsTrigger>
                   <TabsTrigger value="facturacion">Facturación</TabsTrigger>
                 </TabsList>
@@ -1313,6 +1377,132 @@ export default function ClienteCuentaCorrientePage() {
                       rows={2}
                     />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="detalle" className="space-y-4 mt-4">
+                  {cobranzaMedio === 'cheque' && (
+                    <>
+                      <p className="text-sm text-gray-500">
+                        Se crea automáticamente un cheque en cartera vinculado a este pago.
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Número de cheque *</Label>
+                          <Input
+                            value={chequeNumero}
+                            onChange={(e) => setChequeNumero(e.target.value)}
+                            placeholder="12345678"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Tipo *</Label>
+                          <Select
+                            value={chequeTipo}
+                            onValueChange={(v) => setChequeTipo(v as 'fisico' | 'echeq')}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TIPOS_CHEQUE.map((t) => (
+                                <SelectItem key={t.value} value={t.value}>
+                                  {t.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Banco emisor *</Label>
+                        <Select value={chequeBanco} onValueChange={setChequeBanco}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar banco" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BANCOS_ARGENTINA.map((b) => (
+                              <SelectItem key={b} value={b}>
+                                {b}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Fecha de emisión</Label>
+                          <Input
+                            type="date"
+                            value={chequeFechaEmision}
+                            onChange={(e) => setChequeFechaEmision(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Fecha de vencimiento *</Label>
+                          <Input
+                            type="date"
+                            value={chequeFechaVencimiento}
+                            onChange={(e) => setChequeFechaVencimiento(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Librador</Label>
+                          <Input
+                            value={chequeLibrador}
+                            onChange={(e) => setChequeLibrador(e.target.value)}
+                            placeholder="Nombre de quién firma"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>CUIT librador</Label>
+                          <Input
+                            value={chequeCuitLibrador}
+                            onChange={(e) => setChequeCuitLibrador(e.target.value)}
+                            placeholder="XX-XXXXXXXX-X"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {cobranzaMedio === 'transferencia' && (
+                    <>
+                      <p className="text-sm text-gray-500">
+                        Datos de la transferencia recibida.
+                      </p>
+                      <div className="space-y-2">
+                        <Label>Banco de origen</Label>
+                        <Select
+                          value={transferenciaBanco || '_none'}
+                          onValueChange={(v) =>
+                            setTransferenciaBanco(v === '_none' ? '' : v)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar banco" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none">Sin especificar</SelectItem>
+                            {BANCOS_ARGENTINA.map((b) => (
+                              <SelectItem key={b} value={b}>
+                                {b}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Número de transferencia / comprobante</Label>
+                        <Input
+                          value={transferenciaNumero}
+                          onChange={(e) => setTransferenciaNumero(e.target.value)}
+                          placeholder="Ej: 1234567890"
+                        />
+                      </div>
+                    </>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="asociar" className="space-y-4 mt-4">

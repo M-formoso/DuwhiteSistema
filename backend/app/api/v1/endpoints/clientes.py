@@ -459,14 +459,9 @@ def registrar_pago(
         )
 
     try:
+        # Pasar todos los campos que vengan en el body — Pydantic valida el resto.
         pago_data = RegistrarPagoRequest(
-            cliente_id=cliente_id,
-            monto=data.get("monto"),
-            fecha=data.get("fecha"),
-            medio_pago=data.get("medio_pago"),
-            referencia_pago=data.get("referencia_pago"),
-            notas=data.get("notas"),
-            aplicar_a_pedidos=data.get("aplicar_a_pedidos"),
+            **{**data, "cliente_id": cliente_id}
         )
 
         recibo, movimiento = service.registrar_pago(pago_data, str(current_user.id))

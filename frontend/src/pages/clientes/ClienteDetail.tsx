@@ -59,6 +59,7 @@ import { listaPreciosService } from '@/services/servicioService';
 import { formatNumber, formatDate } from '@/utils/formatters';
 import { TIPOS_CLIENTE, CONDICIONES_IVA, MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
+import { BANCOS_ARGENTINA, TIPOS_CHEQUE } from '@/types/tesoreria';
 
 export default function ClienteDetailPage() {
   const { id } = useParams();
@@ -70,6 +71,15 @@ export default function ClienteDetailPage() {
   const [pagoMonto, setPagoMonto] = useState('');
   const [pagoMedio, setPagoMedio] = useState<MedioPago>('efectivo');
   const [pagoReferencia, setPagoReferencia] = useState('');
+  // Detalle Cheque
+  const [pagoChequeNumero, setPagoChequeNumero] = useState('');
+  const [pagoChequeBanco, setPagoChequeBanco] = useState('');
+  const [pagoChequeFechaVenc, setPagoChequeFechaVenc] = useState('');
+  const [pagoChequeLibrador, setPagoChequeLibrador] = useState('');
+  const [pagoChequeTipo, setPagoChequeTipo] = useState<'fisico' | 'echeq'>('fisico');
+  // Detalle Transferencia
+  const [pagoTransfBanco, setPagoTransfBanco] = useState('');
+  const [pagoTransfNumero, setPagoTransfNumero] = useState('');
 
   // Estados para gestión de usuario
   const [showCrearUsuarioModal, setShowCrearUsuarioModal] = useState(false);
@@ -173,13 +183,35 @@ export default function ClienteDetailPage() {
 
   // Mutation para registrar pago
   const pagoMutation = useMutation({
-    mutationFn: () =>
-      clienteService.registrarPago(id!, {
+    mutationFn: () => {
+      // Validación local para cheque
+      if (pagoMedio === 'cheque') {
+        if (!pagoChequeNumero.trim() || !pagoChequeBanco || !pagoChequeFechaVenc) {
+          throw new Error(
+            'Para pagos con cheque: número, banco emisor y fecha de vencimiento son obligatorios.'
+          );
+        }
+      }
+      return clienteService.registrarPago(id!, {
         monto: parseFloat(pagoMonto),
         fecha: new Date().toLocaleDateString('en-CA'),
         medio_pago: pagoMedio,
         referencia_pago: pagoReferencia || undefined,
-      }),
+        // Cheque
+        cheque_numero: pagoMedio === 'cheque' ? pagoChequeNumero.trim() : undefined,
+        cheque_banco: pagoMedio === 'cheque' ? pagoChequeBanco : undefined,
+        cheque_fecha_vencimiento:
+          pagoMedio === 'cheque' ? pagoChequeFechaVenc : undefined,
+        cheque_librador:
+          pagoMedio === 'cheque' && pagoChequeLibrador ? pagoChequeLibrador : undefined,
+        cheque_tipo: pagoMedio === 'cheque' ? pagoChequeTipo : undefined,
+        // Transferencia
+        transferencia_banco_origen:
+          pagoMedio === 'transferencia' && pagoTransfBanco ? pagoTransfBanco : undefined,
+        transferencia_numero:
+          pagoMedio === 'transferencia' && pagoTransfNumero ? pagoTransfNumero : undefined,
+      });
+    },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['cliente', id] });
       queryClient.invalidateQueries({ queryKey: ['cliente-estado-cuenta', id] });
@@ -191,11 +223,23 @@ export default function ClienteDetailPage() {
       setShowPagoModal(false);
       setPagoMonto('');
       setPagoReferencia('');
+      setPagoChequeNumero('');
+      setPagoChequeBanco('');
+      setPagoChequeFechaVenc('');
+      setPagoChequeLibrador('');
+      setPagoChequeTipo('fisico');
+      setPagoTransfBanco('');
+      setPagoTransfNumero('');
     },
-    onError: () => {
+    onError: (e: unknown) => {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+            'No se pudo registrar el pago.';
       toast({
         title: 'Error',
-        description: 'No se pudo registrar el pago.',
+        description: msg,
         variant: 'destructive',
       });
     },
@@ -1005,6 +1049,106 @@ export default function ClienteDetailPage() {
                   placeholder="Nro. transferencia, cheque, etc."
                 />
               </div>
+
+              {pagoMedio === 'cheque' && (
+                <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-600">Datos del cheque</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Número *</Label>
+                      <Input
+                        value={pagoChequeNumero}
+                        onChange={(e) => setPagoChequeNumero(e.target.value)}
+                        placeholder="12345678"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Tipo *</Label>
+                      <Select
+                        value={pagoChequeTipo}
+                        onValueChange={(v) => setPagoChequeTipo(v as 'fisico' | 'echeq')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_CHEQUE.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Banco emisor *</Label>
+                    <Select value={pagoChequeBanco} onValueChange={setPagoChequeBanco}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BANCOS_ARGENTINA.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Vencimiento *</Label>
+                      <Input
+                        type="date"
+                        value={pagoChequeFechaVenc}
+                        onChange={(e) => setPagoChequeFechaVenc(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Librador</Label>
+                      <Input
+                        value={pagoChequeLibrador}
+                        onChange={(e) => setPagoChequeLibrador(e.target.value)}
+                        placeholder="Nombre"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {pagoMedio === 'transferencia' && (
+                <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-600">Datos de la transferencia</p>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Banco de origen</Label>
+                    <Select
+                      value={pagoTransfBanco || '_none'}
+                      onValueChange={(v) => setPagoTransfBanco(v === '_none' ? '' : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">Sin especificar</SelectItem>
+                        {BANCOS_ARGENTINA.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Número / comprobante</Label>
+                    <Input
+                      value={pagoTransfNumero}
+                      onChange={(e) => setPagoTransfNumero(e.target.value)}
+                      placeholder="Ej: 1234567890"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="ghost" onClick={() => setShowPagoModal(false)}>

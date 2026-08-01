@@ -236,6 +236,25 @@ export interface RegistrarPagoRequest {
   referencia_pago?: string | null;
   notas?: string | null;
   aplicar_a_pedidos?: string[];
+  // Campos opcionales existentes
+  pedido_id?: string | null;
+  lote_id?: string | null;
+  estado_facturacion?: string;
+  factura_numero?: string | null;
+  // Detalle Cheque
+  cheque_numero?: string | null;
+  cheque_banco?: string | null;
+  cheque_fecha_emision?: string | null;
+  cheque_fecha_vencimiento?: string | null;
+  cheque_librador?: string | null;
+  cheque_cuit_librador?: string | null;
+  cheque_tipo?: 'fisico' | 'echeq' | null;
+  // Detalle Transferencia
+  transferencia_banco_origen?: string | null;
+  transferencia_numero?: string | null;
+  cuenta_destino_id?: string | null;
+  // Detalle Efectivo
+  caja_id?: string | null;
 }
 
 // Constantes

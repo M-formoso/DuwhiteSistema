@@ -121,6 +121,24 @@ class RegistrarPagoRequest(BaseModel):
     estado_facturacion: str = "sin_facturar"
     factura_numero: Optional[str] = None
 
+    # ==================== Campos condicionales por medio_pago ====================
+    # Cheque: crea entidad Cheque + linkea en el movimiento de tesorería
+    cheque_numero: Optional[str] = None
+    cheque_banco: Optional[str] = None                 # banco emisor (banco_origen)
+    cheque_fecha_emision: Optional[date] = None
+    cheque_fecha_vencimiento: Optional[date] = None
+    cheque_librador: Optional[str] = None              # quién firma
+    cheque_cuit_librador: Optional[str] = None
+    cheque_tipo: Optional[str] = None                  # 'fisico' | 'echeq'
+
+    # Transferencia: llena banco / número / cuenta destino en el movimiento de tesorería
+    transferencia_banco_origen: Optional[str] = None
+    transferencia_numero: Optional[str] = None
+    cuenta_destino_id: Optional[str] = None            # cuenta bancaria propia a la que ingresa
+
+    # Efectivo: caja a la que ingresa (si no se pasa, se toma la caja abierta del día)
+    caja_id: Optional[str] = None
+
 
 class PagoResponse(BaseModel):
     """Respuesta de registro de pago."""
