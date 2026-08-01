@@ -917,6 +917,119 @@ export default function ClienteCuentaCorrientePage() {
                 )}
               </div>
 
+              {movimientoDetalle.pago_detalle && (
+                <div className="pt-3 border-t space-y-3">
+                  <p className="text-gray-700 text-sm font-semibold flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    Detalle del pago
+                  </p>
+
+                  {movimientoDetalle.pago_detalle.cheque && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1 text-sm">
+                      <p className="font-semibold text-blue-900 mb-1">
+                        Cheque {movimientoDetalle.pago_detalle.cheque.tipo === 'echeq' ? '(e-Cheq)' : '(físico)'}
+                        {movimientoDetalle.pago_detalle.cheque.estado && (
+                          <Badge className="ml-2 bg-blue-100 text-blue-700 capitalize">
+                            {movimientoDetalle.pago_detalle.cheque.estado.replace('_', ' ')}
+                          </Badge>
+                        )}
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                        <div>
+                          <span className="text-gray-500 text-xs">Número: </span>
+                          <span className="font-mono">{movimientoDetalle.pago_detalle.cheque.numero}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-xs">Banco emisor: </span>
+                          <span>{movimientoDetalle.pago_detalle.cheque.banco_origen || '-'}</span>
+                        </div>
+                        {movimientoDetalle.pago_detalle.cheque.fecha_emision && (
+                          <div>
+                            <span className="text-gray-500 text-xs">Emisión: </span>
+                            <span className="font-mono">{formatDate(movimientoDetalle.pago_detalle.cheque.fecha_emision)}</span>
+                          </div>
+                        )}
+                        {movimientoDetalle.pago_detalle.cheque.fecha_vencimiento && (
+                          <div>
+                            <span className="text-gray-500 text-xs">Vencimiento: </span>
+                            <span className="font-mono">{formatDate(movimientoDetalle.pago_detalle.cheque.fecha_vencimiento)}</span>
+                          </div>
+                        )}
+                        {movimientoDetalle.pago_detalle.cheque.librador && (
+                          <div>
+                            <span className="text-gray-500 text-xs">Librador: </span>
+                            <span>{movimientoDetalle.pago_detalle.cheque.librador}</span>
+                          </div>
+                        )}
+                        {movimientoDetalle.pago_detalle.cheque.cuit_librador && (
+                          <div>
+                            <span className="text-gray-500 text-xs">CUIT: </span>
+                            <span className="font-mono">{movimientoDetalle.pago_detalle.cheque.cuit_librador}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {(movimientoDetalle.pago_detalle.banco_origen ||
+                    movimientoDetalle.pago_detalle.numero_transferencia ||
+                    movimientoDetalle.pago_detalle.cuenta_destino) && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-1 text-sm">
+                      <p className="font-semibold text-green-900 mb-1">Transferencia</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                        {movimientoDetalle.pago_detalle.banco_origen && (
+                          <div>
+                            <span className="text-gray-500 text-xs">Banco origen: </span>
+                            <span>{movimientoDetalle.pago_detalle.banco_origen}</span>
+                          </div>
+                        )}
+                        {movimientoDetalle.pago_detalle.numero_transferencia && (
+                          <div>
+                            <span className="text-gray-500 text-xs">N° operación: </span>
+                            <span className="font-mono">{movimientoDetalle.pago_detalle.numero_transferencia}</span>
+                          </div>
+                        )}
+                        {movimientoDetalle.pago_detalle.cuenta_destino && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500 text-xs">Cuenta destino: </span>
+                            <span>
+                              {movimientoDetalle.pago_detalle.cuenta_destino.nombre}
+                              {movimientoDetalle.pago_detalle.cuenta_destino.banco && ` — ${movimientoDetalle.pago_detalle.cuenta_destino.banco}`}
+                              {movimientoDetalle.pago_detalle.cuenta_destino.numero_cuenta && ` (${movimientoDetalle.pago_detalle.cuenta_destino.numero_cuenta})`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {movimientoDetalle.pago_detalle.caja && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-1 text-sm">
+                      <p className="font-semibold text-yellow-900 mb-1">Ingreso en caja</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                        <div>
+                          <span className="text-gray-500 text-xs">Caja Nº: </span>
+                          <span className="font-mono">{movimientoDetalle.pago_detalle.caja.caja_numero ?? '-'}</span>
+                        </div>
+                        {movimientoDetalle.pago_detalle.caja.caja_fecha && (
+                          <div>
+                            <span className="text-gray-500 text-xs">Fecha caja: </span>
+                            <span className="font-mono">{formatDate(movimientoDetalle.pago_detalle.caja.caja_fecha)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {movimientoDetalle.pago_detalle.fecha_valor && (
+                    <p className="text-xs text-gray-500">
+                      Fecha valor (impacto en tesorería):{' '}
+                      <span className="font-mono">{formatDate(movimientoDetalle.pago_detalle.fecha_valor)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {movimientoDetalle.notas && (
                 <div className="pt-2 border-t">
                   <p className="text-gray-500 text-xs mb-1">Notas</p>

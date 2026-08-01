@@ -168,7 +168,111 @@ def obtener_resumen_cuentas_corrientes(
     }
 
 
-def _serializar_movimiento(m) -> dict:
+def _cargar_pago_detalle(db: Session, m) -> Optional[dict]:
+    """
+    Reconstruye la trazabilidad de un pago: MovimientoTesoreria + Cheque +
+    CuentaBancaria destino + MovimientoCaja asociado. No hay FK directa desde
+    MovimientoCC, así que se matchea por (cliente_id + fecha + monto + medio).
+    """
+    if m.tipo != "pago":
+        return None
+
+    from app.models.tesoreria import MovimientoTesoreria, Cheque
+    from app.models.caja import MovimientoCaja, Caja
+    from app.models.cuenta_corriente import Recibo
+
+    medio_norm = (m.medio_pago or "").lower()
+
+    mov_tes = (
+        db.query(MovimientoTesoreria)
+        .filter(
+            MovimientoTesoreria.cliente_id == m.cliente_id,
+            MovimientoTesoreria.fecha_movimiento == m.fecha_movimiento,
+            MovimientoTesoreria.monto == m.monto,
+            MovimientoTesoreria.es_ingreso == True,
+            MovimientoTesoreria.metodo_pago == medio_norm,
+        )
+        .order_by(MovimientoTesoreria.created_at.desc())
+        .first()
+    )
+
+    cheque_info = None
+    cuenta_info = None
+    caja_info = None
+    fecha_valor_iso = None
+
+    if mov_tes:
+        fecha_valor_iso = mov_tes.fecha_valor.isoformat() if mov_tes.fecha_valor else None
+
+        if mov_tes.cheque_id:
+            ch = db.query(Cheque).filter(Cheque.id == mov_tes.cheque_id).first()
+            if ch:
+                cheque_info = {
+                    "id": str(ch.id),
+                    "numero": ch.numero,
+                    "tipo": ch.tipo,
+                    "estado": ch.estado,
+                    "banco_origen": ch.banco_origen,
+                    "librador": ch.librador,
+                    "cuit_librador": ch.cuit_librador,
+                    "fecha_emision": ch.fecha_emision.isoformat() if ch.fecha_emision else None,
+                    "fecha_vencimiento": ch.fecha_vencimiento.isoformat() if ch.fecha_vencimiento else None,
+                    "monto": float(ch.monto) if ch.monto is not None else None,
+                }
+
+        if mov_tes.cuenta_destino_id:
+            from app.models.cuenta_bancaria import CuentaBancaria
+            cta = db.query(CuentaBancaria).filter(
+                CuentaBancaria.id == mov_tes.cuenta_destino_id
+            ).first()
+            if cta:
+                cuenta_info = {
+                    "id": str(cta.id),
+                    "nombre": cta.nombre or cta.alias,
+                    "banco": cta.banco,
+                    "numero_cuenta": cta.numero_cuenta,
+                    "cbu": cta.cbu,
+                }
+
+    # Caja: solo aplica a efectivo; se linkea vía Recibo.id (mov_caja.recibo_id)
+    if medio_norm == "efectivo" and m.recibo_numero:
+        recibo = db.query(Recibo).filter(Recibo.numero == m.recibo_numero).first()
+        if recibo:
+            mov_caja = (
+                db.query(MovimientoCaja)
+                .filter(MovimientoCaja.recibo_id == recibo.id)
+                .first()
+            )
+            if mov_caja:
+                caja = db.query(Caja).filter(Caja.id == mov_caja.caja_id).first()
+                caja_info = {
+                    "movimiento_caja_id": str(mov_caja.id),
+                    "caja_id": str(mov_caja.caja_id),
+                    "caja_numero": caja.numero if caja else None,
+                    "caja_fecha": caja.fecha.isoformat() if caja and caja.fecha else None,
+                    "caja_fecha_apertura": (
+                        caja.fecha_apertura.isoformat()
+                        if caja and caja.fecha_apertura
+                        else None
+                    ),
+                }
+
+    if not (mov_tes or cheque_info or cuenta_info or caja_info):
+        return None
+
+    return {
+        "movimiento_tesoreria_id": str(mov_tes.id) if mov_tes else None,
+        "metodo_pago": medio_norm or None,
+        "fecha_valor": fecha_valor_iso,
+        "banco_origen": mov_tes.banco_origen if mov_tes else None,
+        "numero_transferencia": mov_tes.numero_transferencia if mov_tes else None,
+        "cheque": cheque_info,
+        "cuenta_destino": cuenta_info,
+        "caja": caja_info,
+    }
+
+
+def _serializar_movimiento(m, db: Optional[Session] = None) -> dict:
     """Serializa un MovimientoCuentaCorriente enriquecido con info de factura asociada."""
     factura_info = None
     if m.factura_id and m.factura:
@@ -217,6 +321,7 @@ def _serializar_movimiento(m) -> dict:
         "notas": m.notas,
         "registrado_por_nombre": registrado_por_nombre,
         "created_at": m.created_at.isoformat() if getattr(m, "created_at", None) else None,
+        "pago_detalle": _cargar_pago_detalle(db, m) if db is not None else None,
     }
 
 
@@ -264,7 +369,7 @@ def listar_movimientos_cliente(
         MovimientoCuentaCorriente.created_at.desc()
     ).offset(skip).limit(limit).all()
 
-    items = [_serializar_movimiento(m) for m in movimientos]
+    items = [_serializar_movimiento(m, db) for m in movimientos]
 
     return {
         "items": items,
