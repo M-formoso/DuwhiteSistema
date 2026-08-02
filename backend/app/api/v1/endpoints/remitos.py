@@ -234,7 +234,7 @@ def generar_remito_manual(
     request: GenerarRemitoManualRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(
-        require_permission("superadmin", "administrador", "jefe_produccion", "comercial")
+        require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador")
     ),
 ):
     """Genera un remito directamente para un cliente, sin pasar por el

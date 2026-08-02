@@ -59,6 +59,7 @@ import { remitoService } from '@/services/remitoService';
 import { formatCurrency } from '@/utils/formatters';
 import { ProductoConPrecio } from '@/types/produccion-v2';
 import ProductoLookupModal from '@/components/produccion/ProductoLookupModal';
+import { useAuthStore } from '@/stores/authStore';
 
 const normalizarCodigo = (codigo: string) => {
   const limpio = (codigo || '').trim();
@@ -77,6 +78,8 @@ interface Item {
 export default function RemitoManualPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const rutaSalida = user?.rol === 'operador' ? '/produccion/panel' : '/facturacion';
 
   const [clienteId, setClienteId] = useState<string>('');
   const [items, setItems] = useState<Item[]>([]);
@@ -275,7 +278,7 @@ export default function RemitoManualPage() {
       toast.success('Remito generado · imprimiendo...');
       queryClient.invalidateQueries({ queryKey: ['remitos'] });
       imprimirRemitoAuto(response.remito_id, imprimirConPrecios);
-      setTimeout(() => navigate('/facturacion'), 800);
+      setTimeout(() => navigate(rutaSalida), 800);
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { detail?: string } } };

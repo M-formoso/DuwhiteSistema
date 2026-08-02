@@ -32,6 +32,7 @@ import {
   Eye,
   Loader2,
   Check,
+  FileText,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -1598,6 +1599,14 @@ export default function PanelOperariosPage() {
             >
               <Plus className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
               <span className="hidden sm:inline">Nuevo Lote</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/remitos/manual')}
+              className="h-10 sm:h-12 flex-1 xl:flex-initial"
+            >
+              <FileText className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+              <span className="hidden sm:inline">Remito manual</span>
             </Button>
             <Button
               variant="outline"
