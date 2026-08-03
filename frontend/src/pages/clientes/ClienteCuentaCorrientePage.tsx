@@ -3,7 +3,7 @@
  * Vista completa con movimientos paginados, filtros y acciones
  */
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -15,6 +15,7 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -73,7 +74,7 @@ const ESTADOS_FACTURACION = [
   { value: 'ticket', label: 'Ticket' },
 ];
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 200;
 
 export default function ClienteCuentaCorrientePage() {
   const { id } = useParams();
@@ -106,6 +107,7 @@ export default function ClienteCuentaCorrientePage() {
   // Estados del modal de detalle y eliminación
   const [movimientoDetalle, setMovimientoDetalle] = useState<any | null>(null);
   const [movimientoAEliminar, setMovimientoAEliminar] = useState<any | null>(null);
+  const [mesesAbiertos, setMesesAbiertos] = useState<Set<string>>(new Set());
 
   // Estados del modal de cobranza completo
   const [showPagoModal, setShowPagoModal] = useState(false);
@@ -177,6 +179,37 @@ export default function ClienteCuentaCorrientePage() {
     if (tipoFiltro === 'todos') return true;
     return mov.tipo === tipoFiltro;
   });
+
+  // Agrupar por mes (YYYY-MM). Los movimientos vienen ordenados por created_at desc,
+  // así que el saldo posterior del primer movimiento del mes es el saldo al fin de mes.
+  const movimientosPorMes = (() => {
+    const grupos = new Map<string, { key: string; label: string; movimientos: any[]; cargos: number; pagos: number; saldoFinal: number }>();
+    for (const mov of movimientosFiltrados || []) {
+      const fecha = new Date(mov.fecha_movimiento);
+      const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+      if (!grupos.has(key)) {
+        const label = fecha
+          .toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+          .replace(/^./, (c) => c.toUpperCase());
+        grupos.set(key, { key, label, movimientos: [], cargos: 0, pagos: 0, saldoFinal: Number(mov.saldo_posterior) });
+      }
+      const g = grupos.get(key)!;
+      g.movimientos.push(mov);
+      const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
+      if (mov.tipo === 'cargo' || (mov.tipo === 'ajuste' && delta > 0)) g.cargos += Number(mov.monto);
+      if (mov.tipo === 'pago' || (mov.tipo === 'ajuste' && delta < 0)) g.pagos += Number(mov.monto);
+    }
+    return Array.from(grupos.values());
+  })();
+
+  const toggleMes = (key: string) => {
+    setMesesAbiertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Mutation para registrar cobranza completa
   const cobranzaMutation = useMutation({
@@ -714,65 +747,101 @@ export default function ClienteCuentaCorrientePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movimientosFiltrados.map((mov: any) => {
-                      const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
-                      const esDebe = mov.tipo === 'cargo' || (mov.tipo === 'ajuste' && delta > 0);
-                      const esHaber = mov.tipo === 'pago' || (mov.tipo === 'ajuste' && delta < 0);
+                    {movimientosPorMes.map((grupo) => {
+                      const abierto = mesesAbiertos.has(grupo.key);
                       return (
-                        <TableRow key={mov.id}>
-                          <TableCell className="font-mono text-sm">
-                            {formatDate(mov.fecha_movimiento)}
-                          </TableCell>
-                          <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
-                          <TableCell>{mov.concepto}</TableCell>
-                          <TableCell className="text-gray-500 text-sm">
-                            {mov.factura?.numero_completo
-                              ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
-                              : (mov.factura_numero || mov.recibo_numero || mov.referencia_pago || '-')}
-                          </TableCell>
-                          <TableCell>{getEstadoFacturacionBadge(mov)}</TableCell>
-                          <TableCell className="text-right font-medium text-red-600">
-                            {esDebe ? formatNumber(mov.monto, 'currency') : '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-green-600">
-                            {esHaber ? formatNumber(mov.monto, 'currency') : '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-bold">
-                            {formatNumber(mov.saldo_posterior, 'currency')}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setMovimientoDetalle(mov)}
-                                title="Ver detalle"
-                              >
-                                <Eye className="h-4 w-4 text-gray-500" />
-                              </Button>
-                              {mov.tipo === 'ajuste' && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => abrirModalEditar(mov)}
-                                    title="Editar ajuste"
-                                  >
-                                    <Pencil className="h-4 w-4 text-gray-500" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setMovimientoAEliminar(mov)}
-                                    title="Eliminar ajuste"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                        <Fragment key={grupo.key}>
+                          <TableRow
+                            className="bg-gray-50 hover:bg-gray-100 cursor-pointer font-semibold"
+                            onClick={() => toggleMes(grupo.key)}
+                          >
+                            <TableCell colSpan={4}>
+                              <div className="flex items-center gap-2">
+                                {abierto ? (
+                                  <ChevronDown className="h-4 w-4 text-gray-600" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-gray-600" />
+                                )}
+                                <span className="text-gray-900">{grupo.label}</span>
+                                <span className="text-xs text-gray-500 font-normal">
+                                  ({grupo.movimientos.length} {grupo.movimientos.length === 1 ? 'movimiento' : 'movimientos'})
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-right text-red-600">
+                              {grupo.cargos > 0 ? formatNumber(grupo.cargos, 'currency') : '-'}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              {grupo.pagos > 0 ? formatNumber(grupo.pagos, 'currency') : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-bold">
+                              {formatNumber(grupo.saldoFinal, 'currency')}
+                            </TableCell>
+                            <TableCell></TableCell>
+                          </TableRow>
+                          {abierto && grupo.movimientos.map((mov: any) => {
+                            const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
+                            const esDebe = mov.tipo === 'cargo' || (mov.tipo === 'ajuste' && delta > 0);
+                            const esHaber = mov.tipo === 'pago' || (mov.tipo === 'ajuste' && delta < 0);
+                            return (
+                              <TableRow key={mov.id}>
+                                <TableCell className="font-mono text-sm pl-8">
+                                  {formatDate(mov.fecha_movimiento)}
+                                </TableCell>
+                                <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
+                                <TableCell>{mov.concepto}</TableCell>
+                                <TableCell className="text-gray-500 text-sm">
+                                  {mov.factura?.numero_completo
+                                    ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
+                                    : (mov.factura_numero || mov.recibo_numero || mov.referencia_pago || '-')}
+                                </TableCell>
+                                <TableCell>{getEstadoFacturacionBadge(mov)}</TableCell>
+                                <TableCell className="text-right font-medium text-red-600">
+                                  {esDebe ? formatNumber(mov.monto, 'currency') : '-'}
+                                </TableCell>
+                                <TableCell className="text-right font-medium text-green-600">
+                                  {esHaber ? formatNumber(mov.monto, 'currency') : '-'}
+                                </TableCell>
+                                <TableCell className="text-right font-bold">
+                                  {formatNumber(mov.saldo_posterior, 'currency')}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => setMovimientoDetalle(mov)}
+                                      title="Ver detalle"
+                                    >
+                                      <Eye className="h-4 w-4 text-gray-500" />
+                                    </Button>
+                                    {mov.tipo === 'ajuste' && (
+                                      <>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => abrirModalEditar(mov)}
+                                          title="Editar ajuste"
+                                        >
+                                          <Pencil className="h-4 w-4 text-gray-500" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => setMovimientoAEliminar(mov)}
+                                          title="Eliminar ajuste"
+                                        >
+                                          <Trash2 className="h-4 w-4 text-red-500" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </Fragment>
                       );
                     })}
                   </TableBody>
