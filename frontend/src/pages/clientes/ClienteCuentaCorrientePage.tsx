@@ -98,6 +98,7 @@ export default function ClienteCuentaCorrientePage() {
 
   // Estados del modal de edición de movimiento
   const [editandoMovimientoId, setEditandoMovimientoId] = useState<string | null>(null);
+  const [editandoTipo, setEditandoTipo] = useState<'ajuste' | 'pago' | null>(null);
   const [editDireccion, setEditDireccion] = useState<'aumentar' | 'disminuir'>('disminuir');
   const [editMonto, setEditMonto] = useState('');
   const [editConcepto, setEditConcepto] = useState('');
@@ -328,7 +329,8 @@ export default function ClienteCuentaCorrientePage() {
   const abrirModalEditar = (mov: any) => {
     const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
     setEditandoMovimientoId(mov.id);
-    setEditDireccion(delta >= 0 ? 'aumentar' : 'disminuir');
+    setEditandoTipo(mov.tipo === 'pago' ? 'pago' : 'ajuste');
+    setEditDireccion(mov.tipo === 'pago' ? 'disminuir' : (delta >= 0 ? 'aumentar' : 'disminuir'));
     setEditMonto(String(mov.monto));
     setEditConcepto(mov.concepto || '');
     setEditFecha((mov.fecha_movimiento || '').slice(0, 10));
@@ -337,6 +339,7 @@ export default function ClienteCuentaCorrientePage() {
 
   const cerrarModalEditar = () => {
     setEditandoMovimientoId(null);
+    setEditandoTipo(null);
     setEditMonto('');
     setEditConcepto('');
     setEditNotas('');
@@ -820,13 +823,13 @@ export default function ClienteCuentaCorrientePage() {
                                     >
                                       <Eye className="h-4 w-4 text-gray-500" />
                                     </Button>
-                                    {mov.tipo === 'ajuste' && (
+                                    {(mov.tipo === 'ajuste' || mov.tipo === 'pago') && (
                                       <>
                                         <Button
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => abrirModalEditar(mov)}
-                                          title="Editar ajuste"
+                                          title={mov.tipo === 'pago' ? 'Editar pago' : 'Editar ajuste'}
                                         >
                                           <Pencil className="h-4 w-4 text-gray-500" />
                                         </Button>
@@ -834,7 +837,7 @@ export default function ClienteCuentaCorrientePage() {
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => setMovimientoAEliminar(mov)}
-                                          title="Eliminar ajuste"
+                                          title={mov.tipo === 'pago' ? 'Eliminar pago' : 'Eliminar ajuste'}
                                         >
                                           <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
@@ -1173,7 +1176,7 @@ export default function ClienteCuentaCorrientePage() {
               )}
 
               <div className="flex justify-end gap-2 pt-4 border-t">
-                {movimientoDetalle.tipo === 'ajuste' && (
+                {(movimientoDetalle.tipo === 'ajuste' || movimientoDetalle.tipo === 'pago') && (
                   <>
                     <Button
                       variant="outline"
@@ -1214,12 +1217,12 @@ export default function ClienteCuentaCorrientePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-600">
                 <AlertTriangle className="h-5 w-5" />
-                Eliminar Ajuste
+                {movimientoAEliminar.tipo === 'pago' ? 'Eliminar Pago' : 'Eliminar Ajuste'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm">
-                ¿Confirmás eliminar este ajuste? Esta acción no se puede deshacer.
+                ¿Confirmás eliminar este {movimientoAEliminar.tipo === 'pago' ? 'pago' : 'ajuste'}? Esta acción no se puede deshacer.
               </p>
 
               <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-1">
@@ -1242,6 +1245,9 @@ export default function ClienteCuentaCorrientePage() {
               <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg text-sm text-yellow-800">
                 Los saldos de los movimientos posteriores se recalculan
                 automáticamente.
+                {movimientoAEliminar.tipo === 'pago' && (
+                  <> No se revierten movimientos de tesorería, caja ni cheques asociados: ajustalos manualmente si corresponde.</>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -1270,51 +1276,56 @@ export default function ClienteCuentaCorrientePage() {
         </div>
       )}
 
-      {/* Modal de Edición de Movimiento (Ajuste) */}
+      {/* Modal de Edición de Movimiento (Ajuste o Pago) */}
       {editandoMovimientoId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
           <Card className="w-full max-w-lg m-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Pencil className="h-5 w-5" />
-                Editar Ajuste
+                {editandoTipo === 'pago' ? 'Editar Pago' : 'Editar Ajuste'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg text-sm text-yellow-800">
-                Cambiar monto o dirección recalcula automáticamente los saldos
-                de este movimiento y de todos los posteriores.
+                Cambiar monto recalcula automáticamente los saldos de este
+                movimiento y de todos los posteriores.
+                {editandoTipo === 'pago' && (
+                  <> No se actualizan movimientos de tesorería, caja ni cheques asociados.</>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Tipo de ajuste *</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditDireccion('aumentar')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
-                      editDireccion === 'aumentar'
-                        ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="text-sm font-medium">Aumentar deuda</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditDireccion('disminuir')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
-                      editDireccion === 'disminuir'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <TrendingDown className="h-4 w-4" />
-                    <span className="text-sm font-medium">Disminuir deuda</span>
-                  </button>
+              {editandoTipo !== 'pago' && (
+                <div className="space-y-2">
+                  <Label>Tipo de ajuste *</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditDireccion('aumentar')}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
+                        editDireccion === 'aumentar'
+                          ? 'border-red-500 bg-red-50 text-red-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      <span className="text-sm font-medium">Aumentar deuda</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditDireccion('disminuir')}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition ${
+                        editDireccion === 'disminuir'
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <TrendingDown className="h-4 w-4" />
+                      <span className="text-sm font-medium">Disminuir deuda</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

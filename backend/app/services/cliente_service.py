@@ -555,22 +555,26 @@ class ClienteService:
         notas: Optional[str] = None,
     ) -> MovimientoCuentaCorriente:
         """
-        Edita un movimiento tipo AJUSTE.
+        Edita un movimiento tipo AJUSTE o PAGO.
 
         Si cambia el monto/dirección, recalcula saldo_anterior/posterior de este
         movimiento y de todos los movimientos POSTERIORES del mismo cliente
         (ordenados por created_at), y actualiza el saldo del cliente.
 
-        Solo se permite editar AJUSTES. Cargos ligados a factura y pagos con
-        recibo emitido no son editables.
+        Para PAGO la dirección queda forzada a 'disminuir' (siempre baja el
+        saldo del cliente). Editar un pago acá NO revierte ni actualiza
+        movimientos de tesorería, cajas o cheques vinculados.
+        Los cargos por remito no son editables por esta vía.
         """
         movimiento = self.db.query(MovimientoCuentaCorriente).filter(
             MovimientoCuentaCorriente.id == movimiento_id
         ).first()
         if not movimiento:
             raise ValueError("Movimiento no encontrado")
-        if movimiento.tipo != TipoMovimientoCC.AJUSTE.value:
-            raise ValueError("Solo se pueden editar movimientos de tipo AJUSTE")
+        if movimiento.tipo not in (TipoMovimientoCC.AJUSTE.value, TipoMovimientoCC.PAGO.value):
+            raise ValueError("Solo se pueden editar movimientos de tipo AJUSTE o PAGO")
+        if movimiento.tipo == TipoMovimientoCC.PAGO.value:
+            direccion = "disminuir"
 
         cliente = self.get_cliente(str(movimiento.cliente_id))
         if not cliente:
@@ -637,20 +641,21 @@ class ClienteService:
 
     def eliminar_ajuste(self, movimiento_id: str) -> dict:
         """
-        Elimina un movimiento tipo AJUSTE y recalcula los saldos posteriores
-        del cliente. Devuelve un dict con info del cliente + nuevo saldo.
+        Elimina un movimiento tipo AJUSTE o PAGO y recalcula los saldos
+        posteriores del cliente. Devuelve un dict con info del cliente + nuevo
+        saldo.
 
-        Solo se pueden eliminar movimientos tipo AJUSTE (mismo criterio que
-        editar_ajuste). Los cargos ligados a factura y pagos con recibo NO
-        se pueden eliminar por esta vía.
+        Al eliminar un PAGO no se revierten movimientos de tesorería/caja ni
+        se anulan cheques asociados; solo se saca el registro de la CC y se
+        recalculan saldos. Los cargos por remito no se eliminan por esta vía.
         """
         movimiento = self.db.query(MovimientoCuentaCorriente).filter(
             MovimientoCuentaCorriente.id == movimiento_id
         ).first()
         if not movimiento:
             raise ValueError("Movimiento no encontrado")
-        if movimiento.tipo != TipoMovimientoCC.AJUSTE.value:
-            raise ValueError("Solo se pueden eliminar movimientos de tipo AJUSTE")
+        if movimiento.tipo not in (TipoMovimientoCC.AJUSTE.value, TipoMovimientoCC.PAGO.value):
+            raise ValueError("Solo se pueden eliminar movimientos de tipo AJUSTE o PAGO")
 
         cliente = self.get_cliente(str(movimiento.cliente_id))
         if not cliente:
