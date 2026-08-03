@@ -182,15 +182,19 @@ export default function ClienteCuentaCorrientePage() {
 
   // Agrupar por mes (YYYY-MM). Los movimientos vienen ordenados por created_at desc,
   // así que el saldo posterior del primer movimiento del mes es el saldo al fin de mes.
+  // Nota: fecha_movimiento viene como "YYYY-MM-DD"; parseamos manualmente para evitar
+  // que new Date() lo interprete como UTC y corra el día al zone local (America/Argentina).
   const movimientosPorMes = (() => {
+    const MESES_ES = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    ];
     const grupos = new Map<string, { key: string; label: string; movimientos: any[]; cargos: number; pagos: number; saldoFinal: number }>();
     for (const mov of movimientosFiltrados || []) {
-      const fecha = new Date(mov.fecha_movimiento);
-      const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+      const [anio, mes] = String(mov.fecha_movimiento).slice(0, 10).split('-');
+      const key = `${anio}-${mes}`;
       if (!grupos.has(key)) {
-        const label = fecha
-          .toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
-          .replace(/^./, (c) => c.toUpperCase());
+        const label = `${MESES_ES[parseInt(mes, 10) - 1]} de ${anio}`;
         grupos.set(key, { key, label, movimientos: [], cargos: 0, pagos: 0, saldoFinal: Number(mov.saldo_posterior) });
       }
       const g = grupos.get(key)!;
