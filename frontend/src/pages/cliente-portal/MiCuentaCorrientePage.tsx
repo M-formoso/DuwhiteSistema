@@ -499,7 +499,6 @@ export default function MiCuentaCorrientePage() {
                           <th className="px-2 py-1.5 text-left font-medium">Código</th>
                           <th className="px-2 py-1.5 text-left font-medium">Producto</th>
                           <th className="px-2 py-1.5 text-right font-medium">Cant.</th>
-                          <th className="px-2 py-1.5 text-right font-medium">P. Unit.</th>
                           <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
                         </tr>
                       </thead>
@@ -510,13 +509,12 @@ export default function MiCuentaCorrientePage() {
                               <td className="px-2 py-1.5 font-mono text-xs">{d.producto_codigo || '-'}</td>
                               <td className="px-2 py-1.5">{d.producto_nombre || '-'}</td>
                               <td className="px-2 py-1.5 text-right font-mono">{d.cantidad}</td>
-                              <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(d.precio_unitario)}</td>
                               <td className="px-2 py-1.5 text-right font-mono font-semibold">{formatCurrency(d.subtotal)}</td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={5} className="px-2 py-3 text-center text-gray-400 text-xs">
+                            <td colSpan={4} className="px-2 py-3 text-center text-gray-400 text-xs">
                               El remito no tiene productos cargados.
                             </td>
                           </tr>
@@ -524,17 +522,17 @@ export default function MiCuentaCorrientePage() {
                       </tbody>
                       <tfoot className="bg-gray-50 text-xs">
                         <tr className="border-t">
-                          <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
+                          <td colSpan={3} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
                           <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(movimientoDetalle.remito.subtotal)}</td>
                         </tr>
                         {movimientoDetalle.remito.descuento > 0 && (
                           <tr>
-                            <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
+                            <td colSpan={3} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
                             <td className="px-2 py-1.5 text-right font-mono text-red-600">- {formatCurrency(movimientoDetalle.remito.descuento)}</td>
                           </tr>
                         )}
                         <tr className="border-t">
-                          <td colSpan={4} className="px-2 py-1.5 text-right font-semibold">Total</td>
+                          <td colSpan={3} className="px-2 py-1.5 text-right font-semibold">Total</td>
                           <td className="px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(movimientoDetalle.remito.total)}</td>
                         </tr>
                       </tfoot>
@@ -610,7 +608,6 @@ export default function MiCuentaCorrientePage() {
                             <th className="px-2 py-1.5 text-left font-medium">Código</th>
                             <th className="px-2 py-1.5 text-left font-medium">Producto</th>
                             <th className="px-2 py-1.5 text-right font-medium">Cant.</th>
-                            <th className="px-2 py-1.5 text-right font-medium">P. Unit.</th>
                             <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
                           </tr>
                         </thead>
@@ -621,13 +618,12 @@ export default function MiCuentaCorrientePage() {
                                 <td className="px-2 py-1.5 font-mono text-xs">{d.producto_codigo || '-'}</td>
                                 <td className="px-2 py-1.5">{d.producto_nombre || '-'}</td>
                                 <td className="px-2 py-1.5 text-right font-mono">{d.cantidad}</td>
-                                <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(d.precio_unitario)}</td>
                                 <td className="px-2 py-1.5 text-right font-mono font-semibold">{formatCurrency(d.subtotal)}</td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={5} className="px-2 py-3 text-center text-gray-400 text-xs">
+                              <td colSpan={4} className="px-2 py-3 text-center text-gray-400 text-xs">
                                 El remito no tiene productos cargados.
                               </td>
                             </tr>
@@ -635,17 +631,17 @@ export default function MiCuentaCorrientePage() {
                         </tbody>
                         <tfoot className="bg-gray-50 text-xs">
                           <tr className="border-t">
-                            <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
+                            <td colSpan={3} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
                             <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(remitoDetalle.subtotal)}</td>
                           </tr>
                           {remitoDetalle.descuento > 0 && (
                             <tr>
-                              <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
+                              <td colSpan={3} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
                               <td className="px-2 py-1.5 text-right font-mono text-red-600">- {formatCurrency(remitoDetalle.descuento)}</td>
                             </tr>
                           )}
                           <tr className="border-t">
-                            <td colSpan={4} className="px-2 py-1.5 text-right font-semibold">Total</td>
+                            <td colSpan={3} className="px-2 py-1.5 text-right font-semibold">Total</td>
                             <td className="px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(remitoDetalle.total)}</td>
                           </tr>
                         </tfoot>
