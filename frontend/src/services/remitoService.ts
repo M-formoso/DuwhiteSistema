@@ -44,6 +44,20 @@ export interface MiRemitoDetalle extends MiRemitoListItem {
   detalles: MiRemitoDetalleItem[];
 }
 
+export interface MiProductoEntregado {
+  producto_id: string | null;
+  producto_codigo: string | null;
+  producto_nombre: string | null;
+  cantidad: number;
+  subtotal: number;
+}
+
+export interface MisProductosEntregadosResponse {
+  items: MiProductoEntregado[];
+  total_cantidad: number;
+  total_subtotal: number;
+}
+
 export const remitoService = {
   /**
    * Lista remitos con filtros
@@ -126,6 +140,17 @@ export const remitoService = {
    */
   async getMiRemito(remitoId: string): Promise<MiRemitoDetalle> {
     const response = await api.get(`${BASE_URL}/mis-remitos/${remitoId}`);
+    return response.data;
+  },
+
+  /**
+   * Portal cliente: resumen agregado de productos entregados por período.
+   */
+  async getMisProductosEntregados(params?: {
+    fecha_desde?: string;
+    fecha_hasta?: string;
+  }): Promise<MisProductosEntregadosResponse> {
+    const response = await api.get(`${BASE_URL}/mis-productos-entregados`, { params });
     return response.data;
   },
 

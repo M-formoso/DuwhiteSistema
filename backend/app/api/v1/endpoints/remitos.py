@@ -159,6 +159,68 @@ def obtener_mis_remitos(
     ]
 
 
+@router.get("/mis-productos-entregados")
+def obtener_mis_productos_entregados(
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Resumen agregado de productos entregados al cliente logueado en el
+    rango de fechas. Suma cantidades y subtotales por producto tomando los
+    detalles de todos sus remitos activos. Solo rol=cliente."""
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+
+    from sqlalchemy.orm import joinedload
+    from app.models.remito import Remito, DetalleRemito
+
+    query = (
+        db.query(Remito)
+        .options(joinedload(Remito.detalles).joinedload(DetalleRemito.producto))
+        .filter(
+            Remito.cliente_id == current_user.cliente_id,
+            Remito.activo.is_(True),
+        )
+    )
+    if fecha_desde:
+        query = query.filter(Remito.fecha_emision >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Remito.fecha_emision <= fecha_hasta)
+
+    productos: dict = {}
+    total_cantidad = 0
+    total_subtotal = 0.0
+    for remito in query.all():
+        for d in remito.detalles:
+            pid = str(d.producto_id) if d.producto_id else "sin_producto"
+            if pid not in productos:
+                producto = getattr(d, "producto", None)
+                productos[pid] = {
+                    "producto_id": pid if pid != "sin_producto" else None,
+                    "producto_codigo": getattr(producto, "codigo", None),
+                    "producto_nombre": getattr(producto, "nombre", None),
+                    "cantidad": 0,
+                    "subtotal": 0.0,
+                }
+            cantidad = int(d.cantidad) if d.cantidad is not None else 0
+            subtotal = float(d.subtotal) if d.subtotal is not None else 0.0
+            productos[pid]["cantidad"] += cantidad
+            productos[pid]["subtotal"] += subtotal
+            total_cantidad += cantidad
+            total_subtotal += subtotal
+
+    items = sorted(productos.values(), key=lambda p: p["cantidad"], reverse=True)
+    return {
+        "items": items,
+        "total_cantidad": total_cantidad,
+        "total_subtotal": total_subtotal,
+    }
+
+
 @router.get("/mis-remitos/{remito_id}")
 def obtener_mi_remito(
     remito_id: UUID,
