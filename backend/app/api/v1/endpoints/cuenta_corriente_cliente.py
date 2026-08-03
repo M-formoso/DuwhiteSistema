@@ -272,6 +272,65 @@ def _cargar_pago_detalle(db: Session, m) -> Optional[dict]:
     }
 
 
+def _cargar_remito_detalle(db: Session, m) -> Optional[dict]:
+    """Devuelve el remito (con productos) asociado a un movimiento de cargo.
+
+    Se busca primero por la FK directa `Remito.movimiento_cc_id`; si no hay
+    match (movimientos históricos anteriores a esa columna), se cae al
+    match por `lote_id` cuando el movimiento lo tenga.
+    """
+    if m.tipo != "cargo":
+        return None
+
+    from sqlalchemy.orm import joinedload
+    from app.models.remito import Remito, DetalleRemito
+
+    remito = (
+        db.query(Remito)
+        .options(joinedload(Remito.detalles).joinedload(DetalleRemito.producto))
+        .filter(Remito.movimiento_cc_id == m.id)
+        .first()
+    )
+    if not remito and m.lote_id:
+        remito = (
+            db.query(Remito)
+            .options(joinedload(Remito.detalles).joinedload(DetalleRemito.producto))
+            .filter(Remito.lote_id == m.lote_id, Remito.activo.is_(True))
+            .order_by(Remito.created_at.desc())
+            .first()
+        )
+    if not remito:
+        return None
+
+    detalles = []
+    for d in remito.detalles:
+        producto = getattr(d, "producto", None)
+        detalles.append({
+            "id": str(d.id),
+            "producto_id": str(d.producto_id) if d.producto_id else None,
+            "producto_codigo": getattr(producto, "codigo", None),
+            "producto_nombre": getattr(producto, "nombre", None),
+            "cantidad": int(d.cantidad) if d.cantidad is not None else 0,
+            "precio_unitario": float(d.precio_unitario) if d.precio_unitario is not None else 0.0,
+            "subtotal": float(d.subtotal) if d.subtotal is not None else 0.0,
+            "descripcion": d.descripcion,
+        })
+
+    return {
+        "id": str(remito.id),
+        "numero": remito.numero,
+        "tipo": remito.tipo,
+        "estado": remito.estado,
+        "fecha_emision": remito.fecha_emision.isoformat() if remito.fecha_emision else None,
+        "peso_total_kg": float(remito.peso_total_kg) if remito.peso_total_kg is not None else None,
+        "subtotal": float(remito.subtotal) if remito.subtotal is not None else 0.0,
+        "descuento": float(remito.descuento) if remito.descuento is not None else 0.0,
+        "total": float(remito.total) if remito.total is not None else 0.0,
+        "notas": remito.notas,
+        "detalles": detalles,
+    }
+
+
 def _serializar_movimiento(m, db: Optional[Session] = None) -> dict:
     """Serializa un MovimientoCuentaCorriente enriquecido con info de factura asociada."""
     factura_info = None
@@ -322,6 +381,7 @@ def _serializar_movimiento(m, db: Optional[Session] = None) -> dict:
         "registrado_por_nombre": registrado_por_nombre,
         "created_at": m.created_at.isoformat() if getattr(m, "created_at", None) else None,
         "pago_detalle": _cargar_pago_detalle(db, m) if db is not None else None,
+        "remito": _cargar_remito_detalle(db, m) if db is not None else None,
     }
 
 

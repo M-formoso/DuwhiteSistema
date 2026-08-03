@@ -86,6 +86,108 @@ def obtener_estados_remito():
     return ESTADOS_REMITO
 
 
+# ==================== PORTAL CLIENTE ====================
+
+
+def _serializar_remito_para_portal(remito) -> dict:
+    """Serializa un remito con sus detalles de productos para el portal cliente."""
+    detalles = []
+    for d in remito.detalles:
+        producto = getattr(d, "producto", None)
+        detalles.append({
+            "id": str(d.id),
+            "producto_id": str(d.producto_id) if d.producto_id else None,
+            "producto_codigo": getattr(producto, "codigo", None),
+            "producto_nombre": getattr(producto, "nombre", None),
+            "cantidad": int(d.cantidad) if d.cantidad is not None else 0,
+            "precio_unitario": float(d.precio_unitario) if d.precio_unitario is not None else 0.0,
+            "subtotal": float(d.subtotal) if d.subtotal is not None else 0.0,
+            "descripcion": d.descripcion,
+        })
+    return {
+        "id": str(remito.id),
+        "numero": remito.numero,
+        "tipo": remito.tipo,
+        "estado": remito.estado,
+        "fecha_emision": remito.fecha_emision.isoformat() if remito.fecha_emision else None,
+        "fecha_entrega": remito.fecha_entrega.isoformat() if remito.fecha_entrega else None,
+        "lote_numero": remito.lote.numero if remito.lote else None,
+        "peso_total_kg": float(remito.peso_total_kg) if remito.peso_total_kg is not None else None,
+        "subtotal": float(remito.subtotal) if remito.subtotal is not None else 0.0,
+        "descuento": float(remito.descuento) if remito.descuento is not None else 0.0,
+        "total": float(remito.total) if remito.total is not None else 0.0,
+        "notas": remito.notas,
+        "detalles": detalles,
+    }
+
+
+@router.get("/mis-remitos")
+def obtener_mis_remitos(
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Lista los remitos del cliente logueado. Solo accesible con rol=cliente."""
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+    remitos = RemitoService.get_all(
+        db,
+        cliente_id=current_user.cliente_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        skip=skip,
+        limit=limit,
+    )
+    return [
+        {
+            "id": str(r.id),
+            "numero": r.numero,
+            "tipo": r.tipo,
+            "estado": r.estado,
+            "fecha_emision": r.fecha_emision.isoformat() if r.fecha_emision else None,
+            "fecha_entrega": r.fecha_entrega.isoformat() if r.fecha_entrega else None,
+            "lote_numero": r.lote.numero if r.lote else None,
+            "total": float(r.total) if r.total is not None else 0.0,
+        }
+        for r in remitos
+    ]
+
+
+@router.get("/mis-remitos/{remito_id}")
+def obtener_mi_remito(
+    remito_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Detalle de un remito del cliente logueado con productos. Solo rol=cliente."""
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+    from sqlalchemy.orm import joinedload
+    from app.models.remito import Remito, DetalleRemito
+
+    remito = (
+        db.query(Remito)
+        .options(joinedload(Remito.detalles).joinedload(DetalleRemito.producto), joinedload(Remito.lote))
+        .filter(Remito.id == remito_id)
+        .first()
+    )
+    if not remito or remito.cliente_id != current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Remito no encontrado",
+        )
+    return _serializar_remito_para_portal(remito)
+
+
 @router.get("/{remito_id}", response_model=RemitoResponse)
 def obtener_remito(
     remito_id: UUID,

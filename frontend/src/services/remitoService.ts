@@ -14,6 +14,36 @@ import {
 
 const BASE_URL = '/remitos';
 
+export interface MiRemitoListItem {
+  id: string;
+  numero: string;
+  tipo: string;
+  estado: string;
+  fecha_emision: string | null;
+  fecha_entrega: string | null;
+  lote_numero: string | null;
+  total: number;
+}
+
+export interface MiRemitoDetalleItem {
+  id: string;
+  producto_id: string | null;
+  producto_codigo: string | null;
+  producto_nombre: string | null;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+  descripcion?: string | null;
+}
+
+export interface MiRemitoDetalle extends MiRemitoListItem {
+  peso_total_kg: number | null;
+  subtotal: number;
+  descuento: number;
+  notas: string | null;
+  detalles: MiRemitoDetalleItem[];
+}
+
 export const remitoService = {
   /**
    * Lista remitos con filtros
@@ -75,6 +105,27 @@ export const remitoService = {
       responseType: 'blob',
       params: conPrecios ? { con_precios: true } : undefined,
     });
+    return response.data;
+  },
+
+  /**
+   * Portal cliente: lista los remitos del cliente logueado con filtros de fecha.
+   */
+  async getMisRemitos(params?: {
+    fecha_desde?: string;
+    fecha_hasta?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<MiRemitoListItem[]> {
+    const response = await api.get(`${BASE_URL}/mis-remitos`, { params });
+    return response.data;
+  },
+
+  /**
+   * Portal cliente: detalle de un remito propio (con productos).
+   */
+  async getMiRemito(remitoId: string): Promise<MiRemitoDetalle> {
+    const response = await api.get(`${BASE_URL}/mis-remitos/${remitoId}`);
     return response.data;
   },
 

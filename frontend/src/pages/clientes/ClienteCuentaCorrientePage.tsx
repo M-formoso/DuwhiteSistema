@@ -917,6 +917,68 @@ export default function ClienteCuentaCorrientePage() {
                 )}
               </div>
 
+              {movimientoDetalle.remito && (
+                <div className="pt-3 border-t space-y-2">
+                  <p className="text-gray-700 text-sm font-semibold flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Productos del remito {movimientoDetalle.remito.numero}
+                  </p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600 text-xs">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left font-medium">Código</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Producto</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Cant.</th>
+                          <th className="px-2 py-1.5 text-right font-medium">P. Unit.</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {movimientoDetalle.remito.detalles?.length ? (
+                          movimientoDetalle.remito.detalles.map((d: any) => (
+                            <tr key={d.id} className="border-t">
+                              <td className="px-2 py-1.5 font-mono text-xs">{d.producto_codigo || '-'}</td>
+                              <td className="px-2 py-1.5">{d.producto_nombre || '-'}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{d.cantidad}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{formatNumber(d.precio_unitario, 'currency')}</td>
+                              <td className="px-2 py-1.5 text-right font-mono font-semibold">{formatNumber(d.subtotal, 'currency')}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="px-2 py-3 text-center text-gray-400 text-xs">
+                              El remito no tiene productos cargados.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-gray-50 text-xs">
+                        <tr className="border-t">
+                          <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
+                          <td className="px-2 py-1.5 text-right font-mono">{formatNumber(movimientoDetalle.remito.subtotal, 'currency')}</td>
+                        </tr>
+                        {movimientoDetalle.remito.descuento > 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-red-600">- {formatNumber(movimientoDetalle.remito.descuento, 'currency')}</td>
+                          </tr>
+                        )}
+                        <tr className="border-t">
+                          <td colSpan={4} className="px-2 py-1.5 text-right font-semibold">Total</td>
+                          <td className="px-2 py-1.5 text-right font-mono font-bold">{formatNumber(movimientoDetalle.remito.total, 'currency')}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  {movimientoDetalle.remito.peso_total_kg != null && movimientoDetalle.remito.peso_total_kg > 0 && (
+                    <p className="text-xs text-gray-500">
+                      Peso total: <span className="font-mono">{movimientoDetalle.remito.peso_total_kg} kg</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {movimientoDetalle.pago_detalle && (
                 <div className="pt-3 border-t space-y-3">
                   <p className="text-gray-700 text-sm font-semibold flex items-center gap-2">

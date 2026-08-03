@@ -193,6 +193,31 @@ export interface FacturaResumen {
   cae: string | null;
 }
 
+export interface RemitoDetalleItem {
+  id: string;
+  producto_id: string | null;
+  producto_codigo: string | null;
+  producto_nombre: string | null;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+  descripcion?: string | null;
+}
+
+export interface RemitoResumen {
+  id: string;
+  numero: string;
+  tipo: string;
+  estado: string;
+  fecha_emision: string | null;
+  peso_total_kg: number | null;
+  subtotal: number;
+  descuento: number;
+  total: number;
+  notas?: string | null;
+  detalles: RemitoDetalleItem[];
+}
+
 export interface MovimientoCuentaCorriente {
   id: string;
   tipo: TipoMovimientoCC;
@@ -211,6 +236,7 @@ export interface MovimientoCuentaCorriente {
   pedido_id?: string | null;
   lote_id?: string | null;
   factura?: FacturaResumen | null;
+  remito?: RemitoResumen | null;
 }
 
 export interface EstadoCuenta {

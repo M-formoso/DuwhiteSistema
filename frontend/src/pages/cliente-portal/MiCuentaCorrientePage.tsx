@@ -16,6 +16,9 @@ import {
   Receipt,
   Calendar,
   DollarSign,
+  Eye,
+  Package,
+  X,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -34,9 +37,12 @@ import {
 
 import { useAuthStore } from '@/stores/authStore';
 import { clienteService } from '@/services/clienteService';
+import { remitoService, type MiRemitoListItem, type MiRemitoDetalle } from '@/services/remitoService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
+import type { MovimientoCuentaCorriente } from '@/types/cliente';
 
 const TIPOS_MOVIMIENTO: Record<string, { label: string; color: string }> = {
+  cargo: { label: 'Cargo', color: 'destructive' },
   factura: { label: 'Factura', color: 'destructive' },
   pago: { label: 'Pago', color: 'success' },
   nota_credito: { label: 'Nota de Crédito', color: 'info' },
@@ -48,6 +54,8 @@ export default function MiCuentaCorrientePage() {
   const user = useAuthStore((state) => state.user);
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
+  const [movimientoDetalle, setMovimientoDetalle] = useState<MovimientoCuentaCorriente | null>(null);
+  const [remitoDetalleId, setRemitoDetalleId] = useState<string | null>(null);
 
   // Cargar estado de cuenta
   const { data: estadoCuenta, isLoading: isLoadingEstado } = useQuery({
@@ -66,6 +74,25 @@ export default function MiCuentaCorrientePage() {
         limit: 100,
       }),
     enabled: !!user?.cliente_id,
+  });
+
+  // Cargar remitos del rango
+  const { data: misRemitos = [], isLoading: isLoadingRemitos } = useQuery<MiRemitoListItem[]>({
+    queryKey: ['mis-remitos', user?.cliente_id, fechaDesde, fechaHasta],
+    queryFn: () =>
+      remitoService.getMisRemitos({
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+        limit: 200,
+      }),
+    enabled: !!user?.cliente_id,
+  });
+
+  // Detalle del remito seleccionado (productos)
+  const { data: remitoDetalle, isLoading: isLoadingRemitoDetalle } = useQuery<MiRemitoDetalle>({
+    queryKey: ['mi-remito-detalle', remitoDetalleId],
+    queryFn: () => remitoService.getMiRemito(remitoDetalleId!),
+    enabled: !!remitoDetalleId,
   });
 
   const movimientos = movimientosData?.items || [];
@@ -289,12 +316,13 @@ export default function MiCuentaCorrientePage() {
                         <TableHead className="text-right">Debe</TableHead>
                         <TableHead className="text-right">Haber</TableHead>
                         <TableHead className="text-right">Saldo</TableHead>
+                        <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {movimientos.map((mov) => {
                         const tipoInfo = TIPOS_MOVIMIENTO[mov.tipo] || { label: mov.tipo, color: 'secondary' };
-                        const esDebe = ['factura', 'nota_debito'].includes(mov.tipo);
+                        const esDebe = ['cargo', 'factura', 'nota_debito'].includes(mov.tipo);
 
                         return (
                           <TableRow key={mov.id}>
@@ -306,7 +334,7 @@ export default function MiCuentaCorrientePage() {
                             </TableCell>
                             <TableCell>{mov.concepto}</TableCell>
                             <TableCell>
-                              {mov.factura_numero || mov.recibo_numero || '-'}
+                              {mov.factura_numero || mov.recibo_numero || mov.remito?.numero || '-'}
                             </TableCell>
                             <TableCell className="text-right text-red-600">
                               {esDebe ? formatCurrency(mov.monto) : '-'}
@@ -319,6 +347,16 @@ export default function MiCuentaCorrientePage() {
                                 {formatCurrency(mov.saldo_posterior)}
                               </span>
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setMovimientoDetalle(mov)}
+                                title="Ver detalle"
+                              >
+                                <Eye className="h-4 w-4 text-gray-500" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -328,7 +366,306 @@ export default function MiCuentaCorrientePage() {
               )}
             </CardContent>
           </Card>
+          {/* Mis Remitos (filtrados por fecha) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Mis Remitos
+              </CardTitle>
+              <CardDescription>
+                Remitos emitidos en el período seleccionado. Click en el ojo para ver los productos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingRemitos ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : misRemitos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No hay remitos en el período seleccionado</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nº Remito</TableHead>
+                        <TableHead>Fecha emisión</TableHead>
+                        <TableHead>Lote</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="w-12"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {misRemitos.map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-mono">{r.numero}</TableCell>
+                          <TableCell>{r.fecha_emision ? formatDate(r.fecha_emision) : '-'}</TableCell>
+                          <TableCell className="font-mono text-xs text-gray-600">{r.lote_numero || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {r.estado}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatCurrency(r.total)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setRemitoDetalleId(r.id)}
+                              title="Ver productos"
+                            >
+                              <Eye className="h-4 w-4 text-gray-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </>
+      )}
+
+      {movimientoDetalle && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4"
+          onClick={() => setMovimientoDetalle(null)}
+        >
+          <Card className="w-full max-w-2xl m-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Detalle del movimiento
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setMovimientoDetalle(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <p className="text-gray-500 text-xs">Fecha</p>
+                  <p className="font-mono">{formatDate(movimientoDetalle.fecha_movimiento)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Tipo</p>
+                  <Badge variant={(TIPOS_MOVIMIENTO[movimientoDetalle.tipo]?.color || 'secondary') as any}>
+                    {TIPOS_MOVIMIENTO[movimientoDetalle.tipo]?.label || movimientoDetalle.tipo}
+                  </Badge>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-gray-500 text-xs">Concepto</p>
+                  <p className="font-medium">{movimientoDetalle.concepto || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Monto</p>
+                  <p className="font-mono font-semibold">{formatCurrency(movimientoDetalle.monto)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Saldo posterior</p>
+                  <p className="font-mono font-bold">{formatCurrency(movimientoDetalle.saldo_posterior)}</p>
+                </div>
+                {(movimientoDetalle.factura_numero || movimientoDetalle.recibo_numero || movimientoDetalle.remito?.numero) && (
+                  <div className="col-span-2">
+                    <p className="text-gray-500 text-xs">Comprobante</p>
+                    <p className="font-mono">
+                      {movimientoDetalle.factura_numero ||
+                        movimientoDetalle.recibo_numero ||
+                        movimientoDetalle.remito?.numero}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {movimientoDetalle.remito && (
+                <div className="pt-3 border-t space-y-2">
+                  <p className="text-gray-700 text-sm font-semibold flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Productos del remito {movimientoDetalle.remito.numero}
+                  </p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600 text-xs">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left font-medium">Código</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Producto</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Cant.</th>
+                          <th className="px-2 py-1.5 text-right font-medium">P. Unit.</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {movimientoDetalle.remito.detalles?.length ? (
+                          movimientoDetalle.remito.detalles.map((d) => (
+                            <tr key={d.id} className="border-t">
+                              <td className="px-2 py-1.5 font-mono text-xs">{d.producto_codigo || '-'}</td>
+                              <td className="px-2 py-1.5">{d.producto_nombre || '-'}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{d.cantidad}</td>
+                              <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(d.precio_unitario)}</td>
+                              <td className="px-2 py-1.5 text-right font-mono font-semibold">{formatCurrency(d.subtotal)}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="px-2 py-3 text-center text-gray-400 text-xs">
+                              El remito no tiene productos cargados.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-gray-50 text-xs">
+                        <tr className="border-t">
+                          <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
+                          <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(movimientoDetalle.remito.subtotal)}</td>
+                        </tr>
+                        {movimientoDetalle.remito.descuento > 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-red-600">- {formatCurrency(movimientoDetalle.remito.descuento)}</td>
+                          </tr>
+                        )}
+                        <tr className="border-t">
+                          <td colSpan={4} className="px-2 py-1.5 text-right font-semibold">Total</td>
+                          <td className="px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(movimientoDetalle.remito.total)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  {movimientoDetalle.remito.peso_total_kg != null && movimientoDetalle.remito.peso_total_kg > 0 && (
+                    <p className="text-xs text-gray-500">
+                      Peso total: <span className="font-mono">{movimientoDetalle.remito.peso_total_kg} kg</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-3 border-t">
+                <Button onClick={() => setMovimientoDetalle(null)}>Cerrar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {remitoDetalleId && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4"
+          onClick={() => setRemitoDetalleId(null)}
+        >
+          <Card className="w-full max-w-2xl m-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                {remitoDetalle ? `Remito ${remitoDetalle.numero}` : 'Detalle de remito'}
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setRemitoDetalleId(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLoadingRemitoDetalle || !remitoDetalle ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs">Fecha emisión</p>
+                      <p className="font-mono">
+                        {remitoDetalle.fecha_emision ? formatDate(remitoDetalle.fecha_emision) : '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Estado</p>
+                      <Badge variant="secondary" className="capitalize">
+                        {remitoDetalle.estado}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Lote</p>
+                      <p className="font-mono text-xs">{remitoDetalle.lote_numero || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs">Total</p>
+                      <p className="font-mono font-bold">{formatCurrency(remitoDetalle.total)}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 space-y-2">
+                    <p className="text-gray-700 text-sm font-semibold">Productos</p>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-600 text-xs">
+                          <tr>
+                            <th className="px-2 py-1.5 text-left font-medium">Código</th>
+                            <th className="px-2 py-1.5 text-left font-medium">Producto</th>
+                            <th className="px-2 py-1.5 text-right font-medium">Cant.</th>
+                            <th className="px-2 py-1.5 text-right font-medium">P. Unit.</th>
+                            <th className="px-2 py-1.5 text-right font-medium">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {remitoDetalle.detalles?.length ? (
+                            remitoDetalle.detalles.map((d) => (
+                              <tr key={d.id} className="border-t">
+                                <td className="px-2 py-1.5 font-mono text-xs">{d.producto_codigo || '-'}</td>
+                                <td className="px-2 py-1.5">{d.producto_nombre || '-'}</td>
+                                <td className="px-2 py-1.5 text-right font-mono">{d.cantidad}</td>
+                                <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(d.precio_unitario)}</td>
+                                <td className="px-2 py-1.5 text-right font-mono font-semibold">{formatCurrency(d.subtotal)}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={5} className="px-2 py-3 text-center text-gray-400 text-xs">
+                                El remito no tiene productos cargados.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-gray-50 text-xs">
+                          <tr className="border-t">
+                            <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Subtotal</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{formatCurrency(remitoDetalle.subtotal)}</td>
+                          </tr>
+                          {remitoDetalle.descuento > 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-2 py-1.5 text-right text-gray-600">Descuento</td>
+                              <td className="px-2 py-1.5 text-right font-mono text-red-600">- {formatCurrency(remitoDetalle.descuento)}</td>
+                            </tr>
+                          )}
+                          <tr className="border-t">
+                            <td colSpan={4} className="px-2 py-1.5 text-right font-semibold">Total</td>
+                            <td className="px-2 py-1.5 text-right font-mono font-bold">{formatCurrency(remitoDetalle.total)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    {remitoDetalle.peso_total_kg != null && remitoDetalle.peso_total_kg > 0 && (
+                      <p className="text-xs text-gray-500">
+                        Peso total: <span className="font-mono">{remitoDetalle.peso_total_kg} kg</span>
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end pt-3 border-t">
+                <Button onClick={() => setRemitoDetalleId(null)}>Cerrar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
