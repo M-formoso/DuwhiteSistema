@@ -575,16 +575,12 @@ export default function ClienteCuentaCorrientePage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem
-                onClick={() => {
-                  const params = new URLSearchParams();
-                  if (fechaDesde) params.append('fecha_desde', fechaDesde);
-                  if (fechaHasta) params.append('fecha_hasta', fechaHasta);
-                  const qs = params.toString();
-                  window.open(
-                    `/api/v1/clientes/${id}/estado-cuenta/pdf${qs ? `?${qs}` : ''}`,
-                    '_blank'
-                  );
-                }}
+                onClick={() =>
+                  clienteService.abrirEstadoCuentaPdf(id!, {
+                    fecha_desde: fechaDesde || undefined,
+                    fecha_hasta: fechaHasta || undefined,
+                  })
+                }
               >
                 <FileText className="h-4 w-4 mr-2" />
                 {fechaDesde || fechaHasta ? 'Rango filtrado actual' : 'Histórico completo'}
@@ -602,10 +598,12 @@ export default function ClienteCuentaCorrientePage() {
                     return (
                       <DropdownMenuItem
                         key={g.key}
-                        onClick={() => {
-                          const url = `/api/v1/clientes/${id}/estado-cuenta/pdf?fecha_desde=${primerDia}&fecha_hasta=${ultimoDia}`;
-                          window.open(url, '_blank');
-                        }}
+                        onClick={() =>
+                          clienteService.abrirEstadoCuentaPdf(id!, {
+                            fecha_desde: primerDia,
+                            fecha_hasta: ultimoDia,
+                          })
+                        }
                       >
                         {g.label}
                       </DropdownMenuItem>

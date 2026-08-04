@@ -85,6 +85,19 @@ export async function getMovimientosCuenta(
   return response.data;
 }
 
+export async function abrirEstadoCuentaPdf(
+  clienteId: string,
+  params?: { fecha_desde?: string; fecha_hasta?: string }
+): Promise<void> {
+  const response = await api.get(`/clientes/${clienteId}/estado-cuenta/pdf`, {
+    params,
+    responseType: 'blob',
+  });
+  const blobUrl = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+  window.open(blobUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 export async function registrarPago(
   clienteId: string,
   data: RegistrarPagoRequest
@@ -236,6 +249,7 @@ export const clienteService = {
   // Cuenta Corriente
   getEstadoCuenta,
   getMovimientosCuenta,
+  abrirEstadoCuentaPdf,
   registrarPago,
   registrarAjuste,
   editarAjuste,
