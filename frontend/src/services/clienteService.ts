@@ -67,8 +67,13 @@ export async function deleteCliente(id: string): Promise<{ message: string }> {
 
 // ==================== CUENTA CORRIENTE ====================
 
-export async function getEstadoCuenta(clienteId: string): Promise<EstadoCuenta> {
-  const response = await api.get(`/clientes/${clienteId}/cuenta-corriente`);
+export async function getEstadoCuenta(
+  clienteId: string,
+  params?: { fecha_desde?: string; fecha_hasta?: string }
+): Promise<EstadoCuenta> {
+  const response = await api.get(`/clientes/${clienteId}/cuenta-corriente`, {
+    params,
+  });
   return response.data;
 }
 

@@ -157,12 +157,18 @@ export default function ClienteCuentaCorrientePage() {
     enabled: Boolean(id),
   });
 
-  // Query del estado de cuenta
+  // Query del estado de cuenta (respeta filtros de fecha)
   const { data: estadoCuenta } = useQuery({
-    queryKey: ['cliente-estado-cuenta', id],
-    queryFn: () => clienteService.getEstadoCuenta(id!),
+    queryKey: ['cliente-estado-cuenta', id, fechaDesde, fechaHasta],
+    queryFn: () =>
+      clienteService.getEstadoCuenta(id!, {
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+      }),
     enabled: Boolean(id),
   });
+
+  const hayFiltroPeriodo = Boolean(fechaDesde || fechaHasta);
 
   // Query de movimientos con paginación y filtros
   const { data: movimientosData, isLoading: loadingMovimientos } = useQuery({
@@ -665,32 +671,51 @@ export default function ClienteCuentaCorrientePage() {
         </div>
       </div>
 
-      {/* Cards de resumen — desglose contable */}
+      {/* Cards de resumen — desglose contable (respeta filtros de fecha) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className={cliente.tiene_deuda ? 'border-orange-300' : 'border-green-300'}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Saldo Actual</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    cliente.tiene_deuda ? 'text-red-600' : 'text-green-600'
-                  }`}
-                >
-                  {formatNumber(cliente.saldo_cuenta_corriente, 'currency')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {cliente.tiene_deuda ? 'A cobrar al cliente' : 'Sin deuda'}
-                </p>
-              </div>
-              <DollarSign
-                className={`h-10 w-10 ${
-                  cliente.tiene_deuda ? 'text-red-200' : 'text-green-200'
-                }`}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {(() => {
+          const saldoValor = hayFiltroPeriodo
+            ? Number(estadoCuenta?.saldo_actual ?? 0)
+            : Number(cliente.saldo_cuenta_corriente ?? 0);
+          const esPositivo = saldoValor > 0;
+          const esNegativo = saldoValor < 0;
+          return (
+            <Card className={esPositivo ? 'border-orange-300' : esNegativo ? 'border-green-300' : ''}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      {hayFiltroPeriodo ? 'Neto del período' : 'Saldo Actual'}
+                    </p>
+                    <p
+                      className={`text-2xl font-bold ${
+                        esPositivo ? 'text-red-600' : esNegativo ? 'text-green-600' : 'text-gray-700'
+                      }`}
+                    >
+                      {formatNumber(Math.abs(saldoValor), 'currency')}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {hayFiltroPeriodo
+                        ? esPositivo
+                          ? 'Cargó más de lo que pagó'
+                          : esNegativo
+                          ? 'Pagó más de lo que se cargó'
+                          : 'Sin movimientos netos'
+                        : esPositivo
+                        ? 'A cobrar al cliente'
+                        : 'Sin deuda'}
+                    </p>
+                  </div>
+                  <DollarSign
+                    className={`h-10 w-10 ${
+                      esPositivo ? 'text-red-200' : esNegativo ? 'text-green-200' : 'text-gray-200'
+                    }`}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         <Card>
           <CardContent className="pt-6">
@@ -700,7 +725,9 @@ export default function ClienteCuentaCorrientePage() {
                 <p className="text-2xl font-bold text-blue-600">
                   {formatNumber(estadoCuenta?.deuda_facturada || 0, 'currency')}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Con CAE de ARCA</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {hayFiltroPeriodo ? 'Facturado en el período' : 'Con CAE de ARCA'}
+                </p>
               </div>
               <Receipt className="h-10 w-10 text-blue-200" />
             </div>
@@ -715,7 +742,9 @@ export default function ClienteCuentaCorrientePage() {
                 <p className="text-2xl font-bold text-orange-600">
                   {formatNumber(estadoCuenta?.cargos_sin_facturar || 0, 'currency')}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Cargos pendientes de factura</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {hayFiltroPeriodo ? 'Cargos sin factura en el período' : 'Cargos pendientes de factura'}
+                </p>
               </div>
               <FileText className="h-10 w-10 text-orange-200" />
             </div>
@@ -730,7 +759,9 @@ export default function ClienteCuentaCorrientePage() {
                 <p className="text-2xl font-bold text-purple-600">
                   {formatNumber(estadoCuenta?.saldo_a_favor || 0, 'currency')}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Anticipos no aplicados</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {hayFiltroPeriodo ? 'Excedente del período' : 'Anticipos no aplicados'}
+                </p>
               </div>
               <TrendingDown className="h-10 w-10 text-purple-200" />
             </div>

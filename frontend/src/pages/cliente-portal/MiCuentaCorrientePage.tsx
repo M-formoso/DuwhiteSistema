@@ -52,10 +52,26 @@ const TIPOS_MOVIMIENTO: Record<string, { label: string; color: string }> = {
   ajuste: { label: 'Ajuste', color: 'secondary' },
 };
 
+function primerDiaMesActualISO(): string {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+}
+
+function hoyISO(): string {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, '0');
+  const d = String(hoy.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function MiCuentaCorrientePage() {
   const user = useAuthStore((state) => state.user);
-  const [fechaDesde, setFechaDesde] = useState<string>('');
-  const [fechaHasta, setFechaHasta] = useState<string>('');
+  // Default: mes actual (desde el 1 hasta hoy)
+  const [fechaDesde, setFechaDesde] = useState<string>(() => primerDiaMesActualISO());
+  const [fechaHasta, setFechaHasta] = useState<string>(() => hoyISO());
   const [movimientoDetalle, setMovimientoDetalle] = useState<MovimientoCuentaCorriente | null>(null);
   const [remitoDetalleId, setRemitoDetalleId] = useState<string | null>(null);
 
@@ -66,8 +82,12 @@ export default function MiCuentaCorrientePage() {
   };
 
   const { data: estadoCuenta } = useQuery({
-    queryKey: ['mi-estado-cuenta', clienteId],
-    queryFn: () => clienteService.getEstadoCuenta(clienteId!),
+    queryKey: ['mi-estado-cuenta', clienteId, fechaDesde, fechaHasta],
+    queryFn: () =>
+      clienteService.getEstadoCuenta(clienteId!, {
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+      }),
     enabled: !!clienteId,
   });
 
@@ -148,11 +168,23 @@ export default function MiCuentaCorrientePage() {
               variant="outline"
               size="sm"
               onClick={() => {
+                setFechaDesde(primerDiaMesActualISO());
+                setFechaHasta(hoyISO());
+              }}
+              title="Volver al mes actual"
+            >
+              Mes actual
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
                 setFechaDesde('');
                 setFechaHasta('');
               }}
+              title="Ver todo el histórico"
             >
-              Limpiar
+              Ver todo
             </Button>
           </div>
         </CardContent>
@@ -166,12 +198,22 @@ export default function MiCuentaCorrientePage() {
                 <Wallet className={`h-6 w-6 ${saldoActual > 0 ? 'text-red-600' : 'text-green-600'}`} />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Saldo pendiente</p>
+                <p className="text-sm text-muted-foreground">
+                  {fechaDesde || fechaHasta ? 'Deuda del período' : 'Saldo pendiente'}
+                </p>
                 <p className={`text-2xl font-bold ${saldoActual > 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {formatCurrency(Math.abs(saldoActual))}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {saldoActual > 0 ? 'Deuda a cobrar' : saldoActual < 0 ? 'A favor del cliente' : 'Sin deuda'}
+                  {saldoActual > 0
+                    ? fechaDesde || fechaHasta
+                      ? 'Cargos - pagos del período'
+                      : 'Deuda a cobrar'
+                    : saldoActual < 0
+                    ? fechaDesde || fechaHasta
+                      ? 'Pagó más de lo que se cargó'
+                      : 'A favor del cliente'
+                    : 'Sin deuda'}
                 </p>
               </div>
             </div>

@@ -348,14 +348,21 @@ def desactivar_cliente(
 @router.get("/{cliente_id}/cuenta-corriente")
 def obtener_estado_cuenta(
     cliente_id: str,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    """Obtiene el estado de cuenta corriente de un cliente."""
+    """Obtiene el estado de cuenta corriente de un cliente.
+
+    Si se pasan fechas, las cifras se calculan sobre ese rango.
+    """
     service = ClienteService(db)
 
     try:
-        return service.get_estado_cuenta(cliente_id)
+        return service.get_estado_cuenta(
+            cliente_id, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

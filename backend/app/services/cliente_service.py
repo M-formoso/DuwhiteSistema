@@ -925,13 +925,27 @@ class ClienteService:
 
         return recibo, movimiento
 
-    def get_estado_cuenta(self, cliente_id: str) -> dict:
-        """Obtiene resumen del estado de cuenta de un cliente."""
+    def get_estado_cuenta(
+        self,
+        cliente_id: str,
+        fecha_desde: Optional[date] = None,
+        fecha_hasta: Optional[date] = None,
+    ) -> dict:
+        """
+        Obtiene resumen del estado de cuenta de un cliente.
+
+        Cuando `fecha_desde` y/o `fecha_hasta` vienen, todas las cifras se
+        acotan a ese rango (deuda_facturada, cargos_sin_facturar y saldo_actual
+        pasan a representar el "neto del período"). Sin filtros el
+        comportamiento es el histórico global.
+        """
         cliente = self.get_cliente(cliente_id)
         if not cliente:
             raise ValueError("Cliente no encontrado")
 
-        # Calcular totales del mes
+        tiene_filtro_periodo = fecha_desde is not None or fecha_hasta is not None
+
+        # Calcular totales del mes en curso (se mantiene para retrocompat)
         hoy = date.today()
         primer_dia_mes = hoy.replace(day=1)
 
@@ -980,25 +994,39 @@ class ClienteService:
         if cliente.limite_credito:
             credito_disponible = cliente.limite_credito - cliente.saldo_cuenta_corriente
 
-        # Desglose: cuánto del saldo es deuda facturada vs cargos sin facturar vs anticipos
+        # Filtros comunes: siempre activos; opcionalmente acotados al rango.
+        def _aplicar_rango(query):
+            if fecha_desde is not None:
+                query = query.filter(
+                    MovimientoCuentaCorriente.fecha_movimiento >= fecha_desde
+                )
+            if fecha_hasta is not None:
+                query = query.filter(
+                    MovimientoCuentaCorriente.fecha_movimiento <= fecha_hasta
+                )
+            return query
+
+        # Desglose: cargos facturados vs sin facturar. Con filtros → del período.
         deuda_facturada = (
-            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
-            .filter(
-                MovimientoCuentaCorriente.cliente_id == cliente_id,
-                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
-                MovimientoCuentaCorriente.factura_id.isnot(None),
-                MovimientoCuentaCorriente.activo == True,
+            _aplicar_rango(
+                self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
+                    MovimientoCuentaCorriente.cliente_id == cliente_id,
+                    MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                    MovimientoCuentaCorriente.factura_id.isnot(None),
+                    MovimientoCuentaCorriente.activo == True,
+                )
             )
             .scalar()
             or Decimal("0")
         )
         cargos_sin_facturar = (
-            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
-            .filter(
-                MovimientoCuentaCorriente.cliente_id == cliente_id,
-                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
-                MovimientoCuentaCorriente.factura_id.is_(None),
-                MovimientoCuentaCorriente.activo == True,
+            _aplicar_rango(
+                self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
+                    MovimientoCuentaCorriente.cliente_id == cliente_id,
+                    MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                    MovimientoCuentaCorriente.factura_id.is_(None),
+                    MovimientoCuentaCorriente.activo == True,
+                )
             )
             .scalar()
             or Decimal("0")
@@ -1008,18 +1036,65 @@ class ClienteService:
             .filter(
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
                 MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
+                MovimientoCuentaCorriente.activo == True,
             )
             .scalar()
             or Decimal("0")
         )
-        # Saldo a favor = pagos > cargos. Si saldo cliente < 0, es a favor del cliente.
-        saldo_actual = Decimal(cliente.saldo_cuenta_corriente or 0)
-        saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
+
+        if tiene_filtro_periodo:
+            # Con filtros: saldo_actual = delta del período (cargos + ajustes - pagos).
+            # Se usa el signo del ajuste con `saldo_posterior - saldo_anterior`
+            # para preservar dirección (aumentar/disminuir).
+            cargos_periodo = (
+                _aplicar_rango(
+                    self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
+                        MovimientoCuentaCorriente.cliente_id == cliente_id,
+                        MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                        MovimientoCuentaCorriente.activo == True,
+                    )
+                )
+                .scalar()
+                or Decimal("0")
+            )
+            pagos_periodo = (
+                _aplicar_rango(
+                    self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
+                        MovimientoCuentaCorriente.cliente_id == cliente_id,
+                        MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
+                        MovimientoCuentaCorriente.activo == True,
+                    )
+                )
+                .scalar()
+                or Decimal("0")
+            )
+            ajustes_delta = (
+                _aplicar_rango(
+                    self.db.query(
+                        func.sum(
+                            MovimientoCuentaCorriente.saldo_posterior
+                            - MovimientoCuentaCorriente.saldo_anterior
+                        )
+                    ).filter(
+                        MovimientoCuentaCorriente.cliente_id == cliente_id,
+                        MovimientoCuentaCorriente.tipo == TipoMovimientoCC.AJUSTE.value,
+                        MovimientoCuentaCorriente.activo == True,
+                    )
+                )
+                .scalar()
+                or Decimal("0")
+            )
+            saldo_actual = cargos_periodo - pagos_periodo + ajustes_delta
+            saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
+        else:
+            # Sin filtros: saldo global actual del cliente
+            saldo_actual = Decimal(cliente.saldo_cuenta_corriente or 0)
+            saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
 
         return {
             "cliente_id": str(cliente.id),
             "cliente_nombre": cliente.nombre_display,
-            "saldo_actual": cliente.saldo_cuenta_corriente,
+            "saldo_actual": saldo_actual,
             "deuda_facturada": deuda_facturada,
             "cargos_sin_facturar": cargos_sin_facturar,
             "saldo_a_favor": saldo_a_favor,
@@ -1030,6 +1105,9 @@ class ClienteService:
             "total_pagado_mes": total_pagado_mes,
             "cantidad_facturas_pendientes": len(pedidos_pendientes),
             "factura_mas_antigua_dias": factura_mas_antigua,
+            "filtro_periodo": tiene_filtro_periodo,
+            "fecha_desde": fecha_desde.isoformat() if fecha_desde else None,
+            "fecha_hasta": fecha_hasta.isoformat() if fecha_hasta else None,
         }
 
     def _generar_numero_recibo(self) -> str:
