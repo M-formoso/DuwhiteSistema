@@ -709,9 +709,9 @@ export default function ConteoFinalizacionPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16 text-center">Cód.</TableHead>
+                  <TableHead className="text-center w-28">Cantidad</TableHead>
                   <TableHead>Descripción</TableHead>
                   <TableHead className="text-right w-24">Precio</TableHead>
-                  <TableHead className="text-center w-28">Cantidad</TableHead>
                   {tieneRelevado && (
                     <TableHead className="text-center w-28">Relevado</TableHead>
                   )}
@@ -725,10 +725,6 @@ export default function ConteoFinalizacionPage() {
                     <TableCell className="text-center font-mono text-sm font-medium">
                       {formatearCodigo(item.producto_codigo)}
                     </TableCell>
-                    <TableCell className="font-medium">{item.producto_nombre}</TableCell>
-                    <TableCell className="text-right text-sm text-gray-600">
-                      {formatCurrency(item.precio_unitario)}
-                    </TableCell>
                     <TableCell>
                       <Input
                         type="number"
@@ -739,6 +735,10 @@ export default function ConteoFinalizacionPage() {
                         }
                         className="w-full text-center"
                       />
+                    </TableCell>
+                    <TableCell className="font-medium">{item.producto_nombre}</TableCell>
+                    <TableCell className="text-right text-sm text-gray-600">
+                      {formatCurrency(item.precio_unitario)}
                     </TableCell>
                     {tieneRelevado && (
                       <TableCell>

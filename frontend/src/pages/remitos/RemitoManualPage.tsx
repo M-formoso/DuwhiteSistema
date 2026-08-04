@@ -451,9 +451,9 @@ export default function RemitoManualPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-24">Cód.</TableHead>
+                  <TableHead className="w-24 text-center">Cant.</TableHead>
                   <TableHead>Producto</TableHead>
                   <TableHead className="w-24 text-right">Precio</TableHead>
-                  <TableHead className="w-24 text-center">Cant.</TableHead>
                   <TableHead className="w-28 text-right">Subtotal</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
@@ -462,9 +462,9 @@ export default function RemitoManualPage() {
                 {items.map((i) => (
                   <TableRow key={i.producto_id}>
                     <TableCell className="font-mono">{i.producto_codigo}</TableCell>
+                    <TableCell className="text-center">{i.cantidad}</TableCell>
                     <TableCell>{i.producto_nombre}</TableCell>
                     <TableCell className="text-right">{formatCurrency(i.precio_unitario)}</TableCell>
-                    <TableCell className="text-center">{i.cantidad}</TableCell>
                     <TableCell className="text-right font-semibold">
                       {formatCurrency(i.precio_unitario * i.cantidad)}
                     </TableCell>
