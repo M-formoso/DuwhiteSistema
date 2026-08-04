@@ -1,1 +1,1 @@
-export { default as ActividadesPage } from './ActividadesPage';
+export { default as HistorialLavadosPage } from './HistorialLavadosPage';

@@ -22,7 +22,7 @@ from app.api.v1.endpoints import (
     dashboard,
     seed,
     servicios,
-    actividades,
+    historial_lavados,
     cuenta_corriente_proveedor,
     cuenta_corriente_cliente,
     ordenes_pago,
@@ -152,11 +152,11 @@ api_router.include_router(
     tags=["Servicios y Listas de Precios"],
 )
 
-# Actividades
+# Historial de Lavados (ex-Actividades)
 api_router.include_router(
-    actividades.router,
-    prefix="/actividades",
-    tags=["Actividades"],
+    historial_lavados.router,
+    prefix="/historial-lavados",
+    tags=["Historial de Lavados"],
 )
 
 # Cuenta Corriente Proveedores

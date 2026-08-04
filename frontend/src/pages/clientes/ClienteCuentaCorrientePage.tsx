@@ -69,10 +69,13 @@ import {
   cuentaCorrienteClienteService,
   type RegistrarCobranzaRequest,
 } from '@/services/finanzasAvanzadasService';
+import { historialLavadosService } from '@/services/historialLavadosService';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
 import { BANCOS_ARGENTINA, TIPOS_CHEQUE } from '@/types/tesoreria';
+import { useAuthStore } from '@/stores/authStore';
+import ConfirmDeleteStrict from '@/components/ui/confirm-delete-strict';
 
 const ESTADOS_FACTURACION = [
   { value: 'sin_facturar', label: 'Sin Facturar' },
@@ -116,7 +119,12 @@ export default function ClienteCuentaCorrientePage() {
   // Estados del modal de detalle y eliminación
   const [movimientoDetalle, setMovimientoDetalle] = useState<any | null>(null);
   const [movimientoAEliminar, setMovimientoAEliminar] = useState<any | null>(null);
+  const [remitoAEliminar, setRemitoAEliminar] = useState<any | null>(null);
   const [mesesAbiertos, setMesesAbiertos] = useState<Set<string>>(new Set());
+
+  const usuarioActual = useAuthStore((s) => s.user);
+  const puedeEliminarRemito =
+    !!usuarioActual && ['superadmin', 'administrador'].includes(usuarioActual.rol);
 
   // Estados del modal de cobranza completo
   const [showPagoModal, setShowPagoModal] = useState(false);
@@ -399,6 +407,39 @@ export default function ClienteCuentaCorrientePage() {
       eliminarMutation.mutate(movimientoAEliminar.id);
     }
   };
+
+  // Mutation para eliminar un REMITO (soft delete + reversión CC)
+  const eliminarRemitoMutation = useMutation({
+    mutationFn: async ({ remitoId, motivo }: { remitoId: string; motivo?: string }) => {
+      if (!id) throw new Error('Cliente no definido');
+      return historialLavadosService.deleteRemito(id, remitoId, motivo);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['cliente', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-estado-cuenta', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-movimientos', id] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-deuda'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-clientes-resumen'] });
+      toast({
+        title: 'Remito eliminado',
+        description:
+          result.saldo_posterior_cliente !== null
+            ? `${result.numero} eliminado. Nuevo saldo: ${formatNumber(
+                result.saldo_posterior_cliente,
+                'currency'
+              )}.`
+            : `${result.numero} eliminado.`,
+      });
+      setRemitoAEliminar(null);
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Error al eliminar el remito',
+        description: err?.response?.data?.detail || 'No se pudo eliminar el remito.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const abrirModalCobranza = () => {
     setCobranzaMonto(cliente?.saldo_cuenta_corriente?.toString() || '');
@@ -885,6 +926,18 @@ export default function ClienteCuentaCorrientePage() {
                                         </Button>
                                       </>
                                     )}
+                                    {mov.tipo === 'cargo' &&
+                                      puedeEliminarRemito &&
+                                      mov.remito?.numero && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => setRemitoAEliminar(mov)}
+                                          title="Eliminar remito"
+                                        >
+                                          <Trash2 className="h-4 w-4 text-red-500" />
+                                        </Button>
+                                      )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1918,6 +1971,47 @@ export default function ClienteCuentaCorrientePage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Modal doble confirmación: eliminar remito */}
+      {remitoAEliminar && (
+        <ConfirmDeleteStrict
+          open={!!remitoAEliminar}
+          onClose={() => setRemitoAEliminar(null)}
+          onConfirm={async (motivo) => {
+            const remitoId = remitoAEliminar.remito?.id;
+            if (!remitoId) {
+              toast({
+                title: 'No se puede eliminar',
+                description: 'Este movimiento no tiene un remito asociado.',
+                variant: 'destructive',
+              });
+              return;
+            }
+            await eliminarRemitoMutation.mutateAsync({ remitoId, motivo });
+          }}
+          title={`Eliminar remito ${remitoAEliminar.remito?.numero || ''}`}
+          description="Esto quitará el remito del sistema y revertirá el impacto en la cuenta corriente. Quedará registro en la solapa Eliminados del módulo Historial de Lavados."
+          confirmationText={remitoAEliminar.remito?.numero || 'ELIMINAR'}
+          extraContent={
+            <div className="rounded-md bg-gray-50 border p-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cliente:</span>
+                <span className="font-medium">{cliente?.razon_social}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Fecha:</span>
+                <span>{formatDate(remitoAEliminar.fecha_movimiento)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Monto a revertir:</span>
+                <span className="font-semibold text-red-600">
+                  {formatNumber(remitoAEliminar.monto, 'currency')}
+                </span>
+              </div>
+            </div>
+          }
+        />
       )}
     </div>
   );

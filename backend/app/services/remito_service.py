@@ -731,6 +731,118 @@ class RemitoService:
         return remito
 
     @staticmethod
+    def eliminar(
+        db: Session,
+        remito_id: UUID,
+        motivo: Optional[str],
+        usuario_id: UUID,
+    ) -> dict:
+        """
+        Elimina un remito (soft delete) y revierte su impacto en cuenta corriente:
+        marca activo=False en el remito y en su MovimientoCuentaCorriente asociado,
+        recalcula saldos posteriores del cliente y deja registro en LogActividad
+        con snapshot completo para poder consultarlo en la solapa "Eliminados".
+        """
+        remito = db.query(Remito).filter(Remito.id == remito_id).first()
+        if not remito:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Remito no encontrado",
+            )
+        if not remito.activo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El remito ya está eliminado",
+            )
+
+        cliente = remito.cliente
+
+        # Snapshot completo para el log (usado por la solapa Eliminados)
+        detalles_snapshot = [
+            {
+                "producto_id": str(d.producto_id) if d.producto_id else None,
+                "producto_nombre": d.producto.nombre if d.producto else None,
+                "cantidad": d.cantidad,
+                "precio_unitario": d.precio_unitario,
+                "subtotal": d.subtotal,
+            }
+            for d in remito.detalles
+        ]
+        snapshot = {
+            "remito_id": remito.id,
+            "numero": remito.numero,
+            "tipo": remito.tipo,
+            "estado": remito.estado,
+            "cliente_id": cliente.id if cliente else None,
+            "cliente_nombre": cliente.razon_social if cliente else None,
+            "lote_id": remito.lote_id,
+            "fecha_emision": remito.fecha_emision,
+            "subtotal": remito.subtotal,
+            "descuento": remito.descuento,
+            "total": remito.total,
+            "movimiento_cc_id": remito.movimiento_cc_id,
+            "detalles": detalles_snapshot,
+            "motivo": motivo,
+        }
+
+        # Soft delete del remito
+        remito.activo = False
+
+        # Reversión del movimiento CC (si existe y está activo)
+        movimiento = None
+        if remito.movimiento_cc_id:
+            movimiento = db.query(MovimientoCuentaCorriente).filter(
+                MovimientoCuentaCorriente.id == remito.movimiento_cc_id
+            ).first()
+
+        if movimiento and movimiento.activo:
+            saldo_base = Decimal(movimiento.saldo_anterior)
+
+            # Recalcular saldos de movimientos posteriores activos
+            posteriores = (
+                db.query(MovimientoCuentaCorriente)
+                .filter(
+                    MovimientoCuentaCorriente.cliente_id == cliente.id,
+                    MovimientoCuentaCorriente.created_at > movimiento.created_at,
+                    MovimientoCuentaCorriente.activo == True,
+                )
+                .order_by(MovimientoCuentaCorriente.created_at.asc())
+                .all()
+            )
+
+            saldo_running = saldo_base
+            for mov_post in posteriores:
+                delta = Decimal(mov_post.saldo_posterior) - Decimal(mov_post.saldo_anterior)
+                mov_post.saldo_anterior = saldo_running
+                mov_post.saldo_posterior = saldo_running + delta
+                saldo_running = mov_post.saldo_posterior
+
+            cliente.saldo_cuenta_corriente = saldo_running
+            movimiento.activo = False
+
+        db.commit()
+
+        LogService().registrar(
+            db=db,
+            usuario_id=usuario_id,
+            accion="eliminar",
+            modulo="remitos",
+            entidad_tipo="remito",
+            entidad_id=remito.id,
+            datos_anteriores=snapshot,
+            descripcion=f"Eliminación de remito {remito.numero}"
+            + (f" — Motivo: {motivo}" if motivo else ""),
+        )
+
+        return {
+            "remito_id": str(remito.id),
+            "numero": remito.numero,
+            "saldo_posterior_cliente": (
+                float(cliente.saldo_cuenta_corriente) if cliente else None
+            ),
+        }
+
+    @staticmethod
     def get_remitos_cliente(
         db: Session,
         cliente_id: UUID,

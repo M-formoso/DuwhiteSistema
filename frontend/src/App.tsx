@@ -65,7 +65,7 @@ import { CostosPage } from '@/pages/costos';
 import { ReportesPage } from '@/pages/reportes';
 
 // Actividades
-import { ActividadesPage } from '@/pages/actividades';
+import HistorialLavadosPage from '@/pages/actividades/HistorialLavadosPage';
 
 // Configuración
 import { ConfiguracionPage } from '@/pages/configuracion';
@@ -230,8 +230,15 @@ function App() {
         {/* Reportes */}
         <Route path="/reportes" element={<ReportesPage />} />
 
-        {/* Actividades */}
-        <Route path="/actividades" element={<ActividadesPage />} />
+        {/* Historial de Lavados (ex-Actividades) */}
+        <Route
+          path="/actividades"
+          element={
+            <ProtectedRoute roles={['superadmin', 'administrador']}>
+              <HistorialLavadosPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Usuarios */}
         <Route path="/usuarios" element={<UsuariosPage />} />

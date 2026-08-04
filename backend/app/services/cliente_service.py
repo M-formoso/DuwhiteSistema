@@ -425,7 +425,8 @@ class ClienteService:
     ) -> Tuple[List[MovimientoCuentaCorriente], int]:
         """Obtiene movimientos de cuenta corriente de un cliente."""
         query = self.db.query(MovimientoCuentaCorriente).filter(
-            MovimientoCuentaCorriente.cliente_id == cliente_id
+            MovimientoCuentaCorriente.cliente_id == cliente_id,
+            MovimientoCuentaCorriente.activo == True,
         )
 
         if fecha_desde:
@@ -940,6 +941,7 @@ class ClienteService:
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
                 MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
                 MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
+                MovimientoCuentaCorriente.activo == True,
             )
             .scalar()
             or Decimal("0")
@@ -951,6 +953,7 @@ class ClienteService:
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
                 MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
                 MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
+                MovimientoCuentaCorriente.activo == True,
             )
             .scalar()
             or Decimal("0")
@@ -984,6 +987,7 @@ class ClienteService:
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
                 MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
                 MovimientoCuentaCorriente.factura_id.isnot(None),
+                MovimientoCuentaCorriente.activo == True,
             )
             .scalar()
             or Decimal("0")
@@ -994,6 +998,7 @@ class ClienteService:
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
                 MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
                 MovimientoCuentaCorriente.factura_id.is_(None),
+                MovimientoCuentaCorriente.activo == True,
             )
             .scalar()
             or Decimal("0")

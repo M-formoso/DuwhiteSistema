@@ -131,14 +131,6 @@ from app.models.costo import (
     CategoriaCosto,
 )
 
-# Actividades
-from app.models.actividad import (
-    Actividad,
-    PrioridadActividad,
-    EstadoActividad,
-    CategoriaActividad,
-)
-
 # Liquidaciones
 from app.models.liquidacion import (
     LiquidacionPedido,

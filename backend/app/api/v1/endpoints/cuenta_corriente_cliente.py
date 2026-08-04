@@ -412,7 +412,8 @@ def listar_movimientos_cliente(
     from app.models.cuenta_corriente import MovimientoCuentaCorriente
 
     query = db.query(MovimientoCuentaCorriente).filter(
-        MovimientoCuentaCorriente.cliente_id == cliente_id
+        MovimientoCuentaCorriente.cliente_id == cliente_id,
+        MovimientoCuentaCorriente.activo == True,
     )
 
     if fecha_desde:
@@ -650,6 +651,56 @@ def eliminar_movimiento_ajuste(
     return {
         "mensaje": "Movimiento eliminado correctamente",
         "saldo_posterior_cliente": resultado["saldo_posterior_cliente"],
+    }
+
+
+# ==================== ELIMINAR REMITO ====================
+
+
+class EliminarRemitoRequest(__import__("pydantic").BaseModel):
+    motivo: Optional[str] = None
+
+
+@router.delete("/{cliente_id}/remitos/{remito_id}", status_code=status.HTTP_200_OK)
+def eliminar_remito(
+    cliente_id: str,
+    remito_id: str,
+    payload: Optional[EliminarRemitoRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
+):
+    """
+    Elimina (soft delete) un remito de un cliente y revierte su impacto en
+    cuenta corriente. Registra el evento en LogActividad para la solapa
+    "Eliminados" del módulo Historial de Lavados.
+    """
+    from uuid import UUID
+    from app.models.remito import Remito
+    from app.services.remito_service import RemitoService
+
+    remito = db.query(Remito).filter(Remito.id == remito_id).first()
+    if not remito:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Remito no encontrado",
+        )
+    if str(remito.cliente_id) != cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El remito no pertenece a este cliente",
+        )
+
+    motivo = payload.motivo if payload else None
+    resultado = RemitoService.eliminar(
+        db=db,
+        remito_id=UUID(remito_id),
+        motivo=motivo,
+        usuario_id=current_user.id,
+    )
+
+    return {
+        "mensaje": f"Remito {resultado['numero']} eliminado correctamente",
+        **resultado,
     }
 
 
