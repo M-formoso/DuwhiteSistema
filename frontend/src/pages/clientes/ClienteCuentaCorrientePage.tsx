@@ -50,6 +50,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 
 import {
@@ -557,20 +565,56 @@ export default function ClienteCuentaCorrientePage() {
         </div>
 
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              const params = new URLSearchParams();
-              if (fechaDesde) params.append('fecha_desde', fechaDesde);
-              if (fechaHasta) params.append('fecha_hasta', fechaHasta);
-              const qs = params.toString();
-              const url = `/api/v1/clientes/${id}/estado-cuenta/pdf${qs ? `?${qs}` : ''}`;
-              window.open(url, '_blank');
-            }}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar PDF
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Exportar PDF
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (fechaDesde) params.append('fecha_desde', fechaDesde);
+                  if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+                  const qs = params.toString();
+                  window.open(
+                    `/api/v1/clientes/${id}/estado-cuenta/pdf${qs ? `?${qs}` : ''}`,
+                    '_blank'
+                  );
+                }}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {fechaDesde || fechaHasta ? 'Rango filtrado actual' : 'Histórico completo'}
+              </DropdownMenuItem>
+              {movimientosPorMes.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Por mes</DropdownMenuLabel>
+                  {movimientosPorMes.map((g) => {
+                    const [anio, mes] = g.key.split('-');
+                    const primerDia = `${anio}-${mes}-01`;
+                    const ultimoDia = new Date(parseInt(anio, 10), parseInt(mes, 10), 0)
+                      .toISOString()
+                      .slice(0, 10);
+                    return (
+                      <DropdownMenuItem
+                        key={g.key}
+                        onClick={() => {
+                          const url = `/api/v1/clientes/${id}/estado-cuenta/pdf?fecha_desde=${primerDia}&fecha_hasta=${ultimoDia}`;
+                          window.open(url, '_blank');
+                        }}
+                      >
+                        {g.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" onClick={abrirModalAjuste}>
             <Sliders className="h-4 w-4 mr-2" />
             Ajustar Saldo

@@ -36,6 +36,9 @@ th { background: #F7F8FA; color: #555; font-weight: 600; text-transform: upperca
 .footer { margin-top: 30px; font-size: 8pt; color: #777; border-top: 1px solid #E0E0E0; padding-top: 10px; }
 .totales { margin-top: 12px; text-align: right; font-weight: bold; }
 .totales .saldo-final { color: #EF4444; font-size: 12pt; }
+.section-title { font-size: 12pt; color: #00BCD4; border-bottom: 1px solid #00BCD4; padding-bottom: 4px; margin: 24px 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+tfoot td { background: #F7F8FA; font-weight: bold; }
+.empty { text-align: center; color: #999; font-style: italic; padding: 12px; }
 </style>
 </head>
 <body>
@@ -121,6 +124,73 @@ th { background: #F7F8FA; color: #555; font-weight: 600; text-transform: upperca
 <div class="totales">
   Saldo final: <span class="saldo-final">{{ saldo_actual | moneda }}</span>
 </div>
+
+<div class="section-title">Remitos del período</div>
+<table>
+  <thead>
+    <tr>
+      <th>Nº Remito</th>
+      <th>Fecha</th>
+      <th>Lote</th>
+      <th>Estado</th>
+      <th class="text-right">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in remitos %}
+    <tr>
+      <td>{{ r.numero }}</td>
+      <td>{{ r.fecha_emision | fecha_ar }}</td>
+      <td>{% if r.lote %}{{ r.lote.numero }}{% else %}—{% endif %}</td>
+      <td>{{ r.estado | capitalize }}</td>
+      <td class="text-right">{{ r.total | moneda }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="empty">Sin remitos en el período.</td></tr>
+    {% endfor %}
+  </tbody>
+  {% if remitos %}
+  <tfoot>
+    <tr>
+      <td colspan="4" class="text-right">Total del período</td>
+      <td class="text-right">{{ total_remitos | moneda }}</td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
+
+<div class="section-title">Productos entregados</div>
+<table>
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Producto</th>
+      <th class="text-right">Cantidad</th>
+      <th class="text-right">Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in productos_entregados %}
+    <tr>
+      <td>{{ p.codigo }}</td>
+      <td>{{ p.nombre }}</td>
+      <td class="text-right">{{ p.cantidad }}</td>
+      <td class="text-right">{{ p.subtotal | moneda }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="empty">Sin productos entregados en el período.</td></tr>
+    {% endfor %}
+  </tbody>
+  {% if productos_entregados %}
+  <tfoot>
+    <tr>
+      <td colspan="2" class="text-right">Total</td>
+      <td class="text-right">{{ total_cantidad_productos }}</td>
+      <td class="text-right">{{ total_subtotal_productos | moneda }}</td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
 
 <div class="footer">
   Reporte generado por el Sistema de Gestión {{ empresa.nombre }}.

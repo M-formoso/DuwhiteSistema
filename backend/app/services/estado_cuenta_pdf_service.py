@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.cliente import Cliente
 from app.models.cuenta_corriente import MovimientoCuentaCorriente, TipoMovimientoCC
+from app.models.remito import Remito, DetalleRemito
 from app.services.cliente_service import ClienteService
 
 
@@ -89,6 +90,45 @@ def generar_pdf(
 
     estado = ClienteService(db).get_estado_cuenta(str(cliente_id))
 
+    # Remitos del período (activos) con productos, para las dos secciones extra.
+    from sqlalchemy.orm import joinedload
+
+    remitos_query = (
+        db.query(Remito)
+        .options(joinedload(Remito.detalles).joinedload(DetalleRemito.producto))
+        .filter(Remito.cliente_id == str(cliente_id), Remito.activo.is_(True))
+    )
+    if fecha_desde:
+        remitos_query = remitos_query.filter(Remito.fecha_emision >= fecha_desde)
+    if fecha_hasta:
+        remitos_query = remitos_query.filter(Remito.fecha_emision <= fecha_hasta)
+    remitos = remitos_query.order_by(Remito.fecha_emision.asc(), Remito.created_at.asc()).all()
+
+    total_remitos = sum((Decimal(r.total or 0) for r in remitos), Decimal(0))
+
+    # Productos entregados: agregación por producto a partir de los detalles.
+    productos_map: dict = {}
+    total_cantidad_productos = 0
+    total_subtotal_productos = Decimal(0)
+    for r in remitos:
+        for d in r.detalles:
+            pid = str(d.producto_id) if d.producto_id else "sin_producto"
+            if pid not in productos_map:
+                producto = getattr(d, "producto", None)
+                productos_map[pid] = {
+                    "codigo": getattr(producto, "codigo", None) or "-",
+                    "nombre": getattr(producto, "nombre", None) or "-",
+                    "cantidad": 0,
+                    "subtotal": Decimal(0),
+                }
+            cantidad = int(d.cantidad or 0)
+            subtotal = Decimal(d.subtotal or 0)
+            productos_map[pid]["cantidad"] += cantidad
+            productos_map[pid]["subtotal"] += subtotal
+            total_cantidad_productos += cantidad
+            total_subtotal_productos += subtotal
+    productos_entregados = sorted(productos_map.values(), key=lambda p: p["cantidad"], reverse=True)
+
     periodo = None
     if fecha_desde or fecha_hasta:
         periodo = f"{_fecha_ar(fecha_desde) or '...'} a {_fecha_ar(fecha_hasta) or 'hoy'}"
@@ -109,6 +149,11 @@ def generar_pdf(
         deuda_facturada=estado.get("deuda_facturada"),
         cargos_sin_facturar=estado.get("cargos_sin_facturar"),
         saldo_a_favor=estado.get("saldo_a_favor"),
+        remitos=remitos,
+        total_remitos=total_remitos,
+        productos_entregados=productos_entregados,
+        total_cantidad_productos=total_cantidad_productos,
+        total_subtotal_productos=total_subtotal_productos,
         generado_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
         periodo=periodo,
     )
