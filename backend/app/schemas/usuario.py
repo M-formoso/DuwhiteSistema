@@ -82,6 +82,7 @@ class UsuarioCreateForClient(BaseModel):
     password: str = Field(..., min_length=8, max_length=100)
     nombre: Optional[str] = None  # Si no se provee, usa datos del cliente
     apellido: Optional[str] = None
+    ve_precios: bool = True  # Si false: portal oculta importes/deudas
 
     @field_validator("password")
     @classmethod
@@ -107,6 +108,7 @@ class UsuarioUpdate(BaseModel):
     etapas_produccion_permitidas: Optional[List[UUID]] = None
     activo: Optional[bool] = None
     debe_cambiar_password: Optional[bool] = None
+    ve_precios: Optional[bool] = None
 
     @field_validator("rol")
     @classmethod
@@ -155,6 +157,7 @@ class UsuarioResponse(BaseModel):
     permisos_modulos: Optional[Dict[str, bool]] = None
     permisos_efectivos: Dict[str, bool] = {}
     etapas_produccion_permitidas: Optional[List[UUID]] = None
+    ve_precios: bool = True
     activo: bool
     created_at: datetime
     updated_at: datetime

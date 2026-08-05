@@ -219,6 +219,7 @@ class UsuarioService:
             cliente_id=data.cliente_id,
             permisos_modulos=PERMISOS_POR_ROL["cliente"],
             debe_cambiar_password=False,
+            ve_precios=data.ve_precios,
         )
 
         db.add(usuario)

@@ -14,6 +14,7 @@ export interface Usuario {
   empleado_id?: string;
   cliente_id?: string;
   cliente_nombre?: string;
+  ve_precios?: boolean;
   activo: boolean;
   created_at: string;
   updated_at: string;

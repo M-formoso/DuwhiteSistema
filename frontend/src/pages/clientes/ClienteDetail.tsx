@@ -88,8 +88,11 @@ export default function ClienteDetailPage() {
   const [nuevoUsuarioPassword, setNuevoUsuarioPassword] = useState('');
   const [nuevoUsuarioNombre, setNuevoUsuarioNombre] = useState('');
   const [nuevoUsuarioApellido, setNuevoUsuarioApellido] = useState('');
+  const [nuevoUsuarioVePrecios, setNuevoUsuarioVePrecios] = useState(true);
   const [nuevaPassword, setNuevaPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  // Id del usuario del cliente actualmente "expandido" (para ver password / actuar sobre él)
+  const [usuarioGestionadoId, setUsuarioGestionadoId] = useState<string | null>(null);
+  const [usuarioEliminarId, setUsuarioEliminarId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showEliminarModal, setShowEliminarModal] = useState(false);
 
@@ -171,14 +174,15 @@ export default function ClienteDetailPage() {
     enabled: Boolean(id),
   });
 
-  // El usuario principal del cliente (si existe)
-  const usuarioCliente = usuariosCliente?.[0] as Usuario | undefined;
+  // Lista de usuarios y usuario "gestionado" actualmente (reset/ver password)
+  const usuariosClienteList = (usuariosCliente || []) as Usuario[];
+  const usuarioGestionado = usuariosClienteList.find((u) => u.id === usuarioGestionadoId);
 
-  // Query para obtener credenciales del usuario
-  const { data: usuarioConCredenciales, refetch: refetchCredenciales } = useQuery({
-    queryKey: ['usuario-credenciales', usuarioCliente?.id],
-    queryFn: () => usuarioService.getUsuarioConCredenciales(usuarioCliente!.id),
-    enabled: Boolean(usuarioCliente?.id) && showPassword,
+  // Query para obtener credenciales del usuario gestionado (para mostrar password)
+  const { data: usuarioConCredenciales } = useQuery({
+    queryKey: ['usuario-credenciales', usuarioGestionadoId],
+    queryFn: () => usuarioService.getUsuarioConCredenciales(usuarioGestionadoId!),
+    enabled: Boolean(usuarioGestionadoId),
   });
 
   // Mutation para registrar pago
@@ -247,13 +251,20 @@ export default function ClienteDetailPage() {
 
   // Mutation para crear usuario
   const crearUsuarioMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (payload: {
+      email: string;
+      password: string;
+      nombre?: string;
+      apellido?: string;
+      ve_precios: boolean;
+    }) =>
       usuarioService.createUsuarioParaCliente({
         cliente_id: id!,
-        email: nuevoUsuarioEmail,
-        password: nuevoUsuarioPassword,
-        nombre: nuevoUsuarioNombre || cliente?.razon_social?.split(' ')[0],
-        apellido: nuevoUsuarioApellido || '',
+        email: payload.email,
+        password: payload.password,
+        nombre: payload.nombre || cliente?.razon_social?.split(' ')[0],
+        apellido: payload.apellido || '',
+        ve_precios: payload.ve_precios,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cliente-usuarios', id] });
@@ -266,6 +277,7 @@ export default function ClienteDetailPage() {
       setNuevoUsuarioPassword('');
       setNuevoUsuarioNombre('');
       setNuevoUsuarioApellido('');
+      setNuevoUsuarioVePrecios(true);
     },
     onError: (error: Error) => {
       toast({
@@ -276,16 +288,16 @@ export default function ClienteDetailPage() {
     },
   });
 
-  // Mutation para resetear contraseña
+  // Mutation para resetear contraseña del usuario gestionado
   const resetPasswordMutation = useMutation({
     mutationFn: () =>
-      usuarioService.resetPassword(usuarioCliente!.id, {
+      usuarioService.resetPassword(usuarioGestionadoId!, {
         password_nuevo: nuevaPassword,
         guardar_password_visible: true,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cliente-usuarios', id] });
-      queryClient.invalidateQueries({ queryKey: ['usuario-credenciales', usuarioCliente?.id] });
+      queryClient.invalidateQueries({ queryKey: ['usuario-credenciales', usuarioGestionadoId] });
       toast({
         title: 'Contraseña actualizada',
         description: 'La contraseña ha sido cambiada exitosamente.',
@@ -297,6 +309,48 @@ export default function ClienteDetailPage() {
       toast({
         title: 'Error',
         description: 'No se pudo cambiar la contraseña.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation para alternar el permiso ve_precios de un usuario
+  const toggleVePreciosMutation = useMutation({
+    mutationFn: ({ usuarioId, vePrecios }: { usuarioId: string; vePrecios: boolean }) =>
+      usuarioService.updateUsuario(usuarioId, { ve_precios: vePrecios }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['cliente-usuarios', id] });
+      toast({
+        title: 'Permiso actualizado',
+        description: vars.vePrecios
+          ? 'El usuario ahora puede ver precios y deudas.'
+          : 'El usuario ya no verá precios ni deudas.',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar el permiso.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation para eliminar (soft delete) un usuario del cliente
+  const eliminarUsuarioMutation = useMutation({
+    mutationFn: (usuarioId: string) => usuarioService.deleteUsuario(usuarioId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cliente-usuarios', id] });
+      toast({
+        title: 'Usuario eliminado',
+        description: 'El usuario fue desactivado correctamente.',
+      });
+      setUsuarioEliminarId(null);
+    },
+    onError: (err: Error & { response?: { data?: { detail?: string } } }) => {
+      toast({
+        title: 'Error',
+        description: err.response?.data?.detail || 'No se pudo eliminar el usuario.',
         variant: 'destructive',
       });
     },
@@ -732,129 +786,194 @@ export default function ClienteDetailPage() {
           {/* Acceso al Sistema */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Acceso al Sistema
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {loadingUsuarios ? (
-                <div className="flex items-center justify-center py-4">
-                  <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
-                </div>
-              ) : usuarioCliente ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Badge className="bg-green-100 text-green-700">
-                      Usuario activo
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Acceso al Sistema
+                  {usuariosClienteList.length > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {usuariosClienteList.length}
                     </Badge>
-                  </div>
-
-                  {/* Email */}
-                  <div className="space-y-1">
-                    <p className="text-xs text-gray-500">Email de acceso</p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm">
-                        {usuarioCliente.email}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => copyToClipboard(usuarioCliente.email, 'email')}
-                      >
-                        {copiedField === 'email' ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Contraseña */}
-                  <div className="space-y-1">
-                    <p className="text-xs text-gray-500">Contraseña</p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                        {showPassword && usuarioConCredenciales?.password_visible
-                          ? usuarioConCredenciales.password_visible
-                          : '••••••••'}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          if (!showPassword) {
-                            setShowPassword(true);
-                            refetchCredenciales();
-                          } else {
-                            setShowPassword(false);
-                          }
-                        }}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      {showPassword && usuarioConCredenciales?.password_visible && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() =>
-                            copyToClipboard(usuarioConCredenciales.password_visible!, 'password')
-                          }
-                        >
-                          {copiedField === 'password' ? (
-                            <Check className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                    {!usuarioConCredenciales?.password_visible && showPassword && (
-                      <p className="text-xs text-orange-600">
-                        La contraseña no está guardada. Reseteala para poder verla.
-                      </p>
-                    )}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setShowResetPasswordModal(true)}
-                  >
-                    <Key className="h-4 w-4 mr-2" />
-                    Cambiar Contraseña
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center space-y-3">
-                  <p className="text-sm text-gray-500">
-                    Este cliente no tiene usuario para acceder al sistema.
-                  </p>
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      // Pre-llenar con datos del cliente
+                  )}
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Pre-llenar solo si es el primer usuario
+                    if (usuariosClienteList.length === 0) {
                       setNuevoUsuarioEmail(cliente.email || '');
                       setNuevoUsuarioNombre(cliente.contacto_nombre?.split(' ')[0] || '');
                       setNuevoUsuarioApellido(
                         cliente.contacto_nombre?.split(' ').slice(1).join(' ') || ''
                       );
-                      setNuevoUsuarioPassword(generarPassword());
-                      setShowCrearUsuarioModal(true);
-                    }}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Crear Usuario
-                  </Button>
+                    } else {
+                      setNuevoUsuarioEmail('');
+                      setNuevoUsuarioNombre('');
+                      setNuevoUsuarioApellido('');
+                    }
+                    setNuevoUsuarioPassword(generarPassword());
+                    setNuevoUsuarioVePrecios(true);
+                    setShowCrearUsuarioModal(true);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Nuevo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loadingUsuarios ? (
+                <div className="flex items-center justify-center py-4">
+                  <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
                 </div>
+              ) : usuariosClienteList.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  Este cliente todavía no tiene usuarios de acceso.
+                </p>
+              ) : (
+                usuariosClienteList.map((u) => {
+                  const expandido = usuarioGestionadoId === u.id;
+                  const puedeVerPrecios = u.ve_precios !== false;
+                  return (
+                    <div key={u.id} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <code className="text-sm bg-gray-100 px-2 py-0.5 rounded break-all">
+                              {u.email}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => copyToClipboard(u.email, `email-${u.id}`)}
+                            >
+                              {copiedField === `email-${u.id}` ? (
+                                <Check className="h-3 w-3 text-green-600" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {u.activo ? (
+                              <Badge className="bg-green-100 text-green-700 text-[10px]">
+                                Activo
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px]">
+                                Inactivo
+                              </Badge>
+                            )}
+                            <Badge
+                              variant={puedeVerPrecios ? 'default' : 'outline'}
+                              className="text-[10px]"
+                            >
+                              {puedeVerPrecios ? '$ Ve precios' : 'Sin precios'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title={expandido ? 'Cerrar' : 'Ver contraseña'}
+                            onClick={() =>
+                              setUsuarioGestionadoId(expandido ? null : u.id)
+                            }
+                          >
+                            {expandido ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Cambiar contraseña"
+                            onClick={() => {
+                              setUsuarioGestionadoId(u.id);
+                              setNuevaPassword(generarPassword());
+                              setShowResetPasswordModal(true);
+                            }}
+                          >
+                            <Key className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500 hover:text-red-600"
+                            title="Eliminar usuario"
+                            onClick={() => setUsuarioEliminarId(u.id)}
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Contraseña visible (solo si expandido) */}
+                      {expandido && (
+                        <div className="pt-2 border-t space-y-2">
+                          <p className="text-xs text-gray-500">Contraseña</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm font-mono break-all">
+                              {usuarioConCredenciales?.password_visible || '••••••••'}
+                            </code>
+                            {usuarioConCredenciales?.password_visible && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() =>
+                                  copyToClipboard(
+                                    usuarioConCredenciales.password_visible!,
+                                    `pw-${u.id}`
+                                  )
+                                }
+                              >
+                                {copiedField === `pw-${u.id}` ? (
+                                  <Check className="h-3 w-3 text-green-600" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                          {!usuarioConCredenciales?.password_visible && (
+                            <p className="text-xs text-orange-600">
+                              La contraseña no está guardada. Reseteala para poder verla.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Toggle ve_precios */}
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <span className="text-xs text-gray-600">
+                          Puede ver precios y deudas
+                        </span>
+                        <Button
+                          variant={puedeVerPrecios ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={toggleVePreciosMutation.isPending}
+                          onClick={() =>
+                            toggleVePreciosMutation.mutate({
+                              usuarioId: u.id,
+                              vePrecios: !puedeVerPrecios,
+                            })
+                          }
+                        >
+                          {puedeVerPrecios ? 'Sí' : 'No'}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </CardContent>
           </Card>
@@ -1228,6 +1347,24 @@ export default function ClienteDetailPage() {
                 </div>
               </div>
 
+              {/* Toggle: puede ver precios */}
+              <div className="flex items-center justify-between border rounded-lg p-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Puede ver precios y deudas</p>
+                  <p className="text-xs text-gray-500">
+                    Si lo desactivás, el usuario no verá importes, saldos ni totales en el portal.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant={nuevoUsuarioVePrecios ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setNuevoUsuarioVePrecios(!nuevoUsuarioVePrecios)}
+                >
+                  {nuevoUsuarioVePrecios ? 'Sí' : 'No'}
+                </Button>
+              </div>
+
               <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm">
                 El usuario tendrá rol "Cliente" y solo podrá ver sus propios pedidos y datos.
               </div>
@@ -1241,12 +1378,21 @@ export default function ClienteDetailPage() {
                     setNuevoUsuarioPassword('');
                     setNuevoUsuarioNombre('');
                     setNuevoUsuarioApellido('');
+                    setNuevoUsuarioVePrecios(true);
                   }}
                 >
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => crearUsuarioMutation.mutate()}
+                  onClick={() =>
+                    crearUsuarioMutation.mutate({
+                      email: nuevoUsuarioEmail,
+                      password: nuevoUsuarioPassword,
+                      nombre: nuevoUsuarioNombre,
+                      apellido: nuevoUsuarioApellido,
+                      ve_precios: nuevoUsuarioVePrecios,
+                    })
+                  }
                   disabled={
                     !nuevoUsuarioEmail ||
                     !nuevoUsuarioPassword ||
@@ -1265,7 +1411,7 @@ export default function ClienteDetailPage() {
       )}
 
       {/* Modal de Resetear Contraseña */}
-      {showResetPasswordModal && usuarioCliente && (
+      {showResetPasswordModal && usuarioGestionado && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md m-4">
             <CardHeader>
@@ -1276,7 +1422,7 @@ export default function ClienteDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-gray-600">
-                Usuario: <span className="font-medium">{usuarioCliente.email}</span>
+                Usuario: <span className="font-medium">{usuarioGestionado.email}</span>
               </p>
 
               <div className="space-y-2">
@@ -1316,6 +1462,47 @@ export default function ClienteDetailPage() {
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : null}
                   Cambiar Contraseña
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Confirmar Eliminación de USUARIO del cliente */}
+      {usuarioEliminarId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Eliminar Usuario
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-700">
+                ¿Confirmás eliminar el usuario{' '}
+                <span className="font-medium">
+                  {usuariosClienteList.find((u) => u.id === usuarioEliminarId)?.email}
+                </span>
+                ? Ya no podrá acceder al portal.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setUsuarioEliminarId(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() =>
+                    usuarioEliminarId &&
+                    eliminarUsuarioMutation.mutate(usuarioEliminarId)
+                  }
+                  disabled={eliminarUsuarioMutation.isPending}
+                >
+                  {eliminarUsuarioMutation.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  Eliminar
                 </Button>
               </div>
             </CardContent>

@@ -81,6 +81,7 @@ export default function MisPedidosPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const [filtroEstado, setFiltroEstado] = useState<string>('');
+  const vePrecios = user?.ve_precios !== false;
 
   // Cargar pedidos del cliente
   const { data: pedidosData, isLoading } = useQuery({
@@ -217,7 +218,7 @@ export default function MisPedidosPage() {
                     <TableHead>Fecha</TableHead>
                     <TableHead>Entrega Solicitada</TableHead>
                     <TableHead className="text-center">Estado</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
+                    {vePrecios && <TableHead className="text-right">Total</TableHead>}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -239,9 +240,11 @@ export default function MisPedidosPage() {
                       <TableCell className="text-center">
                         {getEstadoBadge(pedido.estado)}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(pedido.total || 0)}
-                      </TableCell>
+                      {vePrecios && (
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(pedido.total || 0)}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"

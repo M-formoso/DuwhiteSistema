@@ -142,6 +142,10 @@ class Usuario(Base, BaseModelMixin):
     ultimo_acceso = Column(DateTime, nullable=True)
     intentos_fallidos = Column(String(10), default="0")  # Para rate limiting
 
+    # Solo para usuarios rol=cliente: permite ver o no importes (precios,
+    # deudas, totales) en el portal. Default True (ve todo).
+    ve_precios = Column(Boolean, default=True, nullable=False)
+
     # Relaciones
     logs = relationship("LogActividad", back_populates="usuario", lazy="dynamic")
     movimientos_stock = relationship("MovimientoStock", back_populates="usuario")

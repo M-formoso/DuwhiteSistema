@@ -21,6 +21,7 @@ export interface Usuario {
   permisos_modulos?: Record<string, boolean>;
   permisos_efectivos?: Record<string, boolean>;
   etapas_produccion_permitidas?: string[] | null;
+  ve_precios?: boolean;
   tiene_password_visible?: boolean;
   password_visible?: string;
   created_at: string;
@@ -47,6 +48,7 @@ export interface UsuarioCreateForClient {
   password: string;
   nombre?: string;
   apellido?: string;
+  ve_precios?: boolean;
 }
 
 export interface UsuarioUpdate {
@@ -61,6 +63,7 @@ export interface UsuarioUpdate {
   etapas_produccion_permitidas?: string[] | null;
   activo?: boolean;
   debe_cambiar_password?: boolean;
+  ve_precios?: boolean;
 }
 
 export interface ResetPasswordRequest {
