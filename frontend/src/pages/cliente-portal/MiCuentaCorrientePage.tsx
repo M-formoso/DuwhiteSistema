@@ -15,6 +15,8 @@ import {
   Eye,
   Package,
   X,
+  CalendarClock,
+  CalendarRange,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -119,8 +121,6 @@ export default function MiCuentaCorrientePage() {
   const movimientos = movimientosData?.items || [];
   const deudaPendiente = movimientos.filter((m) => ['cargo', 'factura', 'nota_debito'].includes(m.tipo));
 
-  const saldoActual = estadoCuenta?.saldo_actual || 0;
-  const totalRemitosPeriodo = misRemitos.reduce((acc, r) => acc + Number(r.total || 0), 0);
 
   if (!clienteId) {
     return (
@@ -190,48 +190,84 @@ export default function MiCuentaCorrientePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {/* Deuda vencida (meses anteriores impagos) */}
+        <Card className={(estadoCuenta?.deuda_vencida || 0) > 0 ? 'border-red-300 bg-red-50/40' : ''}>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-full ${saldoActual > 0 ? 'bg-red-100' : 'bg-green-100'}`}>
-                <Wallet className={`h-6 w-6 ${saldoActual > 0 ? 'text-red-600' : 'text-green-600'}`} />
+              <div
+                className={`p-3 rounded-full ${
+                  (estadoCuenta?.deuda_vencida || 0) > 0 ? 'bg-red-100' : 'bg-gray-100'
+                }`}
+              >
+                <CalendarClock
+                  className={`h-6 w-6 ${
+                    (estadoCuenta?.deuda_vencida || 0) > 0 ? 'text-red-600' : 'text-gray-500'
+                  }`}
+                />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">
-                  {fechaDesde || fechaHasta ? 'Deuda del período' : 'Saldo pendiente'}
+                <p className="text-sm text-muted-foreground">Deuda vencida</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    (estadoCuenta?.deuda_vencida || 0) > 0 ? 'text-red-600' : 'text-gray-700'
+                  }`}
+                >
+                  {formatCurrency(estadoCuenta?.deuda_vencida || 0)}
                 </p>
-                <p className={`text-2xl font-bold ${saldoActual > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {formatCurrency(Math.abs(saldoActual))}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {saldoActual > 0
-                    ? fechaDesde || fechaHasta
-                      ? 'Cargos - pagos del período'
-                      : 'Deuda a cobrar'
-                    : saldoActual < 0
-                    ? fechaDesde || fechaHasta
-                      ? 'Pagó más de lo que se cargó'
-                      : 'A favor del cliente'
-                    : 'Sin deuda'}
-                </p>
+                <p className="text-xs text-gray-500">Meses anteriores sin pagar</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Consumo del mes en curso */}
         <Card>
           <CardContent className="pt-5 pb-5">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-full bg-blue-100">
-                <Receipt className="h-6 w-6 text-blue-600" />
+                <CalendarRange className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total del período</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalRemitosPeriodo)}</p>
-                <p className="text-xs text-gray-500">
-                  {misRemitos.length} {misRemitos.length === 1 ? 'remito emitido' : 'remitos emitidos'}
+                <p className="text-sm text-muted-foreground">Consumo del mes</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(estadoCuenta?.consumo_mes_actual || 0)}
                 </p>
+                <p className="text-xs text-gray-500">Cargos del 1° a hoy</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Total adeudado */}
+        <Card
+          className={
+            (estadoCuenta?.total_adeudado || 0) > 0 ? 'border-orange-300' : 'border-green-300'
+          }
+        >
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-3 rounded-full ${
+                  (estadoCuenta?.total_adeudado || 0) > 0 ? 'bg-orange-100' : 'bg-green-100'
+                }`}
+              >
+                <Wallet
+                  className={`h-6 w-6 ${
+                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-orange-600' : 'text-green-600'
+                  }`}
+                />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total adeudado</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                  }`}
+                >
+                  {formatCurrency(estadoCuenta?.total_adeudado || 0)}
+                </p>
+                <p className="text-xs text-gray-500">Vencida + consumo del mes − pagos</p>
               </div>
             </div>
           </CardContent>

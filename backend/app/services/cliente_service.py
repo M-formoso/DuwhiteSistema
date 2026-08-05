@@ -1091,6 +1091,52 @@ class ClienteService:
             saldo_actual = Decimal(cliente.saldo_cuenta_corriente or 0)
             saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
 
+        # ---- Métricas independientes del filtro (siempre "mes actual") ----
+        #
+        # Deuda vencida: saldo del cliente al último día del mes anterior.
+        # Si tuvo saldo positivo al cierre del mes previo → sigue debiéndolo
+        # (incluye acumulado de meses anteriores impagos).
+        ultimo_mov_previo = (
+            self.db.query(MovimientoCuentaCorriente.saldo_posterior)
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.fecha_movimiento < primer_dia_mes,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .order_by(
+                MovimientoCuentaCorriente.fecha_movimiento.desc(),
+                MovimientoCuentaCorriente.created_at.desc(),
+            )
+            .first()
+        )
+        saldo_al_cierre_mes_anterior = (
+            Decimal(ultimo_mov_previo[0] or 0) if ultimo_mov_previo else Decimal("0")
+        )
+        deuda_vencida = (
+            saldo_al_cierre_mes_anterior
+            if saldo_al_cierre_mes_anterior > 0
+            else Decimal("0")
+        )
+
+        # Consumo del mes en curso: cargos entre el 1° del mes y hoy.
+        consumo_mes_actual = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
+                MovimientoCuentaCorriente.fecha_movimiento <= hoy,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+
+        # Total adeudado: saldo real del cliente al día de hoy si es positivo.
+        # Contablemente = deuda_vencida + consumo_mes_actual - pagos_mes_actual
+        saldo_cliente = Decimal(cliente.saldo_cuenta_corriente or 0)
+        total_adeudado = saldo_cliente if saldo_cliente > 0 else Decimal("0")
+
         return {
             "cliente_id": str(cliente.id),
             "cliente_nombre": cliente.nombre_display,
@@ -1108,6 +1154,12 @@ class ClienteService:
             "filtro_periodo": tiene_filtro_periodo,
             "fecha_desde": fecha_desde.isoformat() if fecha_desde else None,
             "fecha_hasta": fecha_hasta.isoformat() if fecha_hasta else None,
+            # Resumen del mes en curso (independiente del filtro)
+            "deuda_vencida": deuda_vencida,
+            "consumo_mes_actual": consumo_mes_actual,
+            "total_adeudado": total_adeudado,
+            "mes_actual_desde": primer_dia_mes.isoformat(),
+            "mes_actual_hasta": hoy.isoformat(),
         }
 
     def _generar_numero_recibo(self) -> str:

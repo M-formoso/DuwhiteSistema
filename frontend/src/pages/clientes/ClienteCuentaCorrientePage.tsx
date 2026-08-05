@@ -26,6 +26,9 @@ import {
   Eye,
   Trash2,
   AlertTriangle,
+  CalendarClock,
+  CalendarRange,
+  Wallet,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -669,6 +672,72 @@ export default function ClienteCuentaCorrientePage() {
             Registrar Pago
           </Button>
         </div>
+      </div>
+
+      {/* Cards del mes en curso (fijas, no dependen del filtro) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className={(estadoCuenta?.deuda_vencida || 0) > 0 ? 'border-red-300 bg-red-50/40' : ''}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Deuda vencida</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    (estadoCuenta?.deuda_vencida || 0) > 0 ? 'text-red-600' : 'text-gray-700'
+                  }`}
+                >
+                  {formatNumber(estadoCuenta?.deuda_vencida || 0, 'currency')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Saldo impago de meses anteriores</p>
+              </div>
+              <CalendarClock
+                className={`h-10 w-10 ${
+                  (estadoCuenta?.deuda_vencida || 0) > 0 ? 'text-red-200' : 'text-gray-200'
+                }`}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Consumo del mes</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatNumber(estadoCuenta?.consumo_mes_actual || 0, 'currency')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Cargos del 1° a hoy
+                </p>
+              </div>
+              <CalendarRange className="h-10 w-10 text-blue-200" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={(estadoCuenta?.total_adeudado || 0) > 0 ? 'border-orange-300' : 'border-green-300'}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total adeudado</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                  }`}
+                >
+                  {formatNumber(estadoCuenta?.total_adeudado || 0, 'currency')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Vencida + consumo del mes − pagos</p>
+              </div>
+              <Wallet
+                className={`h-10 w-10 ${
+                  (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-orange-200' : 'text-green-200'
+                }`}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Cards de resumen — desglose contable (respeta filtros de fecha) */}

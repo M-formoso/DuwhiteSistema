@@ -253,6 +253,15 @@ export interface EstadoCuenta {
   total_pagado_mes: number;
   cantidad_facturas_pendientes: number;
   factura_mas_antigua_dias: number | null;
+  // Resumen del mes en curso (independiente del filtro de fechas)
+  deuda_vencida?: number;
+  consumo_mes_actual?: number;
+  total_adeudado?: number;
+  mes_actual_desde?: string;
+  mes_actual_hasta?: string;
+  filtro_periodo?: boolean;
+  fecha_desde?: string | null;
+  fecha_hasta?: string | null;
 }
 
 export interface RegistrarPagoRequest {
