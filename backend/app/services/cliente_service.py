@@ -1148,8 +1148,12 @@ class ClienteService:
             else Decimal("0")
         )
 
-        # Consumo del mes en curso: cargos entre el 1° del mes y hoy.
-        consumo_mes_actual = (
+        # Consumo del mes en curso: cargos + ajustes positivos (los que
+        # aumentan la deuda) entre el 1° del mes y hoy. Se incluyen los
+        # ajustes que suman al saldo (ej: "FACTURA JULIO" registrado como
+        # ajuste manual) para que:
+        #   deuda_vencida + consumo_mes_actual - pagos_mes ≈ total_adeudado
+        cargos_mes = (
             self.db.query(func.sum(MovimientoCuentaCorriente.monto))
             .filter(
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
@@ -1161,6 +1165,31 @@ class ClienteService:
             .scalar()
             or Decimal("0")
         )
+        ajustes_positivos_mes = (
+            self.db.query(
+                func.sum(
+                    case(
+                        (
+                            MovimientoCuentaCorriente.saldo_posterior
+                            > MovimientoCuentaCorriente.saldo_anterior,
+                            MovimientoCuentaCorriente.saldo_posterior
+                            - MovimientoCuentaCorriente.saldo_anterior,
+                        ),
+                        else_=0,
+                    )
+                )
+            )
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.AJUSTE.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
+                MovimientoCuentaCorriente.fecha_movimiento <= hoy,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        consumo_mes_actual = cargos_mes + ajustes_positivos_mes
 
         # Total adeudado: saldo real del cliente al día de hoy si es positivo.
         # Contablemente = deuda_vencida + consumo_mes_actual - pagos_mes_actual
