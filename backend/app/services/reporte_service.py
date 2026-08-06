@@ -1077,8 +1077,8 @@ def get_flujo_caja_periodo(
             )
         ).label('egresos')
     ).filter(
-        MovimientoTesoreria.anulado == False,
-        MovimientoTesoreria.activo == True,
+        MovimientoTesoreria.anulado.isnot(True),
+        MovimientoTesoreria.activo.isnot(False),
         MovimientoTesoreria.fecha_movimiento >= fecha_desde,
         MovimientoTesoreria.fecha_movimiento <= fecha_hasta,
     ).group_by(group_expr).order_by(group_expr).all()
@@ -1111,8 +1111,8 @@ def get_movimientos_por_categoria(
         func.count(MovimientoTesoreria.id).label('cantidad'),
         func.sum(MovimientoTesoreria.monto).label('total')
     ).filter(
-        MovimientoTesoreria.anulado == False,
-        MovimientoTesoreria.activo == True,
+        MovimientoTesoreria.anulado.isnot(True),
+        MovimientoTesoreria.activo.isnot(False),
         MovimientoTesoreria.fecha_movimiento >= fecha_desde,
         MovimientoTesoreria.fecha_movimiento <= fecha_hasta,
     )
@@ -1193,7 +1193,7 @@ def get_movimientos_stock(
 def get_stock_bajo_minimo(db: Session) -> List[Dict[str, Any]]:
     """Reporte de insumos con stock bajo el mínimo"""
     result = db.query(Insumo).filter(
-        Insumo.activo == True,
+        Insumo.activo.isnot(False),
         Insumo.stock_actual < Insumo.stock_minimo
     ).order_by((Insumo.stock_actual / Insumo.stock_minimo)).all()
 
@@ -1222,7 +1222,7 @@ def get_stock_actual(db: Session) -> List[Dict[str, Any]]:
     ).outerjoin(
         CategoriaInsumo, Insumo.categoria_id == CategoriaInsumo.id
     ).filter(
-        Insumo.activo == True
+        Insumo.activo.isnot(False)
     ).order_by(CategoriaInsumo.nombre, Insumo.nombre).all()
 
     return [
@@ -1348,8 +1348,8 @@ def get_resumen_general(
             )
         ).label('egresos')
     ).filter(
-        MovimientoTesoreria.anulado == False,
-        MovimientoTesoreria.activo == True,
+        MovimientoTesoreria.anulado.isnot(True),
+        MovimientoTesoreria.activo.isnot(False),
         MovimientoTesoreria.fecha_movimiento >= fecha_desde,
         MovimientoTesoreria.fecha_movimiento <= fecha_hasta,
     ).first()
@@ -1363,7 +1363,7 @@ def get_resumen_general(
 
     # Stock bajo mínimo
     stock_critico = db.query(func.count(Insumo.id)).filter(
-        Insumo.activo == True,
+        Insumo.activo.isnot(False),
         Insumo.stock_actual < Insumo.stock_minimo
     ).scalar() or 0
 
@@ -1440,7 +1440,7 @@ def get_estadisticas_rapidas(db: Session) -> Dict[str, Any]:
 
     # Stock crítico
     stock_critico = db.query(func.count(Insumo.id)).filter(
-        Insumo.activo == True,
+        Insumo.activo.isnot(False),
         Insumo.stock_actual < Insumo.stock_minimo
     ).scalar() or 0
 
