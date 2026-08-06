@@ -1093,24 +1093,54 @@ class ClienteService:
 
         # ---- Métricas independientes del filtro (siempre "mes actual") ----
         #
-        # Deuda vencida: saldo del cliente al último día del mes anterior.
-        # Si tuvo saldo positivo al cierre del mes previo → sigue debiéndolo
-        # (incluye acumulado de meses anteriores impagos).
-        ultimo_mov_previo = (
-            self.db.query(MovimientoCuentaCorriente.saldo_posterior)
+        # Deuda vencida: saldo neto de meses anteriores calculado por SUMA de
+        # movimientos con `fecha_movimiento < primer_dia_mes`. No usamos
+        # `saldo_posterior` porque ese campo es una snapshot del momento en que
+        # se creó cada movimiento — un ajuste registrado hoy con fecha
+        # retroactiva lo dejaría desactualizado.
+        cargos_previos = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
             .filter(
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
                 MovimientoCuentaCorriente.fecha_movimiento < primer_dia_mes,
                 MovimientoCuentaCorriente.activo == True,
             )
-            .order_by(
-                MovimientoCuentaCorriente.fecha_movimiento.desc(),
-                MovimientoCuentaCorriente.created_at.desc(),
+            .scalar()
+            or Decimal("0")
+        )
+        pagos_previos = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
+                MovimientoCuentaCorriente.fecha_movimiento < primer_dia_mes,
+                MovimientoCuentaCorriente.activo == True,
             )
-            .first()
+            .scalar()
+            or Decimal("0")
+        )
+        # Para ajustes usamos el delta real (saldo_posterior - saldo_anterior)
+        # que sí representa el cambio absoluto que introdujo ese movimiento
+        # (independiente del histórico).
+        ajustes_delta_previos = (
+            self.db.query(
+                func.sum(
+                    MovimientoCuentaCorriente.saldo_posterior
+                    - MovimientoCuentaCorriente.saldo_anterior
+                )
+            )
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.AJUSTE.value,
+                MovimientoCuentaCorriente.fecha_movimiento < primer_dia_mes,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
         )
         saldo_al_cierre_mes_anterior = (
-            Decimal(ultimo_mov_previo[0] or 0) if ultimo_mov_previo else Decimal("0")
+            cargos_previos - pagos_previos + ajustes_delta_previos
         )
         deuda_vencida = (
             saldo_al_cierre_mes_anterior
