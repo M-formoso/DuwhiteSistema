@@ -14,6 +14,7 @@ from app.models.pedido import Pedido, DetallePedido, EstadoPedido
 from app.models.cliente import Cliente
 from app.models.lote_produccion import LoteProduccion, LoteEtapa, EstadoLote
 from app.models.caja import Caja, MovimientoCaja, EstadoCaja
+from app.models.tesoreria import MovimientoTesoreria
 from app.models.insumo import Insumo
 from app.models.movimiento_stock import MovimientoStock
 from app.models.empleado import Empleado, JornadaLaboral
@@ -50,6 +51,13 @@ def _aplicar_corte_analitica(fecha_desde: Optional[date]) -> Optional[date]:
 
 
 # ==================== REPORTES DE VENTAS ====================
+#
+# En DUWHITE la "venta" real se materializa cuando un lote termina el
+# conteo y se emite un remito: ese remito impacta la cuenta corriente del
+# cliente y refleja el ingreso económico. La tabla `pedidos` (heredada del
+# modelo genérico) no se usa en la operatoria, así que los reportes se
+# basan directamente en `Remito` / `DetalleRemito` / `ProductoLavado`.
+
 
 def get_ventas_por_periodo(
     db: Session,
@@ -57,27 +65,28 @@ def get_ventas_por_periodo(
     fecha_hasta: date,
     agrupacion: str = "dia"  # dia, semana, mes
 ) -> List[Dict[str, Any]]:
-    """Reporte de ventas agrupado por período"""
+    """Ventas agrupadas por período (día/semana/mes) a partir de remitos emitidos."""
     if agrupacion == "dia":
-        group_expr = func.date(Pedido.fecha_pedido)
+        group_expr = func.date(Remito.fecha_emision)
         format_label = lambda d: d.strftime("%d/%m/%Y") if d else ""
     elif agrupacion == "semana":
-        group_expr = func.date_trunc('week', Pedido.fecha_pedido)
+        group_expr = func.date_trunc('week', Remito.fecha_emision)
         format_label = lambda d: f"Sem {d.isocalendar()[1]} - {d.year}" if d else ""
     else:  # mes
-        group_expr = func.date_trunc('month', Pedido.fecha_pedido)
+        group_expr = func.date_trunc('month', Remito.fecha_emision)
         format_label = lambda d: d.strftime("%m/%Y") if d else ""
 
     result = db.query(
         group_expr.label('periodo'),
-        func.count(Pedido.id).label('cantidad_pedidos'),
-        func.sum(Pedido.subtotal).label('subtotal'),
-        func.sum(Pedido.descuento_monto).label('descuentos'),
-        func.sum(Pedido.total).label('total')
+        func.count(Remito.id).label('cantidad_pedidos'),
+        func.sum(Remito.subtotal).label('subtotal'),
+        func.sum(Remito.descuento).label('descuentos'),
+        func.sum(Remito.total).label('total')
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido >= fecha_desde,
-        Pedido.fecha_pedido <= fecha_hasta
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision >= fecha_desde,
+        Remito.fecha_emision <= fecha_hasta
     ).group_by(group_expr).order_by(group_expr).all()
 
     return [
@@ -99,29 +108,31 @@ def get_ventas_por_cliente(
     fecha_hasta: date,
     limit: int = 20
 ) -> List[Dict[str, Any]]:
-    """Reporte de ventas por cliente (top clientes)"""
+    """Top clientes por facturación de remitos en el período."""
     result = db.query(
-        Pedido.cliente_id,
+        Remito.cliente_id,
         Cliente.razon_social,
-        func.count(Pedido.id).label('cantidad_pedidos'),
-        func.sum(Pedido.total).label('total'),
-        func.avg(Pedido.total).label('promedio_pedido')
+        Cliente.nombre_fantasia,
+        func.count(Remito.id).label('cantidad_pedidos'),
+        func.sum(Remito.total).label('total'),
+        func.avg(Remito.total).label('promedio_pedido')
     ).join(
-        Cliente, Pedido.cliente_id == Cliente.id
+        Cliente, Remito.cliente_id == Cliente.id
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido >= fecha_desde,
-        Pedido.fecha_pedido <= fecha_hasta
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision >= fecha_desde,
+        Remito.fecha_emision <= fecha_hasta
     ).group_by(
-        Pedido.cliente_id, Cliente.razon_social
+        Remito.cliente_id, Cliente.razon_social, Cliente.nombre_fantasia
     ).order_by(
-        func.sum(Pedido.total).desc()
+        func.sum(Remito.total).desc()
     ).limit(limit).all()
 
     return [
         {
             "cliente_id": str(row.cliente_id),
-            "cliente_nombre": row.razon_social,
+            "cliente_nombre": row.nombre_fantasia or row.razon_social,
             "cantidad_pedidos": row.cantidad_pedidos or 0,
             "total": float(row.total or 0),
             "promedio_pedido": float(row.promedio_pedido or 0),
@@ -135,31 +146,34 @@ def get_ventas_por_servicio(
     fecha_desde: date,
     fecha_hasta: date
 ) -> List[Dict[str, Any]]:
-    """Reporte de ventas por tipo de servicio"""
+    """Ventas por producto/servicio (agregado desde detalles de remitos)."""
     result = db.query(
-        DetallePedido.servicio_id,
-        Servicio.nombre,
-        func.count(DetallePedido.id).label('cantidad'),
-        func.sum(DetallePedido.cantidad).label('unidades'),
-        func.sum(DetallePedido.subtotal).label('total')
+        DetalleRemito.producto_id,
+        ProductoLavado.codigo,
+        ProductoLavado.nombre,
+        func.count(DetalleRemito.id).label('cantidad'),
+        func.sum(DetalleRemito.cantidad).label('unidades'),
+        func.sum(DetalleRemito.subtotal).label('total')
     ).join(
-        Pedido, DetallePedido.pedido_id == Pedido.id
+        Remito, DetalleRemito.remito_id == Remito.id
     ).join(
-        Servicio, DetallePedido.servicio_id == Servicio.id
+        ProductoLavado, DetalleRemito.producto_id == ProductoLavado.id
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido >= fecha_desde,
-        Pedido.fecha_pedido <= fecha_hasta
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision >= fecha_desde,
+        Remito.fecha_emision <= fecha_hasta
     ).group_by(
-        DetallePedido.servicio_id, Servicio.nombre
+        DetalleRemito.producto_id, ProductoLavado.codigo, ProductoLavado.nombre
     ).order_by(
-        func.sum(DetallePedido.subtotal).desc()
+        func.sum(DetalleRemito.subtotal).desc()
     ).all()
 
     return [
         {
-            "servicio_id": str(row.servicio_id),
-            "servicio_nombre": row.nombre,
+            "servicio_id": str(row.producto_id) if row.producto_id else None,
+            "servicio_nombre": row.nombre or "-",
+            "servicio_codigo": row.codigo,
             "cantidad_items": row.cantidad or 0,
             "unidades_vendidas": float(row.unidades or 0),
             "total": float(row.total or 0),
@@ -1027,6 +1041,12 @@ def get_rendimiento_productos(
 
 
 # ==================== REPORTES FINANCIEROS ====================
+#
+# La fuente real de ingresos y egresos en DUWHITE es
+# `MovimientoTesoreria` (cobros de clientes, pagos a proveedores, cheques,
+# transferencias). `MovimientoCaja` sólo cubre caja física puntual, así
+# que los reportes de flujo y balance usan tesorería.
+
 
 def get_flujo_caja_periodo(
     db: Session,
@@ -1034,32 +1054,33 @@ def get_flujo_caja_periodo(
     fecha_hasta: date,
     agrupacion: str = "dia"
 ) -> List[Dict[str, Any]]:
-    """Reporte de flujo de caja por período"""
+    """Ingresos, egresos y balance por período (basado en tesorería)."""
     if agrupacion == "dia":
-        group_expr = func.date(MovimientoCaja.created_at)
+        group_expr = func.date(MovimientoTesoreria.fecha_movimiento)
     elif agrupacion == "semana":
-        group_expr = func.date_trunc('week', MovimientoCaja.created_at)
+        group_expr = func.date_trunc('week', MovimientoTesoreria.fecha_movimiento)
     else:
-        group_expr = func.date_trunc('month', MovimientoCaja.created_at)
+        group_expr = func.date_trunc('month', MovimientoTesoreria.fecha_movimiento)
 
     result = db.query(
         group_expr.label('periodo'),
         func.sum(
             case(
-                (MovimientoCaja.tipo == 'ingreso', MovimientoCaja.monto),
+                (MovimientoTesoreria.es_ingreso == True, MovimientoTesoreria.monto),
                 else_=Decimal("0")
             )
         ).label('ingresos'),
         func.sum(
             case(
-                (MovimientoCaja.tipo == 'egreso', MovimientoCaja.monto),
+                (MovimientoTesoreria.es_ingreso == False, MovimientoTesoreria.monto),
                 else_=Decimal("0")
             )
         ).label('egresos')
     ).filter(
-        MovimientoCaja.anulado == False,
-        func.date(MovimientoCaja.created_at) >= fecha_desde,
-        func.date(MovimientoCaja.created_at) <= fecha_hasta
+        MovimientoTesoreria.anulado == False,
+        MovimientoTesoreria.activo == True,
+        MovimientoTesoreria.fecha_movimiento >= fecha_desde,
+        MovimientoTesoreria.fecha_movimiento <= fecha_hasta,
     ).group_by(group_expr).order_by(group_expr).all()
 
     return [
@@ -1079,29 +1100,36 @@ def get_movimientos_por_categoria(
     fecha_hasta: date,
     tipo: Optional[str] = None  # ingreso o egreso
 ) -> List[Dict[str, Any]]:
-    """Reporte de movimientos de caja por categoría"""
+    """Ingresos/egresos por categoría (tipo del movimiento de tesorería)."""
+    tipo_ingreso_egreso = case(
+        (MovimientoTesoreria.es_ingreso == True, 'ingreso'),
+        else_='egreso',
+    )
     query = db.query(
-        MovimientoCaja.categoria,
-        MovimientoCaja.tipo,
-        func.count(MovimientoCaja.id).label('cantidad'),
-        func.sum(MovimientoCaja.monto).label('total')
+        MovimientoTesoreria.tipo.label('categoria'),
+        tipo_ingreso_egreso.label('tipo'),
+        func.count(MovimientoTesoreria.id).label('cantidad'),
+        func.sum(MovimientoTesoreria.monto).label('total')
     ).filter(
-        MovimientoCaja.anulado == False,
-        func.date(MovimientoCaja.created_at) >= fecha_desde,
-        func.date(MovimientoCaja.created_at) <= fecha_hasta
+        MovimientoTesoreria.anulado == False,
+        MovimientoTesoreria.activo == True,
+        MovimientoTesoreria.fecha_movimiento >= fecha_desde,
+        MovimientoTesoreria.fecha_movimiento <= fecha_hasta,
     )
 
-    if tipo:
-        query = query.filter(MovimientoCaja.tipo == tipo)
+    if tipo == 'ingreso':
+        query = query.filter(MovimientoTesoreria.es_ingreso == True)
+    elif tipo == 'egreso':
+        query = query.filter(MovimientoTesoreria.es_ingreso == False)
 
-    query = query.group_by(MovimientoCaja.categoria, MovimientoCaja.tipo)
-    query = query.order_by(func.sum(MovimientoCaja.monto).desc())
+    query = query.group_by(MovimientoTesoreria.tipo, tipo_ingreso_egreso)
+    query = query.order_by(func.sum(MovimientoTesoreria.monto).desc())
 
     result = query.all()
 
     return [
         {
-            "categoria": row.categoria,
+            "categoria": row.categoria or 'sin_categoria',
             "tipo": row.tipo,
             "cantidad": row.cantidad or 0,
             "total": float(row.total or 0),
@@ -1278,14 +1306,15 @@ def get_resumen_general(
     fecha_hasta: date
 ) -> Dict[str, Any]:
     """Resumen general del período"""
-    # Ventas
+    # Ventas (remitos emitidos, no pedidos)
     ventas = db.query(
-        func.count(Pedido.id).label('cantidad_pedidos'),
-        func.sum(Pedido.total).label('total_ventas')
+        func.count(Remito.id).label('cantidad_pedidos'),
+        func.sum(Remito.total).label('total_ventas')
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido >= fecha_desde,
-        Pedido.fecha_pedido <= fecha_hasta
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision >= fecha_desde,
+        Remito.fecha_emision <= fecha_hasta
     ).first()
 
     # Producción
@@ -1304,24 +1333,25 @@ def get_resumen_general(
         LoteProduccion.fecha_ingreso <= fecha_hasta
     ).first()
 
-    # Finanzas
+    # Finanzas (tesorería)
     finanzas = db.query(
         func.sum(
             case(
-                (MovimientoCaja.tipo == 'ingreso', MovimientoCaja.monto),
+                (MovimientoTesoreria.es_ingreso == True, MovimientoTesoreria.monto),
                 else_=Decimal("0")
             )
         ).label('ingresos'),
         func.sum(
             case(
-                (MovimientoCaja.tipo == 'egreso', MovimientoCaja.monto),
+                (MovimientoTesoreria.es_ingreso == False, MovimientoTesoreria.monto),
                 else_=Decimal("0")
             )
         ).label('egresos')
     ).filter(
-        MovimientoCaja.anulado == False,
-        func.date(MovimientoCaja.created_at) >= fecha_desde,
-        func.date(MovimientoCaja.created_at) <= fecha_hasta
+        MovimientoTesoreria.anulado == False,
+        MovimientoTesoreria.activo == True,
+        MovimientoTesoreria.fecha_movimiento >= fecha_desde,
+        MovimientoTesoreria.fecha_movimiento <= fecha_hasta,
     ).first()
 
     # Clientes nuevos
@@ -1370,33 +1400,36 @@ def get_estadisticas_rapidas(db: Session) -> Dict[str, Any]:
     inicio_semana = hoy - timedelta(days=hoy.weekday())
     inicio_mes = date(hoy.year, hoy.month, 1)
 
-    # Ventas hoy
+    # Ventas hoy (basado en remitos emitidos)
     ventas_hoy = db.query(
-        func.count(Pedido.id).label('cantidad'),
-        func.sum(Pedido.total).label('total')
+        func.count(Remito.id).label('cantidad'),
+        func.sum(Remito.total).label('total')
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido == hoy
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision == hoy
     ).first()
 
     # Ventas semana
     ventas_semana = db.query(
-        func.count(Pedido.id).label('cantidad'),
-        func.sum(Pedido.total).label('total')
+        func.count(Remito.id).label('cantidad'),
+        func.sum(Remito.total).label('total')
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido >= inicio_semana,
-        Pedido.fecha_pedido <= hoy
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision >= inicio_semana,
+        Remito.fecha_emision <= hoy
     ).first()
 
     # Ventas mes
     ventas_mes = db.query(
-        func.count(Pedido.id).label('cantidad'),
-        func.sum(Pedido.total).label('total')
+        func.count(Remito.id).label('cantidad'),
+        func.sum(Remito.total).label('total')
     ).filter(
-        Pedido.activo == True,
-        Pedido.fecha_pedido >= inicio_mes,
-        Pedido.fecha_pedido <= hoy
+        Remito.activo == True,
+        Remito.estado != EstadoRemito.ANULADO.value,
+        Remito.fecha_emision >= inicio_mes,
+        Remito.fecha_emision <= hoy
     ).first()
 
     # Lotes en proceso
