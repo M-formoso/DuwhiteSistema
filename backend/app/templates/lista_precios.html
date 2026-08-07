@@ -328,7 +328,7 @@
     {% for grupo in grupos %}
       <div class="categoria-header">
         {{ grupo.categoria_label }}
-        <span class="count">{{ grupo.items | length }} ítem{% if grupo.items | length != 1 %}s{% endif %}</span>
+        <span class="count">{{ grupo.productos | length }} ítem{% if grupo.productos | length != 1 %}s{% endif %}</span>
       </div>
       <table>
         <thead>
@@ -340,7 +340,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for item in grupo.items %}
+          {% for item in grupo.productos %}
             <tr>
               <td class="codigo">{{ item.codigo }}</td>
               <td>

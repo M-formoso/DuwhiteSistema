@@ -114,9 +114,9 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
             grupos_map[cat_key] = {
                 "categoria_key": cat_key,
                 "categoria_label": CATEGORIAS_LABEL.get(cat_key, cat_key.replace("_", " ").title()),
-                "items": [],
+                "productos": [],
             }
-        grupos_map[cat_key]["items"].append({
+        grupos_map[cat_key]["productos"].append({
             "codigo": prod.codigo,
             "nombre": prod.nombre,
             "descripcion": prod.descripcion,
