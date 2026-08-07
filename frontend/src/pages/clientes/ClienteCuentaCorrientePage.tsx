@@ -991,7 +991,9 @@ export default function ClienteCuentaCorrientePage() {
                                   {formatDate(mov.fecha_movimiento)}
                                 </TableCell>
                                 <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
-                                <TableCell>{mov.concepto}</TableCell>
+                                <TableCell className="whitespace-nowrap" title={mov.concepto}>
+                                  {mov.concepto}
+                                </TableCell>
                                 <TableCell className="text-gray-500 text-sm">
                                   {mov.factura?.numero_completo
                                     ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
