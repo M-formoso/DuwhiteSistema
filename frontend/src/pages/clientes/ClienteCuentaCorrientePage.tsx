@@ -715,28 +715,58 @@ export default function ClienteCuentaCorrientePage() {
           </CardContent>
         </Card>
 
-        <Card className={(estadoCuenta?.total_adeudado || 0) > 0 ? 'border-orange-300' : 'border-green-300'}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total adeudado</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                  }`}
-                >
-                  {formatNumber(estadoCuenta?.total_adeudado || 0, 'currency')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Vencida + consumo del mes (neto de pagos)</p>
-              </div>
-              <Wallet
-                className={`h-10 w-10 ${
-                  (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-orange-200' : 'text-green-200'
-                }`}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {(() => {
+          const adeudado = Number(estadoCuenta?.total_adeudado || 0);
+          const aFavor = Number(estadoCuenta?.saldo_a_favor || 0);
+          const tieneFavor = aFavor > 0;
+          const tieneDeuda = adeudado > 0;
+          return (
+            <Card
+              className={
+                tieneFavor
+                  ? 'border-green-300 bg-green-50/40'
+                  : tieneDeuda
+                  ? 'border-orange-300'
+                  : 'border-green-300'
+              }
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      {tieneFavor ? 'Saldo a favor' : 'Total adeudado'}
+                    </p>
+                    <p
+                      className={`text-2xl font-bold ${
+                        tieneFavor
+                          ? 'text-green-600'
+                          : tieneDeuda
+                          ? 'text-red-600'
+                          : 'text-green-600'
+                      }`}
+                    >
+                      {formatNumber(tieneFavor ? aFavor : adeudado, 'currency')}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {tieneFavor
+                        ? 'Anticipo del cliente sin aplicar'
+                        : 'Vencida + consumo del mes (neto de pagos)'}
+                    </p>
+                  </div>
+                  {tieneFavor ? (
+                    <TrendingDown className="h-10 w-10 text-green-300" />
+                  ) : (
+                    <Wallet
+                      className={`h-10 w-10 ${
+                        tieneDeuda ? 'text-orange-200' : 'text-green-200'
+                      }`}
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
       </div>
 
       {/* Cards de saldo del cliente — desglose por estado de facturación.
