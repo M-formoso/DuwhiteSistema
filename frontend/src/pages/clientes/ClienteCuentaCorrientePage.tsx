@@ -602,7 +602,12 @@ export default function ClienteCuentaCorrientePage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(`/clientes/${id}`)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/clientes')}
+            title="Volver a la lista de clientes"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
