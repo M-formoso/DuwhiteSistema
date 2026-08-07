@@ -727,7 +727,7 @@ export default function ClienteCuentaCorrientePage() {
                 >
                   {formatNumber(estadoCuenta?.total_adeudado || 0, 'currency')}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Vencida + consumo del mes − pagos</p>
+                <p className="text-xs text-gray-400 mt-1">Vencida + consumo del mes (neto de pagos)</p>
               </div>
               <Wallet
                 className={`h-10 w-10 ${

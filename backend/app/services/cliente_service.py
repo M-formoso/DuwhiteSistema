@@ -1142,7 +1142,7 @@ class ClienteService:
         saldo_al_cierre_mes_anterior = (
             cargos_previos - pagos_previos + ajustes_delta_previos
         )
-        deuda_vencida = (
+        deuda_vencida_bruta = (
             saldo_al_cierre_mes_anterior
             if saldo_al_cierre_mes_anterior > 0
             else Decimal("0")
@@ -1152,7 +1152,7 @@ class ClienteService:
         # aumentan la deuda) entre el 1° del mes y hoy. Se incluyen los
         # ajustes que suman al saldo (ej: "FACTURA JULIO" registrado como
         # ajuste manual) para que:
-        #   deuda_vencida + consumo_mes_actual - pagos_mes ≈ total_adeudado
+        #   deuda_vencida + consumo_mes_actual ≈ total_adeudado
         cargos_mes = (
             self.db.query(func.sum(MovimientoCuentaCorriente.monto))
             .filter(
@@ -1189,7 +1189,17 @@ class ClienteService:
             .scalar()
             or Decimal("0")
         )
-        consumo_mes_actual = cargos_mes + ajustes_positivos_mes
+        consumo_mes_bruto = cargos_mes + ajustes_positivos_mes
+
+        # Aplicación FIFO de los pagos del mes: primero cancelan la deuda
+        # vencida (más antigua) y el sobrante se aplica al consumo del mes.
+        # Sin esto la card "Deuda vencida" quedaba inflada porque solo miraba
+        # movimientos de meses previos sin ver los pagos actuales.
+        pagos_mes = total_pagado_mes
+        pagos_a_vencida = min(pagos_mes, deuda_vencida_bruta)
+        deuda_vencida = deuda_vencida_bruta - pagos_a_vencida
+        pagos_sobrantes = pagos_mes - pagos_a_vencida
+        consumo_mes_actual = max(Decimal("0"), consumo_mes_bruto - pagos_sobrantes)
 
         # Total adeudado: saldo real del cliente al día de hoy si es positivo.
         # Contablemente = deuda_vencida + consumo_mes_actual - pagos_mes_actual
