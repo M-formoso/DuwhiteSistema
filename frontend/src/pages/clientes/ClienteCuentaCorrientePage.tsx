@@ -687,7 +687,7 @@ export default function ClienteCuentaCorrientePage() {
                 >
                   {formatNumber(estadoCuenta?.deuda_vencida || 0, 'currency')}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Saldo impago de meses anteriores</p>
+                <p className="text-xs text-gray-400 mt-1">Meses anteriores impagos (neto de pagos)</p>
               </div>
               <CalendarClock
                 className={`h-10 w-10 ${
@@ -707,7 +707,7 @@ export default function ClienteCuentaCorrientePage() {
                   {formatNumber(estadoCuenta?.consumo_mes_actual || 0, 'currency')}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Cargos del 1° a hoy
+                  Cargos del 1° a hoy (neto de pagos)
                 </p>
               </div>
               <CalendarRange className="h-10 w-10 text-blue-200" />
@@ -765,8 +765,8 @@ export default function ClienteCuentaCorrientePage() {
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
                   {hayFiltroPeriodo
-                    ? 'Saldo con factura emitida en el período'
-                    : 'Saldo con factura emitida (CAE de ARCA)'}
+                    ? 'Facturado en el período'
+                    : 'Saldo pendiente de facturas emitidas (con CAE)'}
                 </p>
                 <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
                   Ver facturas del cliente <ChevronRight className="h-3 w-3" />
@@ -801,8 +801,8 @@ export default function ClienteCuentaCorrientePage() {
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
                   {hayFiltroPeriodo
-                    ? 'Saldo con cargos pendientes de factura en el período'
-                    : 'Saldo con cargos pendientes de generar factura'}
+                    ? 'Cargos sin factura en el período'
+                    : 'Saldo por remitos/ajustes pendientes de facturar'}
                 </p>
                 <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
                   Ver remitos pendientes <ChevronRight className="h-3 w-3" />

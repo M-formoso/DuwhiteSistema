@@ -33,6 +33,7 @@ from app.models.caja import (
     TipoMovimientoCaja,
     CategoriaMovimiento,
 )
+from app.models.factura import Factura, EstadoFactura, TipoComprobante
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.schemas.pedido import PedidoCreate, PedidoUpdate, DetallePedidoCreate
 from app.schemas.cuenta_corriente import MovimientoCCCreate, RegistrarPagoRequest
@@ -1006,31 +1007,71 @@ class ClienteService:
                 )
             return query
 
-        # Desglose: cargos facturados vs sin facturar. Con filtros → del período.
-        deuda_facturada = (
-            _aplicar_rango(
-                self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
-                    MovimientoCuentaCorriente.cliente_id == cliente_id,
-                    MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
-                    MovimientoCuentaCorriente.factura_id.isnot(None),
-                    MovimientoCuentaCorriente.activo == True,
+        # Desglose facturado / sin facturar.
+        #
+        # Sin filtro de período: se computa el saldo REAL pendiente de las
+        # facturas emitidas del cliente (total − monto_pagado, restando NCs).
+        # El resto del saldo del cliente se considera "sin facturar" (viene de
+        # remitos pendientes de facturar o de ajustes manuales).
+        # Invariante: total_facturado + cargos_sin_facturar = total_adeudado.
+        #
+        # Con filtro de período: se muestra el bruto de cargos del período
+        # separado por si el CARGO está vinculado a una factura o no. Aquí no
+        # aplica el invariante (es una vista de flujo, no de saldo).
+        if tiene_filtro_periodo:
+            deuda_facturada = (
+                _aplicar_rango(
+                    self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
+                        MovimientoCuentaCorriente.cliente_id == cliente_id,
+                        MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                        MovimientoCuentaCorriente.factura_id.isnot(None),
+                        MovimientoCuentaCorriente.activo == True,
+                    )
                 )
+                .scalar()
+                or Decimal("0")
             )
-            .scalar()
-            or Decimal("0")
-        )
-        cargos_sin_facturar = (
-            _aplicar_rango(
-                self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
-                    MovimientoCuentaCorriente.cliente_id == cliente_id,
-                    MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
-                    MovimientoCuentaCorriente.factura_id.is_(None),
-                    MovimientoCuentaCorriente.activo == True,
+            cargos_sin_facturar = (
+                _aplicar_rango(
+                    self.db.query(func.sum(MovimientoCuentaCorriente.monto)).filter(
+                        MovimientoCuentaCorriente.cliente_id == cliente_id,
+                        MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                        MovimientoCuentaCorriente.factura_id.is_(None),
+                        MovimientoCuentaCorriente.activo == True,
+                    )
                 )
+                .scalar()
+                or Decimal("0")
             )
-            .scalar()
-            or Decimal("0")
-        )
+        else:
+            _NC_TIPOS = [
+                TipoComprobante.NOTA_CREDITO_A.value,
+                TipoComprobante.NOTA_CREDITO_B.value,
+            ]
+            saldo_facturas_pendiente = (
+                self.db.query(
+                    func.sum(
+                        case(
+                            (
+                                Factura.tipo.in_(_NC_TIPOS),
+                                -(Factura.total - Factura.monto_pagado),
+                            ),
+                            else_=(Factura.total - Factura.monto_pagado),
+                        )
+                    )
+                )
+                .filter(
+                    Factura.cliente_id == cliente_id,
+                    Factura.estado == EstadoFactura.AUTORIZADA.value,
+                    Factura.anulada_por_nc_id.is_(None),
+                    Factura.activo == True,
+                )
+                .scalar()
+                or Decimal("0")
+            )
+            # El resto se resolverá abajo, cuando ya tengamos total_adeudado.
+            deuda_facturada = saldo_facturas_pendiente  # provisional
+            cargos_sin_facturar = None  # se calcula abajo
         total_pagos_historicos = (
             self.db.query(func.sum(MovimientoCuentaCorriente.monto))
             .filter(
@@ -1142,9 +1183,17 @@ class ClienteService:
         saldo_al_cierre_mes_anterior = (
             cargos_previos - pagos_previos + ajustes_delta_previos
         )
+        # Si el saldo previo era positivo → deuda vencida real. Si era negativo
+        # (cliente había pagado de más), lo tratamos como crédito previo que
+        # después se aplicará al consumo del mes.
         deuda_vencida_bruta = (
             saldo_al_cierre_mes_anterior
             if saldo_al_cierre_mes_anterior > 0
+            else Decimal("0")
+        )
+        credito_previo = (
+            -saldo_al_cierre_mes_anterior
+            if saldo_al_cierre_mes_anterior < 0
             else Decimal("0")
         )
 
@@ -1192,19 +1241,31 @@ class ClienteService:
         consumo_mes_bruto = cargos_mes + ajustes_positivos_mes
 
         # Aplicación FIFO de los pagos del mes: primero cancelan la deuda
-        # vencida (más antigua) y el sobrante se aplica al consumo del mes.
-        # Sin esto la card "Deuda vencida" quedaba inflada porque solo miraba
-        # movimientos de meses previos sin ver los pagos actuales.
+        # vencida (más antigua) y el sobrante reduce el consumo del mes. El
+        # crédito previo (saldo a favor arrastrado) también reduce el consumo.
+        # Invariante: deuda_vencida + consumo_mes_actual = total_adeudado.
         pagos_mes = total_pagado_mes
         pagos_a_vencida = min(pagos_mes, deuda_vencida_bruta)
         deuda_vencida = deuda_vencida_bruta - pagos_a_vencida
         pagos_sobrantes = pagos_mes - pagos_a_vencida
-        consumo_mes_actual = max(Decimal("0"), consumo_mes_bruto - pagos_sobrantes)
+        consumo_mes_actual = max(
+            Decimal("0"), consumo_mes_bruto - pagos_sobrantes - credito_previo
+        )
 
         # Total adeudado: saldo real del cliente al día de hoy si es positivo.
-        # Contablemente = deuda_vencida + consumo_mes_actual - pagos_mes_actual
+        # Debe coincidir con deuda_vencida + consumo_mes_actual.
         saldo_cliente = Decimal(cliente.saldo_cuenta_corriente or 0)
         total_adeudado = saldo_cliente if saldo_cliente > 0 else Decimal("0")
+
+        # Cierre del desglose facturado / sin facturar (sin filtro):
+        # el total_facturado se acota al total_adeudado para que ambas cards
+        # sumen exactamente el saldo actual (no se muestran negativos ni
+        # excedentes de facturas ya cobradas por otro lado).
+        if not tiene_filtro_periodo:
+            deuda_facturada = max(
+                Decimal("0"), min(deuda_facturada, total_adeudado)
+            )
+            cargos_sin_facturar = total_adeudado - deuda_facturada
 
         return {
             "cliente_id": str(cliente.id),
