@@ -9,7 +9,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   RefreshCw,
-  DollarSign,
   CreditCard,
   Download,
   Filter,
@@ -26,9 +25,6 @@ import {
   Eye,
   Trash2,
   AlertTriangle,
-  CalendarClock,
-  CalendarRange,
-  Wallet,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -674,128 +670,37 @@ export default function ClienteCuentaCorrientePage() {
         </div>
       </div>
 
-      {/* Cards del mes en curso (fijas, no dependen del filtro) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className={(estadoCuenta?.deuda_vencida || 0) > 0 ? 'border-red-300 bg-red-50/40' : ''}>
+      {/* Cards de saldo del cliente — desglose por estado de facturación.
+          Total facturado + Total sin facturar = saldo total a cobrar.
+          Cada card navega al módulo de facturación filtrado por este cliente. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate(`/facturacion?cliente_id=${id}&tab=facturas`)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate(`/facturacion?cliente_id=${id}&tab=facturas`);
+            }
+          }}
+          className="cursor-pointer transition hover:shadow-md hover:border-blue-300"
+          title="Ver facturas de este cliente"
+        >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Deuda vencida</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    (estadoCuenta?.deuda_vencida || 0) > 0 ? 'text-red-600' : 'text-gray-700'
-                  }`}
-                >
-                  {formatNumber(estadoCuenta?.deuda_vencida || 0, 'currency')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Saldo impago de meses anteriores</p>
-              </div>
-              <CalendarClock
-                className={`h-10 w-10 ${
-                  (estadoCuenta?.deuda_vencida || 0) > 0 ? 'text-red-200' : 'text-gray-200'
-                }`}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Consumo del mes</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatNumber(estadoCuenta?.consumo_mes_actual || 0, 'currency')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Cargos del 1° a hoy
-                </p>
-              </div>
-              <CalendarRange className="h-10 w-10 text-blue-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={(estadoCuenta?.total_adeudado || 0) > 0 ? 'border-orange-300' : 'border-green-300'}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total adeudado</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                  }`}
-                >
-                  {formatNumber(estadoCuenta?.total_adeudado || 0, 'currency')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Vencida + consumo del mes − pagos</p>
-              </div>
-              <Wallet
-                className={`h-10 w-10 ${
-                  (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-orange-200' : 'text-green-200'
-                }`}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Cards de resumen — desglose contable (respeta filtros de fecha) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {(() => {
-          const saldoValor = hayFiltroPeriodo
-            ? Number(estadoCuenta?.saldo_actual ?? 0)
-            : Number(cliente.saldo_cuenta_corriente ?? 0);
-          const esPositivo = saldoValor > 0;
-          const esNegativo = saldoValor < 0;
-          return (
-            <Card className={esPositivo ? 'border-orange-300' : esNegativo ? 'border-green-300' : ''}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">
-                      {hayFiltroPeriodo ? 'Neto del período' : 'Saldo Actual'}
-                    </p>
-                    <p
-                      className={`text-2xl font-bold ${
-                        esPositivo ? 'text-red-600' : esNegativo ? 'text-green-600' : 'text-gray-700'
-                      }`}
-                    >
-                      {formatNumber(Math.abs(saldoValor), 'currency')}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {hayFiltroPeriodo
-                        ? esPositivo
-                          ? 'Cargó más de lo que pagó'
-                          : esNegativo
-                          ? 'Pagó más de lo que se cargó'
-                          : 'Sin movimientos netos'
-                        : esPositivo
-                        ? 'A cobrar al cliente'
-                        : 'Sin deuda'}
-                    </p>
-                  </div>
-                  <DollarSign
-                    className={`h-10 w-10 ${
-                      esPositivo ? 'text-red-200' : esNegativo ? 'text-green-200' : 'text-gray-200'
-                    }`}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Deuda facturada</p>
+                <p className="text-sm text-gray-500">Total facturado</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {formatNumber(estadoCuenta?.deuda_facturada || 0, 'currency')}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {hayFiltroPeriodo ? 'Facturado en el período' : 'Con CAE de ARCA'}
+                  {hayFiltroPeriodo
+                    ? 'Saldo con factura emitida en el período'
+                    : 'Saldo con factura emitida (CAE de ARCA)'}
+                </p>
+                <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
+                  Ver facturas del cliente <ChevronRight className="h-3 w-3" />
                 </p>
               </div>
               <Receipt className="h-10 w-10 text-blue-200" />
@@ -803,36 +708,38 @@ export default function ClienteCuentaCorrientePage() {
           </CardContent>
         </Card>
 
-        <Card className={(estadoCuenta?.cargos_sin_facturar || 0) > 0 ? 'border-orange-300' : ''}>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate(`/facturacion?cliente_id=${id}&tab=pendientes`)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate(`/facturacion?cliente_id=${id}&tab=pendientes`);
+            }
+          }}
+          className={`cursor-pointer transition hover:shadow-md hover:border-orange-400 ${
+            (estadoCuenta?.cargos_sin_facturar || 0) > 0 ? 'border-orange-300' : ''
+          }`}
+          title="Ver remitos pendientes de facturar"
+        >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Sin facturar</p>
+                <p className="text-sm text-gray-500">Total sin facturar</p>
                 <p className="text-2xl font-bold text-orange-600">
                   {formatNumber(estadoCuenta?.cargos_sin_facturar || 0, 'currency')}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {hayFiltroPeriodo ? 'Cargos sin factura en el período' : 'Cargos pendientes de factura'}
+                  {hayFiltroPeriodo
+                    ? 'Saldo con cargos pendientes de factura en el período'
+                    : 'Saldo con cargos pendientes de generar factura'}
+                </p>
+                <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
+                  Ver remitos pendientes <ChevronRight className="h-3 w-3" />
                 </p>
               </div>
               <FileText className="h-10 w-10 text-orange-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={(estadoCuenta?.saldo_a_favor || 0) > 0 ? 'border-purple-300' : ''}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Saldo a favor</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {formatNumber(estadoCuenta?.saldo_a_favor || 0, 'currency')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {hayFiltroPeriodo ? 'Excedente del período' : 'Anticipos no aplicados'}
-                </p>
-              </div>
-              <TrendingDown className="h-10 w-10 text-purple-200" />
             </div>
           </CardContent>
         </Card>

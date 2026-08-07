@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -49,12 +49,16 @@ const PAGE_SIZE = 20;
 
 export default function FacturasListPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const clienteIdFromUrl = searchParams.get('cliente_id');
+  const tabFromUrl = searchParams.get('tab');
+
   const [search, setSearch] = useState('');
   const [showMesModal, setShowMesModal] = useState(false);
   const [tipo, setTipo] = useState<TipoComprobante | 'todos'>('todos');
   const [estado, setEstado] = useState<EstadoFactura | 'todos'>('todos');
   const [estadoPago, setEstadoPago] = useState<EstadoPago | 'todos'>('todos');
-  const [clienteId, setClienteId] = useState<string>('todos');
+  const [clienteId, setClienteId] = useState<string>(clienteIdFromUrl || 'todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [page, setPage] = useState(1);
@@ -117,7 +121,15 @@ export default function FacturasListPage() {
       {/* Banner con estado de la integración con ARCA */}
       <EstadoArcaBanner />
 
-      <Tabs defaultValue={pendientesCount > 0 ? 'pendientes' : 'facturas'}>
+      <Tabs
+        defaultValue={
+          tabFromUrl === 'facturas' || tabFromUrl === 'pendientes'
+            ? tabFromUrl
+            : pendientesCount > 0
+            ? 'pendientes'
+            : 'facturas'
+        }
+      >
         <TabsList>
           <TabsTrigger value="pendientes" className="gap-2">
             Pendientes de facturar

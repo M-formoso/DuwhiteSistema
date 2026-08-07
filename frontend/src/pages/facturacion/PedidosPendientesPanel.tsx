@@ -8,7 +8,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Receipt, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -53,10 +53,12 @@ export default function PedidosPendientesPanel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const clienteIdFromUrl = searchParams.get('cliente_id');
 
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-  const [clienteId, setClienteId] = useState<string>('todos');
+  const [clienteId, setClienteId] = useState<string>(clienteIdFromUrl || 'todos');
   const [busqueda, setBusqueda] = useState('');
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
 
