@@ -1240,14 +1240,44 @@ class ClienteService:
         )
         consumo_mes_bruto = cargos_mes + ajustes_positivos_mes
 
-        # Aplicación FIFO de los pagos del mes: primero cancelan la deuda
-        # vencida (más antigua) y el sobrante reduce el consumo del mes. El
-        # crédito previo (saldo a favor arrastrado) también reduce el consumo.
+        # Ajustes NEGATIVOS del mes (los que reducen la deuda): se cuentan
+        # como pagos efectivos para el FIFO. Sin esto, si el usuario registra
+        # una entrega/pago vía "Ajustar Saldo" en vez de "Registrar Pago",
+        # la deuda vencida quedaba inflada.
+        ajustes_negativos_mes = (
+            self.db.query(
+                func.sum(
+                    case(
+                        (
+                            MovimientoCuentaCorriente.saldo_posterior
+                            < MovimientoCuentaCorriente.saldo_anterior,
+                            MovimientoCuentaCorriente.saldo_anterior
+                            - MovimientoCuentaCorriente.saldo_posterior,
+                        ),
+                        else_=0,
+                    )
+                )
+            )
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.AJUSTE.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= primer_dia_mes,
+                MovimientoCuentaCorriente.fecha_movimiento <= hoy,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+
+        # Aplicación FIFO de las reducciones del mes (pagos + ajustes
+        # negativos): primero cancelan la deuda vencida (más antigua) y el
+        # sobrante reduce el consumo del mes. El crédito previo (saldo a
+        # favor arrastrado) también reduce el consumo.
         # Invariante: deuda_vencida + consumo_mes_actual = total_adeudado.
-        pagos_mes = total_pagado_mes
-        pagos_a_vencida = min(pagos_mes, deuda_vencida_bruta)
+        reducciones_mes = total_pagado_mes + ajustes_negativos_mes
+        pagos_a_vencida = min(reducciones_mes, deuda_vencida_bruta)
         deuda_vencida = deuda_vencida_bruta - pagos_a_vencida
-        pagos_sobrantes = pagos_mes - pagos_a_vencida
+        pagos_sobrantes = reducciones_mes - pagos_a_vencida
         consumo_mes_actual = max(
             Decimal("0"), consumo_mes_bruto - pagos_sobrantes - credito_previo
         )
