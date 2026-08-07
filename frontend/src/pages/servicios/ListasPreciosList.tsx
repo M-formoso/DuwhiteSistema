@@ -85,6 +85,7 @@ export default function ListasPreciosList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [listaEditar, setListaEditar] = useState<ListaPrecios | null>(null);
   const [listaEliminar, setListaEliminar] = useState<ListaPrecios | null>(null);
+  const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState<ListaPreciosCreate>({
@@ -242,8 +243,6 @@ export default function ListasPreciosList() {
   const handleAplicarModificador = (lista: ListaPrecios) => {
     aplicarModificadorMutation.mutate(lista.id);
   };
-
-  const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
   const handleDescargarPdf = async (lista: ListaPrecios) => {
     try {

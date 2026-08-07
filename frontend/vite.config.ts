@@ -32,6 +32,15 @@ export default defineConfig({
             },
           },
           {
+            // Descargas de PDF/binarios: van directo a red, sin cache ni timeout.
+            // El SW se cuelga con blobs y tarda demasiado en generarlos.
+            urlPattern: ({ url, request }: { url: URL; request: Request }) =>
+              request.method === 'GET' &&
+              /\/api\/v1\//.test(url.pathname) &&
+              /\/pdf$/.test(url.pathname),
+            handler: 'NetworkOnly' as const,
+          },
+          {
             urlPattern: ({ url, request }: { url: URL; request: Request }) =>
               request.method === 'GET' && /\/api\/v1\//.test(url.pathname),
             handler: 'NetworkFirst' as const,
