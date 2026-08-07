@@ -999,7 +999,9 @@ export default function ClienteCuentaCorrientePage() {
                                     ? <button onClick={() => navigate(`/facturacion/${mov.factura.id}`)} className="text-blue-600 hover:underline font-mono">{mov.factura.numero_completo}</button>
                                     : (mov.factura_numero || mov.recibo_numero || mov.referencia_pago || '-')}
                                 </TableCell>
-                                <TableCell>{getEstadoFacturacionBadge(mov)}</TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  {getEstadoFacturacionBadge(mov)}
+                                </TableCell>
                                 <TableCell className="text-right font-medium text-red-600">
                                   {esDebe ? formatNumber(mov.monto, 'currency') : '-'}
                                 </TableCell>

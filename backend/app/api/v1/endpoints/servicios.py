@@ -422,6 +422,24 @@ def eliminar_lista_precios(
     return None
 
 
+@router.get("/listas-precios/{lista_id}/pdf")
+def descargar_lista_precios_pdf(
+    lista_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Descarga la lista de precios como PDF (para enviar a clientes)."""
+    from fastapi.responses import Response
+    from app.services import lista_precios_pdf_service
+
+    pdf_bytes, filename = lista_precios_pdf_service.generar_pdf(db, lista_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=\"{filename}\""},
+    )
+
+
 @router.post("/listas-precios/{lista_id}/aplicar-modificador", response_model=dict)
 def aplicar_modificador_lista(
     lista_id: UUID,

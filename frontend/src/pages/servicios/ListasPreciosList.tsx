@@ -17,6 +17,7 @@ import {
   RefreshCw,
   LayoutGrid,
   Loader2,
+  FileDown,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -242,6 +243,21 @@ export default function ListasPreciosList() {
     aplicarModificadorMutation.mutate(lista.id);
   };
 
+  const [descargandoId, setDescargandoId] = useState<string | null>(null);
+
+  const handleDescargarPdf = async (lista: ListaPrecios) => {
+    try {
+      setDescargandoId(lista.id);
+      const slug = (lista.codigo || 'lista').trim().replace(/\s+/g, '_');
+      await listaPreciosService.descargarPdf(lista.id, `lista_precios_${slug}.pdf`);
+      toast.success('PDF descargado correctamente');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error) || 'Error al descargar el PDF');
+    } finally {
+      setDescargandoId(null);
+    }
+  };
+
   const listas = listasData?.items || [];
 
   return (
@@ -340,44 +356,66 @@ export default function ListasPreciosList() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => navigate(`/servicios/listas/${lista.id}`)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Ver Detalle
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenModal(lista)}>
-                            <Edit2 className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          {!lista.es_lista_base && lista.lista_base_id && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleAplicarModificador(lista)}
-                              >
-                                <RefreshCw className="h-4 w-4 mr-2" />
-                                Aplicar Modificador
-                              </DropdownMenuItem>
-                            </>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Descargar PDF"
+                          onClick={() => handleDescargarPdf(lista)}
+                          disabled={descargandoId === lista.id}
+                        >
+                          {descargandoId === lista.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileDown className="h-4 w-4 text-primary" />
                           )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDelete(lista)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => navigate(`/servicios/listas/${lista.id}`)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Ver Detalle
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenModal(lista)}>
+                              <Edit2 className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDescargarPdf(lista)}
+                              disabled={descargandoId === lista.id}
+                            >
+                              <FileDown className="h-4 w-4 mr-2" />
+                              Descargar PDF
+                            </DropdownMenuItem>
+                            {!lista.es_lista_base && lista.lista_base_id && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleAplicarModificador(lista)}
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  Aplicar Modificador
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleDelete(lista)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

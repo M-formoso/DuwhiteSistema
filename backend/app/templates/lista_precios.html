@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<title>Lista de Precios — {{ lista.nombre }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 1.4cm 1.4cm 1.6cm 1.4cm;
+    @bottom-center {
+      content: "Página " counter(page) " de " counter(pages);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 8pt;
+      color: #999;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #333333;
+    font-size: 10pt;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  /* ============ HEADER ============ */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 14px;
+    border-bottom: 3px solid #00BCD4;
+    margin-bottom: 22px;
+  }
+
+  .logo-block {
+    display: flex;
+    align-items: center;
+  }
+
+  .logo-bar {
+    display: inline-block;
+    width: 7px;
+    height: 58px;
+    background: #00BCD4;
+    margin-right: 12px;
+    vertical-align: middle;
+  }
+
+  .logo-text-wrap {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .logo-title {
+    font-size: 30pt;
+    font-weight: 900;
+    color: #3D3D3D;
+    letter-spacing: 4px;
+    line-height: 1;
+    margin: 0;
+  }
+
+  .logo-sub {
+    font-size: 9pt;
+    font-weight: 600;
+    color: #00BCD4;
+    letter-spacing: 3px;
+    margin-top: 4px;
+  }
+
+  .empresa-info {
+    text-align: right;
+    font-size: 8.5pt;
+    color: #777777;
+    line-height: 1.5;
+  }
+
+  .empresa-info .empresa-nombre {
+    font-weight: 700;
+    color: #333333;
+    font-size: 10pt;
+    letter-spacing: 0.5px;
+  }
+
+  /* ============ TITULO ============ */
+  .titulo-wrap {
+    background: linear-gradient(90deg, #00BCD4 0%, #00959F 100%);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+  }
+
+  .titulo-wrap h1 {
+    margin: 0;
+    font-size: 20pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .titulo-wrap .subtitulo {
+    font-size: 10pt;
+    margin-top: 4px;
+    opacity: 0.95;
+  }
+
+  /* ============ INFO LISTA ============ */
+  .info-grid {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+
+  .info-card {
+    flex: 1;
+    background: #F7F8FA;
+    border: 1px solid #E0E0E0;
+    border-left: 3px solid #00BCD4;
+    padding: 10px 14px;
+    border-radius: 4px;
+  }
+
+  .info-card .label {
+    font-size: 7.5pt;
+    color: #777777;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 3px;
+  }
+
+  .info-card .value {
+    font-size: 11pt;
+    font-weight: 600;
+    color: #333333;
+  }
+
+  .descripcion-box {
+    background: #F7F8FA;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 9.5pt;
+    color: #555;
+    font-style: italic;
+  }
+
+  /* ============ CATEGORIAS Y TABLA ============ */
+  .categoria-header {
+    background: #3D3D3D;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 4px 4px 0 0;
+    margin-top: 18px;
+    font-size: 11pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .categoria-header .count {
+    float: right;
+    background: #00BCD4;
+    padding: 1px 10px;
+    border-radius: 10px;
+    font-size: 8.5pt;
+    font-weight: 600;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4px;
+  }
+
+  thead th {
+    background: #F7F8FA;
+    color: #555;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 8pt;
+    letter-spacing: 0.5px;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 2px solid #E0E0E0;
+  }
+
+  tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #EFEFEF;
+    font-size: 9.5pt;
+  }
+
+  tbody tr:nth-child(even) td {
+    background: #FAFBFC;
+  }
+
+  .codigo {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: #00959F;
+    font-size: 9pt;
+  }
+
+  .producto-nombre {
+    font-weight: 600;
+    color: #333;
+  }
+
+  .producto-desc {
+    display: block;
+    font-size: 8pt;
+    color: #999;
+    font-weight: 400;
+    margin-top: 1px;
+  }
+
+  .peso {
+    color: #777;
+    font-size: 8.5pt;
+  }
+
+  .precio {
+    text-align: right;
+    font-weight: 700;
+    font-size: 11pt;
+    color: #22C55E;
+    white-space: nowrap;
+  }
+
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+
+  /* ============ EMPTY ============ */
+  .empty {
+    padding: 40px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    background: #F7F8FA;
+    border: 1px dashed #E0E0E0;
+    border-radius: 6px;
+    margin-top: 10px;
+  }
+
+  /* ============ FOOTER ============ */
+  .footer {
+    margin-top: 30px;
+    padding-top: 14px;
+    border-top: 2px solid #E0E0E0;
+    font-size: 8pt;
+    color: #999;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .footer .logo-mini {
+    color: #00BCD4;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+  <!-- ============ HEADER ============ -->
+  <div class="header">
+    <div class="logo-block">
+      <span class="logo-bar"></span>
+      <div class="logo-text-wrap">
+        <div class="logo-title">DUWHITE</div>
+        <div class="logo-sub">LAVADERO INDUSTRIAL</div>
+      </div>
+    </div>
+    <div class="empresa-info">
+      <div class="empresa-nombre">{{ empresa.razon_social }}</div>
+      CUIT: {{ empresa.cuit }} · {{ empresa.condicion_iva }}<br>
+      {{ empresa.direccion }}<br>
+      {{ empresa.email }}
+    </div>
+  </div>
+
+  <!-- ============ TITULO ============ -->
+  <div class="titulo-wrap">
+    <h1>Lista de Precios</h1>
+    <div class="subtitulo">{{ lista.nombre }}</div>
+  </div>
+
+  <!-- ============ INFO LISTA ============ -->
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="label">Código</div>
+      <div class="value">{{ lista.codigo }}</div>
+    </div>
+    {% if lista.fecha_vigencia_desde %}
+    <div class="info-card">
+      <div class="label">Vigente desde</div>
+      <div class="value">{{ lista.fecha_vigencia_desde | fecha_ar }}</div>
+    </div>
+    {% endif %}
+    {% if lista.fecha_vigencia_hasta %}
+    <div class="info-card">
+      <div class="label">Vigente hasta</div>
+      <div class="value">{{ lista.fecha_vigencia_hasta | fecha_ar }}</div>
+    </div>
+    {% endif %}
+    <div class="info-card">
+      <div class="label">Productos</div>
+      <div class="value">{{ total_items }}</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Emitida</div>
+      <div class="value">{{ generado_at }}</div>
+    </div>
+  </div>
+
+  {% if lista.descripcion %}
+  <div class="descripcion-box">
+    {{ lista.descripcion }}
+  </div>
+  {% endif %}
+
+  <!-- ============ PRECIOS POR CATEGORIA ============ -->
+  {% if grupos %}
+    {% for grupo in grupos %}
+      <div class="categoria-header">
+        {{ grupo.categoria_label }}
+        <span class="count">{{ grupo.items | length }} ítem{% if grupo.items | length != 1 %}s{% endif %}</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 90px;">Código</th>
+            <th>Producto</th>
+            <th class="text-right" style="width: 90px;">Peso Prom.</th>
+            <th class="text-right" style="width: 120px;">Precio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in grupo.items %}
+            <tr>
+              <td class="codigo">{{ item.codigo }}</td>
+              <td>
+                <span class="producto-nombre">{{ item.nombre }}</span>
+                {% if item.descripcion %}<span class="producto-desc">{{ item.descripcion }}</span>{% endif %}
+              </td>
+              <td class="text-right peso">
+                {% if item.peso_promedio_kg %}{{ item.peso_promedio_kg }} kg{% else %}—{% endif %}
+              </td>
+              <td class="precio">{{ item.precio | moneda }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      Esta lista aún no tiene productos con precio asignado.
+    </div>
+  {% endif %}
+
+  <!-- ============ FOOTER ============ -->
+  <div class="footer">
+    Los precios son informativos y pueden estar sujetos a modificaciones sin previo aviso.<br>
+    Para consultas: {{ empresa.email }}<br>
+    <span class="logo-mini">DUWHITE</span> — Lavadero Industrial · {{ empresa.direccion }}
+  </div>
+
+</body>
+</html>

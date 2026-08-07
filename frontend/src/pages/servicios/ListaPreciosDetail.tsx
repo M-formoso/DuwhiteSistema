@@ -13,6 +13,8 @@ import {
   DollarSign,
   Tag,
   Scale,
+  FileDown,
+  Loader2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -83,6 +85,7 @@ export default function ListaPreciosDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [precioEditar, setPrecioEditar] = useState<PrecioConProducto | null>(null);
   const [precioEliminar, setPrecioEliminar] = useState<PrecioConProducto | null>(null);
+  const [descargandoPdf, setDescargandoPdf] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -196,6 +199,20 @@ export default function ListaPreciosDetail() {
     }
   };
 
+  const handleDescargarPdf = async () => {
+    if (!id || !lista) return;
+    try {
+      setDescargandoPdf(true);
+      const slug = (lista.codigo || 'lista').trim().replace(/\s+/g, '_');
+      await listaPreciosService.descargarPdf(id, `lista_precios_${slug}.pdf`);
+      toast.success('PDF descargado correctamente');
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Error al descargar el PDF');
+    } finally {
+      setDescargandoPdf(false);
+    }
+  };
+
   const getCategoriaLabel = (categoria: string) => {
     return CATEGORIAS_PRODUCTO_LAVADO.find((c) => c.value === categoria)?.label || categoria;
   };
@@ -248,6 +265,19 @@ export default function ListaPreciosDetail() {
             {lista.codigo} - {lista.es_lista_base ? 'Lista Base' : 'Lista Derivada'}
           </p>
         </div>
+        <Button
+          variant="outline"
+          onClick={handleDescargarPdf}
+          disabled={descargandoPdf || precios.length === 0}
+          title={precios.length === 0 ? 'Agregá productos a la lista antes de descargarla' : 'Descargar lista en PDF'}
+        >
+          {descargandoPdf ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <FileDown className="h-4 w-4 mr-2" />
+          )}
+          Descargar PDF
+        </Button>
       </div>
 
       {/* Info de la lista */}
