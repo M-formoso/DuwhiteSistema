@@ -111,7 +111,8 @@ export default function ClienteCuentaCorrientePage() {
 
   // Estados del modal de edición de movimiento
   const [editandoMovimientoId, setEditandoMovimientoId] = useState<string | null>(null);
-  const [editandoTipo, setEditandoTipo] = useState<'ajuste' | 'pago' | null>(null);
+  const [editandoTipo, setEditandoTipo] = useState<'ajuste' | 'pago' | 'cargo' | null>(null);
+  const [editandoMovOriginal, setEditandoMovOriginal] = useState<any | null>(null);
   const [editDireccion, setEditDireccion] = useState<'aumentar' | 'disminuir'>('disminuir');
   const [editMonto, setEditMonto] = useState('');
   const [editConcepto, setEditConcepto] = useState('');
@@ -123,6 +124,7 @@ export default function ClienteCuentaCorrientePage() {
   const [movimientoAEliminar, setMovimientoAEliminar] = useState<any | null>(null);
   const [remitoAEliminar, setRemitoAEliminar] = useState<any | null>(null);
   const [mesesAbiertos, setMesesAbiertos] = useState<Set<string>>(new Set());
+  const [tabActivo, setTabActivo] = useState<'activos' | 'eliminados'>('activos');
 
   const usuarioActual = useAuthStore((s) => s.user);
   const puedeEliminarRemito =
@@ -183,6 +185,14 @@ export default function ClienteCuentaCorrientePage() {
         fecha_hasta: fechaHasta || undefined,
       }),
     enabled: Boolean(id),
+  });
+
+  // Query de movimientos eliminados (solo cuando se activa el tab).
+  const { data: eliminadosData, isLoading: loadingEliminados } = useQuery({
+    queryKey: ['cliente-movimientos-eliminados', id],
+    queryFn: () =>
+      clienteService.getMovimientosEliminados(id!, { limit: 200 }),
+    enabled: Boolean(id) && tabActivo === 'eliminados' && puedeEliminarRemito,
   });
 
   // Query pedidos pendientes del cliente (para asociar cobranza)
@@ -353,8 +363,17 @@ export default function ClienteCuentaCorrientePage() {
   const abrirModalEditar = (mov: any) => {
     const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
     setEditandoMovimientoId(mov.id);
-    setEditandoTipo(mov.tipo === 'pago' ? 'pago' : 'ajuste');
-    setEditDireccion(mov.tipo === 'pago' ? 'disminuir' : (delta >= 0 ? 'aumentar' : 'disminuir'));
+    if (mov.tipo === 'pago') {
+      setEditandoTipo('pago');
+      setEditDireccion('disminuir');
+    } else if (mov.tipo === 'cargo') {
+      setEditandoTipo('cargo');
+      setEditDireccion('aumentar');
+    } else {
+      setEditandoTipo('ajuste');
+      setEditDireccion(delta >= 0 ? 'aumentar' : 'disminuir');
+    }
+    setEditandoMovOriginal(mov);
     setEditMonto(String(mov.monto));
     setEditConcepto(mov.concepto || '');
     setEditFecha((mov.fecha_movimiento || '').slice(0, 10));
@@ -364,6 +383,7 @@ export default function ClienteCuentaCorrientePage() {
   const cerrarModalEditar = () => {
     setEditandoMovimientoId(null);
     setEditandoTipo(null);
+    setEditandoMovOriginal(null);
     setEditMonto('');
     setEditConcepto('');
     setEditNotas('');
@@ -386,13 +406,14 @@ export default function ClienteCuentaCorrientePage() {
     });
   };
 
-  // Mutation para eliminar un movimiento tipo AJUSTE
+  // Mutation para eliminar un movimiento tipo AJUSTE, PAGO o CARGO
   const eliminarMutation = useMutation({
     mutationFn: (movimientoId: string) => clienteService.eliminarAjuste(id!, movimientoId),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['cliente', id] });
       queryClient.invalidateQueries({ queryKey: ['cliente-estado-cuenta', id] });
       queryClient.invalidateQueries({ queryKey: ['cliente-movimientos', id] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-movimientos-eliminados', id] });
       queryClient.invalidateQueries({ queryKey: ['cc-clientes-deuda'] });
       queryClient.invalidateQueries({ queryKey: ['cc-clientes-resumen'] });
       toast({
@@ -912,7 +933,21 @@ export default function ClienteCuentaCorrientePage() {
         </CardContent>
       </Card>
 
-      {/* Tabla de movimientos */}
+      {/* Tabla de movimientos con tabs (Activos / Eliminados) */}
+      <Tabs value={tabActivo} onValueChange={(v) => setTabActivo(v as 'activos' | 'eliminados')}>
+        <TabsList>
+          <TabsTrigger value="activos">Movimientos</TabsTrigger>
+          {puedeEliminarRemito && (
+            <TabsTrigger value="eliminados">
+              Eliminados
+              {eliminadosData?.total ? (
+                <Badge variant="secondary" className="ml-2">{eliminadosData.total}</Badge>
+              ) : null}
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="activos" className="mt-4">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1021,13 +1056,20 @@ export default function ClienteCuentaCorrientePage() {
                                     >
                                       <Eye className="h-4 w-4 text-gray-500" />
                                     </Button>
-                                    {(mov.tipo === 'ajuste' || mov.tipo === 'pago') && (
+                                    {(mov.tipo === 'ajuste' || mov.tipo === 'pago' ||
+                                      (mov.tipo === 'cargo' && puedeEliminarRemito)) && (
                                       <>
                                         <Button
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => abrirModalEditar(mov)}
-                                          title={mov.tipo === 'pago' ? 'Editar pago' : 'Editar ajuste'}
+                                          title={
+                                            mov.tipo === 'pago'
+                                              ? 'Editar pago'
+                                              : mov.tipo === 'cargo'
+                                                ? 'Editar cargo'
+                                                : 'Editar ajuste'
+                                          }
                                         >
                                           <Pencil className="h-4 w-4 text-gray-500" />
                                         </Button>
@@ -1035,24 +1077,18 @@ export default function ClienteCuentaCorrientePage() {
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => setMovimientoAEliminar(mov)}
-                                          title={mov.tipo === 'pago' ? 'Eliminar pago' : 'Eliminar ajuste'}
+                                          title={
+                                            mov.tipo === 'pago'
+                                              ? 'Eliminar pago'
+                                              : mov.tipo === 'cargo'
+                                                ? 'Eliminar cargo (y remito)'
+                                                : 'Eliminar ajuste'
+                                          }
                                         >
                                           <Trash2 className="h-4 w-4 text-red-500" />
                                         </Button>
                                       </>
                                     )}
-                                    {mov.tipo === 'cargo' &&
-                                      puedeEliminarRemito &&
-                                      mov.remito?.numero && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => setRemitoAEliminar(mov)}
-                                          title="Eliminar remito"
-                                        >
-                                          <Trash2 className="h-4 w-4 text-red-500" />
-                                        </Button>
-                                      )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1107,6 +1143,86 @@ export default function ClienteCuentaCorrientePage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {puedeEliminarRemito && (
+          <TabsContent value="eliminados" className="mt-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Trash2 className="h-5 w-5 text-red-500" />
+                    Movimientos eliminados
+                  </CardTitle>
+                  <span className="text-sm text-gray-500">
+                    {eliminadosData?.total || 0} eliminados
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingEliminados ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : !eliminadosData?.items?.length ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Trash2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>No hay movimientos eliminados</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[100px]">Fecha</TableHead>
+                          <TableHead className="w-[100px]">Tipo</TableHead>
+                          <TableHead>Concepto</TableHead>
+                          <TableHead>Comprobante</TableHead>
+                          <TableHead className="text-right">Monto</TableHead>
+                          <TableHead className="w-[80px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {eliminadosData.items.map((mov: any) => (
+                          <TableRow key={mov.id} className="opacity-70">
+                            <TableCell className="font-mono text-sm">
+                              {formatDate(mov.fecha_movimiento)}
+                            </TableCell>
+                            <TableCell>{getTipoBadge(mov.tipo)}</TableCell>
+                            <TableCell className="line-through text-gray-600" title={mov.concepto}>
+                              {mov.concepto}
+                            </TableCell>
+                            <TableCell className="text-gray-500 text-sm">
+                              {mov.remito?.numero ||
+                                mov.factura?.numero_completo ||
+                                mov.factura_numero ||
+                                mov.recibo_numero ||
+                                '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatNumber(mov.monto, 'currency')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setMovimientoDetalle(mov)}
+                                title="Ver detalle"
+                              >
+                                <Eye className="h-4 w-4 text-gray-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
 
       {/* Modal de Detalle de Movimiento */}
       {movimientoDetalle && (
@@ -1427,12 +1543,20 @@ export default function ClienteCuentaCorrientePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-600">
                 <AlertTriangle className="h-5 w-5" />
-                {movimientoAEliminar.tipo === 'pago' ? 'Eliminar Pago' : 'Eliminar Ajuste'}
+                {movimientoAEliminar.tipo === 'pago'
+                  ? 'Eliminar Pago'
+                  : movimientoAEliminar.tipo === 'cargo'
+                    ? 'Eliminar Cargo'
+                    : 'Eliminar Ajuste'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm">
-                ¿Confirmás eliminar este {movimientoAEliminar.tipo === 'pago' ? 'pago' : 'ajuste'}? Esta acción no se puede deshacer.
+                ¿Confirmás eliminar este {movimientoAEliminar.tipo === 'pago'
+                  ? 'pago'
+                  : movimientoAEliminar.tipo === 'cargo'
+                    ? 'cargo'
+                    : 'ajuste'}? Esta acción no se puede deshacer.
               </p>
 
               <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-1">
@@ -1457,6 +1581,9 @@ export default function ClienteCuentaCorrientePage() {
                 automáticamente.
                 {movimientoAEliminar.tipo === 'pago' && (
                   <> No se revierten movimientos de tesorería, caja ni cheques asociados: ajustalos manualmente si corresponde.</>
+                )}
+                {movimientoAEliminar.tipo === 'cargo' && movimientoAEliminar.remito?.numero && (
+                  <> También se elimina el remito <strong>{movimientoAEliminar.remito.numero}</strong> del cliente.</>
                 )}
               </div>
 
@@ -1493,7 +1620,11 @@ export default function ClienteCuentaCorrientePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Pencil className="h-5 w-5" />
-                {editandoTipo === 'pago' ? 'Editar Pago' : 'Editar Ajuste'}
+                {editandoTipo === 'pago'
+                  ? 'Editar Pago'
+                  : editandoTipo === 'cargo'
+                    ? 'Editar Cargo'
+                    : 'Editar Ajuste'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1503,9 +1634,12 @@ export default function ClienteCuentaCorrientePage() {
                 {editandoTipo === 'pago' && (
                   <> No se actualizan movimientos de tesorería, caja ni cheques asociados.</>
                 )}
+                {editandoTipo === 'cargo' && editandoMovOriginal?.remito?.numero && (
+                  <> Este cargo proviene del remito <strong>{editandoMovOriginal.remito.numero}</strong>: editar el monto NO modifica el remito ni sus productos, sólo el movimiento en cuenta corriente.</>
+                )}
               </div>
 
-              {editandoTipo !== 'pago' && (
+              {editandoTipo === 'ajuste' && (
                 <div className="space-y-2">
                   <Label>Tipo de ajuste *</Label>
                   <div className="grid grid-cols-2 gap-2">

@@ -440,6 +440,52 @@ def listar_movimientos_cliente(
     }
 
 
+@router.get("/{cliente_id}/movimientos-eliminados", response_model=PaginatedResponse)
+def listar_movimientos_eliminados(
+    cliente_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    tipo: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """Lista movimientos eliminados (activo=False) de un cliente."""
+    service = ClienteService(db)
+    cliente = service.get_cliente(cliente_id)
+    if not cliente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente no encontrado",
+        )
+
+    from app.models.cuenta_corriente import MovimientoCuentaCorriente
+
+    query = db.query(MovimientoCuentaCorriente).filter(
+        MovimientoCuentaCorriente.cliente_id == cliente_id,
+        MovimientoCuentaCorriente.activo == False,
+    )
+    if tipo:
+        query = query.filter(MovimientoCuentaCorriente.tipo == tipo)
+
+    total = query.count()
+    movimientos = (
+        query.order_by(MovimientoCuentaCorriente.updated_at.desc().nullslast(),
+                       MovimientoCuentaCorriente.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    items = [_serializar_movimiento(m, db) for m in movimientos]
+
+    return {
+        "items": items,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
+
+
 @router.get("/{cliente_id}/estado-cuenta")
 def obtener_estado_cuenta_cliente(
     cliente_id: str,
@@ -583,10 +629,11 @@ def editar_movimiento_ajuste(
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
 ):
     """
-    Edita un movimiento tipo AJUSTE ya cargado.
+    Edita un movimiento tipo AJUSTE, PAGO o CARGO.
 
-    Solo AJUSTES son editables. Al cambiar monto/direccion, los saldos
-    posteriores del cliente se recalculan automáticamente.
+    Al cambiar monto/dirección, los saldos posteriores del cliente se
+    recalculan automáticamente. Editar un CARGO no modifica el remito ni
+    sus detalles; solo el movimiento en cuenta corriente.
     """
     service = ClienteService(db)
 
@@ -627,8 +674,9 @@ def eliminar_movimiento_ajuste(
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
 ):
     """
-    Elimina un movimiento tipo AJUSTE y recalcula los saldos posteriores
-    del cliente. Solo se permiten AJUSTES.
+    Elimina (soft delete) un movimiento tipo AJUSTE, PAGO o CARGO y
+    recalcula los saldos posteriores del cliente. Si es CARGO con remito
+    asociado, también soft-deletea el remito.
     """
     from app.models.cuenta_corriente import MovimientoCuentaCorriente
 

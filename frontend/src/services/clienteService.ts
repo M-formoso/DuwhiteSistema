@@ -178,6 +178,21 @@ export async function eliminarAjuste(
   return response.data;
 }
 
+export async function getMovimientosEliminados(
+  clienteId: string,
+  params?: {
+    skip?: number;
+    limit?: number;
+    tipo?: 'cargo' | 'pago' | 'ajuste';
+  }
+): Promise<PaginatedResponse<MovimientoCuentaCorriente>> {
+  const response = await api.get(
+    `/clientes/cuenta-corriente/${clienteId}/movimientos-eliminados`,
+    { params }
+  );
+  return response.data;
+}
+
 // ==================== PEDIDOS ====================
 
 export async function getPedidos(params?: {
@@ -254,6 +269,7 @@ export const clienteService = {
   // Cuenta Corriente
   getEstadoCuenta,
   getMovimientosCuenta,
+  getMovimientosEliminados,
   abrirEstadoCuentaPdf,
   registrarPago,
   registrarAjuste,

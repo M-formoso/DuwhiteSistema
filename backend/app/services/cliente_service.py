@@ -557,26 +557,32 @@ class ClienteService:
         notas: Optional[str] = None,
     ) -> MovimientoCuentaCorriente:
         """
-        Edita un movimiento tipo AJUSTE o PAGO.
+        Edita un movimiento tipo AJUSTE, PAGO o CARGO.
 
         Si cambia el monto/dirección, recalcula saldo_anterior/posterior de este
         movimiento y de todos los movimientos POSTERIORES del mismo cliente
         (ordenados por created_at), y actualiza el saldo del cliente.
 
-        Para PAGO la dirección queda forzada a 'disminuir' (siempre baja el
-        saldo del cliente). Editar un pago acá NO revierte ni actualiza
-        movimientos de tesorería, cajas o cheques vinculados.
-        Los cargos por remito no son editables por esta vía.
+        - PAGO: dirección forzada a 'disminuir'. NO revierte movimientos de
+          tesorería/cajas/cheques vinculados.
+        - CARGO: dirección forzada a 'aumentar'. NO modifica el remito ni sus
+          detalles (productos, cantidades). Solo actualiza el movimiento CC.
         """
         movimiento = self.db.query(MovimientoCuentaCorriente).filter(
             MovimientoCuentaCorriente.id == movimiento_id
         ).first()
         if not movimiento:
             raise ValueError("Movimiento no encontrado")
-        if movimiento.tipo not in (TipoMovimientoCC.AJUSTE.value, TipoMovimientoCC.PAGO.value):
-            raise ValueError("Solo se pueden editar movimientos de tipo AJUSTE o PAGO")
+        if movimiento.tipo not in (
+            TipoMovimientoCC.AJUSTE.value,
+            TipoMovimientoCC.PAGO.value,
+            TipoMovimientoCC.CARGO.value,
+        ):
+            raise ValueError("Tipo de movimiento no editable")
         if movimiento.tipo == TipoMovimientoCC.PAGO.value:
             direccion = "disminuir"
+        elif movimiento.tipo == TipoMovimientoCC.CARGO.value:
+            direccion = "aumentar"
 
         cliente = self.get_cliente(str(movimiento.cliente_id))
         if not cliente:
@@ -643,21 +649,30 @@ class ClienteService:
 
     def eliminar_ajuste(self, movimiento_id: str) -> dict:
         """
-        Elimina un movimiento tipo AJUSTE o PAGO y recalcula los saldos
-        posteriores del cliente. Devuelve un dict con info del cliente + nuevo
-        saldo.
+        Elimina (soft delete: activo=False) un movimiento tipo AJUSTE, PAGO o
+        CARGO y recalcula saldos posteriores del cliente. Devuelve un dict con
+        info del cliente + nuevo saldo.
 
-        Al eliminar un PAGO no se revierten movimientos de tesorería/caja ni
-        se anulan cheques asociados; solo se saca el registro de la CC y se
-        recalculan saldos. Los cargos por remito no se eliminan por esta vía.
+        Notas:
+        - PAGO: no revierte movimientos de tesorería/caja ni anula cheques.
+        - CARGO: si tiene remito asociado, lo soft-deletea también (activo=False).
+          Los cargos por remito quedan registrados en LogActividad para la
+          solapa "Eliminados" solo si se usa el endpoint DELETE /remitos/{id};
+          esta vía solo revierte el impacto en CC.
         """
         movimiento = self.db.query(MovimientoCuentaCorriente).filter(
             MovimientoCuentaCorriente.id == movimiento_id
         ).first()
         if not movimiento:
             raise ValueError("Movimiento no encontrado")
-        if movimiento.tipo not in (TipoMovimientoCC.AJUSTE.value, TipoMovimientoCC.PAGO.value):
-            raise ValueError("Solo se pueden eliminar movimientos de tipo AJUSTE o PAGO")
+        if movimiento.tipo not in (
+            TipoMovimientoCC.AJUSTE.value,
+            TipoMovimientoCC.PAGO.value,
+            TipoMovimientoCC.CARGO.value,
+        ):
+            raise ValueError("Tipo de movimiento no eliminable")
+        if not movimiento.activo:
+            raise ValueError("El movimiento ya está eliminado")
 
         cliente = self.get_cliente(str(movimiento.cliente_id))
         if not cliente:
@@ -671,6 +686,7 @@ class ClienteService:
             .filter(
                 MovimientoCuentaCorriente.cliente_id == cliente_id,
                 MovimientoCuentaCorriente.created_at > movimiento.created_at,
+                MovimientoCuentaCorriente.activo == True,
             )
             .order_by(MovimientoCuentaCorriente.created_at.asc())
             .all()
@@ -685,7 +701,20 @@ class ClienteService:
             saldo_running = mov_post.saldo_posterior
 
         cliente.saldo_cuenta_corriente = saldo_running
-        self.db.delete(movimiento)
+        movimiento.activo = False
+
+        # Si es cargo con remito asociado, soft-delete del remito también.
+        if movimiento.tipo == TipoMovimientoCC.CARGO.value:
+            from app.models.remito import Remito
+
+            remito = (
+                self.db.query(Remito)
+                .filter(Remito.movimiento_cc_id == movimiento.id)
+                .first()
+            )
+            if remito and remito.activo:
+                remito.activo = False
+
         self.db.commit()
 
         return {
