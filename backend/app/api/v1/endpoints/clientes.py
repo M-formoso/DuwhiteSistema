@@ -422,23 +422,10 @@ def listar_movimientos_cuenta(
         fecha_hasta=fecha_hasta,
     )
 
+    from app.api.v1.endpoints.cuenta_corriente_cliente import _serializar_movimiento
+
     return {
-        "items": [
-            {
-                "id": str(m.id),
-                "tipo": m.tipo,
-                "concepto": m.concepto,
-                "monto": m.monto,
-                "fecha_movimiento": m.fecha_movimiento,
-                "saldo_anterior": m.saldo_anterior,
-                "saldo_posterior": m.saldo_posterior,
-                "factura_numero": m.factura_numero,
-                "recibo_numero": m.recibo_numero,
-                "medio_pago": m.medio_pago,
-                "referencia_pago": m.referencia_pago,
-            }
-            for m in movimientos
-        ],
+        "items": [_serializar_movimiento(m, db) for m in movimientos],
         "total": total,
         "skip": skip,
         "limit": limit,
