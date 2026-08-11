@@ -1345,6 +1345,14 @@ class ClienteService:
             "fecha_hasta": fecha_hasta.isoformat() if fecha_hasta else None,
             # Resumen del mes en curso (independiente del filtro)
             "deuda_vencida": deuda_vencida,
+            # BRUTO: suma de cargos + ajustes positivos del mes, SIN restar
+            # pagos ni crédito previo. Es lo que debe verse en la card
+            # "Consumo del mes" — refleja lo consumido en el período,
+            # independientemente de si el cliente pagó adelantado.
+            "consumo_mes_bruto": consumo_mes_bruto,
+            # NETO: consumo del mes después de aplicar pagos y crédito
+            # previo. Se usa para mantener el invariante
+            # deuda_vencida + consumo_mes_actual = total_adeudado.
             "consumo_mes_actual": consumo_mes_actual,
             "total_adeudado": total_adeudado,
             "mes_actual_desde": primer_dia_mes.isoformat(),

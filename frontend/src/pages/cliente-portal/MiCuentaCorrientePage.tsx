@@ -232,9 +232,11 @@ export default function MiCuentaCorrientePage() {
               <div>
                 <p className="text-sm text-muted-foreground">Consumo del mes</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(estadoCuenta?.consumo_mes_actual || 0)}
+                  {formatCurrency(
+                    estadoCuenta?.consumo_mes_bruto ?? estadoCuenta?.consumo_mes_actual ?? 0,
+                  )}
                 </p>
-                <p className="text-xs text-gray-500">Cargos del 1° a hoy</p>
+                <p className="text-xs text-gray-500">Total de cargos del 1° a hoy</p>
               </div>
             </div>
           </CardContent>

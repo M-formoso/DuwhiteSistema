@@ -783,10 +783,13 @@ export default function ClienteCuentaCorrientePage() {
               <div>
                 <p className="text-sm text-gray-500">Consumo del mes</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {formatNumber(estadoCuenta?.consumo_mes_actual || 0, 'currency')}
+                  {formatNumber(
+                    estadoCuenta?.consumo_mes_bruto ?? estadoCuenta?.consumo_mes_actual ?? 0,
+                    'currency',
+                  )}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Cargos del 1° a hoy (neto de pagos)
+                  Total de cargos del 1° a hoy
                 </p>
               </div>
               <CalendarRange className="h-10 w-10 text-blue-200" />

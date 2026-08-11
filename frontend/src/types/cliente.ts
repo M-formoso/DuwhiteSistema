@@ -255,6 +255,9 @@ export interface EstadoCuenta {
   factura_mas_antigua_dias: number | null;
   // Resumen del mes en curso (independiente del filtro de fechas)
   deuda_vencida?: number;
+  /** Consumo BRUTO del mes (cargos + ajustes positivos), sin restar pagos. */
+  consumo_mes_bruto?: number;
+  /** Consumo NETO del mes (bruto menos pagos y crédito previo). */
   consumo_mes_actual?: number;
   total_adeudado?: number;
   mes_actual_desde?: string;
