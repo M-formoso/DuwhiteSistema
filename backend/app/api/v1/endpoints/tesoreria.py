@@ -3,13 +3,21 @@ Endpoints de Tesorería.
 """
 
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, File, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, get_current_user, require_permission
+from app.core.storage import (
+    abrir_archivo_cheque,
+    content_type_por_extension,
+    eliminar_archivo,
+    guardar_archivo_cheque,
+)
 from app.models.usuario import Usuario
 from app.services.tesoreria_service import TesoreriaService
 from app.schemas.tesoreria import (
@@ -463,3 +471,180 @@ def anular_movimiento(
         )
 
     return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
+
+
+# ==================== ENDPOINT UNIFICADO: MOVIMIENTO + CHEQUE ====================
+
+def _uuid_opt(valor: Optional[str], campo: str) -> Optional[UUID]:
+    if not valor or valor in ("", "null", "undefined"):
+        return None
+    try:
+        return UUID(valor)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{campo} inválido: debe ser un UUID válido",
+        )
+
+
+def _date_req(valor: str, campo: str) -> date:
+    try:
+        return date.fromisoformat(valor)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{campo}: fecha inválida. Formato esperado: AAAA-MM-DD",
+        )
+
+
+def _date_opt(valor: Optional[str], campo: str) -> Optional[date]:
+    if not valor:
+        return None
+    return _date_req(valor, campo)
+
+
+def _decimal_req(valor: str, campo: str) -> Decimal:
+    try:
+        d = Decimal(str(valor).replace(",", "."))
+    except (InvalidOperation, ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{campo}: número inválido",
+        )
+    if d <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{campo} debe ser mayor a cero",
+        )
+    return d
+
+
+@router.post(
+    "/movimientos-con-cheque",
+    response_model=MovimientoTesoreriaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_movimiento_con_cheque(
+    # Datos del movimiento
+    tipo: str = Form(..., description="ingreso_cheque | egreso_cheque"),
+    concepto: str = Form(..., min_length=3, max_length=200),
+    monto: str = Form(...),
+    es_ingreso: bool = Form(True),
+    fecha_movimiento: str = Form(...),
+    notas: Optional[str] = Form(None),
+    cliente_id: Optional[str] = Form(None),
+    proveedor_id: Optional[str] = Form(None),
+    # Datos del cheque
+    cheque_numero: str = Form(..., min_length=1, max_length=50),
+    cheque_tipo: str = Form("fisico", description="fisico | echeq"),
+    cheque_origen: str = Form("recibido_cliente"),
+    cheque_banco_origen: Optional[str] = Form(None, max_length=100),
+    cheque_fecha_emision: Optional[str] = Form(None),
+    cheque_fecha_vencimiento: str = Form(...),
+    cheque_librador: Optional[str] = Form(None, max_length=200),
+    cheque_cuit_librador: Optional[str] = Form(None, max_length=15),
+    # Adjunto opcional
+    imagen: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """
+    Endpoint unificado que crea un Cheque + un MovimientoTesoreria vinculado
+    en una sola operación. Acepta multipart/form-data para poder recibir el
+    archivo (imagen o PDF) del cheque.
+    """
+    # ---- Parseo y validación de tipos ----
+    monto_dec = _decimal_req(monto, "Monto")
+    fecha_mov = _date_req(fecha_movimiento, "Fecha del movimiento")
+    fecha_emi = _date_opt(cheque_fecha_emision, "Fecha de emisión del cheque")
+    fecha_venc = _date_req(cheque_fecha_vencimiento, "Fecha de vencimiento del cheque")
+    cliente_uuid = _uuid_opt(cliente_id, "cliente_id")
+    proveedor_uuid = _uuid_opt(proveedor_id, "proveedor_id")
+
+    # ---- Validaciones de negocio ----
+    MIN_ANIO, MAX_ANIO = 2000, 2100
+    for etiqueta, f in (
+        ("Fecha de emisión del cheque", fecha_emi),
+        ("Fecha de vencimiento del cheque", fecha_venc),
+    ):
+        if f and not (MIN_ANIO <= f.year <= MAX_ANIO):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{etiqueta} inválida: el año debe estar entre {MIN_ANIO} y {MAX_ANIO}",
+            )
+    if fecha_emi and fecha_venc and fecha_emi > fecha_venc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La fecha de emisión del cheque no puede ser posterior a la fecha de vencimiento",
+        )
+
+    if cheque_origen == "recibido_cliente" and not cliente_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Los cheques recibidos de cliente deben tener un cliente asociado",
+        )
+
+    # ---- Guardar imagen (antes de tocar BD) ----
+    imagen_url: Optional[str] = None
+    if imagen is not None and (imagen.filename or "").strip():
+        imagen_url = guardar_archivo_cheque(imagen)
+
+    # ---- Crear Cheque + Movimiento en transacción ----
+    service = TesoreriaService(db)
+    try:
+        cheque, movimiento = service.create_movimiento_con_cheque(
+            usuario_id=current_user.id,
+            # Movimiento
+            tipo=tipo,
+            concepto=concepto.strip(),
+            monto=monto_dec,
+            es_ingreso=es_ingreso,
+            fecha_movimiento=fecha_mov,
+            notas=notas,
+            cliente_id=cliente_uuid,
+            proveedor_id=proveedor_uuid,
+            # Cheque
+            cheque_numero=cheque_numero.strip(),
+            cheque_tipo=cheque_tipo,
+            cheque_origen=cheque_origen,
+            cheque_banco_origen=cheque_banco_origen,
+            cheque_fecha_emision=fecha_emi,
+            cheque_fecha_vencimiento=fecha_venc,
+            cheque_librador=cheque_librador,
+            cheque_cuit_librador=cheque_cuit_librador,
+            imagen_url=imagen_url,
+        )
+    except ValueError as e:
+        # Si algo falla, borrar la imagen recién guardada para no dejar huérfanos.
+        eliminar_archivo(imagen_url)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception:
+        eliminar_archivo(imagen_url)
+        raise
+
+    return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
+
+
+@router.get("/cheques/{cheque_id}/imagen")
+def get_imagen_cheque(
+    cheque_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Devuelve la imagen o PDF adjunto a un cheque."""
+    service = TesoreriaService(db)
+    cheque = service.get_cheque(cheque_id)
+    if not cheque:
+        raise HTTPException(status_code=404, detail="Cheque no encontrado")
+    if not cheque.imagen_url:
+        raise HTTPException(status_code=404, detail="El cheque no tiene imagen adjunta")
+
+    ruta = abrir_archivo_cheque(cheque.imagen_url)
+    return FileResponse(
+        path=str(ruta),
+        media_type=content_type_por_extension(ruta),
+        filename=f"cheque-{cheque.numero}{ruta.suffix}",
+    )

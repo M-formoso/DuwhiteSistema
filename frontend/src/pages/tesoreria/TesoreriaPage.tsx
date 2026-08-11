@@ -52,6 +52,7 @@ import { clienteService } from '@/services/clienteService';
 import { proveedorService } from '@/services/proveedorService';
 import { finanzasService } from '@/services/finanzasService';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
+import { toastApiError } from '@/utils/apiErrors';
 import {
   TIPOS_CHEQUE,
   ORIGENES_CHEQUE,
@@ -70,6 +71,31 @@ import type {
 } from '@/types/tesoreria';
 import type { CuentaBancaria } from '@/types/finanzas';
 import { TIPOS_CUENTA_BANCARIA, MONEDAS } from '@/types/finanzas';
+
+// Rango razonable de años para fechas de cheques (protege contra tipeos
+// como "0026-02-31" o años absurdamente futuros).
+const CHEQUE_ANIO_MIN = 2000;
+const CHEQUE_ANIO_MAX = 2100;
+
+/**
+ * Valida una fecha YYYY-MM-DD proveniente de <input type="date">.
+ * Devuelve mensaje específico o null si es válida.
+ */
+function validarFechaCheque(valor: string, etiqueta: string): string | null {
+  if (!valor) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+  if (!m) return `${etiqueta}: formato inválido, use DD/MM/AAAA.`;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(year, month - 1, day);
+  const real = d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+  if (!real) {
+    return `${etiqueta}: ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year} no existe en el calendario.`;
+  }
+  if (year < CHEQUE_ANIO_MIN || year > CHEQUE_ANIO_MAX) {
+    return `${etiqueta}: el año debe estar entre ${CHEQUE_ANIO_MIN} y ${CHEQUE_ANIO_MAX}.`;
+  }
+  return null;
+}
 
 export default function TesoreriaPage() {
   const queryClient = useQueryClient();
@@ -146,6 +172,17 @@ export default function TesoreriaPage() {
     cliente_id: null,
     proveedor_id: null,
   });
+
+  // Datos del cheque dentro del modal de movimiento (cuando metodo_pago = 'cheque').
+  // Reemplazan al viejo modal "Nuevo Cheque" separado.
+  const [movChequeNumero, setMovChequeNumero] = useState('');
+  const [movChequeTipo, setMovChequeTipo] = useState<'fisico' | 'echeq'>('fisico');
+  const [movChequeBanco, setMovChequeBanco] = useState('');
+  const [movChequeFechaEmision, setMovChequeFechaEmision] = useState('');
+  const [movChequeFechaVencimiento, setMovChequeFechaVencimiento] = useState('');
+  const [movChequeLibrador, setMovChequeLibrador] = useState('');
+  const [movChequeCuitLibrador, setMovChequeCuitLibrador] = useState('');
+  const [movChequeImagen, setMovChequeImagen] = useState<File | null>(null);
 
   // Form acción cheque
   const [accionForm, setAccionForm] = useState({
@@ -245,32 +282,6 @@ export default function TesoreriaPage() {
   const saldoCaja = Number(cajaActual?.saldo_calculado || 0);
 
   // Mutations
-  const crearChequeMutation = useMutation({
-    mutationFn: (data: ChequeCreate) => tesoreriaService.cheques.crearCheque(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      // Invalidar cuenta corriente del cliente (se imputa automáticamente)
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
-      toast({
-        title: 'Cheque registrado correctamente',
-        description: chequeForm.origen === 'recibido_cliente'
-          ? 'El pago fue imputado automáticamente a la cuenta corriente del cliente'
-          : undefined,
-      });
-      setShowChequeModal(false);
-      resetChequeForm();
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo registrar el cheque',
-        variant: 'destructive',
-      });
-    },
-  });
-
   const crearMovimientoMutation = useMutation({
     mutationFn: (data: MovimientoTesoreriaCreate) =>
       tesoreriaService.movimientos.crearMovimiento(data),
@@ -281,13 +292,30 @@ export default function TesoreriaPage() {
       setShowMovimientoModal(false);
       resetMovimientoForm();
     },
-    onError: (error: any) => {
+    onError: (err) => toastApiError(toast, err, 'No se pudo registrar el movimiento'),
+  });
+
+  // Endpoint unificado: crea Cheque + MovimientoTesoreria en un solo paso.
+  const crearMovimientoConChequeMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof tesoreriaService.movimientos.crearMovimientoConCheque>[0]) =>
+      tesoreriaService.movimientos.crearMovimientoConCheque(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
       toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo registrar el movimiento',
-        variant: 'destructive',
+        title: 'Movimiento y cheque registrados',
+        description: movimientoForm.cliente_id
+          ? 'El cheque se imputó como pago en la cuenta corriente del cliente.'
+          : undefined,
       });
+      setShowMovimientoModal(false);
+      resetMovimientoForm();
     },
+    onError: (err) =>
+      toastApiError(toast, err, 'No se pudo registrar el movimiento con cheque'),
   });
 
   const depositarChequeMutation = useMutation({
@@ -299,13 +327,7 @@ export default function TesoreriaPage() {
       toast({ title: 'Cheque depositado correctamente' });
       cerrarAccionModal();
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo depositar el cheque',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo depositar el cheque'),
   });
 
   const cobrarChequeMutation = useMutation({
@@ -317,13 +339,7 @@ export default function TesoreriaPage() {
       toast({ title: 'Cheque cobrado correctamente' });
       cerrarAccionModal();
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo marcar como cobrado',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo marcar como cobrado'),
   });
 
   const rechazarChequeMutation = useMutation({
@@ -343,13 +359,7 @@ export default function TesoreriaPage() {
       });
       cerrarAccionModal();
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo rechazar el cheque',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo rechazar el cheque'),
   });
 
   const entregarChequeMutation = useMutation({
@@ -361,13 +371,7 @@ export default function TesoreriaPage() {
       toast({ title: 'Cheque entregado correctamente' });
       cerrarAccionModal();
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo entregar el cheque',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo entregar el cheque'),
   });
 
   const anularMovimientoMutation = useMutation({
@@ -378,13 +382,7 @@ export default function TesoreriaPage() {
       queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
       toast({ title: 'Movimiento anulado' });
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo anular el movimiento',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo anular el movimiento'),
   });
 
   const actualizarChequeMutation = useMutation({
@@ -398,13 +396,7 @@ export default function TesoreriaPage() {
       setEditingCheque(null);
       resetChequeForm();
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo actualizar el cheque',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo actualizar el cheque'),
   });
 
   const eliminarChequeMutation = useMutation({
@@ -424,13 +416,7 @@ export default function TesoreriaPage() {
       setShowDeleteChequeDialog(false);
       setChequeAEliminar(null);
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo eliminar el cheque',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo eliminar el cheque'),
   });
 
   const actualizarMovimientoMutation = useMutation({
@@ -444,13 +430,7 @@ export default function TesoreriaPage() {
       setMovimientoAEditar(null);
       setEditMovimientoForm({});
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo actualizar el movimiento',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo actualizar el movimiento'),
   });
 
   const eliminarMovimientoMutation = useMutation({
@@ -460,13 +440,7 @@ export default function TesoreriaPage() {
       queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
       toast({ title: 'Movimiento eliminado correctamente' });
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo eliminar el movimiento',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo eliminar el movimiento'),
   });
 
   const crearCuentaBancariaMutation = useMutation({
@@ -477,13 +451,7 @@ export default function TesoreriaPage() {
       setShowCuentaBancariaModal(false);
       resetCuentaBancariaForm();
     },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'No se pudo crear la cuenta bancaria',
-        variant: 'destructive',
-      });
-    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo crear la cuenta bancaria'),
   });
 
   // Helpers
@@ -514,6 +482,14 @@ export default function TesoreriaPage() {
       cliente_id: null,
       proveedor_id: null,
     });
+    setMovChequeNumero('');
+    setMovChequeTipo('fisico');
+    setMovChequeBanco('');
+    setMovChequeFechaEmision('');
+    setMovChequeFechaVencimiento('');
+    setMovChequeLibrador('');
+    setMovChequeCuitLibrador('');
+    setMovChequeImagen(null);
   };
 
   const resetCuentaBancariaForm = () => {
@@ -651,6 +627,93 @@ export default function TesoreriaPage() {
     return formatDate(fecha);
   };
 
+  /**
+   * Handler de submit del modal de movimiento.
+   * Si método = cheque → arma multipart y llama al endpoint unificado
+   * (que crea Cheque + MovimientoTesoreria + adjunta imagen en una operación).
+   * Si método ≠ cheque → mantiene el flujo actual.
+   */
+  const handleSubmitMovimiento = () => {
+    if (!movimientoForm.concepto || !movimientoForm.monto) return;
+
+    if (movimientoForm.metodo_pago === 'cheque') {
+      // Validaciones específicas del cheque
+      if (!movChequeNumero.trim() || !movChequeBanco || !movChequeFechaVencimiento) {
+        toast({
+          title: 'Faltan datos del cheque',
+          description: 'Número, banco emisor y fecha de vencimiento son obligatorios.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const errEmi = validarFechaCheque(movChequeFechaEmision, 'Fecha de emisión');
+      if (errEmi) {
+        toast({ title: 'Fecha de emisión inválida', description: errEmi, variant: 'destructive' });
+        return;
+      }
+      const errVenc = validarFechaCheque(movChequeFechaVencimiento, 'Fecha de vencimiento');
+      if (errVenc) {
+        toast({ title: 'Fecha de vencimiento inválida', description: errVenc, variant: 'destructive' });
+        return;
+      }
+      if (
+        movChequeFechaEmision &&
+        movChequeFechaVencimiento &&
+        movChequeFechaEmision > movChequeFechaVencimiento
+      ) {
+        toast({
+          title: 'Fechas inconsistentes',
+          description: 'La fecha de emisión no puede ser posterior a la fecha de vencimiento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Ingreso con cliente → cheque recibido de cliente (imputa a CC).
+      // Egreso con proveedor → cheque emitido (a futuro puede refinarse).
+      const origen: 'recibido_cliente' | 'recibido_proveedor' | 'emitido' = movimientoForm.es_ingreso
+        ? movimientoForm.cliente_id
+          ? 'recibido_cliente'
+          : 'recibido_proveedor'
+        : 'emitido';
+      if (origen === 'recibido_cliente' && !movimientoForm.cliente_id) {
+        toast({
+          title: 'Falta el cliente',
+          description: 'Los cheques recibidos deben estar asociados a un cliente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      crearMovimientoConChequeMutation.mutate({
+        tipo: movimientoForm.es_ingreso ? 'ingreso_cheque' : 'egreso_cheque',
+        concepto: movimientoForm.concepto,
+        monto: movimientoForm.monto,
+        es_ingreso: movimientoForm.es_ingreso,
+        fecha_movimiento: movimientoForm.fecha_movimiento,
+        notas: movimientoForm.notas || undefined,
+        cliente_id: movimientoForm.cliente_id || undefined,
+        proveedor_id: movimientoForm.proveedor_id || undefined,
+        cheque_numero: movChequeNumero.trim(),
+        cheque_tipo: movChequeTipo,
+        cheque_origen: origen,
+        cheque_banco_origen: movChequeBanco,
+        cheque_fecha_emision: movChequeFechaEmision || undefined,
+        cheque_fecha_vencimiento: movChequeFechaVencimiento,
+        cheque_librador: movChequeLibrador || undefined,
+        cheque_cuit_librador: movChequeCuitLibrador || undefined,
+        imagen: movChequeImagen,
+      });
+      return;
+    }
+
+    // Métodos no-cheque: flujo original
+    crearMovimientoMutation.mutate({
+      ...movimientoForm,
+      tipo: movimientoForm.es_ingreso
+        ? `ingreso_${movimientoForm.metodo_pago}`
+        : `egreso_${movimientoForm.metodo_pago}`,
+    });
+  };
+
   if (loadingResumen) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -668,10 +731,6 @@ export default function TesoreriaPage() {
           <p className="text-gray-500">Gestión de cheques y movimientos de fondos</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowChequeModal(true)}>
-            <FileCheck className="h-4 w-4 mr-2" />
-            Nuevo Cheque
-          </Button>
           <Button onClick={() => setShowMovimientoModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Movimiento
@@ -1510,11 +1569,13 @@ export default function TesoreriaPage() {
       </Tabs>
 
       {/* Modal Nuevo/Editar Cheque */}
-      {showChequeModal && (
+      {/* Modal solo para EDITAR cheques existentes. La creación se hace desde
+          "Nuevo Movimiento" → método Cheque (endpoint unificado). */}
+      {showChequeModal && editingCheque && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
             <CardHeader>
-              <CardTitle>{editingCheque ? 'Editar Cheque' : 'Registrar Cheque'}</CardTitle>
+              <CardTitle>Editar Cheque</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1696,35 +1757,30 @@ export default function TesoreriaPage() {
                 </Button>
                 <Button
                   onClick={() => {
-                    if (editingCheque) {
-                      actualizarChequeMutation.mutate({
-                        chequeId: editingCheque.id,
-                        data: {
-                          numero: chequeForm.numero,
-                          tipo: chequeForm.tipo,
-                          monto: chequeForm.monto,
-                          fecha_emision: chequeForm.fecha_emision,
-                          fecha_vencimiento: chequeForm.fecha_vencimiento,
-                          banco_origen: chequeForm.banco_origen || undefined,
-                          librador: chequeForm.librador || undefined,
-                          cuit_librador: chequeForm.cuit_librador || undefined,
-                          notas: chequeForm.notas || undefined,
-                        },
-                      });
-                    } else {
-                      crearChequeMutation.mutate(chequeForm);
-                    }
+                    if (!editingCheque) return;
+                    actualizarChequeMutation.mutate({
+                      chequeId: editingCheque.id,
+                      data: {
+                        numero: chequeForm.numero,
+                        tipo: chequeForm.tipo,
+                        monto: chequeForm.monto,
+                        fecha_emision: chequeForm.fecha_emision,
+                        fecha_vencimiento: chequeForm.fecha_vencimiento,
+                        banco_origen: chequeForm.banco_origen || undefined,
+                        librador: chequeForm.librador || undefined,
+                        cuit_librador: chequeForm.cuit_librador || undefined,
+                        notas: chequeForm.notas || undefined,
+                      },
+                    });
                   }}
                   disabled={
                     !chequeForm.numero ||
                     !chequeForm.monto ||
                     !chequeForm.fecha_vencimiento ||
-                    (!editingCheque && chequeForm.origen === 'recibido_cliente' && !chequeForm.cliente_id) ||
-                    crearChequeMutation.isPending ||
                     actualizarChequeMutation.isPending
                   }
                 >
-                  {editingCheque ? 'Guardar Cambios' : 'Registrar Cheque'}
+                  Guardar Cambios
                 </Button>
               </div>
             </CardContent>
@@ -1850,6 +1906,113 @@ export default function TesoreriaPage() {
                 </div>
               )}
 
+              {/* Datos del cheque (unificado: reemplaza al modal "Nuevo Cheque" separado) */}
+              {movimientoForm.metodo_pago === 'cheque' && (
+                <div className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                  <p className="text-sm font-medium text-blue-800">
+                    Datos del cheque
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Número de cheque *</Label>
+                      <Input
+                        value={movChequeNumero}
+                        onChange={(e) => setMovChequeNumero(e.target.value)}
+                        placeholder="00000000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tipo *</Label>
+                      <Select
+                        value={movChequeTipo}
+                        onValueChange={(v) => setMovChequeTipo(v as 'fisico' | 'echeq')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_CHEQUE.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Banco emisor *</Label>
+                    <Select value={movChequeBanco} onValueChange={setMovChequeBanco}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar banco" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BANCOS_ARGENTINA.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Fecha de emisión</Label>
+                      <Input
+                        type="date"
+                        value={movChequeFechaEmision}
+                        onChange={(e) => setMovChequeFechaEmision(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fecha de vencimiento *</Label>
+                      <Input
+                        type="date"
+                        value={movChequeFechaVencimiento}
+                        onChange={(e) => setMovChequeFechaVencimiento(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Librador</Label>
+                      <Input
+                        value={movChequeLibrador}
+                        onChange={(e) => setMovChequeLibrador(e.target.value)}
+                        placeholder="Nombre de quien firma"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>CUIT librador</Label>
+                      <Input
+                        value={movChequeCuitLibrador}
+                        onChange={(e) => setMovChequeCuitLibrador(e.target.value)}
+                        placeholder="XX-XXXXXXXX-X"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Imagen o PDF del cheque (opcional)</Label>
+                    <Input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={(e) => setMovChequeImagen(e.target.files?.[0] || null)}
+                    />
+                    {movChequeImagen && (
+                      <p className="text-xs text-gray-600">
+                        {movChequeImagen.name} ({Math.round(movChequeImagen.size / 1024)} KB)
+                      </p>
+                    )}
+                  </div>
+                  {movimientoForm.es_ingreso && movimientoForm.cliente_id && (
+                    <p className="flex items-center gap-1 text-xs text-blue-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      El cheque se imputará automáticamente como PAGO en la cuenta corriente del cliente.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {movimientoForm.es_ingreso ? (
                 <div className="space-y-2">
                   <Label>Cliente (opcional)</Label>
@@ -1900,13 +2063,13 @@ export default function TesoreriaPage() {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => crearMovimientoMutation.mutate({
-                    ...movimientoForm,
-                    tipo: movimientoForm.es_ingreso
-                      ? `ingreso_${movimientoForm.metodo_pago}`
-                      : `egreso_${movimientoForm.metodo_pago}`,
-                  })}
-                  disabled={!movimientoForm.concepto || !movimientoForm.monto || crearMovimientoMutation.isPending}
+                  onClick={handleSubmitMovimiento}
+                  disabled={
+                    !movimientoForm.concepto ||
+                    !movimientoForm.monto ||
+                    crearMovimientoMutation.isPending ||
+                    crearMovimientoConChequeMutation.isPending
+                  }
                   className={movimientoForm.es_ingreso ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
                 >
                   Registrar {movimientoForm.es_ingreso ? 'Ingreso' : 'Egreso'}

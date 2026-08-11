@@ -73,6 +73,7 @@ import {
 } from '@/services/finanzasAvanzadasService';
 import { historialLavadosService } from '@/services/historialLavadosService';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
+import { toastApiError } from '@/utils/apiErrors';
 import { MEDIOS_PAGO } from '@/types/cliente';
 import type { MedioPago } from '@/types/cliente';
 import { BANCOS_ARGENTINA, TIPOS_CHEQUE } from '@/types/tesoreria';
@@ -88,6 +89,44 @@ const ESTADOS_FACTURACION = [
 ];
 
 const ITEMS_PER_PAGE = 200;
+
+// Rango razonable para fechas de cheques ingresadas por el usuario.
+// Rechaza tipeos como "0026-02-31" (año 0026, día 31 de febrero).
+const FECHA_CHEQUE_MIN = new Date(2000, 0, 1);
+const FECHA_CHEQUE_MAX = new Date(2100, 11, 31);
+
+/**
+ * Valida un string de fecha (YYYY-MM-DD) proveniente de un <input type="date">.
+ * Retorna un mensaje de error específico o null si es válida.
+ * Detecta: formato inválido, día/mes fuera de calendario, año fuera de rango.
+ */
+function validarFechaCheque(valor: string, etiqueta: string): string | null {
+  if (!valor) return null; // vacío: se maneja aparte (obligatorio / opcional)
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor);
+  if (!match) {
+    return `${etiqueta}: formato inválido, use DD/MM/AAAA.`;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  // Chequeo de calendario: reconstruir la fecha y verificar que no se
+  // "corrió" (ej. 31/02 se convierte a 03/03).
+  const fecha = new Date(year, month - 1, day);
+  const esFechaReal =
+    fecha.getFullYear() === year &&
+    fecha.getMonth() === month - 1 &&
+    fecha.getDate() === day;
+  if (!esFechaReal) {
+    return `${etiqueta}: ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year} no existe en el calendario.`;
+  }
+
+  if (fecha < FECHA_CHEQUE_MIN || fecha > FECHA_CHEQUE_MAX) {
+    return `${etiqueta}: el año debe estar entre ${FECHA_CHEQUE_MIN.getFullYear()} y ${FECHA_CHEQUE_MAX.getFullYear()}.`;
+  }
+  return null;
+}
 
 export default function ClienteCuentaCorrientePage() {
   const { id } = useParams();
@@ -266,12 +305,8 @@ export default function ClienteCuentaCorrientePage() {
       });
       cerrarModalCobranza();
     },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'No se pudo registrar la cobranza.',
-        variant: 'destructive',
-      });
+    onError: (err) => {
+      toastApiError(toast, err, 'No se pudo registrar la cobranza.');
     },
   });
 
@@ -291,12 +326,8 @@ export default function ClienteCuentaCorrientePage() {
       });
       cerrarModalAjuste();
     },
-    onError: (err: any) => {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.detail || 'No se pudo registrar el ajuste.',
-        variant: 'destructive',
-      });
+    onError: (err) => {
+      toastApiError(toast, err, 'No se pudo registrar el ajuste.');
     },
   });
 
@@ -351,12 +382,8 @@ export default function ClienteCuentaCorrientePage() {
       });
       cerrarModalEditar();
     },
-    onError: (err: any) => {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.detail || 'No se pudo editar el movimiento.',
-        variant: 'destructive',
-      });
+    onError: (err) => {
+      toastApiError(toast, err, 'No se pudo editar el movimiento.');
     },
   });
 
@@ -422,12 +449,8 @@ export default function ClienteCuentaCorrientePage() {
       });
       setMovimientoAEliminar(null);
     },
-    onError: (err: any) => {
-      toast({
-        title: 'Error',
-        description: err?.response?.data?.detail || 'No se pudo eliminar el movimiento.',
-        variant: 'destructive',
-      });
+    onError: (err) => {
+      toastApiError(toast, err, 'No se pudo eliminar el movimiento.');
     },
   });
 
@@ -461,12 +484,8 @@ export default function ClienteCuentaCorrientePage() {
       });
       setRemitoAEliminar(null);
     },
-    onError: (err: any) => {
-      toast({
-        title: 'Error al eliminar el remito',
-        description: err?.response?.data?.detail || 'No se pudo eliminar el remito.',
-        variant: 'destructive',
-      });
+    onError: (err) => {
+      toastApiError(toast, err, 'No se pudo eliminar el remito.', 'Error al eliminar el remito');
     },
   });
 
@@ -513,6 +532,40 @@ export default function ClienteCuentaCorrientePage() {
         toast({
           title: 'Faltan datos del cheque',
           description: 'Número, banco emisor y fecha de vencimiento son obligatorios.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validación de fechas: calendario válido, año razonable, orden lógico.
+      // Ej: "31/02/0026" (feb 31 + año 0026) queda descartado acá con mensaje
+      // específico antes de llegar al backend.
+      const errorFechaEmision = validarFechaCheque(chequeFechaEmision, 'Fecha de emisión');
+      if (errorFechaEmision) {
+        toast({
+          title: 'Fecha de emisión inválida',
+          description: errorFechaEmision,
+          variant: 'destructive',
+        });
+        return;
+      }
+      const errorFechaVenc = validarFechaCheque(chequeFechaVencimiento, 'Fecha de vencimiento');
+      if (errorFechaVenc) {
+        toast({
+          title: 'Fecha de vencimiento inválida',
+          description: errorFechaVenc,
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (
+        chequeFechaEmision &&
+        chequeFechaVencimiento &&
+        chequeFechaEmision > chequeFechaVencimiento
+      ) {
+        toast({
+          title: 'Fechas inconsistentes',
+          description: 'La fecha de emisión no puede ser posterior a la fecha de vencimiento.',
           variant: 'destructive',
         });
         return;

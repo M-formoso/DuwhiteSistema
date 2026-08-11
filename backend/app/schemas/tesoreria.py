@@ -100,6 +100,7 @@ class ChequeResponse(BaseModel):
 
     notas: Optional[str]
     motivo_rechazo: Optional[str]
+    imagen_url: Optional[str] = None
 
     created_at: datetime
     activo: bool

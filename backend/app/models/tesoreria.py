@@ -89,6 +89,10 @@ class Cheque(Base, BaseModelMixin):
     notas = Column(Text, nullable=True)
     motivo_rechazo = Column(Text, nullable=True)
 
+    # Adjunto: ruta relativa al archivo del cheque (imagen o PDF) dentro de UPLOAD_DIR.
+    # Ej: "cheques/2026/08/{uuid}.jpg". Se sirve por GET /tesoreria/cheques/{id}/imagen.
+    imagen_url = Column(String(500), nullable=True)
+
     # Control
     activo = Column(Boolean, default=True)
 

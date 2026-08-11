@@ -29,6 +29,7 @@ export interface Cheque {
   cobrado_por_id: string | null;
   notas: string | null;
   motivo_rechazo: string | null;
+  imagen_url: string | null;
   created_at: string;
   activo: boolean;
   // Campos calculados

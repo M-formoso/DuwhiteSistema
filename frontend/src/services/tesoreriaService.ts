@@ -187,6 +187,66 @@ export const movimientosTesoreriaService = {
     return response.data;
   },
 
+  /**
+   * Crea Cheque + MovimientoTesoreria en una sola llamada, con opción de
+   * adjuntar imagen/PDF. Se envía como multipart/form-data.
+   */
+  async crearMovimientoConCheque(payload: {
+    // Movimiento
+    tipo: 'ingreso_cheque' | 'egreso_cheque';
+    concepto: string;
+    monto: number;
+    es_ingreso: boolean;
+    fecha_movimiento: string; // YYYY-MM-DD
+    notas?: string;
+    cliente_id?: string;
+    proveedor_id?: string;
+    // Cheque
+    cheque_numero: string;
+    cheque_tipo: 'fisico' | 'echeq';
+    cheque_origen: 'recibido_cliente' | 'recibido_proveedor' | 'emitido';
+    cheque_banco_origen?: string;
+    cheque_fecha_emision?: string;
+    cheque_fecha_vencimiento: string;
+    cheque_librador?: string;
+    cheque_cuit_librador?: string;
+    imagen?: File | null;
+  }) {
+    const form = new FormData();
+    form.append('tipo', payload.tipo);
+    form.append('concepto', payload.concepto);
+    form.append('monto', String(payload.monto));
+    form.append('es_ingreso', String(payload.es_ingreso));
+    form.append('fecha_movimiento', payload.fecha_movimiento);
+    if (payload.notas) form.append('notas', payload.notas);
+    if (payload.cliente_id) form.append('cliente_id', payload.cliente_id);
+    if (payload.proveedor_id) form.append('proveedor_id', payload.proveedor_id);
+
+    form.append('cheque_numero', payload.cheque_numero);
+    form.append('cheque_tipo', payload.cheque_tipo);
+    form.append('cheque_origen', payload.cheque_origen);
+    if (payload.cheque_banco_origen) form.append('cheque_banco_origen', payload.cheque_banco_origen);
+    if (payload.cheque_fecha_emision) form.append('cheque_fecha_emision', payload.cheque_fecha_emision);
+    form.append('cheque_fecha_vencimiento', payload.cheque_fecha_vencimiento);
+    if (payload.cheque_librador) form.append('cheque_librador', payload.cheque_librador);
+    if (payload.cheque_cuit_librador) form.append('cheque_cuit_librador', payload.cheque_cuit_librador);
+
+    if (payload.imagen) form.append('imagen', payload.imagen);
+
+    const response = await api.post<MovimientoTesoreria>(
+      '/tesoreria/movimientos-con-cheque',
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  },
+
+  /** URL absoluta para descargar/mostrar la imagen del cheque (requiere token). */
+  getImagenChequeUrl(chequeId: string): string {
+    const baseURL = api.defaults.baseURL || '';
+    return `${baseURL}/tesoreria/cheques/${chequeId}/imagen`;
+  },
+
   async anularMovimiento(movimientoId: string, data: AnularMovimientoRequest) {
     const response = await api.post<MovimientoTesoreria>(
       `/tesoreria/movimientos/${movimientoId}/anular`,

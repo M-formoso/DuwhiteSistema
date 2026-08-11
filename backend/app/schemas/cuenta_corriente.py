@@ -5,7 +5,26 @@ Schemas de Cuenta Corriente.
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+
+# Rango razonable para fechas ingresadas por el usuario.
+# Rechaza tipeos como "0026-02-31" (año 0026) o fechas absurdamente futuras.
+_MIN_FECHA_INGRESABLE = date(2000, 1, 1)
+_MAX_FECHA_INGRESABLE = date(2100, 12, 31)
+
+
+def _validar_fecha_rango(valor: Optional[date], etiqueta: str) -> Optional[date]:
+    """Verifica que la fecha esté dentro de un rango humano razonable."""
+    if valor is None:
+        return valor
+    if valor < _MIN_FECHA_INGRESABLE or valor > _MAX_FECHA_INGRESABLE:
+        raise ValueError(
+            f"{etiqueta} inválida: debe estar entre "
+            f"{_MIN_FECHA_INGRESABLE.strftime('%d/%m/%Y')} y "
+            f"{_MAX_FECHA_INGRESABLE.strftime('%d/%m/%Y')}"
+        )
+    return valor
 
 
 # ==================== MOVIMIENTO CUENTA CORRIENTE ====================
@@ -80,6 +99,38 @@ class RegistrarCobranzaRequest(BaseModel):
     estado_facturacion: str = "sin_facturar"  # sin_facturar, factura_a, factura_b, ticket
     factura_numero: Optional[str] = None  # Si ya está facturado
 
+    # ==================== Campos condicionales por medio_pago ====================
+    # Cheque
+    cheque_numero: Optional[str] = None
+    cheque_banco: Optional[str] = None
+    cheque_fecha_emision: Optional[date] = None
+    cheque_fecha_vencimiento: Optional[date] = None
+    cheque_librador: Optional[str] = None
+    cheque_cuit_librador: Optional[str] = None
+    cheque_tipo: Optional[str] = None  # 'fisico' | 'echeq'
+
+    # Transferencia
+    transferencia_banco_origen: Optional[str] = None
+    transferencia_numero: Optional[str] = None
+    cuenta_destino_id: Optional[str] = None
+
+    # Efectivo
+    caja_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validar_fechas_cheque(self) -> "RegistrarCobranzaRequest":
+        _validar_fecha_rango(self.cheque_fecha_emision, "Fecha de emisión del cheque")
+        _validar_fecha_rango(self.cheque_fecha_vencimiento, "Fecha de vencimiento del cheque")
+        if (
+            self.cheque_fecha_emision
+            and self.cheque_fecha_vencimiento
+            and self.cheque_fecha_emision > self.cheque_fecha_vencimiento
+        ):
+            raise ValueError(
+                "La fecha de emisión del cheque no puede ser posterior a la fecha de vencimiento"
+            )
+        return self
+
 
 # ==================== AJUSTE MANUAL ====================
 
@@ -138,6 +189,20 @@ class RegistrarPagoRequest(BaseModel):
 
     # Efectivo: caja a la que ingresa (si no se pasa, se toma la caja abierta del día)
     caja_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validar_fechas_cheque(self) -> "RegistrarPagoRequest":
+        _validar_fecha_rango(self.cheque_fecha_emision, "Fecha de emisión del cheque")
+        _validar_fecha_rango(self.cheque_fecha_vencimiento, "Fecha de vencimiento del cheque")
+        if (
+            self.cheque_fecha_emision
+            and self.cheque_fecha_vencimiento
+            and self.cheque_fecha_emision > self.cheque_fecha_vencimiento
+        ):
+            raise ValueError(
+                "La fecha de emisión del cheque no puede ser posterior a la fecha de vencimiento"
+            )
+        return self
 
 
 class PagoResponse(BaseModel):

@@ -488,6 +488,90 @@ class TesoreriaService:
 
         return movimiento
 
+    def create_movimiento_con_cheque(
+        self,
+        *,
+        usuario_id: UUID,
+        # Movimiento
+        tipo: str,
+        concepto: str,
+        monto: Decimal,
+        es_ingreso: bool,
+        fecha_movimiento: date,
+        notas: Optional[str],
+        cliente_id: Optional[UUID],
+        proveedor_id: Optional[UUID],
+        # Cheque
+        cheque_numero: str,
+        cheque_tipo: str,
+        cheque_origen: str,
+        cheque_banco_origen: Optional[str],
+        cheque_fecha_emision: Optional[date],
+        cheque_fecha_vencimiento: date,
+        cheque_librador: Optional[str],
+        cheque_cuit_librador: Optional[str],
+        imagen_url: Optional[str],
+    ) -> Tuple[Cheque, MovimientoTesoreria]:
+        """
+        Crea Cheque + MovimientoTesoreria vinculado en una sola transacción.
+        Si es cheque recibido de cliente, también imputa en cuenta corriente.
+        """
+        cheque_cliente_id = str(cliente_id) if cliente_id else None
+        cheque_proveedor_id = str(proveedor_id) if proveedor_id else None
+
+        cheque = Cheque(
+            id=str(uuid4()),
+            numero=cheque_numero,
+            tipo=cheque_tipo,
+            origen=cheque_origen,
+            estado=EstadoCheque.EN_CARTERA.value,
+            monto=monto,
+            fecha_emision=cheque_fecha_emision,
+            fecha_vencimiento=cheque_fecha_vencimiento,
+            banco_origen=cheque_banco_origen,
+            cliente_id=cheque_cliente_id,
+            proveedor_id=cheque_proveedor_id,
+            librador=cheque_librador,
+            cuit_librador=cheque_cuit_librador,
+            notas=notas,
+            imagen_url=imagen_url,
+            registrado_por_id=str(usuario_id),
+            fecha_registro=datetime.now(),
+        )
+        self.db.add(cheque)
+        self.db.flush()  # id disponible
+
+        movimiento = MovimientoTesoreria(
+            id=str(uuid4()),
+            tipo=tipo,
+            concepto=concepto,
+            monto=monto,
+            es_ingreso=es_ingreso,
+            fecha_movimiento=fecha_movimiento,
+            fecha_valor=cheque_fecha_vencimiento,
+            metodo_pago="cheque",
+            cheque_id=str(cheque.id),
+            cliente_id=cheque_cliente_id,
+            proveedor_id=cheque_proveedor_id,
+            notas=notas,
+            registrado_por_id=str(usuario_id),
+        )
+        self.db.add(movimiento)
+
+        # Si es cheque recibido de cliente, imputar como PAGO en cuenta corriente
+        if cheque_origen == OrigenCheque.RECIBIDO_CLIENTE.value and cheque_cliente_id:
+            self._imputar_cheque_cliente(
+                cheque=cheque,
+                cliente_id=cheque_cliente_id,
+                usuario_id=str(usuario_id),
+                es_pago=True,
+            )
+
+        self.db.commit()
+        self.db.refresh(cheque)
+        self.db.refresh(movimiento)
+        return cheque, movimiento
+
     def anular_movimiento(
         self,
         movimiento_id: UUID,

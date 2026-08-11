@@ -855,7 +855,8 @@ def registrar_cobranza(
         else:
             concepto = f"{concepto} ({estado_label})"
 
-    # Crear el pago usando RegistrarPagoRequest
+    # Crear el pago usando RegistrarPagoRequest, propagando los campos
+    # condicionales por medio de pago (cheque, transferencia, efectivo).
     pago_data = RegistrarPagoRequest(
         cliente_id=cliente_id,
         monto=data.monto,
@@ -867,6 +868,20 @@ def registrar_cobranza(
         lote_id=data.lote_id,
         estado_facturacion=data.estado_facturacion,
         factura_numero=data.factura_numero,
+        # Cheque
+        cheque_numero=data.cheque_numero,
+        cheque_banco=data.cheque_banco,
+        cheque_fecha_emision=data.cheque_fecha_emision,
+        cheque_fecha_vencimiento=data.cheque_fecha_vencimiento,
+        cheque_librador=data.cheque_librador,
+        cheque_cuit_librador=data.cheque_cuit_librador,
+        cheque_tipo=data.cheque_tipo,
+        # Transferencia
+        transferencia_banco_origen=data.transferencia_banco_origen,
+        transferencia_numero=data.transferencia_numero,
+        cuenta_destino_id=data.cuenta_destino_id,
+        # Efectivo
+        caja_id=data.caja_id,
     )
 
     try:
