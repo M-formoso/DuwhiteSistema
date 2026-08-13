@@ -242,39 +242,69 @@ export default function MiCuentaCorrientePage() {
           </CardContent>
         </Card>
 
-        {/* Total adeudado */}
-        <Card
-          className={
-            (estadoCuenta?.total_adeudado || 0) > 0 ? 'border-orange-300' : 'border-green-300'
-          }
-        >
-          <CardContent className="pt-5 pb-5">
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-3 rounded-full ${
-                  (estadoCuenta?.total_adeudado || 0) > 0 ? 'bg-orange-100' : 'bg-green-100'
-                }`}
-              >
-                <Wallet
-                  className={`h-6 w-6 ${
-                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-orange-600' : 'text-green-600'
-                  }`}
-                />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total adeudado</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    (estadoCuenta?.total_adeudado || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                  }`}
-                >
-                  {formatCurrency(estadoCuenta?.total_adeudado || 0)}
-                </p>
-                <p className="text-xs text-gray-500">Vencida + consumo del mes − pagos</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Saldo a favor / Total adeudado */}
+        {(() => {
+          const adeudado = Number(estadoCuenta?.total_adeudado || 0);
+          const aFavor = Number(estadoCuenta?.saldo_a_favor || 0);
+          const tieneFavor = aFavor > 0;
+          const tieneDeuda = adeudado > 0;
+          return (
+            <Card
+              className={
+                tieneFavor
+                  ? 'border-green-300 bg-green-50/40'
+                  : tieneDeuda
+                  ? 'border-orange-300'
+                  : 'border-green-300'
+              }
+            >
+              <CardContent className="pt-5 pb-5">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`p-3 rounded-full ${
+                      tieneFavor
+                        ? 'bg-green-100'
+                        : tieneDeuda
+                        ? 'bg-orange-100'
+                        : 'bg-green-100'
+                    }`}
+                  >
+                    <Wallet
+                      className={`h-6 w-6 ${
+                        tieneFavor
+                          ? 'text-green-600'
+                          : tieneDeuda
+                          ? 'text-orange-600'
+                          : 'text-green-600'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      {tieneFavor ? 'Saldo a favor' : 'Total adeudado'}
+                    </p>
+                    <p
+                      className={`text-2xl font-bold ${
+                        tieneFavor
+                          ? 'text-green-600'
+                          : tieneDeuda
+                          ? 'text-red-600'
+                          : 'text-green-600'
+                      }`}
+                    >
+                      {formatCurrency(tieneFavor ? aFavor : adeudado)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {tieneFavor
+                        ? 'Anticipo sin aplicar'
+                        : 'Vencida + consumo del mes − pagos'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
       </div>}
 
       {vePrecios && estadoCuenta?.factura_mas_antigua_dias && estadoCuenta.factura_mas_antigua_dias > 30 && (
