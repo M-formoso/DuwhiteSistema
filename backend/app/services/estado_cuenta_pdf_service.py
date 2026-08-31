@@ -133,17 +133,12 @@ def generar_pdf(
     if fecha_desde or fecha_hasta:
         periodo = f"{_fecha_ar(fecha_desde) or '...'} a {_fecha_ar(fecha_hasta) or 'hoy'}"
 
+    from app.services import configuracion_service
     env = _get_env()
     template = env.get_template("estado_cuenta.html")
     html_str = template.render(
         cliente=cliente,
-        empresa={
-            "nombre": settings.EMPRESA_NOMBRE,
-            "razon_social": settings.EMPRESA_RAZON_SOCIAL,
-            "cuit": settings.EMPRESA_CUIT,
-            "direccion": settings.EMPRESA_DIRECCION,
-            "condicion_iva": settings.EMPRESA_CONDICION_IVA,
-        },
+        empresa=configuracion_service.get_empresa_dict(db),
         movimientos=movimientos,
         saldo_actual=estado.get("saldo_actual"),
         deuda_facturada=estado.get("deuda_facturada"),

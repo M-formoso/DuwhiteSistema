@@ -157,21 +157,10 @@ def generar_pdf(db: Session, factura: Factura) -> bytes:
     qr_datauri = _generar_qr_afip_datauri(factura)
 
     try:
+        from app.services import configuracion_service
         html_str = template.render(
             factura=factura,
-            empresa={
-                "nombre": settings.EMPRESA_NOMBRE,
-                "razon_social": settings.EMPRESA_RAZON_SOCIAL,
-                "cuit": settings.EMPRESA_CUIT,
-                "direccion": settings.EMPRESA_DIRECCION,
-                "condicion_iva": settings.EMPRESA_CONDICION_IVA,
-                "iibb": settings.EMPRESA_IIBB,
-                "inicio_actividades": settings.EMPRESA_INICIO_ACTIVIDADES,
-                "cbu": settings.EMPRESA_CBU,
-                "banco": settings.EMPRESA_BANCO,
-                "cuenta_titular": settings.EMPRESA_CUENTA_TITULAR or settings.EMPRESA_RAZON_SOCIAL,
-                "leyenda_cbu": settings.EMPRESA_LEYENDA_CBU,
-            },
+            empresa=configuracion_service.get_empresa_dict(db),
             qr_datauri=qr_datauri,
             es_factura_a=factura.letra == "A",
             es_factura_b=factura.letra == "B",

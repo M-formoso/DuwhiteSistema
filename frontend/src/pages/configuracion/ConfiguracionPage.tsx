@@ -2,7 +2,8 @@
  * Página de Configuración del Sistema
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Settings,
   Building2,
@@ -22,7 +23,11 @@ import {
   DollarSign,
   Percent,
   Printer,
+  Info,
 } from 'lucide-react';
+
+import { configuracionService, ConfiguracionUpdate } from '@/services/configuracionService';
+import { getErrorMessage } from '@/services/api';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -87,24 +92,80 @@ interface ConfiguracionFacturacion {
   tasaIva: number;
 }
 
+function ProximamenteBanner() {
+  return (
+    <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+      <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+      <div>
+        <p className="font-medium">Próximamente</p>
+        <p className="text-xs text-amber-800">
+          Los cambios en esta sección todavía no se persisten. Por ahora solo la
+          pestaña <strong>Empresa</strong> guarda los datos en el sistema.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function ConfiguracionPage() {
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [tabActiva, setTabActiva] = useState('empresa');
 
-  // Estados de configuración
+  // Empresa: se carga desde el backend y se persiste al guardar.
   const [empresa, setEmpresa] = useState<ConfiguracionEmpresa>({
-    nombre: 'DUWHITE',
-    razonSocial: 'Lavandería Industrial DUWHITE S.A.',
-    cuit: '30-12345678-9',
-    condicionIva: 'responsable_inscripto',
-    direccion: 'Av. Colón 1234',
-    ciudad: 'Córdoba',
-    provincia: 'Córdoba',
-    codigoPostal: '5000',
-    telefono: '+54 351 123-4567',
-    email: 'info@duwhite.com.ar',
-    sitioWeb: 'www.duwhite.com.ar',
+    nombre: '',
+    razonSocial: '',
+    cuit: '',
+    condicionIva: 'Responsable Inscripto',
+    direccion: '',
+    ciudad: '',
+    provincia: '',
+    codigoPostal: '',
+    telefono: '',
+    email: '',
+    sitioWeb: '',
+  });
+
+  const { data: configRemota, isLoading: cargandoConfig } = useQuery({
+    queryKey: ['configuracion-sistema'],
+    queryFn: configuracionService.obtener,
+  });
+
+  useEffect(() => {
+    if (!configRemota) return;
+    setEmpresa({
+      nombre: configRemota.empresa_nombre,
+      razonSocial: configRemota.empresa_razon_social,
+      cuit: configRemota.empresa_cuit,
+      condicionIva: configRemota.empresa_condicion_iva,
+      direccion: configRemota.empresa_direccion,
+      ciudad: configRemota.empresa_localidad,
+      provincia: configRemota.empresa_provincia,
+      codigoPostal: configRemota.empresa_codigo_postal,
+      telefono: configRemota.empresa_telefono,
+      email: configRemota.empresa_email,
+      sitioWeb: configRemota.empresa_sitio_web,
+    });
+  }, [configRemota]);
+
+  const guardarEmpresaMutation = useMutation({
+    mutationFn: (payload: ConfiguracionUpdate) =>
+      configuracionService.actualizar(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['configuracion-sistema'] });
+      toast({
+        title: 'Configuración guardada',
+        description: 'Los datos de la empresa se actualizaron correctamente',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(error) || 'No se pudo guardar la configuración',
+        variant: 'destructive',
+      });
+    },
   });
 
   const [produccion, setProduccion] = useState<ConfiguracionProduccion>({
@@ -134,26 +195,29 @@ export default function ConfiguracionPage() {
     tasaIva: 21,
   });
 
-  const handleGuardar = async () => {
-    setSaving(true);
-    try {
-      // En producción esto guardaría en el backend
-      await new Promise((r) => setTimeout(r, 1000));
-
+  const handleGuardar = () => {
+    if (tabActiva !== 'empresa') {
       toast({
-        title: 'Configuración guardada',
-        description: 'Los cambios se han guardado correctamente',
+        title: 'Todavía no disponible',
+        description: 'Esta sección aún no se puede persistir. Solo la pestaña Empresa guarda cambios.',
       });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'No se pudo guardar la configuración',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
+      return;
     }
+    guardarEmpresaMutation.mutate({
+      empresa_nombre: empresa.nombre,
+      empresa_razon_social: empresa.razonSocial,
+      empresa_cuit: empresa.cuit,
+      empresa_direccion: empresa.direccion,
+      empresa_localidad: empresa.ciudad,
+      empresa_provincia: empresa.provincia,
+      empresa_codigo_postal: empresa.codigoPostal,
+      empresa_telefono: empresa.telefono,
+      empresa_email: empresa.email,
+      empresa_sitio_web: empresa.sitioWeb,
+    });
   };
+
+  const saving = guardarEmpresaMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -163,7 +227,7 @@ export default function ConfiguracionPage() {
           <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
           <p className="text-gray-500">Administra la configuración del sistema</p>
         </div>
-        <Button onClick={handleGuardar} disabled={saving}>
+        <Button onClick={handleGuardar} disabled={saving || cargandoConfig}>
           {saving ? (
             <>
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -244,19 +308,12 @@ export default function ConfiguracionPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Condición IVA</Label>
-                  <Select
-                    value={empresa.condicionIva}
-                    onValueChange={(value) => setEmpresa({ ...empresa, condicionIva: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="responsable_inscripto">Responsable Inscripto</SelectItem>
-                      <SelectItem value="monotributo">Monotributo</SelectItem>
-                      <SelectItem value="exento">Exento</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input value={empresa.condicionIva} disabled />
+                  <p className="text-xs text-muted-foreground">
+                    No editable desde acá: cambiar la condición IVA afecta la
+                    lógica fiscal (AFIP/ARCA). Se configura por variables de
+                    entorno.
+                  </p>
                 </div>
               </div>
 
@@ -338,6 +395,7 @@ export default function ConfiguracionPage() {
 
         {/* Tab Producción */}
         <TabsContent value="produccion" className="space-y-6">
+          <ProximamenteBanner />
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -442,6 +500,7 @@ export default function ConfiguracionPage() {
 
         {/* Tab Facturación */}
         <TabsContent value="facturacion" className="space-y-6">
+          <ProximamenteBanner />
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -564,6 +623,7 @@ export default function ConfiguracionPage() {
 
         {/* Tab Notificaciones */}
         <TabsContent value="notificaciones" className="space-y-6">
+          <ProximamenteBanner />
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -678,6 +738,7 @@ export default function ConfiguracionPage() {
 
         {/* Tab Sistema */}
         <TabsContent value="sistema" className="space-y-6">
+          <ProximamenteBanner />
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">

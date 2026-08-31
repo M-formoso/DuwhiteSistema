@@ -16,6 +16,11 @@ from app.models.lote_produccion import LoteProduccion, EstadoLote
 from app.models.caja import Caja, MovimientoCaja, EstadoCaja
 from app.models.insumo import Insumo
 from app.models.empleado import Empleado, EstadoEmpleado
+from app.models.remito import Remito, EstadoRemito
+
+
+# Estados de remito que representan una venta efectiva (no borrador ni anulado).
+_REMITO_ESTADOS_VENTA = (EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.value)
 
 
 class DashboardService:
@@ -30,15 +35,16 @@ class DashboardService:
         inicio_mes = date(hoy.year, hoy.month, 1)
         inicio_semana = hoy - timedelta(days=hoy.weekday())
 
-        # Ventas del mes
+        # Ventas del mes: en DUWHITE la venta efectiva se registra al emitir
+        # el Remito (el Pedido nace vacío en la recolección y no se recalcula).
         ventas_mes_result = self.db.execute(
             select(
-                func.count(Pedido.id).label('cantidad'),
-                func.sum(Pedido.total).label('total')
+                func.count(Remito.id).label('cantidad'),
+                func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Pedido.activo == True,
-                Pedido.fecha_pedido >= inicio_mes
+                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                Remito.fecha_emision >= inicio_mes
             ))
         )
         ventas_mes = ventas_mes_result.one()
@@ -46,12 +52,12 @@ class DashboardService:
         # Ventas de hoy
         ventas_hoy_result = self.db.execute(
             select(
-                func.count(Pedido.id).label('cantidad'),
-                func.sum(Pedido.total).label('total')
+                func.count(Remito.id).label('cantidad'),
+                func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Pedido.activo == True,
-                Pedido.fecha_pedido == hoy
+                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                Remito.fecha_emision == hoy
             ))
         )
         ventas_hoy = ventas_hoy_result.one()
@@ -147,29 +153,29 @@ class DashboardService:
         }
 
     def get_grafico_ventas_semana(self) -> List[Dict[str, Any]]:
-        """Ventas de los últimos 7 días para gráfico"""
+        """Ventas de los últimos 7 días para gráfico (basado en Remitos)."""
         hoy = date.today()
         hace_7_dias = hoy - timedelta(days=6)
 
         result = self.db.execute(
             select(
-                Pedido.fecha_pedido,
-                func.count(Pedido.id).label('cantidad'),
-                func.sum(Pedido.total).label('total')
+                Remito.fecha_emision.label('fecha'),
+                func.count(Remito.id).label('cantidad'),
+                func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Pedido.activo == True,
-                Pedido.fecha_pedido >= hace_7_dias,
-                Pedido.fecha_pedido <= hoy
+                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                Remito.fecha_emision >= hace_7_dias,
+                Remito.fecha_emision <= hoy
             ))
-            .group_by(Pedido.fecha_pedido)
-            .order_by(Pedido.fecha_pedido)
+            .group_by(Remito.fecha_emision)
+            .order_by(Remito.fecha_emision)
         )
 
         rows = result.all()
 
         # Crear estructura con todos los días (incluyendo días sin ventas)
-        ventas_por_dia = {row.fecha_pedido: row for row in rows}
+        ventas_por_dia = {row.fecha: row for row in rows}
         datos = []
 
         for i in range(7):

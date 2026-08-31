@@ -144,18 +144,12 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
             grupos.append(v)
 
     try:
+        from app.services import configuracion_service
         env = _get_env()
         template = env.get_template("lista_precios.html")
         html_str = template.render(
             lista=lista,
-            empresa={
-                "nombre": settings.EMPRESA_NOMBRE,
-                "razon_social": settings.EMPRESA_RAZON_SOCIAL,
-                "cuit": settings.EMPRESA_CUIT,
-                "direccion": settings.EMPRESA_DIRECCION,
-                "condicion_iva": settings.EMPRESA_CONDICION_IVA,
-                "email": settings.EMAIL_FROM,
-            },
+            empresa=configuracion_service.get_empresa_dict(db),
             grupos=grupos,
             total_items=len(precios),
             generado_at=datetime.now().strftime("%d/%m/%Y %H:%M"),

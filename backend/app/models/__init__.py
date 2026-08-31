@@ -60,6 +60,7 @@ from app.models.remito import (
 
 # Clientes
 from app.models.cliente import Cliente, TipoCliente, CondicionIVA
+from app.models.titular_fiscal import TitularFiscal
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido, TipoEntrega
 from app.models.cuenta_corriente import (
     MovimientoCuentaCorriente,
@@ -143,6 +144,9 @@ from app.models.tesoreria import (
     Cheque,
     MovimientoTesoreria,
 )
+
+# Configuración
+from app.models.configuracion_sistema import ConfiguracionSistema
 
 # Facturación
 from app.models.factura import (

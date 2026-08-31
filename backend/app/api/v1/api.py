@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     ordenes_compra,
     produccion,
     clientes,
+    titulares_fiscales,
     pedidos,
     finanzas,
     empleados,
@@ -36,6 +37,7 @@ from app.api.v1.endpoints import (
     aplicaciones_pago,
     cobranzas,
     recoleccion,
+    configuracion,
 )
 
 api_router = APIRouter()
@@ -94,6 +96,13 @@ api_router.include_router(
     clientes.router,
     prefix="/clientes",
     tags=["Clientes"],
+)
+
+# Titulares Fiscales
+api_router.include_router(
+    titulares_fiscales.router,
+    prefix="/titulares-fiscales",
+    tags=["Titulares Fiscales"],
 )
 
 # Pedidos
@@ -249,5 +258,9 @@ api_router.include_router(
     tags=["Recolección"],
 )
 
-# Los siguientes routers se agregarán a medida que se implementen los módulos:
-# api_router.include_router(configuracion.router, prefix="/config", tags=["Configuración"])
+# Configuración del sistema (singleton: datos de empresa)
+api_router.include_router(
+    configuracion.router,
+    prefix="/configuracion",
+    tags=["Configuración"],
+)
