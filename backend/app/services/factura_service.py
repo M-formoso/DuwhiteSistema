@@ -100,12 +100,23 @@ def calcular_linea(
     cantidad: Decimal,
     descuento_porcentaje: Decimal,
     iva_porcentaje: Decimal,
+    precio_incluye_iva: bool = False,
 ) -> dict:
     """
     Calcula los montos de una línea de factura.
 
-    ``precio_unitario_neto`` es SIEMPRE sin IVA (el cálculo internamente es igual
-    para A y B). La diferencia A/B es cómo se *muestra* en el PDF.
+    Dos modos:
+    - ``precio_incluye_iva=False`` (default): el precio recibido es NETO. Se
+      calcula ``iva = neto * alicuota`` y ``total = neto + iva``. Es el modo
+      histórico y aplica cuando la lista de precios tiene precios netos y
+      el receptor es Responsable Inscripto (Factura A discriminada).
+    - ``precio_incluye_iva=True``: el precio recibido ya incluye IVA (precio
+      "final" al cliente). Se calcula ``neto = precio / (1 + alicuota)`` y
+      ``iva = precio - neto``. El total al cliente es exactamente el precio
+      cargado — no se infla en 21%. Aplica cuando la lista de precios está
+      cargada con precios finales (``lista.incluye_iva=True``) o cuando el
+      receptor es Consumidor Final / Monotributo / Exento (Factura B con
+      IVA no discriminado pero declarado a AFIP).
     """
     precio = Decimal(precio_unitario_neto)
     cant = Decimal(cantidad)
@@ -114,9 +125,18 @@ def calcular_linea(
 
     subtotal_bruto = precio * cant
     descuento_monto = subtotal_bruto * (descuento_pct / Decimal("100"))
-    subtotal_neto = _q2(subtotal_bruto - descuento_monto)
-    iva_monto = _q2(subtotal_neto * (iva_pct / Decimal("100")))
-    total_linea = _q2(subtotal_neto + iva_monto)
+    subtotal_final = subtotal_bruto - descuento_monto
+
+    if precio_incluye_iva and iva_pct > 0:
+        # Modo "precio final": el subtotal ya trae IVA adentro.
+        factor = Decimal("1") + iva_pct / Decimal("100")
+        subtotal_neto = _q2(subtotal_final / factor)
+        total_linea = _q2(subtotal_final)
+        iva_monto = _q2(total_linea - subtotal_neto)
+    else:
+        subtotal_neto = _q2(subtotal_final)
+        iva_monto = _q2(subtotal_neto * (iva_pct / Decimal("100")))
+        total_linea = _q2(subtotal_neto + iva_monto)
 
     return {
         "subtotal_neto": subtotal_neto,
@@ -157,6 +177,36 @@ def calcular_totales(detalles: List[FacturaDetalle]) -> dict:
         "iva_105": _q2(iva_105),
         "total": _q2(total),
     }
+
+
+# ==================== MODO DE PRECIO (NETO vs FINAL) ====================
+
+
+def _precio_incluye_iva(cliente: Cliente, lista=None) -> bool:
+    """
+    Decide si los precios cargados en el remito/pedido deben tratarse como
+    "finales" (IVA adentro) o "netos" (se les suma IVA al facturar).
+
+    Regla:
+    - Consumidor Final / Monotributo / Exento / No Responsable → Factura B,
+      el total al cliente debe ser el precio del remito (IVA queda adentro).
+    - Lista de precios cargada con ``incluye_iva=True`` → precios finales
+      independientemente del tipo de comprobante.
+    - Responsable Inscripto con lista de precios netos → precios netos, se
+      suma IVA (comportamiento clásico Factura A).
+    """
+    if cliente.condicion_iva != CondicionIVA.RESPONSABLE_INSCRIPTO.value:
+        return True
+    if lista is not None and getattr(lista, "incluye_iva", False):
+        return True
+    return False
+
+
+def _lista_precios_de_cliente(db: Session, cliente: Cliente):
+    if not cliente.lista_precios_id:
+        return None
+    from app.models.lista_precios import ListaPrecios
+    return db.query(ListaPrecios).filter(ListaPrecios.id == cliente.lista_precios_id).first()
 
 
 # ==================== SNAPSHOT CLIENTE ====================
@@ -240,6 +290,7 @@ def crear_desde_pedido(
 
     tipo = determinar_tipo_factura(cliente.condicion_iva)
     snap = _snapshot_cliente(cliente)
+    incluye_iva = _precio_incluye_iva(cliente, _lista_precios_de_cliente(db, cliente))
 
     factura = Factura(
         id=uuid.uuid4(),
@@ -269,6 +320,7 @@ def crear_desde_pedido(
             cantidad=det.cantidad,
             descuento_porcentaje=det.descuento_porcentaje or Decimal("0"),
             iva_porcentaje=iva_default,
+            precio_incluye_iva=incluye_iva,
         )
         db.add(
             FacturaDetalle(
@@ -309,6 +361,7 @@ def crear_manual(
 
     tipo = determinar_tipo_factura(cliente.condicion_iva)
     snap = _snapshot_cliente(cliente)
+    incluye_iva = _precio_incluye_iva(cliente, _lista_precios_de_cliente(db, cliente))
 
     factura = Factura(
         id=uuid.uuid4(),
@@ -335,6 +388,7 @@ def crear_manual(
             cantidad=d.cantidad,
             descuento_porcentaje=d.descuento_porcentaje,
             iva_porcentaje=d.iva_porcentaje,
+            precio_incluye_iva=incluye_iva,
         )
         db.add(
             FacturaDetalle(
@@ -464,13 +518,19 @@ def listar_pedidos_pendientes(
 
 
 def _remitos_facturados_subquery(db: Session):
-    """Sub-query: IDs de movimientos_cc que ya tienen factura activa.
-    Sirve para excluir remitos cuyo movimiento_cc ya quedó facturado."""
+    """Sub-query: IDs de movimientos_cc que ya tienen factura ACTIVA
+    (borrador o autorizada). Se JOINea con Factura y se filtra por
+    ``factura.activo=True``: si el borrador fue eliminado (soft-delete),
+    su vínculo desaparece del subquery y el remito vuelve al listado de
+    pendientes.
+    """
     return (
         db.query(MovimientoCuentaCorriente.id)
+        .join(Factura, Factura.id == MovimientoCuentaCorriente.factura_id)
         .filter(
             MovimientoCuentaCorriente.activo == True,
             MovimientoCuentaCorriente.factura_id.isnot(None),
+            Factura.activo == True,
         )
         .subquery()
     )
@@ -618,6 +678,7 @@ def crear_desde_remito(
 
     tipo = determinar_tipo_factura(cliente.condicion_iva)
     snap = _snapshot_cliente(cliente)
+    incluye_iva = _precio_incluye_iva(cliente, _lista_precios_de_cliente(db, cliente))
 
     fechas_remitos = [r.fecha_emision for r in remitos if r.fecha_emision]
     fecha_servicio_desde = data.fecha_servicio_desde or (min(fechas_remitos) if fechas_remitos else None)
@@ -657,6 +718,7 @@ def crear_desde_remito(
                 cantidad=det.cantidad,
                 descuento_porcentaje=Decimal("0"),
                 iva_porcentaje=iva_default,
+                precio_incluye_iva=incluye_iva,
             )
             # Resolver descripción: descripción del detalle o nombre del producto
             descripcion_base = det.descripcion
@@ -724,12 +786,15 @@ def preview_factura_mes_consolidado_remitos(
         .all()
     )
 
-    # IDs de movimientos_cc ya facturados
+    # IDs de movimientos_cc ya facturados con factura ACTIVA (borradores
+    # eliminados no cuentan — sus remitos vuelven al listado de pendientes).
     mov_facturados = (
         db.query(MovimientoCuentaCorriente.id, MovimientoCuentaCorriente.factura_id)
+        .join(Factura, Factura.id == MovimientoCuentaCorriente.factura_id)
         .filter(
             MovimientoCuentaCorriente.activo == True,
             MovimientoCuentaCorriente.factura_id.isnot(None),
+            Factura.activo == True,
             MovimientoCuentaCorriente.id.in_([r.movimiento_cc_id for r in todos if r.movimiento_cc_id]),
         )
         .all()
@@ -1005,6 +1070,7 @@ def facturar_mes_consolidado(
 
     tipo = determinar_tipo_factura(cliente.condicion_iva)
     snap = _snapshot_cliente(cliente)
+    incluye_iva = _precio_incluye_iva(cliente, _lista_precios_de_cliente(db, cliente))
     iva_default = Decimal("21")
 
     factura = Factura(
@@ -1032,6 +1098,7 @@ def facturar_mes_consolidado(
                 cantidad=det.cantidad,
                 descuento_porcentaje=det.descuento_porcentaje or Decimal("0"),
                 iva_porcentaje=iva_default,
+                precio_incluye_iva=incluye_iva,
             )
             descripcion = (det.descripcion or f"Servicio pedido #{pedido.numero}")
             descripcion = f"{descripcion} (Pedido #{pedido.numero})"
@@ -1162,6 +1229,19 @@ def eliminar_borrador(db: Session, factura_id: UUID) -> None:
             detail="Solo se pueden eliminar facturas en estado borrador. Para anular una factura autorizada emití una Nota de Crédito.",
         )
 
+    # Liberar los movimientos de CC que quedaron linkeados a este borrador
+    # (los remitos vinculados vuelven a estar disponibles para facturar).
+    db.query(MovimientoCuentaCorriente).filter(
+        MovimientoCuentaCorriente.factura_id == factura.id
+    ).update(
+        {
+            MovimientoCuentaCorriente.factura_id: None,
+            MovimientoCuentaCorriente.estado_facturacion: "sin_facturar",
+            MovimientoCuentaCorriente.factura_numero: None,
+        },
+        synchronize_session=False,
+    )
+
     factura.activo = False
     db.flush()
 
@@ -1248,6 +1328,11 @@ def crear_nota_credito(
                 status.HTTP_400_BAD_REQUEST,
                 detail="Indicá total=true o al menos un detalle a creditar.",
             )
+        # NC hereda el modo de precio de la factura original: si el receptor no
+        # es RI, los precios se consideran finales (mismo criterio que la original).
+        nc_incluye_iva = (
+            original.cliente_condicion_iva_snap != CondicionIVA.RESPONSABLE_INSCRIPTO.value
+        )
         for item in data.detalles:
             iva_pct = Decimal(item.iva_porcentaje or Decimal("21"))
             montos = calcular_linea(
@@ -1255,6 +1340,7 @@ def crear_nota_credito(
                 cantidad=item.cantidad,
                 descuento_porcentaje=Decimal("0"),
                 iva_porcentaje=iva_pct,
+                precio_incluye_iva=nc_incluye_iva,
             )
             db.add(
                 FacturaDetalle(
@@ -1324,12 +1410,17 @@ def crear_nota_debito(
     db.add(nd)
     db.flush()
 
+    # ND hereda el modo de precio de la factura original (mismo criterio).
+    nd_incluye_iva = (
+        original.cliente_condicion_iva_snap != CondicionIVA.RESPONSABLE_INSCRIPTO.value
+    )
     for d in data.detalles:
         montos = calcular_linea(
             precio_unitario_neto=d.precio_unitario_neto,
             cantidad=d.cantidad,
             descuento_porcentaje=d.descuento_porcentaje,
             iva_porcentaje=d.iva_porcentaje,
+            precio_incluye_iva=nd_incluye_iva,
         )
         db.add(
             FacturaDetalle(
