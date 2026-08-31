@@ -22,6 +22,10 @@ from app.models.remito import Remito, EstadoRemito
 # Estados de remito que representan una venta efectiva (no borrador ni anulado).
 _REMITO_ESTADOS_VENTA = (EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.value)
 
+# Días de la semana en español (Lun=0 ... Dom=6). Usamos mapeo manual en
+# vez de `strftime("%a")` porque en el servidor el locale es en inglés.
+_DIAS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+
 
 class DashboardService:
     """Servicio para el dashboard principal"""
@@ -184,14 +188,14 @@ class DashboardService:
                 row = ventas_por_dia[dia]
                 datos.append({
                     "fecha": dia.isoformat(),
-                    "dia": dia.strftime("%a"),
+                    "dia": _DIAS_ES[dia.weekday()],
                     "cantidad": row.cantidad,
                     "total": float(row.total or 0),
                 })
             else:
                 datos.append({
                     "fecha": dia.isoformat(),
-                    "dia": dia.strftime("%a"),
+                    "dia": _DIAS_ES[dia.weekday()],
                     "cantidad": 0,
                     "total": 0.0,
                 })
