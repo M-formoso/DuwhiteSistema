@@ -5,19 +5,17 @@ Schemas de Cliente.
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr, field_validator
-import re
+from pydantic import BaseModel, Field, EmailStr
 
 
 # ==================== CLIENTE ====================
 
 class ClienteBase(BaseModel):
-    """Schema base de cliente."""
+    """Schema base de cliente. Los datos fiscales viven en TitularFiscal."""
     tipo: str = "particular"
     razon_social: str = Field(..., min_length=2, max_length=200)
     nombre_fantasia: Optional[str] = None
-    cuit: Optional[str] = None
-    condicion_iva: str = "consumidor_final"
+    titular_fiscal_id: Optional[str] = None
     email: Optional[EmailStr] = None
     telefono: Optional[str] = None
     celular: Optional[str] = None
@@ -37,17 +35,6 @@ class ClienteBase(BaseModel):
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
 
-    @field_validator("cuit")
-    @classmethod
-    def validar_cuit(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        # Formato XX-XXXXXXXX-X
-        pattern = r"^\d{2}-\d{8}-\d{1}$"
-        if not re.match(pattern, v):
-            raise ValueError("CUIT debe tener formato XX-XXXXXXXX-X")
-        return v
-
 
 class ClienteCreate(ClienteBase):
     """Schema para crear cliente."""
@@ -59,8 +46,7 @@ class ClienteUpdate(BaseModel):
     tipo: Optional[str] = None
     razon_social: Optional[str] = Field(None, min_length=2, max_length=200)
     nombre_fantasia: Optional[str] = None
-    cuit: Optional[str] = None
-    condicion_iva: Optional[str] = None
+    titular_fiscal_id: Optional[str] = None
     email: Optional[EmailStr] = None
     telefono: Optional[str] = None
     celular: Optional[str] = None
@@ -95,6 +81,10 @@ class ClienteResponse(ClienteBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
+    # Datos fiscales delegados al titular (properties del modelo)
+    cuit: Optional[str] = None
+    condicion_iva: str = "consumidor_final"
+
     # Calculados
     nombre_display: str
     tiene_deuda: bool
@@ -111,13 +101,14 @@ class ClienteList(BaseModel):
     tipo: str
     razon_social: str
     nombre_fantasia: Optional[str] = None
-    cuit: Optional[str] = None
+    cuit: Optional[str] = None  # delegado al titular vía property
     email: Optional[str] = None
     telefono: Optional[str] = None
     ciudad: Optional[str] = None
     saldo_cuenta_corriente: Decimal
     activo: bool
     tiene_deuda: bool
+    titular_fiscal_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -128,7 +119,7 @@ class ClienteSelect(BaseModel):
     id: str
     codigo: str
     nombre: str  # nombre_display
-    cuit: Optional[str] = None
+    cuit: Optional[str] = None  # delegado al titular vía property
     lista_precios_id: Optional[str] = None
 
     class Config:

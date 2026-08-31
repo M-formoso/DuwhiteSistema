@@ -66,6 +66,7 @@ def listar_clientes(
                 saldo_cuenta_corriente=c.saldo_cuenta_corriente,
                 activo=c.activo,
                 tiene_deuda=c.tiene_deuda,
+                titular_fiscal_id=str(c.titular_fiscal_id) if c.titular_fiscal_id else None,
             )
             for c in clientes
         ],
@@ -155,6 +156,7 @@ def obtener_cliente(
         tipo=cliente.tipo,
         razon_social=cliente.razon_social,
         nombre_fantasia=cliente.nombre_fantasia,
+        titular_fiscal_id=str(cliente.titular_fiscal_id) if cliente.titular_fiscal_id else None,
         cuit=cliente.cuit,
         condicion_iva=cliente.condicion_iva,
         email=cliente.email,
@@ -197,13 +199,14 @@ def crear_cliente(
     """Crea un nuevo cliente."""
     service = ClienteService(db)
 
-    # Verificar CUIT único
-    if data.cuit:
-        existente = service.get_cliente_by_cuit(data.cuit)
-        if existente:
+    # Validar titular fiscal si se proporciona
+    if data.titular_fiscal_id:
+        from app.models.titular_fiscal import TitularFiscal
+        titular = db.query(TitularFiscal).filter(TitularFiscal.id == data.titular_fiscal_id).first()
+        if not titular:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe un cliente con ese CUIT",
+                detail="Titular fiscal no encontrado",
             )
 
     cliente = service.create_cliente(data)
@@ -214,6 +217,7 @@ def crear_cliente(
         tipo=cliente.tipo,
         razon_social=cliente.razon_social,
         nombre_fantasia=cliente.nombre_fantasia,
+        titular_fiscal_id=str(cliente.titular_fiscal_id) if cliente.titular_fiscal_id else None,
         cuit=cliente.cuit,
         condicion_iva=cliente.condicion_iva,
         email=cliente.email,
@@ -257,13 +261,14 @@ def actualizar_cliente(
     """Actualiza un cliente."""
     service = ClienteService(db)
 
-    # Verificar CUIT único si se está actualizando
-    if data.cuit:
-        existente = service.get_cliente_by_cuit(data.cuit)
-        if existente and str(existente.id) != cliente_id:
+    # Validar titular fiscal si se proporciona
+    if data.titular_fiscal_id:
+        from app.models.titular_fiscal import TitularFiscal
+        titular = db.query(TitularFiscal).filter(TitularFiscal.id == data.titular_fiscal_id).first()
+        if not titular:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe otro cliente con ese CUIT",
+                detail="Titular fiscal no encontrado",
             )
 
     cliente = service.update_cliente(cliente_id, data)
@@ -280,6 +285,7 @@ def actualizar_cliente(
         tipo=cliente.tipo,
         razon_social=cliente.razon_social,
         nombre_fantasia=cliente.nombre_fantasia,
+        titular_fiscal_id=str(cliente.titular_fiscal_id) if cliente.titular_fiscal_id else None,
         cuit=cliente.cuit,
         condicion_iva=cliente.condicion_iva,
         email=cliente.email,

@@ -3,7 +3,8 @@ Modelo de Cliente.
 """
 
 from enum import Enum
-from sqlalchemy import Column, String, Boolean, Numeric, Text, Date, Integer
+from sqlalchemy import Column, String, Boolean, Numeric, Text, Date, Integer, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -41,13 +42,17 @@ class Cliente(Base, BaseModelMixin):
     codigo = Column(String(20), unique=True, nullable=False, index=True)
     tipo = Column(String(20), nullable=False, default=TipoCliente.PARTICULAR.value)
 
-    # Datos básicos
+    # Datos básicos (nombre operativo del cliente, ej: "Hotel Villa Paz")
     razon_social = Column(String(200), nullable=False)
     nombre_fantasia = Column(String(200), nullable=True)
 
-    # Datos fiscales
-    cuit = Column(String(13), nullable=True, unique=True)  # XX-XXXXXXXX-X
-    condicion_iva = Column(String(30), nullable=False, default=CondicionIVA.CONSUMIDOR_FINAL.value)
+    # Titular fiscal (CUIT + condición IVA + razón social fiscal viven en TitularFiscal)
+    titular_fiscal_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("titulares_fiscales.id"),
+        nullable=True,
+        index=True,
+    )
 
     # Contacto
     email = Column(String(255), nullable=True)
@@ -89,6 +94,7 @@ class Cliente(Base, BaseModelMixin):
     activo = Column(Boolean, default=True)
 
     # Relaciones
+    titular_fiscal = relationship("TitularFiscal", back_populates="clientes")
     pedidos = relationship("Pedido", back_populates="cliente", lazy="dynamic")
     movimientos_cuenta = relationship("MovimientoCuentaCorriente", back_populates="cliente", lazy="dynamic")
     lotes = relationship("LoteProduccion", back_populates="cliente", lazy="dynamic")
@@ -97,6 +103,21 @@ class Cliente(Base, BaseModelMixin):
 
     def __repr__(self) -> str:
         return f"<Cliente {self.codigo}: {self.razon_social}>"
+
+    @property
+    def cuit(self):
+        """Compat: el CUIT vive en el titular fiscal."""
+        return self.titular_fiscal.cuit if self.titular_fiscal else None
+
+    @property
+    def condicion_iva(self) -> str:
+        """Compat: la condición IVA vive en el titular fiscal.
+        Sin titular, se asume Consumidor Final."""
+        return (
+            self.titular_fiscal.condicion_iva
+            if self.titular_fiscal
+            else CondicionIVA.CONSUMIDOR_FINAL.value
+        )
 
     @property
     def nombre_display(self) -> str:

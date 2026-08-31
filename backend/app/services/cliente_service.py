@@ -11,6 +11,7 @@ from sqlalchemy import func, or_, and_, case
 from sqlalchemy.orm import Session
 
 from app.models.cliente import Cliente
+from app.models.titular_fiscal import TitularFiscal
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido
 from app.models.cuenta_corriente import (
     MovimientoCuentaCorriente,
@@ -73,12 +74,16 @@ class ClienteService:
 
         if buscar:
             search = f"%{buscar}%"
-            query = query.filter(
+            # El CUIT vive en TitularFiscal — outer-join para no perder
+            # clientes sin titular.
+            query = query.outerjoin(
+                TitularFiscal, Cliente.titular_fiscal_id == TitularFiscal.id
+            ).filter(
                 or_(
                     Cliente.codigo.ilike(search),
                     Cliente.razon_social.ilike(search),
                     Cliente.nombre_fantasia.ilike(search),
-                    Cliente.cuit.ilike(search),
+                    TitularFiscal.cuit.ilike(search),
                     Cliente.email.ilike(search),
                 )
             )
@@ -117,9 +122,12 @@ class ClienteService:
         """Obtiene un cliente por código."""
         return self.db.query(Cliente).filter(Cliente.codigo == codigo).first()
 
-    def get_cliente_by_cuit(self, cuit: str) -> Optional[Cliente]:
-        """Obtiene un cliente por CUIT."""
-        return self.db.query(Cliente).filter(Cliente.cuit == cuit).first()
+    def get_clientes_by_cuit(self, cuit: str) -> List[Cliente]:
+        """Obtiene todos los clientes bajo un titular fiscal con ese CUIT."""
+        titular = self.db.query(TitularFiscal).filter(TitularFiscal.cuit == cuit).first()
+        if not titular:
+            return []
+        return self.db.query(Cliente).filter(Cliente.titular_fiscal_id == titular.id).all()
 
     def create_cliente(self, data: ClienteCreate) -> Cliente:
         """Crea un nuevo cliente."""

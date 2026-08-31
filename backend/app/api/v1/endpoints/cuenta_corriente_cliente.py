@@ -51,12 +51,15 @@ def listar_clientes_con_deuda(
 
     if buscar:
         search = f"%{buscar}%"
-        query = query.filter(
+        from app.models.titular_fiscal import TitularFiscal
+        query = query.outerjoin(
+            TitularFiscal, Cliente.titular_fiscal_id == TitularFiscal.id
+        ).filter(
             or_(
                 Cliente.codigo.ilike(search),
                 Cliente.razon_social.ilike(search),
                 Cliente.nombre_fantasia.ilike(search),
-                Cliente.cuit.ilike(search),
+                TitularFiscal.cuit.ilike(search),
             )
         )
 

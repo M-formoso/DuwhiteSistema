@@ -78,6 +78,10 @@ def _cargo_para_remito(session, cliente_id, remito):
 
 
 def diagnosticar(session, cliente, desde, hasta):
+    """Devuelve (faltantes, linkeables):
+    - faltantes: remito.movimiento_cc_id NULL y no existe cargo con ese concepto
+    - linkeables: remito.movimiento_cc_id NULL pero YA existe cargo con ese
+      concepto (solo hay que setear la FK, no crear nada)."""
     q = session.query(Remito).filter(
         Remito.cliente_id == str(cliente.id),
         Remito.activo == True,
@@ -89,6 +93,7 @@ def diagnosticar(session, cliente, desde, hasta):
     remitos = q.order_by(Remito.fecha_emision.asc()).all()
 
     faltantes = []
+    linkeables = []
     ok = 0
     print(f"\n📋 Cliente: {cliente.codigo} / {cliente.razon_social}")
     print(f"   Saldo actual en BD: ${cliente.saldo_cuenta_corriente or 0}")
@@ -97,56 +102,93 @@ def diagnosticar(session, cliente, desde, hasta):
 
     for r in remitos:
         cargo = _cargo_para_remito(session, cliente.id, r)
-        marca = "✅" if cargo else "❌ FALTANTE"
+        if r.movimiento_cc_id:
+            marca = "✅"
+            ok += 1
+        elif cargo:
+            marca = "🔗 LINKEAR"
+            linkeables.append((r, cargo))
+        else:
+            marca = "❌ FALTANTE"
+            faltantes.append(r)
         total = f"${r.total or 0}"
         print(
             f"   {marca}  {r.fecha_emision}  {r.numero}  {total:>15}  "
             f"estado={r.estado}"
         )
-        if cargo:
-            ok += 1
-        else:
-            faltantes.append(r)
 
-    print(f"\n📊 Resumen: {ok} con cargo, {len(faltantes)} sin cargo")
+    print(f"\n📊 Resumen: {ok} con cargo, {len(faltantes)} sin cargo, {len(linkeables)} solo linkear")
     if faltantes:
         total_faltante = sum(Decimal(r.total or 0) for r in faltantes)
         print(f"   Monto total faltante en CC: ${total_faltante}")
-    return faltantes
+    return faltantes, linkeables
 
 
-def reparar(session, cliente, faltantes, usuario_id):
-    """Crea el cargo en CC por cada remito faltante y actualiza el saldo."""
-    if not faltantes:
+def reparar(session, cliente, faltantes, linkeables, usuario_id):
+    """Crea cargos faltantes en CC y linkea los que ya existen sin FK."""
+    if not faltantes and not linkeables:
         print("\nNada para reparar.")
         return
 
-    print(f"\n🛠  Creando {len(faltantes)} movimiento(s) faltante(s)...")
-    for r in faltantes:
-        saldo_anterior = Decimal(cliente.saldo_cuenta_corriente or 0)
-        monto = Decimal(r.total or 0)
-        saldo_posterior = saldo_anterior + monto
+    if linkeables:
+        print(f"\n🔗 Linkeando {len(linkeables)} movimiento(s) existente(s) a su remito...")
+        for r, mov in linkeables:
+            r.movimiento_cc_id = mov.id
+            print(f"   ↔ {r.numero}  ${r.total}  → mov {str(mov.id)[:8]}…")
 
-        mov = MovimientoCuentaCorriente(
-            id=str(uuid4()),
-            cliente_id=str(cliente.id),
-            tipo=TipoMovimientoCC.CARGO.value,
-            concepto=f"Remito {r.numero}",
-            monto=monto,
-            saldo_anterior=saldo_anterior,
-            saldo_posterior=saldo_posterior,
-            fecha_movimiento=r.fecha_emision or date.today(),
-            estado_facturacion="sin_facturar",
-            registrado_por_id=str(usuario_id),
-            notas=f"Cargo generado por script (remito preexistente sin movimiento CC)",
-            activo=True,
-        )
-        cliente.saldo_cuenta_corriente = saldo_posterior
-        session.add(mov)
-        print(f"   + {r.numero}  ${monto}  → saldo {saldo_posterior}")
+    if faltantes:
+        print(f"\n🛠  Creando {len(faltantes)} movimiento(s) faltante(s)...")
+        for r in faltantes:
+            saldo_anterior = Decimal(cliente.saldo_cuenta_corriente or 0)
+            monto = Decimal(r.total or 0)
+            saldo_posterior = saldo_anterior + monto
+
+            mov_id = str(uuid4())
+            mov = MovimientoCuentaCorriente(
+                id=mov_id,
+                cliente_id=str(cliente.id),
+                tipo=TipoMovimientoCC.CARGO.value,
+                concepto=f"Remito {r.numero}",
+                monto=monto,
+                saldo_anterior=saldo_anterior,
+                saldo_posterior=saldo_posterior,
+                fecha_movimiento=r.fecha_emision or date.today(),
+                estado_facturacion="sin_facturar",
+                registrado_por_id=str(usuario_id),
+                notas=f"Cargo generado por script (remito preexistente sin movimiento CC)",
+                activo=True,
+            )
+            cliente.saldo_cuenta_corriente = saldo_posterior
+            session.add(mov)
+            # Sin esto, remito.movimiento_cc_id queda NULL y el preview de
+            # facturación masiva sigue excluyendo el remito como "Sin movimiento
+            # de cuenta corriente".
+            r.movimiento_cc_id = mov_id
+            print(f"   + {r.numero}  ${monto}  → saldo {saldo_posterior}")
 
     session.commit()
     print("\n✅ Reparación completada.")
+
+
+def _clientes_con_huerfanos(session):
+    ids = (
+        session.query(Remito.cliente_id)
+        .filter(
+            Remito.activo == True,
+            Remito.movimiento_cc_id.is_(None),
+            Remito.estado.in_(["emitido", "entregado"]),
+        )
+        .distinct()
+        .all()
+    )
+    if not ids:
+        return []
+    return (
+        session.query(Cliente)
+        .filter(Cliente.id.in_([i[0] for i in ids]))
+        .order_by(Cliente.codigo)
+        .all()
+    )
 
 
 def main():
@@ -154,14 +196,16 @@ def main():
     ap.add_argument("--database-url")
     ap.add_argument("--cliente-nombre")
     ap.add_argument("--cliente-codigo")
+    ap.add_argument("--todos", action="store_true", help="Iterar sobre todos los clientes con remitos huérfanos")
+    ap.add_argument("--excluir-codigo", action="append", default=[], help="Códigos de cliente a saltear (repetible)")
     ap.add_argument("--desde", type=lambda s: date.fromisoformat(s))
     ap.add_argument("--hasta", type=lambda s: date.fromisoformat(s))
     ap.add_argument("--reparar", action="store_true", help="Crear los movimientos faltantes")
     ap.add_argument("--usuario-email", help="Email del usuario que quedará como registrado_por en la reparación")
     args = ap.parse_args()
 
-    if not (args.cliente_nombre or args.cliente_codigo):
-        ap.error("Especificá --cliente-nombre o --cliente-codigo")
+    if not (args.cliente_nombre or args.cliente_codigo or args.todos):
+        ap.error("Especificá --cliente-nombre, --cliente-codigo o --todos")
 
     db_url = get_db_url(args.database_url)
     if not db_url:
@@ -172,9 +216,16 @@ def main():
     session = Session()
 
     try:
-        cliente = _resolver_cliente(session, args.cliente_nombre, args.cliente_codigo)
-        faltantes = diagnosticar(session, cliente, args.desde, args.hasta)
+        if args.todos:
+            clientes = _clientes_con_huerfanos(session)
+            if args.excluir_codigo:
+                clientes = [c for c in clientes if c.codigo not in args.excluir_codigo]
+            print(f"\n🔎 {len(clientes)} cliente(s) con huérfanos" +
+                  (f" (excluyendo {args.excluir_codigo})" if args.excluir_codigo else ""))
+        else:
+            clientes = [_resolver_cliente(session, args.cliente_nombre, args.cliente_codigo)]
 
+        usuario = None
         if args.reparar:
             if not args.usuario_email:
                 ap.error("Para --reparar hace falta --usuario-email")
@@ -183,7 +234,11 @@ def main():
             )
             if not usuario:
                 raise SystemExit(f"❌ Usuario no encontrado: {args.usuario_email}")
-            reparar(session, cliente, faltantes, usuario.id)
+
+        for cliente in clientes:
+            faltantes, linkeables = diagnosticar(session, cliente, args.desde, args.hasta)
+            if args.reparar and (faltantes or linkeables):
+                reparar(session, cliente, faltantes, linkeables, usuario.id)
     finally:
         session.close()
 
