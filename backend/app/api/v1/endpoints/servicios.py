@@ -295,6 +295,7 @@ def obtener_lista_precios(
         "fecha_vigencia_hasta": lista.fecha_vigencia_hasta,
         "notas": lista.notas,
         "activa": lista.activa,
+        "incluye_iva": lista.incluye_iva,
         "created_at": lista.created_at,
         "updated_at": lista.updated_at,
         "lista_base_nombre": lista.lista_base.nombre if lista.lista_base else None,

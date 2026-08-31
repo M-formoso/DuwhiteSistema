@@ -65,6 +65,7 @@ export interface ListaPrecios {
   fecha_vigencia_desde?: string;
   fecha_vigencia_hasta?: string;
   activa: boolean;
+  incluye_iva: boolean;
   notas?: string;
   cantidad_items: number;
   created_at: string;
@@ -80,6 +81,7 @@ export interface ListaPreciosCreate {
   porcentaje_modificador?: number;
   fecha_vigencia_desde?: string;
   fecha_vigencia_hasta?: string;
+  incluye_iva?: boolean;
   notas?: string;
 }
 
@@ -93,6 +95,7 @@ export interface ListaPreciosUpdate {
   fecha_vigencia_desde?: string;
   fecha_vigencia_hasta?: string;
   activa?: boolean;
+  incluye_iva?: boolean;
   notas?: string;
 }
 

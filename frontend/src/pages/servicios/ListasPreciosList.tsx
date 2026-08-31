@@ -95,6 +95,7 @@ export default function ListasPreciosList() {
     es_lista_base: false,
     lista_base_id: undefined,
     porcentaje_modificador: undefined,
+    incluye_iva: false,
     notas: '',
   });
 
@@ -176,6 +177,7 @@ export default function ListasPreciosList() {
         es_lista_base: lista.es_lista_base,
         lista_base_id: lista.lista_base_id || undefined,
         porcentaje_modificador: lista.porcentaje_modificador || undefined,
+        incluye_iva: lista.incluye_iva ?? false,
         notas: lista.notas || '',
       });
     } else {
@@ -187,6 +189,7 @@ export default function ListasPreciosList() {
         es_lista_base: false,
         lista_base_id: undefined,
         porcentaje_modificador: undefined,
+        incluye_iva: false,
         notas: '',
       });
     }
@@ -219,6 +222,7 @@ export default function ListasPreciosList() {
       porcentaje_modificador: formData.es_lista_base
         ? undefined
         : (formData.porcentaje_modificador ?? undefined),
+      incluye_iva: formData.incluye_iva ?? false,
       notas: formData.notas?.trim() || undefined,
     };
 
@@ -539,6 +543,22 @@ export default function ListasPreciosList() {
                 )}
               </>
             )}
+
+            <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-background/50 p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Los precios incluyen IVA</Label>
+                <p className="text-xs text-muted-foreground">
+                  Si esta activado, el PDF muestra los precios con IVA (21%) aplicado.
+                  En cualquier caso se indica en la lista si incluye o no IVA.
+                </p>
+              </div>
+              <Switch
+                checked={formData.incluye_iva ?? false}
+                onCheckedChange={(v) =>
+                  setFormData({ ...formData, incluye_iva: v })
+                }
+              />
+            </div>
 
             <div>
               <Label>Notas</Label>

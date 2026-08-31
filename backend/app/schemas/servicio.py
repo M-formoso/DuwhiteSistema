@@ -111,6 +111,7 @@ class ListaPreciosBase(BaseModel):
     porcentaje_modificador: Optional[Decimal] = Field(None, ge=-100, le=1000)
     fecha_vigencia_desde: Optional[str] = None
     fecha_vigencia_hasta: Optional[str] = None
+    incluye_iva: bool = False
     notas: Optional[str] = None
 
 
@@ -130,6 +131,7 @@ class ListaPreciosUpdate(BaseModel):
     fecha_vigencia_desde: Optional[str] = None
     fecha_vigencia_hasta: Optional[str] = None
     activa: Optional[bool] = None
+    incluye_iva: Optional[bool] = None
     notas: Optional[str] = None
 
 

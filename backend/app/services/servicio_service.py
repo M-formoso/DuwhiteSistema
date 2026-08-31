@@ -277,6 +277,7 @@ def create_lista_precios(db: Session, data: ListaPreciosCreate) -> ListaPrecios:
         porcentaje_modificador=data.porcentaje_modificador,
         fecha_vigencia_desde=data.fecha_vigencia_desde,
         fecha_vigencia_hasta=data.fecha_vigencia_hasta,
+        incluye_iva=data.incluye_iva,
         notas=data.notas,
         activa=True
     )

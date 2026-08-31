@@ -59,6 +59,9 @@ class ListaPrecios(Base, BaseModelMixin):
     # Estado
     activa = Column(Boolean, default=True)
 
+    # IVA: si está en True, el PDF muestra los precios con IVA (21%) aplicado
+    incluye_iva = Column(Boolean, default=False, nullable=False)
+
     # Notas
     notas = Column(Text, nullable=True)
 

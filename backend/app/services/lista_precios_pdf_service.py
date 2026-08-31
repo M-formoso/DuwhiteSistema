@@ -33,6 +33,10 @@ CATEGORIAS_LABEL = {
     "otros": "Otros",
 }
 
+# Alícuota IVA general (RG 21%). Si en el futuro se soportan alícuotas
+# diferenciadas por lista, mover a columna en `listas_precios`.
+ALICUOTA_IVA_DEFAULT = Decimal("21.00")
+
 
 def _moneda(value) -> str:
     if value is None:
@@ -103,6 +107,11 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
             detail="Error cargando precios de la lista",
         )
 
+    # IVA: si la lista lo incluye, aplicamos la alícuota al precio mostrado.
+    incluye_iva = bool(getattr(lista, "incluye_iva", False))
+    alicuota_iva = ALICUOTA_IVA_DEFAULT
+    factor_iva = (Decimal("1") + alicuota_iva / Decimal("100")) if incluye_iva else Decimal("1")
+
     # Agrupar por categoría.
     grupos_map: dict = {}
     for p in precios:
@@ -116,12 +125,14 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
                 "categoria_label": CATEGORIAS_LABEL.get(cat_key, cat_key.replace("_", " ").title()),
                 "productos": [],
             }
+        precio_base = Decimal(p.precio_unitario or 0)
+        precio_display = (precio_base * factor_iva).quantize(Decimal("0.01"))
         grupos_map[cat_key]["productos"].append({
             "codigo": prod.codigo,
             "nombre": prod.nombre,
             "descripcion": prod.descripcion,
             "peso_promedio_kg": float(prod.peso_promedio_kg) if prod.peso_promedio_kg else None,
-            "precio": p.precio_unitario,
+            "precio": precio_display,
         })
 
     # Orden estable de categorías: usar el orden del enum.
@@ -148,6 +159,10 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
             grupos=grupos,
             total_items=len(precios),
             generado_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
+            iva={
+                "incluido": incluye_iva,
+                "alicuota": alicuota_iva,
+            },
         )
     except Exception as exc:
         logger.exception("Error renderizando template lista_precios.html")
