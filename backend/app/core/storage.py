@@ -23,6 +23,8 @@ from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile, status
 
+from app.core.timezone import today_ar
+
 
 # Ruta base de almacenamiento — configurable por env var.
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads")).resolve()
@@ -65,7 +67,7 @@ def guardar_archivo_cheque(archivo: UploadFile) -> str:
             ),
         )
 
-    hoy = date.today()
+    hoy = today_ar()
     subdir = Path("cheques") / f"{hoy.year:04d}" / f"{hoy.month:02d}"
     nombre_final = f"{uuid4().hex}.{ext}"
     ruta_relativa = subdir / nombre_final

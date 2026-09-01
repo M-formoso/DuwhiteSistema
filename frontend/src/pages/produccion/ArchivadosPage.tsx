@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { formatDateTimeAR } from '@/lib/utils';
 import {
   Archive,
   RefreshCw,
@@ -50,14 +51,7 @@ import { formatNumber } from '@/utils/formatters';
 const PAGE_SIZE = 50;
 
 function formatFecha(fecha: string | null | undefined): string {
-  if (!fecha) return '-';
-  return new Date(fecha).toLocaleString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTimeAR(fecha);
 }
 
 function diasArchivado(archivado_at: string): number {

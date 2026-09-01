@@ -64,7 +64,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { facturaService } from '@/services/facturaService';
 import AplicacionesFactura from './AplicacionesFactura';
 import { getErrorMessage } from '@/services/api';
-import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters';
+import { formatCurrency, formatDate, formatDateTime, getLocalDateString } from '@/utils/formatters';
 import {
   TIPOS_COMPROBANTE_LABEL,
   ESTADOS_FACTURA_COLOR,
@@ -85,7 +85,7 @@ export default function FacturaDetailPage() {
   const [showCobroDialog, setShowCobroDialog] = useState(false);
   const [cobroMonto, setCobroMonto] = useState('');
   const [cobroMedio, setCobroMedio] = useState('efectivo');
-  const [cobroFecha, setCobroFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [cobroFecha, setCobroFecha] = useState(() => getLocalDateString());
   const [cobroReferencia, setCobroReferencia] = useState('');
   const [cobroObservaciones, setCobroObservaciones] = useState('');
 

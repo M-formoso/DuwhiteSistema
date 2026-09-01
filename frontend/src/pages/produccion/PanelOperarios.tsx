@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { formatDateTimeAR } from '@/lib/utils';
 import {
   Play,
   CheckCircle,
@@ -668,14 +669,7 @@ function VerDetalleModal({
                         title="Fecha y hora en que el lote terminó su última etapa productiva"
                       >
                         <CheckCircle className="h-3 w-3" />
-                        Terminó{' '}
-                        {new Date(lote.fecha_llegada_etapa).toLocaleString('es-AR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        Terminó {formatDateTimeAR(lote.fecha_llegada_etapa)}
                       </span>
                     )}
                   </div>

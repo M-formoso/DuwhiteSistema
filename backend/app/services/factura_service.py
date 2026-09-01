@@ -23,6 +23,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.timezone import today_ar
 from app.models.cliente import Cliente, CondicionIVA
 from app.models.cuenta_corriente import (
     MovimientoCuentaCorriente,
@@ -298,7 +299,7 @@ def crear_desde_pedido(
         punto_venta=punto_venta,
         pedido_id=pedido.id,
         cliente_id=cliente.id,
-        fecha_emision=data.fecha_emision or date.today(),
+        fecha_emision=data.fecha_emision or today_ar(),
         fecha_servicio_desde=data.fecha_servicio_desde or pedido.fecha_pedido,
         fecha_servicio_hasta=data.fecha_servicio_hasta or pedido.fecha_entrega_real or pedido.fecha_entrega_estimada,
         fecha_vencimiento_pago=data.fecha_vencimiento_pago,
@@ -368,7 +369,7 @@ def crear_manual(
         tipo=tipo.value,
         punto_venta=punto_venta,
         cliente_id=cliente.id,
-        fecha_emision=data.fecha_emision or date.today(),
+        fecha_emision=data.fecha_emision or today_ar(),
         fecha_servicio_desde=data.fecha_servicio_desde,
         fecha_servicio_hasta=data.fecha_servicio_hasta,
         fecha_vencimiento_pago=data.fecha_vencimiento_pago,
@@ -695,7 +696,7 @@ def crear_desde_remito(
         tipo=tipo.value,
         punto_venta=punto_venta,
         cliente_id=cliente.id,
-        fecha_emision=data.fecha_emision or date.today(),
+        fecha_emision=data.fecha_emision or today_ar(),
         fecha_servicio_desde=fecha_servicio_desde,
         fecha_servicio_hasta=fecha_servicio_hasta,
         fecha_vencimiento_pago=data.fecha_vencimiento_pago,
@@ -893,7 +894,7 @@ def facturar_mes_consolidado_remitos(
         )
 
     # Reuso la lógica de crear_desde_remito armando el request
-    fecha_emision_final = fecha_emision or date.today()
+    fecha_emision_final = fecha_emision or today_ar()
     request = FacturaCreateDesdeRemito(
         remito_ids=[str(r.id) for r in remitos],
         fecha_emision=fecha_emision_final,
@@ -1078,9 +1079,9 @@ def facturar_mes_consolidado(
         tipo=tipo.value,
         punto_venta=punto_venta,
         cliente_id=cliente.id,
-        fecha_emision=fecha_emision or date.today(),
+        fecha_emision=fecha_emision or today_ar(),
         fecha_servicio_desde=desde,
-        fecha_servicio_hasta=min(hasta, date.today()),
+        fecha_servicio_hasta=min(hasta, today_ar()),
         concepto_afip=ConceptoAfip.SERVICIOS.value,
         condicion_venta=CondicionVenta.CUENTA_CORRIENTE.value,
         observaciones=f"Facturación consolidada {mes:02d}/{anio} — {len(pedidos_con_detalles)} pedidos",
@@ -1291,7 +1292,7 @@ def crear_nota_credito(
         cliente_condicion_iva_snap=original.cliente_condicion_iva_snap,
         cliente_domicilio_snap=original.cliente_domicilio_snap,
         factura_original_id=original.id,
-        fecha_emision=data.fecha_emision or date.today(),
+        fecha_emision=data.fecha_emision or today_ar(),
         fecha_servicio_desde=original.fecha_servicio_desde,
         fecha_servicio_hasta=original.fecha_servicio_hasta,
         concepto_afip=original.concepto_afip,
@@ -1399,7 +1400,7 @@ def crear_nota_debito(
         cliente_condicion_iva_snap=original.cliente_condicion_iva_snap,
         cliente_domicilio_snap=original.cliente_domicilio_snap,
         factura_original_id=original.id,
-        fecha_emision=data.fecha_emision or date.today(),
+        fecha_emision=data.fecha_emision or today_ar(),
         concepto_afip=original.concepto_afip,
         condicion_venta=original.condicion_venta,
         motivo=data.motivo,
@@ -1879,7 +1880,7 @@ def registrar_cobro(
         saldo_posterior=saldo_posterior,
         medio_pago=data.medio_pago,
         referencia_pago=data.referencia_pago,
-        fecha_movimiento=data.fecha_cobro or date.today(),
+        fecha_movimiento=data.fecha_cobro or today_ar(),
         registrado_por_id=usuario_id,
         notas=data.observaciones,
     )
@@ -1887,7 +1888,7 @@ def registrar_cobro(
 
     cliente.saldo_cuenta_corriente = saldo_posterior
     factura.monto_pagado = nuevo_pagado
-    factura.fecha_ultimo_cobro = data.fecha_cobro or date.today()
+    factura.fecha_ultimo_cobro = data.fecha_cobro or today_ar()
 
     # Recalcular estado_pago
     if nuevo_pagado >= total - Decimal("0.01"):

@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, or_, and_, case
 from sqlalchemy.orm import Session
 
+from app.core.timezone import today_ar
 from app.models.cliente import Cliente
 from app.models.titular_fiscal import TitularFiscal
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido
@@ -137,7 +138,7 @@ class ClienteService:
         cliente = Cliente(
             id=str(uuid4()),
             codigo=codigo,
-            fecha_alta=date.today(),
+            fecha_alta=today_ar(),
             **data.model_dump(),
         )
 
@@ -346,11 +347,11 @@ class ClienteService:
 
         # Acciones según nuevo estado
         if nuevo_estado == EstadoPedido.ENTREGADO.value:
-            pedido.fecha_entrega_real = date.today()
+            pedido.fecha_entrega_real = today_ar()
             # Actualizar fecha última compra del cliente
             cliente = self.get_cliente(str(pedido.cliente_id))
             if cliente:
-                cliente.fecha_ultima_compra = date.today()
+                cliente.fecha_ultima_compra = today_ar()
 
         self.db.commit()
         self.db.refresh(pedido)
@@ -405,7 +406,7 @@ class ClienteService:
     def _generar_numero_pedido(self) -> str:
         """Genera número único de pedido."""
         # Formato: PED-YYMMDD-XXXX
-        hoy = date.today()
+        hoy = today_ar()
         prefijo = f"PED-{hoy.strftime('%y%m%d')}"
 
         ultimo = (
@@ -486,7 +487,7 @@ class ClienteService:
             lote_id=lote_id,
             factura_numero=factura_numero,
             estado_facturacion=estado_facturacion,
-            fecha_movimiento=date.today(),
+            fecha_movimiento=today_ar(),
             fecha_vencimiento=fecha_vencimiento,
             registrado_por_id=usuario_id,
         )
@@ -984,7 +985,7 @@ class ClienteService:
         tiene_filtro_periodo = fecha_desde is not None or fecha_hasta is not None
 
         # Calcular totales del mes en curso (se mantiene para retrocompat)
-        hoy = date.today()
+        hoy = today_ar()
         primer_dia_mes = hoy.replace(day=1)
 
         total_facturado_mes = (
@@ -1370,7 +1371,7 @@ class ClienteService:
     def _generar_numero_recibo(self) -> str:
         """Genera número único de recibo."""
         # Formato: REC-YYMMDD-XXXX
-        hoy = date.today()
+        hoy = today_ar()
         prefijo = f"REC-{hoy.strftime('%y%m%d')}"
 
         ultimo = (

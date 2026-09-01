@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.timezone import today_ar
 from app.models.etapa_produccion import EtapaProduccion
 from app.models.maquina import Maquina
 from app.models.lote_produccion import (
@@ -2029,7 +2030,7 @@ class ProduccionService:
 
     def _generar_numero_lote(self) -> str:
         """Genera el número del siguiente lote."""
-        today = date.today()
+        today = today_ar()
         prefijo = f"L{today.strftime('%y%m%d')}-"
 
         # Ignorar sublotes de división (formato Lyymmdd-NNNN-B), que romperían int(...)
@@ -2245,7 +2246,7 @@ class ProduccionService:
 
     def _generar_numero_orden_produccion(self) -> str:
         """Genera el número de la siguiente orden de producción (OP-YYYY-NNNNN)."""
-        year = date.today().year
+        year = today_ar().year
         prefijo = f"OP-{year}-"
 
         ultima = (
@@ -2570,7 +2571,7 @@ class ProduccionService:
             lote_id=str(lote.id),
             pedido_id=str(lote.pedido_id) if lote.pedido_id else None,
             estado_facturacion=estado_facturacion,
-            fecha_movimiento=date.today(),
+            fecha_movimiento=today_ar(),
             registrado_por_id=str(usuario_id),
         )
 
@@ -2657,7 +2658,7 @@ class ProduccionService:
             saldo_posterior=saldo_posterior,
             lote_id=str(lote.id),
             estado_facturacion=estado_facturacion,
-            fecha_movimiento=date.today(),
+            fecha_movimiento=today_ar(),
             registrado_por_id=str(usuario_id),
         )
 

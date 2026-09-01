@@ -6,6 +6,7 @@
 import { Fragment, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatDateTimeAR } from '@/lib/utils';
 import {
   ArrowLeft,
   RefreshCw,
@@ -1369,7 +1370,7 @@ export default function ClienteCuentaCorrientePage() {
                   <div>
                     <p className="text-gray-500 text-xs">Fecha de carga</p>
                     <p className="font-mono text-xs">
-                      {new Date(movimientoDetalle.created_at).toLocaleString('es-AR')}
+                      {formatDateTimeAR(movimientoDetalle.created_at)}
                     </p>
                   </div>
                 )}

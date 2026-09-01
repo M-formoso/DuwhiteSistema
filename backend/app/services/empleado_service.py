@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import Session
 
+from app.core.timezone import now_ar, today_ar
 from app.models.empleado import (
     Empleado, Asistencia, JornadaLaboral, MovimientoNomina, Liquidacion,
     TipoEmpleado, TipoContrato, TipoContratacion, EstadoEmpleado, TipoAsistencia, TipoMovimientoNomina
@@ -192,7 +193,7 @@ class EmpleadoService:
 
         empleado.activo = False
         empleado.estado = EstadoEmpleado.DESVINCULADO.value
-        empleado.fecha_egreso = date.today()
+        empleado.fecha_egreso = today_ar()
 
         self.db.commit()
         return True
@@ -214,7 +215,7 @@ class EmpleadoService:
 
         empleado.estado = EstadoEmpleado.DESVINCULADO.value
         empleado.activo = False
-        empleado.fecha_egreso = fecha_egreso or date.today()
+        empleado.fecha_egreso = fecha_egreso or today_ar()
 
         if motivo:
             marca = f"\n[Desvinculado {empleado.fecha_egreso}] {motivo}"
@@ -238,7 +239,7 @@ class EmpleadoService:
         empleado.activo = True
         empleado.fecha_egreso = None
 
-        marca = f"\n[Reactivado {date.today()}]"
+        marca = f"\n[Reactivado {today_ar()}]"
         empleado.notas = (empleado.notas or "") + marca
 
         self.db.commit()
@@ -254,7 +255,7 @@ class EmpleadoService:
         es_manual: bool = False
     ) -> Asistencia:
         """Registra asistencia de empleado"""
-        now = datetime.now()
+        now = now_ar()
 
         asistencia = Asistencia(
             empleado_id=data.empleado_id,

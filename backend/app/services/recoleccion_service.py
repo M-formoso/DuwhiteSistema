@@ -13,6 +13,8 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.timezone import today_ar
+
 from app.models.cliente import Cliente
 from app.models.etapa_produccion import EtapaProduccion
 from app.models.pedido import EstadoPedido, Pedido
@@ -38,7 +40,7 @@ class RecoleccionService:
 
     def _generar_numero_pedido(self) -> str:
         """Mismo formato que cliente_service: PED-YYMMDD-XXXX."""
-        hoy = date.today()
+        hoy = today_ar()
         prefijo = f"PED-{hoy.strftime('%y%m%d')}"
 
         ultimo = (
@@ -60,7 +62,7 @@ class RecoleccionService:
 
     def _generar_numero_lote(self) -> str:
         """Mismo formato que produccion_service: Lyymmdd-NNNN."""
-        hoy = date.today()
+        hoy = today_ar()
         prefijo = f"L{hoy.strftime('%y%m%d')}-"
 
         numeros = (
@@ -142,8 +144,8 @@ class RecoleccionService:
             numero=self._generar_numero_pedido(),
             cliente_id=cliente.id,
             estado=EstadoPedido.EN_PROCESO.value,
-            fecha_pedido=date.today(),
-            fecha_retiro=date.today(),
+            fecha_pedido=today_ar(),
+            fecha_retiro=today_ar(),
             creado_por_id=usuario_logueado_id,
             retirado_por_id=repartidor.id,
             hora_inicio_retiro=ahora,
@@ -237,7 +239,7 @@ class RecoleccionService:
         Filtra por hora_inicio_retiro IS NOT NULL para distinguir las
         recolecciones de los pedidos creados desde otros lados.
         """
-        fecha = fecha or date.today()
+        fecha = fecha or today_ar()
 
         query = (
             self.db.query(Pedido)

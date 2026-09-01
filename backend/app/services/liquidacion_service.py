@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from fastapi import HTTPException, status
 
+from app.core.timezone import now_ar, now_utc_naive, today_ar
 from app.models.liquidacion import LiquidacionPedido, DetalleLiquidacion, EstadoLiquidacion
 from app.models.pedido import Pedido, EstadoPedido
 from app.models.cliente import Cliente
@@ -27,7 +28,7 @@ from app.schemas.liquidacion import (
 
 def generar_numero_liquidacion(db: Session) -> str:
     """Genera el siguiente número de liquidación."""
-    anio = datetime.now().year
+    anio = now_ar().year
     prefijo = f"LIQ-{anio}-"
 
     ultima = db.query(LiquidacionPedido).filter(
@@ -281,7 +282,7 @@ def confirmar_liquidacion(
         monto=liquidacion.total,
         saldo_anterior=saldo_anterior,
         saldo_posterior=saldo_posterior,
-        fecha_movimiento=date.today(),
+        fecha_movimiento=today_ar(),
         registrado_por_id=usuario_id,
         notas=notas,
         activo=True,
@@ -296,7 +297,7 @@ def confirmar_liquidacion(
     liquidacion.estado = EstadoLiquidacion.CONFIRMADA.value
     liquidacion.movimiento_cc_id = movimiento.id
     liquidacion.confirmado_por_id = usuario_id
-    liquidacion.fecha_confirmacion = datetime.now()
+    liquidacion.fecha_confirmacion = now_utc_naive()
 
     if notas:
         liquidacion.notas = (liquidacion.notas or "") + f"\n[Confirmación] {notas}"
@@ -351,7 +352,7 @@ def anular_liquidacion(
                 monto=-liquidacion.total,
                 saldo_anterior=saldo_anterior,
                 saldo_posterior=saldo_posterior,
-                fecha_movimiento=date.today(),
+                fecha_movimiento=today_ar(),
                 registrado_por_id=usuario_id,
                 notas=f"Anulación: {motivo}",
                 activo=True,
@@ -365,7 +366,7 @@ def anular_liquidacion(
     liquidacion.estado = EstadoLiquidacion.ANULADA.value
     liquidacion.anulado = True
     liquidacion.anulado_por_id = usuario_id
-    liquidacion.fecha_anulacion = datetime.now()
+    liquidacion.fecha_anulacion = now_utc_naive()
     liquidacion.motivo_anulacion = motivo
 
     # Restaurar estado del pedido si corresponde
@@ -464,7 +465,7 @@ def crear_liquidacion_desde_control(
         pedido_id=data.pedido_id,
         cliente_id=pedido.cliente_id,
         lista_precios_id=data.lista_precios_id,
-        fecha_liquidacion=date.today(),
+        fecha_liquidacion=today_ar(),
         descuento_porcentaje=data.descuento_porcentaje or Decimal("0"),
         notas=data.notas,
         detalles=data.detalles,

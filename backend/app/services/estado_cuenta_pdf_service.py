@@ -15,6 +15,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.timezone import now_ar
 from app.models.cliente import Cliente
 from app.models.cuenta_corriente import MovimientoCuentaCorriente, TipoMovimientoCC
 from app.models.remito import Remito, DetalleRemito
@@ -149,7 +150,7 @@ def generar_pdf(
         productos_entregados=productos_entregados,
         total_cantidad_productos=total_cantidad_productos,
         total_subtotal_productos=total_subtotal_productos,
-        generado_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
+        generado_at=now_ar().strftime("%d/%m/%Y %H:%M"),
         periodo=periodo,
     )
     return HTML(string=html_str, base_url=TEMPLATES_DIR).write_pdf()

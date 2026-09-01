@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, or_, and_, desc
 from sqlalchemy.orm import Session
 
+from app.core.timezone import now_utc_naive, today_ar
 from app.models.tesoreria import (
     Cheque,
     MovimientoTesoreria,
@@ -93,15 +94,15 @@ class TesoreriaService:
 
         if vencidos:
             query = query.filter(
-                Cheque.fecha_vencimiento < date.today(),
+                Cheque.fecha_vencimiento < today_ar(),
                 Cheque.estado == EstadoCheque.EN_CARTERA.value
             )
 
         if proximos_vencer:
-            fecha_limite = date.today() + timedelta(days=7)
+            fecha_limite = today_ar() + timedelta(days=7)
             query = query.filter(
                 Cheque.fecha_vencimiento <= fecha_limite,
-                Cheque.fecha_vencimiento >= date.today(),
+                Cheque.fecha_vencimiento >= today_ar(),
                 Cheque.estado == EstadoCheque.EN_CARTERA.value
             )
 
@@ -156,7 +157,7 @@ class TesoreriaService:
             cuit_librador=data.cuit_librador,
             notas=data.notas,
             registrado_por_id=str(registrado_por_id),
-            fecha_registro=datetime.now(),
+            fecha_registro=now_utc_naive(),
         )
 
         self.db.add(cheque)
@@ -353,7 +354,7 @@ class TesoreriaService:
                         saldo_posterior=cliente.saldo_cuenta_corriente,
                         medio_pago="cheque",
                         referencia_pago=f"REV-CH-{cheque.numero}",
-                        fecha_movimiento=date.today(),
+                        fecha_movimiento=today_ar(),
                         registrado_por_id=str(usuario_id),
                         notas=f"Cheque #{cheque.numero} eliminado del sistema",
                     )
@@ -536,7 +537,7 @@ class TesoreriaService:
             notas=notas,
             imagen_url=imagen_url,
             registrado_por_id=str(usuario_id),
-            fecha_registro=datetime.now(),
+            fecha_registro=now_utc_naive(),
         )
         self.db.add(cheque)
         self.db.flush()  # id disponible
@@ -589,7 +590,7 @@ class TesoreriaService:
         movimiento.anulado = True
         movimiento.motivo_anulacion = data.motivo
         movimiento.anulado_por_id = str(usuario_id)
-        movimiento.fecha_anulacion = datetime.now()
+        movimiento.fecha_anulacion = now_utc_naive()
 
         self.db.commit()
         self.db.refresh(movimiento)
@@ -638,7 +639,7 @@ class TesoreriaService:
         movimiento.anulado = True
         movimiento.motivo_anulacion = "Eliminado por el usuario"
         movimiento.anulado_por_id = str(usuario_id)
-        movimiento.fecha_anulacion = datetime.now()
+        movimiento.fecha_anulacion = now_utc_naive()
         movimiento.activo = False
 
         self.db.commit()
@@ -652,7 +653,7 @@ class TesoreriaService:
         fecha_hasta: Optional[date] = None
     ) -> ResumenTesoreria:
         """Obtiene resumen de tesorería."""
-        hoy = date.today()
+        hoy = today_ar()
         if not fecha_desde:
             fecha_desde = hoy.replace(day=1)
         if not fecha_hasta:
@@ -821,7 +822,7 @@ class TesoreriaService:
                 id=str(uuid4()),
                 numero=numero_recibo,
                 cliente_id=cliente_id,
-                fecha=date.today(),
+                fecha=today_ar(),
                 monto_total=cheque.monto,
                 medio_pago="cheque",
                 referencia_pago=f"CH-{cheque.numero}",
@@ -846,7 +847,7 @@ class TesoreriaService:
             saldo_posterior=saldo_posterior,
             medio_pago="cheque",
             referencia_pago=f"CH-{cheque.numero}",
-            fecha_movimiento=date.today(),
+            fecha_movimiento=today_ar(),
             registrado_por_id=usuario_id,
             recibo_numero=numero_recibo if es_pago else None,
             notas=f"Cheque #{cheque.numero} - Banco: {cheque.banco_origen or 'N/A'} - Vto: {cheque.fecha_vencimiento}",
@@ -861,7 +862,7 @@ class TesoreriaService:
 
     def _generar_numero_recibo(self) -> str:
         """Genera número único de recibo."""
-        hoy = date.today()
+        hoy = today_ar()
         prefijo = f"REC-{hoy.strftime('%y%m%d')}"
 
         ultimo = (
@@ -901,7 +902,7 @@ class TesoreriaService:
 
         # Días para vencimiento
         if cheque.fecha_vencimiento:
-            delta = (cheque.fecha_vencimiento - date.today()).days
+            delta = (cheque.fecha_vencimiento - today_ar()).days
             data['dias_para_vencimiento'] = delta
 
         return data

@@ -16,6 +16,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.timezone import now_ar
 from app.models.lista_precios import ListaPrecios
 from app.models.producto_lavado import PrecioProductoLavado, ProductoLavado
 
@@ -152,7 +153,7 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
             empresa=configuracion_service.get_empresa_dict(db),
             grupos=grupos,
             total_items=len(precios),
-            generado_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
+            generado_at=now_ar().strftime("%d/%m/%Y %H:%M"),
             iva={
                 "incluido": incluye_iva,
                 "alicuota": alicuota_iva,
