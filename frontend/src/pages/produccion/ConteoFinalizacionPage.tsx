@@ -6,6 +6,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatDateAR } from '@/lib/utils';
 import {
   ArrowLeft,
   Scale,
@@ -498,7 +499,7 @@ export default function ConteoFinalizacionPage() {
               <Clock className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <div>
                 <p className="text-xs text-gray-500">Ingreso</p>
-                <p className="font-medium text-sm">{new Date(lote.fecha_ingreso).toLocaleDateString('es-AR')}</p>
+                <p className="font-medium text-sm">{formatDateAR(lote.fecha_ingreso)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

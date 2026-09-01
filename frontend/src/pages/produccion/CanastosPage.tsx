@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatDateAR } from '@/lib/utils';
 import { canastoService } from '@/services/canastoService';
 import {
   CanastoGridItem,
@@ -364,7 +364,7 @@ export default function CanastosPage() {
                       <div key={h.id} className="text-xs p-2 bg-gray-50 rounded">
                         <span className="font-medium">{h.etapa_nombre}</span>
                         <span className="text-gray-500 ml-2">
-                          {new Date(h.fecha_asignacion).toLocaleDateString('es-AR')}
+                          {formatDateAR(h.fecha_asignacion)}
                         </span>
                         <span className="text-gray-400 ml-2">
                           ({formatMinutos(h.duracion_minutos)})

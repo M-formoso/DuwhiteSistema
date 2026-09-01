@@ -39,16 +39,14 @@ import {
 import { produccionService, MiHistorialLote } from '@/services/produccionService';
 import type { KanbanLote, KanbanColumna } from '@/types/produccion';
 import { formatNumber, getLocalDateString } from '@/utils/formatters';
+import { formatDateAR } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
 
 function formatearFecha(fecha: string | null | undefined): string {
   if (!fecha) return '—';
-  return new Date(fecha).toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  const formateado = formatDateAR(fecha);
+  return formateado === '-' ? '—' : formateado;
 }
 
 function formatTiempo(minutos: number): string {

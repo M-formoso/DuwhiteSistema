@@ -66,6 +66,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatNumber, getLocalDateString } from '@/utils/formatters';
+import { formatDateAR } from '@/lib/utils';
 import {
   getAnaliticaProduccion,
   getKgIngresados,
@@ -413,7 +414,7 @@ export function AnaliticasProduccionSection({
                       <TableBody>
                         {kgIngresados.por_dia.map((d) => (
                           <TableRow key={d.fecha}>
-                            <TableCell>{new Date(d.fecha).toLocaleDateString('es-AR')}</TableCell>
+                            <TableCell>{formatDateAR(d.fecha)}</TableCell>
                             <TableCell className="text-right">{d.lotes}</TableCell>
                             <TableCell className="text-right font-medium">
                               {formatNumber(d.kg, 1)} kg

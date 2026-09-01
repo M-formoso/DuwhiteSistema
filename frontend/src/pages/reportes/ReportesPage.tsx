@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatDateAR } from '@/lib/utils';
 
 import {
   BarChart,
@@ -1048,9 +1049,7 @@ export default function ReportesPage() {
                               </Badge>
                             </td>
                             <td className="py-2 text-muted-foreground text-xs">
-                              {lote.fecha_ingreso
-                                ? new Date(lote.fecha_ingreso).toLocaleDateString('es-AR')
-                                : '-'}
+                              {lote.fecha_ingreso ? formatDateAR(lote.fecha_ingreso) : '-'}
                             </td>
                             <td className="py-2 text-right font-semibold">
                               {lote.peso_kg > 0 ? `${formatNumber(lote.peso_kg)} kg` : '-'}
