@@ -49,9 +49,26 @@ def get_ventas_semana(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Datos para gráfico de ventas de la semana"""
+    """Datos para gráfico de ventas de la semana (legacy — usar /grafico-ventas)."""
     service = DashboardService(db)
     return service.get_grafico_ventas_semana()
+
+
+@router.get("/grafico-ventas", response_model=List[Dict[str, Any]])
+def get_grafico_ventas(
+    rango: str = Query("semana", pattern="^(semana|mes|anio)$"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Datos del gráfico de ventas para el rango indicado.
+
+    - `semana` (default): últimos 7 días.
+    - `mes`: últimos 30 días.
+    - `anio`: últimos 12 meses.
+    """
+    service = DashboardService(db)
+    return service.get_grafico_ventas(rango)
 
 
 @router.get("/pedidos-recientes", response_model=List[Dict[str, Any]])

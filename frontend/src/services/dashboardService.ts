@@ -28,6 +28,15 @@ export async function getVentasSemana(): Promise<VentaSemana[]> {
   return response.data;
 }
 
+export type RangoVentas = 'semana' | 'mes' | 'anio';
+
+export async function getGraficoVentas(rango: RangoVentas = 'semana'): Promise<VentaSemana[]> {
+  const response = await api.get('/dashboard/grafico-ventas', {
+    params: { rango },
+  });
+  return response.data;
+}
+
 export async function getPedidosRecientes(limit: number = 5): Promise<PedidoReciente[]> {
   const response = await api.get('/dashboard/pedidos-recientes', {
     params: { limit },
@@ -56,6 +65,7 @@ export const dashboardService = {
   getDashboardCompleto,
   getKPIs,
   getVentasSemana,
+  getGraficoVentas,
   getPedidosRecientes,
   getLotesEnProceso,
   getAlertas,

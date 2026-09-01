@@ -36,7 +36,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { getDashboardCompleto } from '@/services/dashboardService';
+import { getDashboardCompleto, getGraficoVentas, type RangoVentas } from '@/services/dashboardService';
 import api, { getErrorMessage } from '@/services/api';
 import { formatDateAR } from '@/lib/utils';
 import type { Alerta } from '@/types/dashboard';
@@ -99,11 +99,20 @@ export default function DashboardPage() {
     return <Navigate to="/mis-pedidos" replace />;
   }
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
+  const [rangoGrafico, setRangoGrafico] = useState<RangoVentas>('semana');
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardCompleto,
     refetchInterval: 60000, // Refrescar cada minuto
+  });
+
+  // El gráfico se pide por separado para poder cambiar el rango sin
+  // refetchear todo el dashboard.
+  const { data: graficoVentas } = useQuery({
+    queryKey: ['dashboard', 'grafico-ventas', rangoGrafico],
+    queryFn: () => getGraficoVentas(rangoGrafico),
+    refetchInterval: 60000,
   });
 
   const seedMutation = useMutation({
@@ -289,16 +298,43 @@ export default function DashboardPage() {
 
       {/* Gráfico de Ventas y Alertas */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Gráfico de Ventas de la Semana */}
+        {/* Gráfico de Ventas con selector de rango */}
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Ventas de la Semana</CardTitle>
-            <CardDescription>Total facturado por día</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle>
+                {rangoGrafico === 'semana' && 'Ventas de la Semana'}
+                {rangoGrafico === 'mes' && 'Ventas del Mes'}
+                {rangoGrafico === 'anio' && 'Ventas del Año'}
+              </CardTitle>
+              <CardDescription>
+                {rangoGrafico === 'semana' && 'Total facturado por día (últimos 7 días)'}
+                {rangoGrafico === 'mes' && 'Total facturado por día (últimos 30 días)'}
+                {rangoGrafico === 'anio' && 'Total facturado por mes (últimos 12 meses)'}
+              </CardDescription>
+            </div>
+            <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
+              {(['semana', 'mes', 'anio'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRangoGrafico(r)}
+                  className={
+                    'px-3 py-1.5 font-medium transition-colors ' +
+                    (rangoGrafico === r
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-muted-foreground hover:bg-muted')
+                  }
+                >
+                  {r === 'semana' ? 'Semana' : r === 'mes' ? 'Mes' : 'Año'}
+                </button>
+              ))}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={grafico_ventas_semana}>
+                <BarChart data={graficoVentas ?? grafico_ventas_semana}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis
                     dataKey="dia"
@@ -312,7 +348,7 @@ export default function DashboardPage() {
                   />
                   <Tooltip
                     formatter={(value: number) => [formatCurrency(value), 'Total']}
-                    labelFormatter={(label) => `Día: ${label}`}
+                    labelFormatter={(label) => `${rangoGrafico === 'anio' ? 'Mes' : 'Día'}: ${label}`}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',

@@ -25,6 +25,10 @@ _REMITO_ESTADOS_VENTA = (EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.valu
 # Días de la semana en español (Lun=0 ... Dom=6). Usamos mapeo manual en
 # vez de `strftime("%a")` porque en el servidor el locale es en inglés.
 _DIAS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+_MESES_ES = [
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+]
 
 
 class DashboardService:
@@ -156,10 +160,35 @@ class DashboardService:
             }
         }
 
-    def get_grafico_ventas_semana(self) -> List[Dict[str, Any]]:
-        """Ventas de los últimos 7 días para gráfico (basado en Remitos)."""
+    def get_grafico_ventas(self, rango: str = "semana") -> List[Dict[str, Any]]:
+        """
+        Ventas agrupadas según el rango elegido (basado en Remitos EMITIDOS/
+        ENTREGADOS).
+
+        - "semana": últimos 7 días, agrupado por día (Lun...Dom).
+        - "mes": últimos 30 días, agrupado por día (dd/mm).
+        - "anio": últimos 12 meses, agrupado por mes (Ene...Dic).
+        """
         hoy = date.today()
-        hace_7_dias = hoy - timedelta(days=6)
+        rango = (rango or "semana").lower()
+
+        if rango == "anio":
+            return self._grafico_por_mes(hoy)
+        if rango == "mes":
+            return self._grafico_por_dia(hoy, dias=30, formato_dia="dd/mm")
+        return self._grafico_por_dia(hoy, dias=7, formato_dia="semana")
+
+    # Compat: nombre viejo usado por el endpoint /dashboard existente.
+    def get_grafico_ventas_semana(self) -> List[Dict[str, Any]]:
+        return self.get_grafico_ventas("semana")
+
+    def _grafico_por_dia(
+        self,
+        hoy: date,
+        dias: int,
+        formato_dia: str,
+    ) -> List[Dict[str, Any]]:
+        desde = hoy - timedelta(days=dias - 1)
 
         result = self.db.execute(
             select(
@@ -169,37 +198,80 @@ class DashboardService:
             )
             .where(and_(
                 Remito.estado.in_(_REMITO_ESTADOS_VENTA),
-                Remito.fecha_emision >= hace_7_dias,
+                Remito.fecha_emision >= desde,
                 Remito.fecha_emision <= hoy
             ))
             .group_by(Remito.fecha_emision)
             .order_by(Remito.fecha_emision)
         )
+        ventas = {row.fecha: row for row in result.all()}
 
-        rows = result.all()
-
-        # Crear estructura con todos los días (incluyendo días sin ventas)
-        ventas_por_dia = {row.fecha: row for row in rows}
-        datos = []
-
-        for i in range(7):
-            dia = hace_7_dias + timedelta(days=i)
-            if dia in ventas_por_dia:
-                row = ventas_por_dia[dia]
-                datos.append({
-                    "fecha": dia.isoformat(),
-                    "dia": _DIAS_ES[dia.weekday()],
-                    "cantidad": row.cantidad,
-                    "total": float(row.total or 0),
-                })
+        datos: List[Dict[str, Any]] = []
+        for i in range(dias):
+            dia = desde + timedelta(days=i)
+            if formato_dia == "dd/mm":
+                label = f"{dia.day:02d}/{dia.month:02d}"
             else:
-                datos.append({
-                    "fecha": dia.isoformat(),
-                    "dia": _DIAS_ES[dia.weekday()],
-                    "cantidad": 0,
-                    "total": 0.0,
-                })
+                label = _DIAS_ES[dia.weekday()]
+            row = ventas.get(dia)
+            datos.append({
+                "fecha": dia.isoformat(),
+                "dia": label,
+                "cantidad": int(row.cantidad) if row else 0,
+                "total": float(row.total or 0) if row else 0.0,
+            })
+        return datos
 
+    def _grafico_por_mes(self, hoy: date) -> List[Dict[str, Any]]:
+        # Anclar en el primer día del mes actual y retroceder 11 meses.
+        primer_dia_mes_actual = date(hoy.year, hoy.month, 1)
+        anio_inicio = primer_dia_mes_actual.year
+        mes_inicio = primer_dia_mes_actual.month - 11
+        while mes_inicio <= 0:
+            mes_inicio += 12
+            anio_inicio -= 1
+        desde = date(anio_inicio, mes_inicio, 1)
+
+        result = self.db.execute(
+            select(
+                func.date_trunc('month', Remito.fecha_emision).label('mes'),
+                func.count(Remito.id).label('cantidad'),
+                func.sum(Remito.total).label('total')
+            )
+            .where(and_(
+                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                Remito.fecha_emision >= desde,
+                Remito.fecha_emision <= hoy
+            ))
+            .group_by(func.date_trunc('month', Remito.fecha_emision))
+            .order_by(func.date_trunc('month', Remito.fecha_emision))
+        )
+        # `date_trunc` devuelve un datetime; lo normalizamos a (anio, mes).
+        ventas = {}
+        for row in result.all():
+            mes_obj = row.mes
+            key = (mes_obj.year, mes_obj.month)
+            ventas[key] = row
+
+        datos: List[Dict[str, Any]] = []
+        anio, mes = anio_inicio, mes_inicio
+        for _ in range(12):
+            key = (anio, mes)
+            row = ventas.get(key)
+            label = _MESES_ES[mes - 1]
+            # Si el rango cruza dos años, aclaramos el año en el label.
+            if anio != hoy.year:
+                label = f"{label} {str(anio)[-2:]}"
+            datos.append({
+                "fecha": date(anio, mes, 1).isoformat(),
+                "dia": label,
+                "cantidad": int(row.cantidad) if row else 0,
+                "total": float(row.total or 0) if row else 0.0,
+            })
+            mes += 1
+            if mes > 12:
+                mes = 1
+                anio += 1
         return datos
 
     def get_pedidos_recientes(self, limit: int = 5) -> List[Dict[str, Any]]:
