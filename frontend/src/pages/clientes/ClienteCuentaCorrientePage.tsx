@@ -742,6 +742,54 @@ export default function ClienteCuentaCorrientePage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Package className="h-4 w-4 mr-2" />
+                Remitos PDF
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem
+                onClick={() =>
+                  clienteService.abrirRemitosPdf(id!, {
+                    fecha_desde: fechaDesde || undefined,
+                    fecha_hasta: fechaHasta || undefined,
+                  })
+                }
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {fechaDesde || fechaHasta ? 'Rango filtrado actual' : 'Histórico completo'}
+              </DropdownMenuItem>
+              {movimientosPorMes.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Por mes</DropdownMenuLabel>
+                  {movimientosPorMes.map((g) => {
+                    const [anio, mes] = g.key.split('-');
+                    const primerDia = `${anio}-${mes}-01`;
+                    const ultimoDia = new Date(parseInt(anio, 10), parseInt(mes, 10), 0)
+                      .toISOString()
+                      .slice(0, 10);
+                    return (
+                      <DropdownMenuItem
+                        key={`remitos-${g.key}`}
+                        onClick={() =>
+                          clienteService.abrirRemitosPdf(id!, {
+                            fecha_desde: primerDia,
+                            fecha_hasta: ultimoDia,
+                          })
+                        }
+                      >
+                        {g.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" onClick={abrirModalAjuste}>
             <Sliders className="h-4 w-4 mr-2" />
             Ajustar Saldo

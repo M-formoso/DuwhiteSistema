@@ -103,6 +103,19 @@ export async function abrirEstadoCuentaPdf(
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
+export async function abrirRemitosPdf(
+  clienteId: string,
+  params?: { fecha_desde?: string; fecha_hasta?: string }
+): Promise<void> {
+  const response = await api.get(`/clientes/${clienteId}/remitos/pdf`, {
+    params,
+    responseType: 'blob',
+  });
+  const blobUrl = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+  window.open(blobUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 export async function registrarPago(
   clienteId: string,
   data: RegistrarPagoRequest
@@ -271,6 +284,7 @@ export const clienteService = {
   getMovimientosCuenta,
   getMovimientosEliminados,
   abrirEstadoCuentaPdf,
+  abrirRemitosPdf,
   registrarPago,
   registrarAjuste,
   editarAjuste,

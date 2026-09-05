@@ -399,6 +399,32 @@ def descargar_estado_cuenta_pdf(
     )
 
 
+@router.get("/{cliente_id}/remitos/pdf")
+def descargar_remitos_pdf(
+    cliente_id: str,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Descarga un PDF con el detalle de todos los remitos del cliente en el
+    período. Sin datos de saldo — solo el detalle de entregas.
+    """
+    from fastapi.responses import Response
+    from app.services import remitos_cliente_pdf_service
+
+    pdf_bytes = remitos_cliente_pdf_service.generar_pdf(
+        db, cliente_id, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
+    filename = f"remitos_{cliente_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=\"{filename}\""},
+    )
+
+
 @router.get("/{cliente_id}/movimientos")
 def listar_movimientos_cuenta(
     cliente_id: str,

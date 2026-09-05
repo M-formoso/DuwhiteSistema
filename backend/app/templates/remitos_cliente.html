@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<title>Detalle de Remitos — {{ cliente.razon_social }}</title>
+<style>
+@page {
+  size: A4;
+  margin: 1.4cm 1.2cm 1.6cm 1.2cm;
+  @bottom-center {
+    content: "Página " counter(page) " de " counter(pages);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 8pt;
+    color: #999;
+  }
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #333;
+  font-size: 10pt;
+  margin: 0;
+}
+
+.header {
+  border-bottom: 2px solid #00BCD4;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+}
+.header h1 { color: #00BCD4; margin: 0 0 4px 0; font-size: 18pt; }
+.empresa { font-size: 9pt; color: #777; line-height: 1.4; }
+.header-right { text-align: right; font-size: 9pt; }
+
+.cliente-box {
+  background: #F7F8FA;
+  border: 1px solid #E0E0E0;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 4px;
+}
+.cliente-box strong { color: #333; }
+
+.resumen {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.resumen .card {
+  flex: 1;
+  border: 1px solid #E0E0E0;
+  border-left: 3px solid #00BCD4;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #F7F8FA;
+}
+.resumen .card .label {
+  font-size: 7.5pt;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.resumen .card .value {
+  font-size: 13pt;
+  font-weight: bold;
+  margin-top: 3px;
+  color: #333;
+}
+
+.remito {
+  border: 1px solid #E0E0E0;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  page-break-inside: avoid;
+  overflow: hidden;
+}
+.remito-header {
+  background: #3D3D3D;
+  color: white;
+  padding: 8px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.remito-header .titulo {
+  font-weight: 700;
+  font-size: 10.5pt;
+  letter-spacing: 0.3px;
+}
+.remito-header .titulo .num {
+  color: #00BCD4;
+  margin-right: 8px;
+}
+.remito-header .meta {
+  font-size: 8.5pt;
+  color: #E0E0E0;
+}
+.remito-header .meta strong {
+  color: white;
+}
+
+.remito-body {
+  padding: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+thead th {
+  background: #F7F8FA;
+  color: #555;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 7.5pt;
+  letter-spacing: 0.4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #E0E0E0;
+  text-align: left;
+}
+tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #EFEFEF;
+}
+tbody tr:last-child td { border-bottom: 0; }
+.text-right { text-align: right; }
+.codigo {
+  font-family: 'Courier New', monospace;
+  color: #00959F;
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+
+.remito-total {
+  background: #F7F8FA;
+  border-top: 1px solid #E0E0E0;
+  padding: 6px 14px;
+  text-align: right;
+  font-size: 9.5pt;
+}
+.remito-total .val {
+  font-weight: 700;
+  color: #22C55E;
+  margin-left: 8px;
+}
+
+.empty-remitos {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 40px 20px;
+  background: #F7F8FA;
+  border: 1px dashed #E0E0E0;
+  border-radius: 4px;
+}
+
+.totales-generales {
+  margin-top: 20px;
+  padding: 12px 14px;
+  background: linear-gradient(90deg, #00BCD4 0%, #00959F 100%);
+  color: white;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.totales-generales .item {
+  font-size: 9.5pt;
+}
+.totales-generales .item .lbl {
+  opacity: 0.85;
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: block;
+}
+.totales-generales .item .val {
+  font-size: 13pt;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.footer {
+  margin-top: 20px;
+  font-size: 8pt;
+  color: #777;
+  border-top: 1px solid #E0E0E0;
+  padding-top: 8px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Detalle de Remitos</h1>
+    <div class="empresa">
+      {{ empresa.razon_social }}<br>
+      CUIT: {{ empresa.cuit }} · {{ empresa.condicion_iva }}<br>
+      {{ empresa.direccion }}
+    </div>
+  </div>
+  <div class="header-right">
+    <strong>Generado:</strong> {{ generado_at }}<br>
+    <strong>Período:</strong> {{ periodo or "Histórico completo" }}
+  </div>
+</div>
+
+<div class="cliente-box">
+  <strong>Cliente:</strong> {{ cliente.razon_social }}{% if cliente.nombre_fantasia %} ({{ cliente.nombre_fantasia }}){% endif %}<br>
+  {% if cliente.cuit %}<strong>CUIT:</strong> {{ cliente.cuit }} · {% endif %}
+  <strong>Cond. IVA:</strong> {{ cliente.condicion_iva }}
+  {% if cliente.codigo %} · <strong>Código:</strong> {{ cliente.codigo }}{% endif %}
+</div>
+
+<div class="resumen">
+  <div class="card">
+    <div class="label">Cantidad de remitos</div>
+    <div class="value">{{ cantidad_remitos }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Ítems entregados</div>
+    <div class="value">{{ total_cantidad_items }}</div>
+  </div>
+  {% if total_kg and total_kg > 0 %}
+  <div class="card">
+    <div class="label">Peso total</div>
+    <div class="value">{{ '%.1f'|format(total_kg|float) }} kg</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if remitos %}
+  {% for r in remitos %}
+    <div class="remito">
+      <div class="remito-header">
+        <div class="titulo">
+          <span class="num">{{ r.numero }}</span>
+          {{ r.fecha_emision | fecha_ar }}
+        </div>
+        <div class="meta">
+          {% if r.lote_numero %}<strong>Lote:</strong> {{ r.lote_numero }} · {% endif %}
+          <strong>Estado:</strong> {{ r.estado | capitalize }}
+          {% if r.peso_total_kg %} · <strong>Peso:</strong> {{ '%.2f'|format(r.peso_total_kg|float) }} kg{% endif %}
+        </div>
+      </div>
+      <div class="remito-body">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 70px;">Código</th>
+              <th>Producto</th>
+              <th class="text-right" style="width: 70px;">Cantidad</th>
+              <th class="text-right" style="width: 90px;">Precio Unit.</th>
+              <th class="text-right" style="width: 90px;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in r.items %}
+            <tr>
+              <td class="codigo">{{ it.codigo }}</td>
+              <td>{{ it.nombre }}</td>
+              <td class="text-right">{{ it.cantidad }}</td>
+              <td class="text-right">{{ it.precio_unitario | moneda }}</td>
+              <td class="text-right">{{ it.subtotal | moneda }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="remito-total">
+        Total del remito: <span class="val">{{ r.total | moneda }}</span>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-remitos">Sin remitos emitidos en el período.</div>
+{% endif %}
+
+{% if remitos %}
+<div class="totales-generales">
+  <div class="item">
+    <span class="lbl">Total de remitos del período</span>
+    <span class="val">{{ total_general | moneda }}</span>
+  </div>
+  <div class="item">
+    <span class="lbl">Cantidad</span>
+    <span class="val">{{ cantidad_remitos }}</span>
+  </div>
+</div>
+{% endif %}
+
+<div class="footer">
+  Reporte generado por el Sistema de Gestión {{ empresa.nombre }}.
+  Este documento es informativo y no tiene validez fiscal.
+</div>
+
+</body>
+</html>
