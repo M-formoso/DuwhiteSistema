@@ -61,7 +61,8 @@ const navSectionsInternal: NavSection[] = [
         title: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
-        roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador', 'comercial', 'contador', 'solo_lectura'],
+        // Operarios NO ven el dashboard operativo (muestra ventas y datos comerciales).
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'contador', 'solo_lectura'],
       },
     ],
   },

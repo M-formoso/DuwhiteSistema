@@ -98,6 +98,10 @@ export default function DashboardPage() {
   if (user?.rol === 'cliente') {
     return <Navigate to="/mis-pedidos" replace />;
   }
+  // Los operarios tampoco (muestra ventas y datos comerciales).
+  if (user?.rol === 'operador') {
+    return <Navigate to="/produccion" replace />;
+  }
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [rangoGrafico, setRangoGrafico] = useState<RangoVentas>('semana');
 

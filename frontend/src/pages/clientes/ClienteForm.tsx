@@ -77,7 +77,7 @@ export default function ClienteFormPage() {
     setValue,
     watch,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
     defaultValues: {
@@ -189,7 +189,7 @@ export default function ClienteFormPage() {
 
   const onSubmit = (data: ClienteFormData) => {
     // Limpiar campos vacíos
-    const payload = {
+    const payload: Record<string, any> = {
       ...data,
       cuit: data.cuit || null,
       email: data.email || null,
@@ -197,12 +197,20 @@ export default function ClienteFormPage() {
       descuento_general: data.descuento_general || null,
       limite_credito: data.limite_credito || null,
       dias_credito: data.dias_credito || null,
-    } as ClienteCreate;
+    };
 
     if (isEditing) {
-      updateMutation.mutate(payload);
+      // En edicion, no enviamos campos que el usuario no toco. Sino Radix
+      // Select puede quedar desincronizado y mandar lista_precios_id=null
+      // borrando la lista asignada al cliente. El backend hace exclude_unset
+      // asi que omitir el campo = no lo pisa.
+      if (!dirtyFields.lista_precios_id) delete payload.lista_precios_id;
+      if (!dirtyFields.descuento_general) delete payload.descuento_general;
+      if (!dirtyFields.limite_credito) delete payload.limite_credito;
+      if (!dirtyFields.dias_credito) delete payload.dias_credito;
+      updateMutation.mutate(payload as ClienteCreate);
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(payload as ClienteCreate);
     }
   };
 

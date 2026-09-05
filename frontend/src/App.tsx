@@ -101,6 +101,11 @@ function HomeRedirect() {
     return <Navigate to="/mis-pedidos" replace />;
   }
 
+  // Operarios no ven el dashboard operativo — van directo a producción.
+  if (user?.rol === 'operador') {
+    return <Navigate to="/produccion" replace />;
+  }
+
   return <Navigate to="/dashboard" replace />;
 }
 
