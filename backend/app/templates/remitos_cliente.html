@@ -253,9 +253,7 @@ tbody tr:last-child td { border-bottom: 0; }
             <tr>
               <th style="width: 70px;">Código</th>
               <th>Producto</th>
-              <th class="text-right" style="width: 70px;">Cantidad</th>
-              <th class="text-right" style="width: 90px;">Precio Unit.</th>
-              <th class="text-right" style="width: 90px;">Subtotal</th>
+              <th class="text-right" style="width: 90px;">Cantidad</th>
             </tr>
           </thead>
           <tbody>
@@ -264,33 +262,15 @@ tbody tr:last-child td { border-bottom: 0; }
               <td class="codigo">{{ it.codigo }}</td>
               <td>{{ it.nombre }}</td>
               <td class="text-right">{{ it.cantidad }}</td>
-              <td class="text-right">{{ it.precio_unitario | moneda }}</td>
-              <td class="text-right">{{ it.subtotal | moneda }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      <div class="remito-total">
-        Total del remito: <span class="val">{{ r.total | moneda }}</span>
-      </div>
     </div>
   {% endfor %}
 {% else %}
   <div class="empty-remitos">Sin remitos emitidos en el período.</div>
-{% endif %}
-
-{% if remitos %}
-<div class="totales-generales">
-  <div class="item">
-    <span class="lbl">Total de remitos del período</span>
-    <span class="val">{{ total_general | moneda }}</span>
-  </div>
-  <div class="item">
-    <span class="lbl">Cantidad</span>
-    <span class="val">{{ cantidad_remitos }}</span>
-  </div>
-</div>
 {% endif %}
 
 <div class="footer">
