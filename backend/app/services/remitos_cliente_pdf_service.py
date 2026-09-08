@@ -118,14 +118,14 @@ def generar_pdf(
     total_cantidad_items = 0
 
     for r in remitos:
-        items = []
+        productos = []
         subtotal_remito = Decimal(0)
         for d in r.detalles:
             prod = getattr(d, "producto", None)
             cantidad = int(d.cantidad or 0)
             precio = Decimal(d.precio_unitario or 0)
             sub = Decimal(d.subtotal or 0)
-            items.append({
+            productos.append({
                 "codigo": getattr(prod, "codigo", None) or "-",
                 "nombre": getattr(prod, "nombre", None) or (d.descripcion or "-"),
                 "cantidad": cantidad,
@@ -151,7 +151,7 @@ def generar_pdf(
             "subtotal": r.subtotal,
             "descuento": r.descuento,
             "total": r.total,
-            "items": items,
+            "productos": productos,
         })
         total_general += Decimal(r.total or 0)
         if r.peso_total_kg:
