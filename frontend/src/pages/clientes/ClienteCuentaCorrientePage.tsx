@@ -675,7 +675,7 @@ export default function ClienteCuentaCorrientePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -685,18 +685,18 @@ export default function ClienteCuentaCorrientePage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">Cuenta Corriente</h1>
-            <p className="text-gray-500">
+            <p className="text-gray-500 truncate">
               {cliente.nombre_fantasia || cliente.razon_social} - {cliente.codigo}
             </p>
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto">
                 <Download className="h-4 w-4 mr-2" />
                 Exportar PDF
                 <ChevronDown className="h-4 w-4 ml-2" />
@@ -744,7 +744,7 @@ export default function ClienteCuentaCorrientePage() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto">
                 <Package className="h-4 w-4 mr-2" />
                 Remitos PDF
                 <ChevronDown className="h-4 w-4 ml-2" />
@@ -790,11 +790,11 @@ export default function ClienteCuentaCorrientePage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={abrirModalAjuste}>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={abrirModalAjuste}>
             <Sliders className="h-4 w-4 mr-2" />
             Ajustar Saldo
           </Button>
-          <Button onClick={abrirModalCobranza} disabled={!cliente.tiene_deuda}>
+          <Button className="w-full sm:w-auto" onClick={abrirModalCobranza} disabled={!cliente.tiene_deuda}>
             <CreditCard className="h-4 w-4 mr-2" />
             Registrar Pago
           </Button>
