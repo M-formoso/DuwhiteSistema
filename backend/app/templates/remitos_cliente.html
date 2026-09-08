@@ -37,153 +37,71 @@ body {
   background: #F7F8FA;
   border: 1px solid #E0E0E0;
   padding: 10px 14px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   border-radius: 4px;
 }
 .cliente-box strong { color: #333; }
 
-.resumen {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-.resumen .card {
-  flex: 1;
-  border: 1px solid #E0E0E0;
-  border-left: 3px solid #00BCD4;
-  border-radius: 4px;
-  padding: 10px 12px;
-  background: #F7F8FA;
-}
-.resumen .card .label {
-  font-size: 7.5pt;
-  color: #777;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.resumen .card .value {
-  font-size: 13pt;
-  font-weight: bold;
-  margin-top: 3px;
-  color: #333;
-}
-
-.remito {
-  border: 1px solid #E0E0E0;
-  border-radius: 4px;
-  margin-bottom: 14px;
-  page-break-inside: avoid;
-  overflow: hidden;
-}
-.remito-header {
-  background: #3D3D3D;
-  color: white;
-  padding: 8px 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.remito-header .titulo {
-  font-weight: 700;
-  font-size: 10.5pt;
-  letter-spacing: 0.3px;
-}
-.remito-header .titulo .num {
+.section-title {
   color: #00BCD4;
-  margin-right: 8px;
+  font-size: 11pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 24px 0 8px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #E0E0E0;
 }
-.remito-header .meta {
-  font-size: 8.5pt;
-  color: #E0E0E0;
-}
-.remito-header .meta strong {
-  color: white;
-}
-
-.remito-body {
-  padding: 0;
-}
+.section-title:first-of-type { margin-top: 0; }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 9pt;
+  font-size: 9.5pt;
 }
 thead th {
   background: #F7F8FA;
   color: #555;
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 7.5pt;
+  font-size: 8pt;
   letter-spacing: 0.4px;
-  padding: 6px 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid #E0E0E0;
   text-align: left;
 }
 tbody td {
-  padding: 6px 10px;
+  padding: 7px 10px;
   border-bottom: 1px solid #EFEFEF;
 }
 tbody tr:last-child td { border-bottom: 0; }
 .text-right { text-align: right; }
-.codigo {
+.codigo, .numero {
   font-family: 'Courier New', monospace;
   color: #00959F;
-  font-size: 8.5pt;
+  font-size: 9pt;
   font-weight: 600;
 }
-
-.remito-total {
-  background: #F7F8FA;
-  border-top: 1px solid #E0E0E0;
-  padding: 6px 14px;
-  text-align: right;
-  font-size: 9.5pt;
-}
-.remito-total .val {
+tfoot td {
+  padding: 10px;
   font-weight: 700;
-  color: #22C55E;
-  margin-left: 8px;
+  background: #F7F8FA;
+  border-top: 2px solid #E0E0E0;
 }
+tfoot td.text-right { color: #333; }
 
-.empty-remitos {
+.empty {
   text-align: center;
   color: #999;
   font-style: italic;
-  padding: 40px 20px;
+  padding: 30px 20px;
   background: #F7F8FA;
   border: 1px dashed #E0E0E0;
   border-radius: 4px;
 }
 
-.totales-generales {
-  margin-top: 20px;
-  padding: 12px 14px;
-  background: linear-gradient(90deg, #00BCD4 0%, #00959F 100%);
-  color: white;
-  border-radius: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.totales-generales .item {
-  font-size: 9.5pt;
-}
-.totales-generales .item .lbl {
-  opacity: 0.85;
-  font-size: 8pt;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  display: block;
-}
-.totales-generales .item .val {
-  font-size: 13pt;
-  font-weight: 700;
-  margin-top: 2px;
-}
-
 .footer {
-  margin-top: 20px;
+  margin-top: 24px;
   font-size: 8pt;
   color: #777;
   border-top: 1px solid #E0E0E0;
@@ -216,61 +134,71 @@ tbody tr:last-child td { border-bottom: 0; }
   {% if cliente.codigo %} · <strong>Código:</strong> {{ cliente.codigo }}{% endif %}
 </div>
 
-<div class="resumen">
-  <div class="card">
-    <div class="label">Cantidad de remitos</div>
-    <div class="value">{{ cantidad_remitos }}</div>
-  </div>
-  <div class="card">
-    <div class="label">Ítems entregados</div>
-    <div class="value">{{ total_cantidad_items }}</div>
-  </div>
-  {% if total_kg and total_kg > 0 %}
-  <div class="card">
-    <div class="label">Peso total</div>
-    <div class="value">{{ '%.1f'|format(total_kg|float) }} kg</div>
-  </div>
-  {% endif %}
-</div>
-
+<div class="section-title">Remitos del Período</div>
 {% if remitos %}
-  {% for r in remitos %}
-    <div class="remito">
-      <div class="remito-header">
-        <div class="titulo">
-          <span class="num">{{ r.numero }}</span>
-          {{ r.fecha_emision | fecha_ar }}
-        </div>
-        <div class="meta">
-          {% if r.lote_numero %}<strong>Lote:</strong> {{ r.lote_numero }} · {% endif %}
-          <strong>Estado:</strong> {{ r.estado | capitalize }}
-          {% if r.peso_total_kg %} · <strong>Peso:</strong> {{ '%.2f'|format(r.peso_total_kg|float) }} kg{% endif %}
-        </div>
-      </div>
-      <div class="remito-body">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 70px;">Código</th>
-              <th>Producto</th>
-              <th class="text-right" style="width: 90px;">Cantidad</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for it in r.productos %}
-            <tr>
-              <td class="codigo">{{ it.codigo }}</td>
-              <td>{{ it.nombre }}</td>
-              <td class="text-right">{{ it.cantidad }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  {% endfor %}
+<table>
+  <thead>
+    <tr>
+      <th>Nº Remito</th>
+      <th>Fecha</th>
+      <th>Lote</th>
+      <th>Estado</th>
+      <th class="text-right">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in remitos %}
+    <tr>
+      <td class="numero">{{ r.numero }}</td>
+      <td>{{ r.fecha_emision | fecha_ar }}</td>
+      <td>{{ r.lote_numero or '-' }}</td>
+      <td>{{ r.estado | capitalize }}</td>
+      <td class="text-right">{{ r.total | moneda }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="4">Total del período ({{ cantidad_remitos }} remito{{ 's' if cantidad_remitos != 1 else '' }})</td>
+      <td class="text-right">{{ total_general | moneda }}</td>
+    </tr>
+  </tfoot>
+</table>
 {% else %}
-  <div class="empty-remitos">Sin remitos emitidos en el período.</div>
+<div class="empty">Sin remitos emitidos en el período.</div>
+{% endif %}
+
+<div class="section-title">Productos Entregados</div>
+{% if productos %}
+<table>
+  <thead>
+    <tr>
+      <th style="width: 80px;">Código</th>
+      <th>Producto</th>
+      <th class="text-right" style="width: 100px;">Cantidad</th>
+      <th class="text-right" style="width: 130px;">Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in productos %}
+    <tr>
+      <td class="codigo">{{ p.codigo }}</td>
+      <td>{{ p.nombre }}</td>
+      <td class="text-right">{{ p.cantidad }}</td>
+      <td class="text-right">{{ p.subtotal | moneda }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="2">Total</td>
+      <td class="text-right">{{ total_cantidad_items }}</td>
+      <td class="text-right">{{ total_general | moneda }}</td>
+    </tr>
+  </tfoot>
+</table>
+{% else %}
+<div class="empty">Sin productos entregados en el período.</div>
 {% endif %}
 
 <div class="footer">

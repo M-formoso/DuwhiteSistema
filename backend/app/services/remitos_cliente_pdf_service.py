@@ -111,51 +111,49 @@ def generar_pdf(
         lotes = db.query(LoteProduccion).filter(LoteProduccion.id.in_(lote_ids)).all()
         lotes_map = {l.id: l for l in lotes}
 
-    # Armar estructura por remito con sus items para el template.
+    # Armar dos estructuras: lista plana de remitos + consolidado de productos.
     remitos_ctx = []
     total_general = Decimal(0)
-    total_kg = Decimal(0)
-    total_cantidad_items = 0
+    # Consolidado por producto: codigo -> {codigo, nombre, cantidad, subtotal}
+    productos_map: dict = {}
 
     for r in remitos:
-        productos = []
-        subtotal_remito = Decimal(0)
         for d in r.detalles:
             prod = getattr(d, "producto", None)
             cantidad = int(d.cantidad or 0)
-            precio = Decimal(d.precio_unitario or 0)
             sub = Decimal(d.subtotal or 0)
-            productos.append({
-                "codigo": getattr(prod, "codigo", None) or "-",
-                "nombre": getattr(prod, "nombre", None) or (d.descripcion or "-"),
-                "cantidad": cantidad,
-                "peso_kg": (
-                    float(prod.peso_promedio_kg) * cantidad
-                    if prod and prod.peso_promedio_kg
-                    else None
-                ),
-                "precio_unitario": precio,
-                "subtotal": sub,
-            })
-            subtotal_remito += sub
-            total_cantidad_items += cantidad
+            codigo = getattr(prod, "codigo", None) or "-"
+            nombre = getattr(prod, "nombre", None) or (d.descripcion or "-")
+            key = codigo if codigo != "-" else nombre
+            if key not in productos_map:
+                productos_map[key] = {
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "cantidad": 0,
+                    "subtotal": Decimal(0),
+                }
+            productos_map[key]["cantidad"] += cantidad
+            productos_map[key]["subtotal"] += sub
 
         lote = lotes_map.get(r.lote_id) if r.lote_id else None
         remitos_ctx.append({
             "numero": r.numero,
             "fecha_emision": r.fecha_emision,
-            "fecha_entrega": r.fecha_entrega,
             "estado": r.estado,
             "lote_numero": lote.numero if lote else None,
-            "peso_total_kg": r.peso_total_kg,
-            "subtotal": r.subtotal,
-            "descuento": r.descuento,
             "total": r.total,
-            "productos": productos,
         })
         total_general += Decimal(r.total or 0)
-        if r.peso_total_kg:
-            total_kg += Decimal(r.peso_total_kg)
+
+    # Ordenar productos: primero por codigo numerico si aplica, si no alfabetico.
+    def _codigo_sort_key(p):
+        try:
+            return (0, int(p["codigo"]))
+        except (ValueError, TypeError):
+            return (1, str(p["codigo"]))
+
+    productos_ctx = sorted(productos_map.values(), key=_codigo_sort_key)
+    total_cantidad_items = sum(p["cantidad"] for p in productos_ctx)
 
     periodo = None
     if fecha_desde or fecha_hasta:
@@ -169,9 +167,9 @@ def generar_pdf(
         cliente=cliente,
         empresa=empresa,
         remitos=remitos_ctx,
+        productos=productos_ctx,
         cantidad_remitos=len(remitos_ctx),
         total_general=total_general,
-        total_kg=total_kg,
         total_cantidad_items=total_cantidad_items,
         generado_at=now_ar().strftime("%d/%m/%Y %H:%M"),
         periodo=periodo,
