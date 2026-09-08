@@ -613,6 +613,203 @@ export default function ClienteDetailPage() {
             </Card>
           )}
 
+          {/* Acceso al Sistema */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Acceso al Sistema
+                  {usuariosClienteList.length > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {usuariosClienteList.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Pre-llenar solo si es el primer usuario
+                    if (usuariosClienteList.length === 0) {
+                      setNuevoUsuarioEmail(cliente.email || '');
+                      setNuevoUsuarioNombre(cliente.contacto_nombre?.split(' ')[0] || '');
+                      setNuevoUsuarioApellido(
+                        cliente.contacto_nombre?.split(' ').slice(1).join(' ') || ''
+                      );
+                    } else {
+                      setNuevoUsuarioEmail('');
+                      setNuevoUsuarioNombre('');
+                      setNuevoUsuarioApellido('');
+                    }
+                    setNuevoUsuarioPassword(generarPassword());
+                    setNuevoUsuarioVePrecios(true);
+                    setShowCrearUsuarioModal(true);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Nuevo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loadingUsuarios ? (
+                <div className="flex items-center justify-center py-4">
+                  <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : usuariosClienteList.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  Este cliente todavía no tiene usuarios de acceso.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {usuariosClienteList.map((u) => {
+                    const expandido = usuarioGestionadoId === u.id;
+                    const puedeVerPrecios = u.ve_precios !== false;
+                    return (
+                      <div key={u.id} className="border rounded-lg p-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <code className="text-sm bg-gray-100 px-2 py-0.5 rounded break-all">
+                                {u.email}
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => copyToClipboard(u.email, `email-${u.id}`)}
+                              >
+                                {copiedField === `email-${u.id}` ? (
+                                  <Check className="h-3 w-3 text-green-600" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              {u.activo ? (
+                                <Badge className="bg-green-100 text-green-700 text-[10px]">
+                                  Activo
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  Inactivo
+                                </Badge>
+                              )}
+                              <Badge
+                                variant={puedeVerPrecios ? 'default' : 'outline'}
+                                className="text-[10px]"
+                              >
+                                {puedeVerPrecios ? '$ Ve precios' : 'Sin precios'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={expandido ? 'Cerrar' : 'Ver contraseña'}
+                              onClick={() =>
+                                setUsuarioGestionadoId(expandido ? null : u.id)
+                              }
+                            >
+                              {expandido ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Cambiar contraseña"
+                              onClick={() => {
+                                setUsuarioGestionadoId(u.id);
+                                setNuevaPassword(generarPassword());
+                                setShowResetPasswordModal(true);
+                              }}
+                            >
+                              <Key className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-600"
+                              title="Eliminar usuario"
+                              onClick={() => setUsuarioEliminarId(u.id)}
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Contraseña visible (solo si expandido) */}
+                        {expandido && (
+                          <div className="pt-2 border-t space-y-2">
+                            <p className="text-xs text-gray-500">Contraseña</p>
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm font-mono break-all">
+                                {usuarioConCredenciales?.password_visible || '••••••••'}
+                              </code>
+                              {usuarioConCredenciales?.password_visible && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      usuarioConCredenciales.password_visible!,
+                                      `pw-${u.id}`
+                                    )
+                                  }
+                                >
+                                  {copiedField === `pw-${u.id}` ? (
+                                    <Check className="h-3 w-3 text-green-600" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            {!usuarioConCredenciales?.password_visible && (
+                              <p className="text-xs text-orange-600">
+                                La contraseña no está guardada. Reseteala para poder verla.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Toggle ve_precios */}
+                        <div className="flex items-center justify-between pt-2 border-t">
+                          <span className="text-xs text-gray-600">
+                            Puede ver precios y deudas
+                          </span>
+                          <Button
+                            variant={puedeVerPrecios ? 'default' : 'outline'}
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={toggleVePreciosMutation.isPending}
+                            onClick={() =>
+                              toggleVePreciosMutation.mutate({
+                                usuarioId: u.id,
+                                vePrecios: !puedeVerPrecios,
+                              })
+                            }
+                          >
+                            {puedeVerPrecios ? 'Sí' : 'No'}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
 
         {/* Sidebar */}
@@ -744,201 +941,6 @@ export default function ClienteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Acceso al Sistema */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Acceso al Sistema
-                  {usuariosClienteList.length > 0 && (
-                    <Badge variant="secondary" className="ml-1">
-                      {usuariosClienteList.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    // Pre-llenar solo si es el primer usuario
-                    if (usuariosClienteList.length === 0) {
-                      setNuevoUsuarioEmail(cliente.email || '');
-                      setNuevoUsuarioNombre(cliente.contacto_nombre?.split(' ')[0] || '');
-                      setNuevoUsuarioApellido(
-                        cliente.contacto_nombre?.split(' ').slice(1).join(' ') || ''
-                      );
-                    } else {
-                      setNuevoUsuarioEmail('');
-                      setNuevoUsuarioNombre('');
-                      setNuevoUsuarioApellido('');
-                    }
-                    setNuevoUsuarioPassword(generarPassword());
-                    setNuevoUsuarioVePrecios(true);
-                    setShowCrearUsuarioModal(true);
-                  }}
-                >
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  Nuevo
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {loadingUsuarios ? (
-                <div className="flex items-center justify-center py-4">
-                  <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
-                </div>
-              ) : usuariosClienteList.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  Este cliente todavía no tiene usuarios de acceso.
-                </p>
-              ) : (
-                usuariosClienteList.map((u) => {
-                  const expandido = usuarioGestionadoId === u.id;
-                  const puedeVerPrecios = u.ve_precios !== false;
-                  return (
-                    <div key={u.id} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <code className="text-sm bg-gray-100 px-2 py-0.5 rounded break-all">
-                              {u.email}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => copyToClipboard(u.email, `email-${u.id}`)}
-                            >
-                              {copiedField === `email-${u.id}` ? (
-                                <Check className="h-3 w-3 text-green-600" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </Button>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            {u.activo ? (
-                              <Badge className="bg-green-100 text-green-700 text-[10px]">
-                                Activo
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-[10px]">
-                                Inactivo
-                              </Badge>
-                            )}
-                            <Badge
-                              variant={puedeVerPrecios ? 'default' : 'outline'}
-                              className="text-[10px]"
-                            >
-                              {puedeVerPrecios ? '$ Ve precios' : 'Sin precios'}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            title={expandido ? 'Cerrar' : 'Ver contraseña'}
-                            onClick={() =>
-                              setUsuarioGestionadoId(expandido ? null : u.id)
-                            }
-                          >
-                            {expandido ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            title="Cambiar contraseña"
-                            onClick={() => {
-                              setUsuarioGestionadoId(u.id);
-                              setNuevaPassword(generarPassword());
-                              setShowResetPasswordModal(true);
-                            }}
-                          >
-                            <Key className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-600"
-                            title="Eliminar usuario"
-                            onClick={() => setUsuarioEliminarId(u.id)}
-                          >
-                            <AlertTriangle className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Contraseña visible (solo si expandido) */}
-                      {expandido && (
-                        <div className="pt-2 border-t space-y-2">
-                          <p className="text-xs text-gray-500">Contraseña</p>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 bg-gray-100 px-2 py-1 rounded text-sm font-mono break-all">
-                              {usuarioConCredenciales?.password_visible || '••••••••'}
-                            </code>
-                            {usuarioConCredenciales?.password_visible && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() =>
-                                  copyToClipboard(
-                                    usuarioConCredenciales.password_visible!,
-                                    `pw-${u.id}`
-                                  )
-                                }
-                              >
-                                {copiedField === `pw-${u.id}` ? (
-                                  <Check className="h-3 w-3 text-green-600" />
-                                ) : (
-                                  <Copy className="h-3 w-3" />
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                          {!usuarioConCredenciales?.password_visible && (
-                            <p className="text-xs text-orange-600">
-                              La contraseña no está guardada. Reseteala para poder verla.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Toggle ve_precios */}
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <span className="text-xs text-gray-600">
-                          Puede ver precios y deudas
-                        </span>
-                        <Button
-                          variant={puedeVerPrecios ? 'default' : 'outline'}
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={toggleVePreciosMutation.isPending}
-                          onClick={() =>
-                            toggleVePreciosMutation.mutate({
-                              usuarioId: u.id,
-                              vePrecios: !puedeVerPrecios,
-                            })
-                          }
-                        >
-                          {puedeVerPrecios ? 'Sí' : 'No'}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-
           {/* Condiciones Comerciales */}
           <Card>
             <CardHeader>
@@ -1000,85 +1002,95 @@ export default function ClienteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Movimientos Recientes */}
-          {movimientos?.items && movimientos.items.length > 0 && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <CardTitle>Últimos Movimientos</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate(`/clientes/${id}/cuenta-corriente`)}
-                >
-                  Ver todos
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {movimientos.items.slice(0, 4).map((mov) => (
-                    <div key={mov.id} className="flex justify-between text-sm">
-                      <div>
-                        <p className="font-medium">{mov.concepto}</p>
-                        <p className="text-xs text-gray-500">
-                          {formatDate(mov.fecha_movimiento)}
-                        </p>
-                      </div>
-                      <span
-                        className={
-                          mov.tipo === 'pago' ? 'text-green-600' : 'text-red-600'
-                        }
-                      >
-                        {mov.tipo === 'pago' ? '-' : '+'}${formatNumber(mov.monto, 2)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
-      {/* Últimos Pedidos — full width al final */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Últimos Pedidos
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/pedidos?cliente=${id}`)}>
-            Ver más
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {pedidos?.items && pedidos.items.length > 0 ? (
-            <div className="space-y-2">
-              {pedidos.items.map((pedido) => (
-                <div
-                  key={pedido.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                  onClick={() => navigate(`/pedidos/${pedido.id}`)}
-                >
-                  <div>
-                    <p className="font-mono font-medium">{pedido.numero}</p>
-                    <p className="text-sm text-gray-500">
-                      {formatDate(pedido.fecha_pedido)}
-                    </p>
+      {/* Historial: Pedidos + Movimientos, full-width abajo en 2 columnas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Últimos Pedidos */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Últimos Pedidos
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/pedidos?cliente=${id}`)}>
+              Ver más
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {pedidos?.items && pedidos.items.length > 0 ? (
+              <div className="space-y-2">
+                {pedidos.items.map((pedido) => (
+                  <div
+                    key={pedido.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                    onClick={() => navigate(`/pedidos/${pedido.id}`)}
+                  >
+                    <div>
+                      <p className="font-mono font-medium">{pedido.numero}</p>
+                      <p className="text-sm text-gray-500">
+                        {formatDate(pedido.fecha_pedido)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">${formatNumber(pedido.total, 2)}</p>
+                      <Badge variant="outline">{pedido.estado}</Badge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">${formatNumber(pedido.total, 2)}</p>
-                    <Badge variant="outline">{pedido.estado}</Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-4">Sin pedidos registrados</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Últimos Movimientos */}
+        {movimientos?.items && movimientos.items.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Últimos Movimientos
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/clientes/${id}/cuenta-corriente`)}
+              >
+                Ver todos
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {movimientos.items.slice(0, 4).map((mov) => (
+                  <div
+                    key={mov.id}
+                    className="flex justify-between text-sm p-3 bg-gray-50 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">{mov.concepto}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatDate(mov.fecha_movimiento)}
+                      </p>
+                    </div>
+                    <span
+                      className={
+                        mov.tipo === 'pago' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'
+                      }
+                    >
+                      {mov.tipo === 'pago' ? '-' : '+'}${formatNumber(mov.monto, 2)}
+                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-gray-500 py-4">Sin pedidos registrados</p>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Modal Asignar Lista de Precios */}
       <Dialog open={showListaPreciosModal} onOpenChange={setShowListaPreciosModal}>
