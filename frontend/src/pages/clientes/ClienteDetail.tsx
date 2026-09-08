@@ -613,45 +613,6 @@ export default function ClienteDetailPage() {
             </Card>
           )}
 
-          {/* Últimos Pedidos */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Últimos Pedidos
-              </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/pedidos?cliente=${id}`)}>
-                Ver más
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {pedidos?.items && pedidos.items.length > 0 ? (
-                <div className="space-y-2">
-                  {pedidos.items.map((pedido) => (
-                    <div
-                      key={pedido.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                      onClick={() => navigate(`/pedidos/${pedido.id}`)}
-                    >
-                      <div>
-                        <p className="font-mono font-medium">{pedido.numero}</p>
-                        <p className="text-sm text-gray-500">
-                          {formatDate(pedido.fecha_pedido)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">${formatNumber(pedido.total, 2)}</p>
-                        <Badge variant="outline">{pedido.estado}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-gray-500 py-4">Sin pedidos registrados</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* Sidebar */}
@@ -1078,6 +1039,46 @@ export default function ClienteDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Últimos Pedidos — full width al final */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Últimos Pedidos
+          </CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/pedidos?cliente=${id}`)}>
+            Ver más
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {pedidos?.items && pedidos.items.length > 0 ? (
+            <div className="space-y-2">
+              {pedidos.items.map((pedido) => (
+                <div
+                  key={pedido.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                  onClick={() => navigate(`/pedidos/${pedido.id}`)}
+                >
+                  <div>
+                    <p className="font-mono font-medium">{pedido.numero}</p>
+                    <p className="text-sm text-gray-500">
+                      {formatDate(pedido.fecha_pedido)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">${formatNumber(pedido.total, 2)}</p>
+                    <Badge variant="outline">{pedido.estado}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-4">Sin pedidos registrados</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Modal Asignar Lista de Precios */}
       <Dialog open={showListaPreciosModal} onOpenChange={setShowListaPreciosModal}>
