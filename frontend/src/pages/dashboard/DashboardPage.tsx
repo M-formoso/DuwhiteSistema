@@ -110,6 +110,13 @@ export default function DashboardPage() {
   const cycleVentasMode = () => {
     setVentasCardMode((m) => (m === 'mes' ? 'promedio' : m === 'promedio' ? 'hoy' : 'mes'));
   };
+  // Card "Producción" cicla por: en proceso ahora, hoy, semana, mes.
+  const [prodCardMode, setProdCardMode] = useState<'ahora' | 'hoy' | 'semana' | 'mes'>('ahora');
+  const cycleProdMode = () => {
+    setProdCardMode((m) =>
+      m === 'ahora' ? 'hoy' : m === 'hoy' ? 'semana' : m === 'semana' ? 'mes' : 'ahora'
+    );
+  };
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
@@ -264,37 +271,100 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* Producción */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Producción
-            </CardTitle>
-            <Factory className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.produccion.lotes_en_proceso}</div>
-            <p className="text-xs text-muted-foreground mb-2">lotes en proceso</p>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle className="h-3 w-3 text-success shrink-0" />
-                <span>{kpis.produccion.lotes_completados_hoy} completados hoy</span>
-              </div>
-              {kpis.produccion.cadencia_min_entre_completados != null && (
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3 w-3 text-primary shrink-0" />
-                  <span>1 lote cada ~{kpis.produccion.cadencia_min_entre_completados} min</span>
+        {/* Producción (toggle: ahora / hoy / semana / mes) */}
+        {(() => {
+          const p = kpis.produccion;
+          const diaMes = new Date().getDate();
+          const fmtKg = (kg: number) => `${kg.toLocaleString('es-AR', { maximumFractionDigits: 0 })} kg`;
+
+          type Row = { icon: JSX.Element; text: string } | null;
+          const config: Record<
+            typeof prodCardMode,
+            { titulo: string; subLabel: string; valor: number; rows: Row[] }
+          > = {
+            ahora: {
+              titulo: 'Producción',
+              subLabel: 'lotes en proceso',
+              valor: p.lotes_en_proceso,
+              rows: [
+                { icon: <CheckCircle className="h-3 w-3 text-success shrink-0" />, text: `${p.lotes_completados_hoy} completados hoy` },
+                p.cadencia_min_entre_completados != null
+                  ? { icon: <Clock className="h-3 w-3 text-primary shrink-0" />, text: `1 lote cada ~${p.cadencia_min_entre_completados} min` }
+                  : null,
+                p.kg_en_proceso > 0
+                  ? { icon: <Package className="h-3 w-3 shrink-0" />, text: `${fmtKg(p.kg_en_proceso)} activos` }
+                  : null,
+              ],
+            },
+            hoy: {
+              titulo: 'Producción · Hoy',
+              subLabel: 'lotes completados hoy',
+              valor: p.lotes_completados_hoy,
+              rows: [
+                p.kg_completados_hoy > 0
+                  ? { icon: <Package className="h-3 w-3 shrink-0" />, text: `${fmtKg(p.kg_completados_hoy)} producidos` }
+                  : null,
+                p.cadencia_min_entre_completados != null
+                  ? { icon: <Clock className="h-3 w-3 text-primary shrink-0" />, text: `1 lote cada ~${p.cadencia_min_entre_completados} min` }
+                  : null,
+                { icon: <Factory className="h-3 w-3 shrink-0" />, text: `${p.lotes_en_proceso} en proceso ahora` },
+              ],
+            },
+            semana: {
+              titulo: 'Producción · Semana',
+              subLabel: 'lotes últimos 7 días',
+              valor: p.lotes_completados_semana,
+              rows: [
+                p.kg_completados_semana > 0
+                  ? { icon: <Package className="h-3 w-3 shrink-0" />, text: `${fmtKg(p.kg_completados_semana)} producidos` }
+                  : null,
+                { icon: <TrendingUp className="h-3 w-3 text-success shrink-0" />, text: `${(p.lotes_completados_semana / 7).toFixed(1)} lotes/día` },
+                { icon: <Factory className="h-3 w-3 shrink-0" />, text: `${p.lotes_en_proceso} en proceso ahora` },
+              ],
+            },
+            mes: {
+              titulo: 'Producción · Mes',
+              subLabel: 'lotes del mes',
+              valor: p.lotes_completados_mes,
+              rows: [
+                p.kg_completados_mes > 0
+                  ? { icon: <Package className="h-3 w-3 shrink-0" />, text: `${fmtKg(p.kg_completados_mes)} producidos` }
+                  : null,
+                diaMes > 0
+                  ? { icon: <TrendingUp className="h-3 w-3 text-success shrink-0" />, text: `${(p.lotes_completados_mes / diaMes).toFixed(1)} lotes/día` }
+                  : null,
+                { icon: <Factory className="h-3 w-3 shrink-0" />, text: `${p.lotes_en_proceso} en proceso ahora` },
+              ],
+            },
+          };
+          const cfg = config[prodCardMode];
+          return (
+            <Card
+              onClick={cycleProdMode}
+              className="cursor-pointer hover:border-primary/40 transition-colors"
+              title="Click para alternar entre Ahora / Hoy / Semana / Mes"
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {cfg.titulo}
+                </CardTitle>
+                <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{cfg.valor}</div>
+                <p className="text-xs text-muted-foreground mb-2">{cfg.subLabel}</p>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  {cfg.rows.filter((r): r is NonNullable<Row> => r !== null).map((r, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      {r.icon}
+                      <span>{r.text}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-              {kpis.produccion.kg_en_proceso > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Package className="h-3 w-3 shrink-0" />
-                  <span>{kpis.produccion.kg_en_proceso.toLocaleString('es-AR')} kg activos</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Caja */}
         <Card>

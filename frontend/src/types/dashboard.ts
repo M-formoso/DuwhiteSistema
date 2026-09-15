@@ -20,6 +20,13 @@ export interface DashboardKPIs {
     cadencia_min_entre_completados: number | null;
     /** Suma de peso_entrada_kg de lotes en estado EN_PROCESO. */
     kg_en_proceso: number;
+    kg_completados_hoy: number;
+    /** Lotes completados en los últimos 7 días (incluye hoy). */
+    lotes_completados_semana: number;
+    kg_completados_semana: number;
+    /** Lotes completados desde el 1° del mes hasta hoy. */
+    lotes_completados_mes: number;
+    kg_completados_mes: number;
   };
   finanzas: {
     saldo_caja: number;

@@ -114,6 +114,52 @@ class DashboardService:
         )
         kg_activos = float(kg_activos_result.scalar() or 0)
 
+        # Kg completados hoy
+        kg_hoy_result = self.db.execute(
+            select(func.coalesce(func.sum(LoteProduccion.peso_entrada_kg), 0))
+            .where(and_(
+                LoteProduccion.activo == True,
+                LoteProduccion.estado == EstadoLote.COMPLETADO.value,
+                func.date(LoteProduccion.fecha_fin_proceso) == hoy,
+            ))
+        )
+        kg_completados_hoy = float(kg_hoy_result.scalar() or 0)
+
+        # Semana móvil (últimos 7 días incluyendo hoy)
+        semana_desde = hoy - timedelta(days=6)
+        semana_result = self.db.execute(
+            select(
+                func.count(LoteProduccion.id).label("cantidad"),
+                func.coalesce(func.sum(LoteProduccion.peso_entrada_kg), 0).label("kg"),
+            )
+            .where(and_(
+                LoteProduccion.activo == True,
+                LoteProduccion.estado == EstadoLote.COMPLETADO.value,
+                func.date(LoteProduccion.fecha_fin_proceso) >= semana_desde,
+                func.date(LoteProduccion.fecha_fin_proceso) <= hoy,
+            ))
+        )
+        semana_row = semana_result.one()
+        lotes_completados_semana = semana_row.cantidad or 0
+        kg_completados_semana = float(semana_row.kg or 0)
+
+        # Mes actual (desde el 1° hasta hoy)
+        mes_result = self.db.execute(
+            select(
+                func.count(LoteProduccion.id).label("cantidad"),
+                func.coalesce(func.sum(LoteProduccion.peso_entrada_kg), 0).label("kg"),
+            )
+            .where(and_(
+                LoteProduccion.activo == True,
+                LoteProduccion.estado == EstadoLote.COMPLETADO.value,
+                func.date(LoteProduccion.fecha_fin_proceso) >= inicio_mes,
+                func.date(LoteProduccion.fecha_fin_proceso) <= hoy,
+            ))
+        )
+        mes_row = mes_result.one()
+        lotes_completados_mes = mes_row.cantidad or 0
+        kg_completados_mes = float(mes_row.kg or 0)
+
         # Caja actual
         caja_result = self.db.execute(
             select(Caja)
@@ -173,6 +219,11 @@ class DashboardService:
                 "lotes_completados_hoy": lotes_completados_hoy,
                 "cadencia_min_entre_completados": cadencia_min,
                 "kg_en_proceso": kg_activos,
+                "kg_completados_hoy": kg_completados_hoy,
+                "lotes_completados_semana": lotes_completados_semana,
+                "kg_completados_semana": kg_completados_semana,
+                "lotes_completados_mes": lotes_completados_mes,
+                "kg_completados_mes": kg_completados_mes,
             },
             "finanzas": {
                 "saldo_caja": float(saldo_caja),
@@ -479,6 +530,11 @@ class DashboardService:
                     "lotes_completados_hoy": 0,
                     "cadencia_min_entre_completados": None,
                     "kg_en_proceso": 0,
+                    "kg_completados_hoy": 0,
+                    "lotes_completados_semana": 0,
+                    "kg_completados_semana": 0,
+                    "lotes_completados_mes": 0,
+                    "kg_completados_mes": 0,
                 },
                 "finanzas": {"saldo_caja": 0, "caja_abierta": False},
                 "operacion": {"clientes_activos": 0, "empleados_activos": 0, "insumos_bajo_minimo": 0}
