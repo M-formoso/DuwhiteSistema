@@ -80,16 +80,39 @@ class DashboardService:
         )
         lotes_en_proceso = produccion_result.scalar() or 0
 
-        # Lotes completados hoy
+        # Lotes completados hoy + rango temporal (primero/último) para cadencia
         lotes_hoy_result = self.db.execute(
-            select(func.count(LoteProduccion.id))
+            select(
+                func.count(LoteProduccion.id).label("cantidad"),
+                func.min(LoteProduccion.fecha_fin_proceso).label("primero"),
+                func.max(LoteProduccion.fecha_fin_proceso).label("ultimo"),
+            )
             .where(and_(
                 LoteProduccion.activo == True,
                 LoteProduccion.estado == EstadoLote.COMPLETADO.value,
                 func.date(LoteProduccion.fecha_fin_proceso) == hoy
             ))
         )
-        lotes_completados_hoy = lotes_hoy_result.scalar() or 0
+        lotes_hoy_row = lotes_hoy_result.one()
+        lotes_completados_hoy = lotes_hoy_row.cantidad or 0
+
+        # Cadencia: minutos promedio entre completados de hoy.
+        # Con menos de 2 lotes no tiene sentido calcular intervalo.
+        cadencia_min: Optional[float] = None
+        if lotes_completados_hoy >= 2 and lotes_hoy_row.primero and lotes_hoy_row.ultimo:
+            delta_seg = (lotes_hoy_row.ultimo - lotes_hoy_row.primero).total_seconds()
+            if delta_seg > 0:
+                cadencia_min = round(delta_seg / 60 / (lotes_completados_hoy - 1), 1)
+
+        # Kg en proceso (activos): suma peso_entrada_kg de lotes EN_PROCESO.
+        kg_activos_result = self.db.execute(
+            select(func.coalesce(func.sum(LoteProduccion.peso_entrada_kg), 0))
+            .where(and_(
+                LoteProduccion.activo == True,
+                LoteProduccion.estado == EstadoLote.EN_PROCESO.value,
+            ))
+        )
+        kg_activos = float(kg_activos_result.scalar() or 0)
 
         # Caja actual
         caja_result = self.db.execute(
@@ -148,6 +171,8 @@ class DashboardService:
             "produccion": {
                 "lotes_en_proceso": lotes_en_proceso,
                 "lotes_completados_hoy": lotes_completados_hoy,
+                "cadencia_min_entre_completados": cadencia_min,
+                "kg_en_proceso": kg_activos,
             },
             "finanzas": {
                 "saldo_caja": float(saldo_caja),
@@ -449,7 +474,12 @@ class DashboardService:
             print(f"Error en get_kpis_principales: {e}")
             kpis = {
                 "ventas": {"mes": {"cantidad": 0, "total": 0}, "hoy": {"cantidad": 0, "total": 0}},
-                "produccion": {"lotes_en_proceso": 0, "lotes_completados_hoy": 0},
+                "produccion": {
+                    "lotes_en_proceso": 0,
+                    "lotes_completados_hoy": 0,
+                    "cadencia_min_entre_completados": None,
+                    "kg_en_proceso": 0,
+                },
                 "finanzas": {"saldo_caja": 0, "caja_abierta": False},
                 "operacion": {"clientes_activos": 0, "empleados_activos": 0, "insumos_bajo_minimo": 0}
             }

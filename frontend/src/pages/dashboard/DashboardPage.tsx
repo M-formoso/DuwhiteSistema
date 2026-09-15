@@ -20,6 +20,7 @@ import {
   Info,
   ShoppingCart,
   Database,
+  ArrowLeftRight,
 } from 'lucide-react';
 import {
   BarChart,
@@ -104,6 +105,11 @@ export default function DashboardPage() {
   }
   const [seedMessage, setSeedMessage] = useState<string | null>(null);
   const [rangoGrafico, setRangoGrafico] = useState<RangoVentas>('semana');
+  // Card "Ventas" alterna entre: total del mes, promedio por día y hoy.
+  const [ventasCardMode, setVentasCardMode] = useState<'mes' | 'promedio' | 'hoy'>('mes');
+  const cycleVentasMode = () => {
+    setVentasCardMode((m) => (m === 'mes' ? 'promedio' : m === 'promedio' ? 'hoy' : 'mes'));
+  };
 
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
@@ -218,22 +224,45 @@ export default function DashboardPage() {
 
       {/* KPIs Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Ventas del Mes */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Ventas del Mes
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(kpis.ventas.mes.total)}</div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-success" />
-              {kpis.ventas.mes.cantidad} pedidos
-            </p>
-          </CardContent>
-        </Card>
+        {/* Ventas (toggle: mes / promedio día / hoy) */}
+        {(() => {
+          const diaMes = new Date().getDate(); // días transcurridos incl. hoy
+          const promedioDia = diaMes > 0 ? kpis.ventas.mes.total / diaMes : 0;
+          const promedioPedidos = diaMes > 0 ? kpis.ventas.mes.cantidad / diaMes : 0;
+          const label =
+            ventasCardMode === 'mes' ? 'Ventas del Mes'
+            : ventasCardMode === 'promedio' ? 'Promedio por Día'
+            : 'Ventas de Hoy';
+          const valor =
+            ventasCardMode === 'mes' ? kpis.ventas.mes.total
+            : ventasCardMode === 'promedio' ? promedioDia
+            : kpis.ventas.hoy.total;
+          const subtitulo =
+            ventasCardMode === 'mes' ? `${kpis.ventas.mes.cantidad} pedidos`
+            : ventasCardMode === 'promedio' ? `${promedioPedidos.toFixed(1)} pedidos/día`
+            : `${kpis.ventas.hoy.cantidad} pedidos`;
+          return (
+            <Card
+              onClick={cycleVentasMode}
+              className="cursor-pointer hover:border-primary/40 transition-colors"
+              title="Click para alternar entre Mes / Promedio día / Hoy"
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {label}
+                </CardTitle>
+                <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(valor)}</div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <TrendingUp className="h-3 w-3 text-success" />
+                  {subtitulo}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Producción */}
         <Card>
@@ -245,9 +274,25 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.produccion.lotes_en_proceso}</div>
-            <p className="text-xs text-muted-foreground">
-              lotes en proceso • {kpis.produccion.lotes_completados_hoy} completados hoy
-            </p>
+            <p className="text-xs text-muted-foreground mb-2">lotes en proceso</p>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle className="h-3 w-3 text-success shrink-0" />
+                <span>{kpis.produccion.lotes_completados_hoy} completados hoy</span>
+              </div>
+              {kpis.produccion.cadencia_min_entre_completados != null && (
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 text-primary shrink-0" />
+                  <span>1 lote cada ~{kpis.produccion.cadencia_min_entre_completados} min</span>
+                </div>
+              )}
+              {kpis.produccion.kg_en_proceso > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Package className="h-3 w-3 shrink-0" />
+                  <span>{kpis.produccion.kg_en_proceso.toLocaleString('es-AR')} kg activos</span>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

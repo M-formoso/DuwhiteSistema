@@ -16,6 +16,10 @@ export interface DashboardKPIs {
   produccion: {
     lotes_en_proceso: number;
     lotes_completados_hoy: number;
+    /** Minutos promedio entre completados de hoy. null si <2 lotes. */
+    cadencia_min_entre_completados: number | null;
+    /** Suma de peso_entrada_kg de lotes en estado EN_PROCESO. */
+    kg_en_proceso: number;
   };
   finanzas: {
     saldo_caja: number;
