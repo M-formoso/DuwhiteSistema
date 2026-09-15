@@ -2,10 +2,26 @@
 Schemas de Cliente.
 """
 
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
+
+
+CUIT_PATTERN = r"^\d{2}-\d{8}-\d{1}$"
+
+
+def _validar_cuit_opcional(v: Optional[str]) -> Optional[str]:
+    """Valida formato XX-XXXXXXXX-X. Vacío/None se acepta (campo opcional)."""
+    if not v:
+        return v
+    v = v.strip()
+    if not v:
+        return None
+    if not re.match(CUIT_PATTERN, v):
+        raise ValueError("CUIT debe tener formato XX-XXXXXXXX-X")
+    return v
 
 
 # ==================== CLIENTE ====================
@@ -16,6 +32,11 @@ class ClienteBase(BaseModel):
     razon_social: str = Field(..., min_length=2, max_length=200)
     nombre_fantasia: Optional[str] = None
     titular_fiscal_id: Optional[str] = None
+    # cuit/condicion_iva son "atajos": el service crea o reutiliza el
+    # TitularFiscal correspondiente. Un mismo CUIT puede tener varios
+    # clientes (grupo empresarial), se agrupan bajo el mismo titular.
+    cuit: Optional[str] = None
+    condicion_iva: Optional[str] = None
     email: Optional[EmailStr] = None
     telefono: Optional[str] = None
     celular: Optional[str] = None
@@ -35,6 +56,11 @@ class ClienteBase(BaseModel):
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
 
+    @field_validator("cuit")
+    @classmethod
+    def _cuit_format(cls, v: Optional[str]) -> Optional[str]:
+        return _validar_cuit_opcional(v)
+
 
 class ClienteCreate(ClienteBase):
     """Schema para crear cliente."""
@@ -47,6 +73,9 @@ class ClienteUpdate(BaseModel):
     razon_social: Optional[str] = Field(None, min_length=2, max_length=200)
     nombre_fantasia: Optional[str] = None
     titular_fiscal_id: Optional[str] = None
+    # Ver ClienteBase.cuit: atajo que resuelve/crea el TitularFiscal en el service.
+    cuit: Optional[str] = None
+    condicion_iva: Optional[str] = None
     email: Optional[EmailStr] = None
     telefono: Optional[str] = None
     celular: Optional[str] = None
@@ -67,6 +96,11 @@ class ClienteUpdate(BaseModel):
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
     activo: Optional[bool] = None
+
+    @field_validator("cuit")
+    @classmethod
+    def _cuit_format(cls, v: Optional[str]) -> Optional[str]:
+        return _validar_cuit_opcional(v)
 
 
 class ClienteResponse(ClienteBase):

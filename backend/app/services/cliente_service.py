@@ -130,16 +130,70 @@ class ClienteService:
             return []
         return self.db.query(Cliente).filter(Cliente.titular_fiscal_id == titular.id).all()
 
+    def _upsert_titular_fiscal(
+        self,
+        cuit: Optional[str],
+        condicion_iva: Optional[str],
+        razon_social_fallback: str,
+    ) -> Optional[str]:
+        """
+        Resuelve el TitularFiscal desde CUIT + condicion_iva.
+        Si el CUIT ya existe → reutiliza y actualiza condicion_iva si vino.
+        Si no existe → crea el titular con la razón social del cliente.
+        Devuelve el `titular_fiscal_id` o None si el CUIT vino vacío/None.
+
+        Comparte CUIT entre varios clientes: no falla si otros clientes ya
+        apuntan al mismo titular (relación 1:N por diseño).
+        """
+        cuit_norm = (cuit or "").strip()
+        if not cuit_norm:
+            return None
+
+        titular = (
+            self.db.query(TitularFiscal)
+            .filter(TitularFiscal.cuit == cuit_norm)
+            .first()
+        )
+        if titular:
+            # Si el usuario cambió la condicion_iva en el form, la propagamos
+            # al titular (afecta a todos los clientes bajo ese CUIT).
+            if condicion_iva and titular.condicion_iva != condicion_iva:
+                titular.condicion_iva = condicion_iva
+                self.db.flush()
+            return str(titular.id)
+
+        titular = TitularFiscal(
+            id=uuid4(),
+            cuit=cuit_norm,
+            razon_social_fiscal=razon_social_fallback,
+            condicion_iva=condicion_iva or "responsable_inscripto",
+        )
+        self.db.add(titular)
+        self.db.flush()  # obtener el id sin commit todavía
+        return str(titular.id)
+
     def create_cliente(self, data: ClienteCreate) -> Cliente:
         """Crea un nuevo cliente."""
         # Generar código
         codigo = self._generar_codigo_cliente()
 
+        # Extraer campos fiscales (viven en TitularFiscal, no en Cliente).
+        payload = data.model_dump()
+        cuit = payload.pop("cuit", None)
+        condicion_iva = payload.pop("condicion_iva", None)
+
+        titular_id = payload.get("titular_fiscal_id")
+        if not titular_id and cuit:
+            titular_id = self._upsert_titular_fiscal(
+                cuit, condicion_iva, payload.get("razon_social", "")
+            )
+        payload["titular_fiscal_id"] = titular_id
+
         cliente = Cliente(
             id=str(uuid4()),
             codigo=codigo,
             fecha_alta=today_ar(),
-            **data.model_dump(),
+            **payload,
         )
 
         self.db.add(cliente)
@@ -155,6 +209,34 @@ class ClienteService:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+
+        # cuit y condicion_iva son properties read-only del Cliente; se
+        # resuelven contra TitularFiscal antes de setear el resto.
+        cuit_touched = "cuit" in data.model_fields_set
+        condicion_touched = "condicion_iva" in data.model_fields_set
+        cuit = update_data.pop("cuit", None)
+        condicion_iva = update_data.pop("condicion_iva", None)
+
+        if cuit_touched:
+            if cuit and cuit.strip():
+                # razón social nueva del payload, o la actual del cliente
+                razon_social = update_data.get("razon_social") or cliente.razon_social
+                update_data["titular_fiscal_id"] = self._upsert_titular_fiscal(
+                    cuit, condicion_iva, razon_social
+                )
+            else:
+                # CUIT vacío → desasocia el titular
+                update_data["titular_fiscal_id"] = None
+        elif condicion_touched and cliente.titular_fiscal_id and condicion_iva:
+            # Solo cambió la condición IVA sobre un titular ya asignado
+            titular = (
+                self.db.query(TitularFiscal)
+                .filter(TitularFiscal.id == cliente.titular_fiscal_id)
+                .first()
+            )
+            if titular and titular.condicion_iva != condicion_iva:
+                titular.condicion_iva = condicion_iva
+
         for field, value in update_data.items():
             setattr(cliente, field, value)
 
