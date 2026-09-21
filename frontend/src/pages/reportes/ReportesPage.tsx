@@ -675,9 +675,24 @@ export default function ReportesPage() {
 
             {/* Ventas por Servicio */}
             <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Ventas por Servicio</CardTitle>
-                <CardDescription>Distribución de ingresos por tipo de servicio</CardDescription>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>Ventas por Servicio</CardTitle>
+                  <CardDescription>Distribución de ingresos por tipo de servicio</CardDescription>
+                </div>
+                {ventasServicios && ventasServicios.length > 0 && (() => {
+                  const totalMonto = ventasServicios.reduce((acc, s) => acc + (s.total || 0), 0);
+                  const totalUnidades = ventasServicios.reduce((acc, s) => acc + (s.unidades_vendidas || 0), 0);
+                  return (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2 text-right">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
+                      <p className="text-lg font-bold text-primary">{formatCurrency(totalMonto)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatNumber(totalUnidades)} unidades · {ventasServicios.length} servicios
+                      </p>
+                    </div>
+                  );
+                })()}
               </CardHeader>
               <CardContent>
                 {ventasServicios && ventasServicios.length > 0 ? (
