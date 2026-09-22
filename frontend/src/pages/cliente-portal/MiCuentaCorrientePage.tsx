@@ -120,7 +120,9 @@ export default function MiCuentaCorrientePage() {
   });
 
   const movimientos = movimientosData?.items || [];
-  const deudaPendiente = movimientos.filter((m) => ['cargo', 'factura', 'nota_debito'].includes(m.tipo));
+  // Cargos suman deuda (rojo), pagos y notas de crédito la bajan (verde).
+  const tiposQueSuman = new Set(['cargo', 'factura', 'nota_debito']);
+  const tiposQueRestan = new Set(['pago', 'nota_credito']);
 
 
   if (!clienteId) {
@@ -324,7 +326,7 @@ export default function MiCuentaCorrientePage() {
         <TabsList className={`grid w-full ${vePrecios ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="remitos">Remitos</TabsTrigger>
           <TabsTrigger value="productos">Productos entregados</TabsTrigger>
-          {vePrecios && <TabsTrigger value="deuda">Deuda pendiente</TabsTrigger>}
+          {vePrecios && <TabsTrigger value="movimientos">Cuenta corriente</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="remitos">
@@ -455,15 +457,15 @@ export default function MiCuentaCorrientePage() {
           </Card>
         </TabsContent>
 
-        {vePrecios && <TabsContent value="deuda">
+        {vePrecios && <TabsContent value="movimientos">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Receipt className="h-4 w-4" />
-                Deuda pendiente
+                Movimientos de cuenta corriente
               </CardTitle>
               <CardDescription>
-                Cargos y facturas del período que suman a tu saldo.
+                Cargos (rojo) y pagos (verde) del período, con el saldo tras cada movimiento.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -471,10 +473,10 @@ export default function MiCuentaCorrientePage() {
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : deudaPendiente.length === 0 ? (
+              ) : movimientos.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No hay cargos en el período</p>
+                  <p>No hay movimientos en el período</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -486,14 +488,22 @@ export default function MiCuentaCorrientePage() {
                         <TableHead>Concepto</TableHead>
                         <TableHead>Comprobante</TableHead>
                         <TableHead className="text-right">Monto</TableHead>
+                        <TableHead className="text-right">Saldo</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {deudaPendiente.map((mov) => {
+                      {movimientos.map((mov) => {
                         const tipoInfo = TIPOS_MOVIMIENTO[mov.tipo] || { label: mov.tipo, color: 'secondary' };
+                        const suma = tiposQueSuman.has(mov.tipo);
+                        const resta = tiposQueRestan.has(mov.tipo);
+                        const colorMonto = suma ? 'text-red-600' : resta ? 'text-green-600' : 'text-gray-700';
+                        const signo = suma ? '+' : resta ? '−' : '';
                         return (
-                          <TableRow key={mov.id}>
+                          <TableRow
+                            key={mov.id}
+                            className={resta ? 'bg-green-50/40 hover:bg-green-50/60' : ''}
+                          >
                             <TableCell>{formatDate(mov.fecha_movimiento)}</TableCell>
                             <TableCell>
                               <Badge variant={tipoInfo.color as any}>{tipoInfo.label}</Badge>
@@ -502,8 +512,11 @@ export default function MiCuentaCorrientePage() {
                             <TableCell className="text-xs text-gray-600 font-mono">
                               {mov.factura_numero || mov.recibo_numero || mov.remito?.numero || '-'}
                             </TableCell>
-                            <TableCell className="text-right text-red-600 font-mono font-semibold">
-                              {formatCurrency(mov.monto)}
+                            <TableCell className={`text-right font-mono font-semibold ${colorMonto}`}>
+                              {signo} {formatCurrency(mov.monto)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-gray-700">
+                              {formatCurrency(mov.saldo_posterior)}
                             </TableCell>
                             <TableCell>
                               <Button
