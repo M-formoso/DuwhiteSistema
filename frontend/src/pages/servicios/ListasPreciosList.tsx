@@ -71,10 +71,12 @@ import { toast } from 'sonner';
 
 import {
   listaPreciosService,
+  servicioService,
   ListaPrecios,
   ListaPreciosCreate,
   ListaPreciosUpdate,
 } from '@/services/servicioService';
+import { Checkbox } from '@/components/ui/checkbox';
 import { getErrorMessage } from '@/services/api';
 
 export default function ListasPreciosList() {
@@ -97,7 +99,11 @@ export default function ListasPreciosList() {
     porcentaje_modificador: undefined,
     incluye_iva: false,
     notas: '',
+    inicializar_items: 'todos',
+    servicios_seleccionados: [],
   });
+  // Filtro de búsqueda dentro del selector de productos (modo "seleccion")
+  const [busquedaServicio, setBusquedaServicio] = useState('');
 
   // Queries
   const { data: listasData, isLoading } = useQuery({
@@ -115,6 +121,17 @@ export default function ListasPreciosList() {
       const response = await listaPreciosService.listar({ es_lista_base: true });
       return response.items;
     },
+  });
+
+  // Catálogo de servicios activos, para el modo "Seleccionar productos" del
+  // form de creación. Solo se carga cuando el modal está abierto y en modo alta.
+  const { data: serviciosCatalogo = [] } = useQuery({
+    queryKey: ['servicios-para-lista-precios'],
+    queryFn: async () => {
+      const response = await servicioService.listar({ activo: true, limit: 500 });
+      return response.items;
+    },
+    enabled: modalOpen && !listaEditar,
   });
 
   // Mutations
@@ -168,6 +185,7 @@ export default function ListasPreciosList() {
   });
 
   const handleOpenModal = (lista?: ListaPrecios) => {
+    setBusquedaServicio('');
     if (lista) {
       setListaEditar(lista);
       setFormData({
@@ -191,6 +209,8 @@ export default function ListasPreciosList() {
         porcentaje_modificador: undefined,
         incluye_iva: false,
         notas: '',
+        inicializar_items: 'todos',
+        servicios_seleccionados: [],
       });
     }
     setModalOpen(true);
@@ -229,7 +249,18 @@ export default function ListasPreciosList() {
     if (listaEditar) {
       updateMutation.mutate({ id: listaEditar.id, data: payload });
     } else {
-      createMutation.mutate(payload as ListaPreciosCreate);
+      const modo = formData.inicializar_items ?? 'todos';
+      if (modo === 'seleccion' && (formData.servicios_seleccionados?.length ?? 0) === 0) {
+        toast.error('Elegí al menos un producto para incluir en la lista');
+        return;
+      }
+      const createPayload: ListaPreciosCreate = {
+        ...(payload as ListaPreciosCreate),
+        inicializar_items: modo,
+        servicios_seleccionados:
+          modo === 'seleccion' ? formData.servicios_seleccionados : undefined,
+      };
+      createMutation.mutate(createPayload);
     }
   };
 
@@ -543,6 +574,136 @@ export default function ListasPreciosList() {
                 )}
               </>
             )}
+
+            {/* Sólo al crear: qué productos incluir de arranque */}
+            {!listaEditar && (() => {
+              const modo = formData.inicializar_items ?? 'todos';
+              const seleccionados = new Set(formData.servicios_seleccionados ?? []);
+              const busqueda = busquedaServicio.trim().toLowerCase();
+              const catalogo = serviciosCatalogo.filter((s) => {
+                if (!busqueda) return true;
+                return (
+                  s.codigo.toLowerCase().includes(busqueda) ||
+                  s.nombre.toLowerCase().includes(busqueda)
+                );
+              });
+              const opciones: { value: 'todos' | 'seleccion' | 'vacia'; titulo: string; sub: string }[] = [
+                { value: 'todos', titulo: 'Todos los productos', sub: 'Precarga todos los productos activos con su precio base.' },
+                { value: 'seleccion', titulo: 'Seleccionar productos', sub: 'Elegí a mano qué productos incluir.' },
+                { value: 'vacia', titulo: 'Vacía', sub: 'La creo sin items y los cargo uno por uno después.' },
+              ];
+              const toggleServicio = (id: string, checked: boolean) => {
+                const next = new Set(seleccionados);
+                if (checked) next.add(id);
+                else next.delete(id);
+                setFormData({ ...formData, servicios_seleccionados: Array.from(next) });
+              };
+              return (
+                <div className="rounded-md border border-border bg-background/50 p-3 space-y-3">
+                  <div>
+                    <Label className="text-sm">Contenido inicial de la lista</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Definí qué productos precargar al crear. Después podés editar la lista igual.
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    {opciones.map((op) => (
+                      <label
+                        key={op.value}
+                        className={
+                          'flex items-start gap-3 cursor-pointer rounded-md border p-2.5 transition-colors ' +
+                          (modo === op.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50')
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name="inicializar_items"
+                          value={op.value}
+                          checked={modo === op.value}
+                          onChange={() => setFormData({ ...formData, inicializar_items: op.value })}
+                          className="mt-1"
+                        />
+                        <div>
+                          <p className="text-sm font-medium">{op.titulo}</p>
+                          <p className="text-xs text-muted-foreground">{op.sub}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  {modo === 'seleccion' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Input
+                          value={busquedaServicio}
+                          onChange={(e) => setBusquedaServicio(e.target.value)}
+                          placeholder="Buscar producto por código o nombre..."
+                          className="h-8"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {seleccionados.size} seleccionados
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              servicios_seleccionados: catalogo.map((s) => s.id),
+                            })
+                          }
+                        >
+                          Marcar todo lo visible
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7"
+                          onClick={() =>
+                            setFormData({ ...formData, servicios_seleccionados: [] })
+                          }
+                        >
+                          Limpiar
+                        </Button>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto rounded-md border">
+                        {catalogo.length === 0 ? (
+                          <p className="p-3 text-xs text-muted-foreground text-center">
+                            No hay productos que coincidan con la búsqueda.
+                          </p>
+                        ) : (
+                          catalogo.map((s) => (
+                            <label
+                              key={s.id}
+                              className="flex items-center gap-2 px-3 py-2 border-b last:border-b-0 cursor-pointer hover:bg-muted/50"
+                            >
+                              <Checkbox
+                                checked={seleccionados.has(s.id)}
+                                onCheckedChange={(v) => toggleServicio(s.id, v === true)}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm truncate">
+                                  <span className="font-mono text-xs text-muted-foreground mr-2">{s.codigo}</span>
+                                  {s.nombre}
+                                </p>
+                              </div>
+                              <span className="text-xs font-mono text-muted-foreground shrink-0">
+                                ${Number(s.precio_base ?? 0).toLocaleString('es-AR')}/{s.unidad_cobro}
+                              </span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-background/50 p-3">
               <div className="space-y-0.5">

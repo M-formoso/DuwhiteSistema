@@ -83,6 +83,10 @@ export interface ListaPreciosCreate {
   fecha_vigencia_hasta?: string;
   incluye_iva?: boolean;
   notas?: string;
+  /** "vacia" (default) | "todos" | "seleccion" */
+  inicializar_items?: 'vacia' | 'todos' | 'seleccion';
+  /** Requerido si inicializar_items === "seleccion" */
+  servicios_seleccionados?: string[];
 }
 
 export interface ListaPreciosUpdate {

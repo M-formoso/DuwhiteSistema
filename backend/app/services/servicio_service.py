@@ -267,7 +267,17 @@ def count_listas_precios(
 
 
 def create_lista_precios(db: Session, data: ListaPreciosCreate) -> ListaPrecios:
-    """Crea una nueva lista de precios."""
+    """Crea una nueva lista de precios.
+
+    Según `data.inicializar_items` se preloadean items:
+    - "todos": copia todos los servicios activos al `precio_base`.
+    - "seleccion": copia solo los servicios listados en `servicios_seleccionados`.
+    - "vacia" (default): la lista arranca sin items.
+
+    Si además se especifica `lista_base_id` con modificador, los precios
+    se ajustan por el porcentaje al copiar (para que la lista derivada
+    salga ya calculada, no dependa de "Aplicar Modificador" a posteriori).
+    """
     lista = ListaPrecios(
         codigo=data.codigo,
         nombre=data.nombre,
@@ -282,9 +292,55 @@ def create_lista_precios(db: Session, data: ListaPreciosCreate) -> ListaPrecios:
         activa=True
     )
     db.add(lista)
+    db.flush()  # obtenemos lista.id para los items sin commit todavía
+
+    modo = (data.inicializar_items or "vacia").lower()
+    if modo != "vacia":
+        _bootstrap_items_lista(
+            db,
+            lista,
+            modo=modo,
+            servicios_ids=data.servicios_seleccionados or [],
+            porcentaje=data.porcentaje_modificador,
+        )
+
     db.commit()
     db.refresh(lista)
     return lista
+
+
+def _bootstrap_items_lista(
+    db: Session,
+    lista: ListaPrecios,
+    modo: str,
+    servicios_ids: List[UUID],
+    porcentaje: Optional[Decimal],
+) -> None:
+    """
+    Precarga items en una lista recién creada.
+    Precio = precio_base del servicio ajustado por `porcentaje` si viene.
+    """
+    query = db.query(Servicio).filter(Servicio.activo == True)
+    if modo == "seleccion":
+        if not servicios_ids:
+            return
+        query = query.filter(Servicio.id.in_(servicios_ids))
+
+    servicios = query.all()
+    factor = Decimal("1")
+    if porcentaje is not None:
+        factor = Decimal("1") + (Decimal(porcentaje) / Decimal("100"))
+
+    for servicio in servicios:
+        precio = (Decimal(servicio.precio_base) * factor).quantize(Decimal("0.01"))
+        db.add(
+            ItemListaPrecios(
+                lista_id=lista.id,
+                servicio_id=servicio.id,
+                precio=precio,
+                activo=True,
+            )
+        )
 
 
 def update_lista_precios(db: Session, lista: ListaPrecios, data: ListaPreciosUpdate) -> ListaPrecios:

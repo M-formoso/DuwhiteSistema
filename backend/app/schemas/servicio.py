@@ -116,8 +116,15 @@ class ListaPreciosBase(BaseModel):
 
 
 class ListaPreciosCreate(ListaPreciosBase):
-    """Schema para crear lista de precios."""
-    pass
+    """Schema para crear lista de precios.
+
+    `inicializar_items` controla el bootstrap:
+    - "vacia": no crea items (el admin los carga uno por uno).
+    - "todos": copia TODOS los servicios activos al precio_base.
+    - "seleccion": copia solo los servicios de `servicios_seleccionados`.
+    """
+    inicializar_items: str = "vacia"
+    servicios_seleccionados: Optional[List[UUID]] = None
 
 
 class ListaPreciosUpdate(BaseModel):

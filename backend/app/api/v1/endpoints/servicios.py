@@ -339,7 +339,7 @@ def crear_lista_precios(
 
     lista = servicio_service.create_lista_precios(db, data)
     response = ListaPreciosResponse.model_validate(lista)
-    response.cantidad_items = 0
+    response.cantidad_items = servicio_service.contar_items_lista(db, lista.id)
     return response
 
 
