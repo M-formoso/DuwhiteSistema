@@ -172,9 +172,13 @@ export default function MiProduccionPage() {
       }),
   });
 
+  // Mostramos TODAS las etapas del proceso (no solo las que tienen lotes)
+  // para que el cliente vea el recorrido completo y sepa por cuál pasó su
+  // lote, en cuál está y cuáles le faltan.
+  const columnas = useMemo(() => kanban?.columnas ?? [], [kanban]);
   const columnasConLotes = useMemo(
-    () => (kanban?.columnas ?? []).filter((c) => c.lotes.length > 0),
-    [kanban],
+    () => columnas.filter((c) => c.lotes.length > 0),
+    [columnas],
   );
 
   const totalKgActivos = useMemo(
@@ -244,55 +248,105 @@ export default function MiProduccionPage() {
         </div>
       )}
 
-      {/* Kanban */}
+      {/* Kanban — vista formal: se muestran TODAS las etapas del proceso.
+          La columna activa lleva un acento sutil en el borde superior; las
+          demás quedan en gris para no cansar la vista pero indicando que
+          existen. */}
       {loadingKanban ? (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="h-6 w-6 animate-spin text-primary" />
         </div>
-      ) : columnasConLotes.length === 0 ? (
+      ) : columnas.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center text-gray-500">
             <Package className="h-12 w-12 mx-auto mb-3 opacity-40" />
-            <p className="font-medium">No tenés lotes en producción por ahora</p>
+            <p className="font-medium">Todavía no hay etapas configuradas</p>
             <p className="text-sm text-muted-foreground mt-1">
               Cuando tus pedidos entren a la planta van a aparecer acá con su avance.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory md:snap-none">
-          {columnasConLotes.map((columna) => (
-            <div
-              key={columna.etapa_id}
-              className="flex-shrink-0 w-[85vw] sm:w-72 md:w-64 lg:w-72 snap-start"
-            >
-              <div
-                className="rounded-t-xl px-3 py-2.5 text-white"
-                style={{ backgroundColor: columna.etapa_color }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-sm truncate">{columna.etapa_nombre}</h3>
-                    {columna.tiempo_estimado_minutos && (
-                      <p className="text-[10px] text-white/80 flex items-center gap-1 mt-0.5">
-                        <Clock className="h-2.5 w-2.5" />
-                        Est. {formatTiempo(columna.tiempo_estimado_minutos)}
-                      </p>
+        <>
+          {/* Leyenda mini */}
+          <div className="flex flex-wrap items-center gap-4 text-[11px] text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              Etapa con tu lote
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+              Etapa sin lotes tuyos en este momento
+            </div>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory md:snap-none">
+            {columnas.map((columna, idx) => {
+              const activa = columna.lotes.length > 0;
+              return (
+                <div
+                  key={columna.etapa_id}
+                  className="flex-shrink-0 w-[80vw] sm:w-64 md:w-56 lg:w-60 snap-start"
+                >
+                  {/* Cabecera formal: fondo blanco, borde superior grueso
+                      (color del sistema si está activa, gris si no). El
+                      color de la etapa se usa como acento fino, no como
+                      fondo lleno. */}
+                  <div
+                    className={`rounded-t-lg border border-b-0 px-3 py-2.5 bg-white ${
+                      activa ? 'border-t-4 border-t-blue-600 border-gray-200' : 'border-t-4 border-t-gray-300 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                          <span>Etapa {idx + 1}</span>
+                          {activa && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          )}
+                        </div>
+                        <h3 className={`font-semibold text-sm truncate mt-0.5 ${activa ? 'text-gray-900' : 'text-gray-500'}`}>
+                          {columna.etapa_nombre}
+                        </h3>
+                        {columna.tiempo_estimado_minutos && (
+                          <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-1">
+                            <Clock className="h-2.5 w-2.5" />
+                            Estimado {formatTiempo(columna.tiempo_estimado_minutos)}
+                          </p>
+                        )}
+                      </div>
+                      <div
+                        className={`flex-shrink-0 text-center px-2 py-1 rounded ${
+                          activa ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'
+                        }`}
+                      >
+                        <div className="text-base font-bold leading-none">{columna.lotes.length}</div>
+                        <div className="text-[9px] uppercase tracking-wide mt-0.5">
+                          {columna.lotes.length === 1 ? 'lote' : 'lotes'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Cuerpo */}
+                  <div className="bg-gray-50/60 border border-gray-200 rounded-b-lg p-2 space-y-2 min-h-[120px]">
+                    {columna.lotes.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-24 text-center px-2">
+                        <Package className="h-6 w-6 text-gray-300 mb-1" />
+                        <p className="text-[11px] text-gray-400 leading-tight">
+                          Sin lotes tuyos en esta etapa
+                        </p>
+                      </div>
+                    ) : (
+                      columna.lotes.map((lote) => (
+                        <LoteCardReadOnly key={lote.id} lote={lote} columna={columna} />
+                      ))
                     )}
                   </div>
-                  <span className="text-lg font-bold flex-shrink-0 ml-2">
-                    {columna.lotes.length}
-                  </span>
                 </div>
-              </div>
-              <div className="bg-gray-50 border border-gray-200 rounded-b-xl p-2 space-y-2 min-h-[100px]">
-                {columna.lotes.map((lote) => (
-                  <LoteCardReadOnly key={lote.id} lote={lote} columna={columna} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Historial */}
