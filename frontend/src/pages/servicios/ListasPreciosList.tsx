@@ -459,16 +459,28 @@ export default function ListasPreciosList() {
         </CardContent>
       </Card>
 
-      {/* Modal de creacion/edicion */}
+      {/* Modal de creacion/edicion. Al crear es mas ancho para acomodar el
+          selector de productos al lado del formulario; al editar queda
+          angosto porque no hay selector de productos. Scroll interno para
+          no cortarse en pantallas chicas. */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent
+          className={
+            (listaEditar ? 'max-w-lg' : 'max-w-4xl') +
+            ' max-h-[90vh] overflow-hidden flex flex-col'
+          }
+        >
           <DialogHeader>
             <DialogTitle>
               {listaEditar ? 'Editar Lista de Precios' : 'Nueva Lista de Precios'}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          {/* Body con scroll interno */}
+          <div className="flex-1 overflow-y-auto -mx-1 px-1 py-4">
+            <div className={listaEditar ? 'space-y-4' : 'grid gap-6 md:grid-cols-2'}>
+              {/* Columna izquierda: datos básicos y comerciales */}
+              <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Codigo *</Label>
@@ -574,7 +586,10 @@ export default function ListasPreciosList() {
                 )}
               </>
             )}
+              </div>
 
+              {/* Columna derecha (solo al crear): contenido inicial y flags */}
+              <div className="space-y-4">
             {/* Sólo al crear: qué productos incluir de arranque */}
             {!listaEditar && (() => {
               const modo = formData.inicializar_items ?? 'todos';
@@ -730,7 +745,9 @@ export default function ListasPreciosList() {
                 rows={2}
               />
             </div>
-          </div>
+              </div>{/* fin columna derecha */}
+            </div>{/* fin grid 2 cols / stack */}
+          </div>{/* fin body scroll */}
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseModal}>
