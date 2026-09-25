@@ -583,9 +583,39 @@ export default function ListasPreciosList() {
                 )}
               </>
             )}
+
+            {/* IVA y Notas: los ponemos en la columna izquierda para no dejar
+                huecos en el modal (a la derecha, el selector de productos
+                puede crecer mucho en alto). En edición hay una sola columna
+                asi que quedan igual abajo. */}
+            <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-background/50 p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Los precios incluyen IVA</Label>
+                <p className="text-xs text-muted-foreground">
+                  Si esta activado, el PDF muestra los precios con IVA (21%) aplicado.
+                  En cualquier caso se indica en la lista si incluye o no IVA.
+                </p>
+              </div>
+              <Switch
+                checked={formData.incluye_iva ?? false}
+                onCheckedChange={(v) =>
+                  setFormData({ ...formData, incluye_iva: v })
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Notas</Label>
+              <Textarea
+                value={formData.notas}
+                onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
+                placeholder="Notas internas..."
+                rows={2}
+              />
+            </div>
               </div>
 
-              {/* Columna derecha (solo al crear): contenido inicial y flags */}
+              {/* Columna derecha (solo al crear): contenido inicial */}
               <div className="space-y-4">
             {/* Sólo al crear: qué productos incluir de arranque */}
             {!listaEditar && (() => {
@@ -716,32 +746,6 @@ export default function ListasPreciosList() {
                 </div>
               );
             })()}
-
-            <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-background/50 p-3">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Los precios incluyen IVA</Label>
-                <p className="text-xs text-muted-foreground">
-                  Si esta activado, el PDF muestra los precios con IVA (21%) aplicado.
-                  En cualquier caso se indica en la lista si incluye o no IVA.
-                </p>
-              </div>
-              <Switch
-                checked={formData.incluye_iva ?? false}
-                onCheckedChange={(v) =>
-                  setFormData({ ...formData, incluye_iva: v })
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Notas</Label>
-              <Textarea
-                value={formData.notas}
-                onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-                placeholder="Notas internas..."
-                rows={2}
-              />
-            </div>
               </div>{/* fin columna derecha */}
             </div>{/* fin grid 2 cols / stack */}
           </div>{/* fin body scroll */}
