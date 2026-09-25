@@ -11,6 +11,7 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.lista_precios import Servicio, ListaPrecios, ItemListaPrecios
+from app.models.producto_lavado import ProductoLavado, PrecioProductoLavado
 from app.schemas.servicio import (
     ServicioCreate, ServicioUpdate,
     ListaPreciosCreate, ListaPreciosUpdate,
@@ -317,27 +318,52 @@ def _bootstrap_items_lista(
     porcentaje: Optional[Decimal],
 ) -> None:
     """
-    Precarga items en una lista recién creada.
-    Precio = precio_base del servicio ajustado por `porcentaje` si viene.
+    Precarga precios en una lista recién creada.
+
+    DUWHITE trabaja con `productos_lavado` + `precios_productos_lavado`,
+    no con `servicios`/`items_lista_precios`. Cada producto queda con
+    `precio_unitario = 0` — el admin edita a mano después, o se aplica
+    modificador si la lista deriva de una base.
+
+    Si la lista se creó con `lista_base_id`, se copian los precios de la
+    lista base ajustados por `porcentaje` (así la derivada arranca con
+    precios reales, no en cero).
     """
-    query = db.query(Servicio).filter(Servicio.activo == True)
+    query = db.query(ProductoLavado).filter(ProductoLavado.activo == True)
     if modo == "seleccion":
         if not servicios_ids:
             return
-        query = query.filter(Servicio.id.in_(servicios_ids))
+        query = query.filter(ProductoLavado.id.in_(servicios_ids))
 
-    servicios = query.all()
+    productos = query.all()
+    if not productos:
+        return
+
+    # Precios de la lista base (si aplica) para copiar/ajustar
+    precios_base: dict[str, Decimal] = {}
+    if lista.lista_base_id:
+        base_precios = (
+            db.query(PrecioProductoLavado)
+            .filter(
+                PrecioProductoLavado.lista_precios_id == lista.lista_base_id,
+                PrecioProductoLavado.activo == True,
+            )
+            .all()
+        )
+        precios_base = {str(p.producto_id): Decimal(p.precio_unitario) for p in base_precios}
+
     factor = Decimal("1")
     if porcentaje is not None:
         factor = Decimal("1") + (Decimal(porcentaje) / Decimal("100"))
 
-    for servicio in servicios:
-        precio = (Decimal(servicio.precio_base) * factor).quantize(Decimal("0.01"))
+    for producto in productos:
+        precio_base = precios_base.get(str(producto.id), Decimal("0"))
+        precio = (precio_base * factor).quantize(Decimal("0.01"))
         db.add(
-            ItemListaPrecios(
-                lista_id=lista.id,
-                servicio_id=servicio.id,
-                precio=precio,
+            PrecioProductoLavado(
+                lista_precios_id=lista.id,
+                producto_id=producto.id,
+                precio_unitario=precio,
                 activo=True,
             )
         )
@@ -383,11 +409,11 @@ def get_lista_precios_con_items(db: Session, lista_id: UUID) -> Optional[ListaPr
 
 
 def contar_items_lista(db: Session, lista_id: UUID) -> int:
-    """Cuenta los items de una lista."""
-    return db.query(func.count(ItemListaPrecios.id)).filter(
-        ItemListaPrecios.lista_id == lista_id,
-        ItemListaPrecios.activo == True
-    ).scalar()
+    """Cuenta los items (precios de productos_lavado) de una lista."""
+    return db.query(func.count(PrecioProductoLavado.id)).filter(
+        PrecioProductoLavado.lista_precios_id == lista_id,
+        PrecioProductoLavado.activo == True,
+    ).scalar() or 0
 
 
 # ==================== ITEMS LISTA DE PRECIOS ====================

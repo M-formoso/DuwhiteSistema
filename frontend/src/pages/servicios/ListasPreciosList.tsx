@@ -71,11 +71,11 @@ import { toast } from 'sonner';
 
 import {
   listaPreciosService,
-  servicioService,
   ListaPrecios,
   ListaPreciosCreate,
   ListaPreciosUpdate,
 } from '@/services/servicioService';
+import { productoLavadoService } from '@/services/productoLavadoService';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getErrorMessage } from '@/services/api';
 
@@ -123,14 +123,11 @@ export default function ListasPreciosList() {
     },
   });
 
-  // Catálogo de servicios activos, para el modo "Seleccionar productos" del
-  // form de creación. Solo se carga cuando el modal está abierto y en modo alta.
+  // Catálogo de productos_lavado activos, para el modo "Seleccionar productos"
+  // del form de creación. Solo se carga cuando el modal está abierto y en modo alta.
   const { data: serviciosCatalogo = [] } = useQuery({
-    queryKey: ['servicios-para-lista-precios'],
-    queryFn: async () => {
-      const response = await servicioService.listar({ activo: true, limit: 500 });
-      return response.items;
-    },
+    queryKey: ['productos-lavado-para-lista-precios'],
+    queryFn: () => productoLavadoService.getAll({ solo_activos: true }),
     enabled: modalOpen && !listaEditar,
   });
 
@@ -707,8 +704,8 @@ export default function ListasPreciosList() {
                                   {s.nombre}
                                 </p>
                               </div>
-                              <span className="text-xs font-mono text-muted-foreground shrink-0">
-                                ${Number(s.precio_base ?? 0).toLocaleString('es-AR')}/{s.unidad_cobro}
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
+                                {s.categoria?.replace('_', ' ')}
                               </span>
                             </label>
                           ))
