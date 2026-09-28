@@ -49,7 +49,7 @@ export function MainLayout() {
       {/* Contenido principal */}
       <main
         className={cn(
-          'pt-16 min-h-screen transition-all duration-300',
+          'pt-[calc(4rem+env(safe-area-inset-top))] min-h-screen transition-all duration-300',
           sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
         )}
       >

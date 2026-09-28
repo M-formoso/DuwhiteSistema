@@ -87,7 +87,7 @@ export function Header({ sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 h-16 bg-white border-b border-border transition-all duration-300 left-0 ${
+      className={`fixed top-0 right-0 z-30 h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-white border-b border-border transition-all duration-300 left-0 ${
         sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'
       }`}
     >

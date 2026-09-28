@@ -269,7 +269,7 @@ export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) 
     // En desktop se colapsa (w-16 / w-64); en mobile siempre se muestra expandido cuando está abierto.
     <aside
       className={cn(
-        'h-full bg-sidebar text-white transition-all duration-300 flex flex-col',
+        'h-full bg-sidebar text-white transition-all duration-300 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
         isCollapsed ? 'lg:w-16 w-64' : 'w-64'
       )}
     >
