@@ -794,7 +794,7 @@ export default function ClienteCuentaCorrientePage() {
             <Sliders className="h-4 w-4 mr-2" />
             Ajustar Saldo
           </Button>
-          <Button className="w-full sm:w-auto" onClick={abrirModalCobranza} disabled={!cliente.tiene_deuda}>
+          <Button className="w-full sm:w-auto" onClick={abrirModalCobranza}>
             <CreditCard className="h-4 w-4 mr-2" />
             Registrar Pago
           </Button>
