@@ -426,6 +426,10 @@ def eliminar_lista_precios(
 @router.get("/listas-precios/{lista_id}/pdf")
 def descargar_lista_precios_pdf(
     lista_id: UUID,
+    producto_ids: Optional[str] = Query(
+        None,
+        description="UUIDs de productos separados por coma. Si se omite, incluye todos.",
+    ),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -433,7 +437,19 @@ def descargar_lista_precios_pdf(
     from fastapi.responses import Response
     from app.services import lista_precios_pdf_service
 
-    pdf_bytes, filename = lista_precios_pdf_service.generar_pdf(db, lista_id)
+    ids_parsed: Optional[List[UUID]] = None
+    if producto_ids:
+        try:
+            ids_parsed = [UUID(x.strip()) for x in producto_ids.split(",") if x.strip()]
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"producto_ids inválido: {exc}",
+            )
+
+    pdf_bytes, filename = lista_precios_pdf_service.generar_pdf(
+        db, lista_id, producto_ids=ids_parsed
+    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

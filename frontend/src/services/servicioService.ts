@@ -354,10 +354,20 @@ export const listaPreciosService = {
 
   /**
    * Descarga el PDF de la lista de precios (para enviar a clientes).
+   * Si `productoIds` se pasa (y no está vacío), sólo incluye esos productos.
    */
-  async descargarPdf(listaId: string, filename?: string): Promise<void> {
+  async descargarPdf(
+    listaId: string,
+    filename?: string,
+    productoIds?: string[],
+  ): Promise<void> {
+    const params: Record<string, string> = {};
+    if (productoIds && productoIds.length > 0) {
+      params.producto_ids = productoIds.join(',');
+    }
     const response = await api.get(`/servicios/listas-precios/${listaId}/pdf`, {
       responseType: 'blob',
+      params,
     });
     const blob = new Blob([response.data], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);

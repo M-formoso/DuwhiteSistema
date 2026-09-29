@@ -81,6 +81,7 @@ export default function MatrizPreciosPage() {
 
   const [busqueda, setBusqueda] = useState('');
   const [categoria, setCategoria] = useState<string>('todas');
+  const [orden, setOrden] = useState<'codigo' | 'nombre'>('codigo');
   const [editados, setEditados] = useState<Record<string, string>>({});
   // key: `${producto_id}|${lista_id}` → valor del input como string
 
@@ -260,8 +261,28 @@ export default function MatrizPreciosPage() {
     });
   };
 
-  const productos = matriz?.productos ?? [];
+  const productosRaw = matriz?.productos ?? [];
   const listas = matriz?.listas ?? [];
+
+  // Ordenamos client-side según la opción elegida. Por código, priorizamos
+  // los códigos puramente numéricos ascendentes (0013 < 0014 < 0017...), y si
+  // aparece alguno alfanumérico lo mandamos al final ordenado alfabéticamente.
+  const productos = useMemo(() => {
+    const arr = [...productosRaw];
+    if (orden === 'nombre') {
+      arr.sort((a, b) => (a.producto_nombre || '').localeCompare(b.producto_nombre || ''));
+    } else {
+      arr.sort((a, b) => {
+        const ca = (a.producto_codigo || '').trim();
+        const cb = (b.producto_codigo || '').trim();
+        const na = /^\d+$/.test(ca) ? parseInt(ca, 10) : Number.MAX_SAFE_INTEGER;
+        const nb = /^\d+$/.test(cb) ? parseInt(cb, 10) : Number.MAX_SAFE_INTEGER;
+        if (na !== nb) return na - nb;
+        return ca.localeCompare(cb);
+      });
+    }
+    return arr;
+  }, [productosRaw, orden]);
 
   const cantidadProductos = productos.length;
 
@@ -345,6 +366,15 @@ export default function MatrizPreciosPage() {
               {CATEGORIAS.map((c) => (
                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={orden} onValueChange={(v) => setOrden(v as 'codigo' | 'nombre')}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="codigo">Ordenar por código</SelectItem>
+              <SelectItem value="nombre">Ordenar por nombre (A-Z)</SelectItem>
             </SelectContent>
           </Select>
         </CardContent>

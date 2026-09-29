@@ -68,9 +68,15 @@ def _get_env() -> Environment:
     return env
 
 
-def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
+def generar_pdf(
+    db: Session,
+    lista_id: UUID,
+    producto_ids: List[UUID] | None = None,
+) -> tuple[bytes, str]:
     """
     Genera el PDF de una lista de precios.
+
+    Si ``producto_ids`` se pasa (no vacío), sólo incluye esos productos.
     Retorna (bytes, filename).
     """
     try:
@@ -90,7 +96,7 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
 
     try:
         # Cargar precios activos con producto asociado.
-        precios: List[PrecioProductoLavado] = (
+        query = (
             db.query(PrecioProductoLavado)
             .join(ProductoLavado, PrecioProductoLavado.producto_id == ProductoLavado.id)
             .filter(
@@ -98,9 +104,12 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
                 PrecioProductoLavado.activo.is_(True),
                 ProductoLavado.activo.is_(True),
             )
-            .order_by(ProductoLavado.categoria, ProductoLavado.nombre)
-            .all()
         )
+        if producto_ids:
+            query = query.filter(
+                PrecioProductoLavado.producto_id.in_([str(pid) for pid in producto_ids])
+            )
+        precios: List[PrecioProductoLavado] = query.all()
     except Exception:
         logger.exception("Error cargando precios de la lista %s", lista_id)
         raise HTTPException(
@@ -113,36 +122,31 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
     alicuota_iva = ALICUOTA_IVA_DEFAULT
     factor_iva = (Decimal("1") + alicuota_iva / Decimal("100")) if incluye_iva else Decimal("1")
 
-    # Agrupar por categoría.
-    grupos_map: dict = {}
-    for p in precios:
+    # Lista plana ordenada por código numérico ascendente (cae al alfabético
+    # si el código no es puramente numérico), sin agrupar por categoría.
+    def _sort_key(p: PrecioProductoLavado):
+        codigo = (p.producto.codigo if p.producto else "") or ""
+        limpio = codigo.strip()
+        if limpio.isdigit():
+            return (0, int(limpio), "")
+        return (1, 0, limpio.lower())
+
+    precios_ordenados = sorted(
+        [p for p in precios if p.producto is not None],
+        key=_sort_key,
+    )
+    productos_out: list[dict] = []
+    for p in precios_ordenados:
         prod = p.producto
-        if prod is None:
-            continue
-        cat_key = prod.categoria or "otros"
-        if cat_key not in grupos_map:
-            grupos_map[cat_key] = {
-                "categoria_key": cat_key,
-                "categoria_label": CATEGORIAS_LABEL.get(cat_key, cat_key.replace("_", " ").title()),
-                "productos": [],
-            }
         precio_base = Decimal(p.precio_unitario or 0)
         precio_display = (precio_base * factor_iva).quantize(Decimal("0.01"))
-        grupos_map[cat_key]["productos"].append({
+        productos_out.append({
             "codigo": prod.codigo,
             "nombre": prod.nombre,
             "descripcion": prod.descripcion,
             "peso_promedio_kg": float(prod.peso_promedio_kg) if prod.peso_promedio_kg else None,
             "precio": precio_display,
         })
-
-    # Orden estable de categorías: usar el orden del enum.
-    orden_cat = ["toallas", "ropa_cama", "manteleria", "alfombras", "cortinas", "otros"]
-    grupos = [grupos_map[k] for k in orden_cat if k in grupos_map]
-    # Categorías fuera del enum (por si acaso).
-    for k, v in grupos_map.items():
-        if k not in orden_cat:
-            grupos.append(v)
 
     try:
         from app.services import configuracion_service
@@ -151,8 +155,8 @@ def generar_pdf(db: Session, lista_id: UUID) -> tuple[bytes, str]:
         html_str = template.render(
             lista=lista,
             empresa=configuracion_service.get_empresa_dict(db),
-            grupos=grupos,
-            total_items=len(precios),
+            productos=productos_out,
+            total_items=len(productos_out),
             generado_at=now_ar().strftime("%d/%m/%Y %H:%M"),
             iva={
                 "incluido": incluye_iva,

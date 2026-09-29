@@ -379,39 +379,33 @@
   </div>
   {% endif %}
 
-  <!-- ============ PRECIOS POR CATEGORIA ============ -->
-  {% if grupos %}
-    {% for grupo in grupos %}
-      <div class="categoria-header">
-        {{ grupo.categoria_label }}
-        <span class="count">{{ grupo.productos | length }} ítem{% if grupo.productos | length != 1 %}s{% endif %}</span>
-      </div>
-      <table>
-        <thead>
+  <!-- ============ PRECIOS ============ -->
+  {% if productos %}
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 90px;">Código</th>
+          <th>Producto</th>
+          <th class="text-right" style="width: 90px;">Peso Prom.</th>
+          <th class="text-right" style="width: 120px;">Precio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in productos %}
           <tr>
-            <th style="width: 90px;">Código</th>
-            <th>Producto</th>
-            <th class="text-right" style="width: 90px;">Peso Prom.</th>
-            <th class="text-right" style="width: 120px;">Precio</th>
+            <td class="codigo">{{ item.codigo }}</td>
+            <td>
+              <span class="producto-nombre">{{ item.nombre }}</span>
+              {% if item.descripcion %}<span class="producto-desc">{{ item.descripcion }}</span>{% endif %}
+            </td>
+            <td class="text-right peso">
+              {% if item.peso_promedio_kg %}{{ item.peso_promedio_kg }} kg{% else %}—{% endif %}
+            </td>
+            <td class="precio">{{ item.precio | moneda }}</td>
           </tr>
-        </thead>
-        <tbody>
-          {% for item in grupo.productos %}
-            <tr>
-              <td class="codigo">{{ item.codigo }}</td>
-              <td>
-                <span class="producto-nombre">{{ item.nombre }}</span>
-                {% if item.descripcion %}<span class="producto-desc">{{ item.descripcion }}</span>{% endif %}
-              </td>
-              <td class="text-right peso">
-                {% if item.peso_promedio_kg %}{{ item.peso_promedio_kg }} kg{% else %}—{% endif %}
-              </td>
-              <td class="precio">{{ item.precio | moneda }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
   {% else %}
     <div class="empty">
       Esta lista aún no tiene productos con precio asignado.

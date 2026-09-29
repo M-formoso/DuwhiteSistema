@@ -34,7 +34,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -86,6 +88,9 @@ export default function ListaPreciosDetail() {
   const [precioEditar, setPrecioEditar] = useState<PrecioConProducto | null>(null);
   const [precioEliminar, setPrecioEliminar] = useState<PrecioConProducto | null>(null);
   const [descargandoPdf, setDescargandoPdf] = useState(false);
+  const [descargaModalOpen, setDescargaModalOpen] = useState(false);
+  const [productosDescarga, setProductosDescarga] = useState<Set<string>>(new Set());
+  const [busquedaDescarga, setBusquedaDescarga] = useState('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -199,13 +204,42 @@ export default function ListaPreciosDetail() {
     }
   };
 
-  const handleDescargarPdf = async () => {
+  const abrirModalDescarga = () => {
+    // Por defecto arrancan todos seleccionados
+    setProductosDescarga(new Set(precios.map((p) => p.producto_id)));
+    setBusquedaDescarga('');
+    setDescargaModalOpen(true);
+  };
+
+  const toggleProductoDescarga = (productoId: string) => {
+    setProductosDescarga((prev) => {
+      const next = new Set(prev);
+      if (next.has(productoId)) next.delete(productoId);
+      else next.add(productoId);
+      return next;
+    });
+  };
+
+  const handleConfirmarDescarga = async () => {
     if (!id || !lista) return;
+    if (productosDescarga.size === 0) {
+      toast.error('Seleccioná al menos un producto para descargar');
+      return;
+    }
     try {
       setDescargandoPdf(true);
       const slug = (lista.codigo || 'lista').trim().replace(/\s+/g, '_');
-      await listaPreciosService.descargarPdf(id, `lista_precios_${slug}.pdf`);
+      const seleccion = Array.from(productosDescarga);
+      // Si están todos, no mando IDs (más liviano) — si no, mando la selección.
+      const productoIds =
+        seleccion.length === precios.length ? undefined : seleccion;
+      await listaPreciosService.descargarPdf(
+        id,
+        `lista_precios_${slug}.pdf`,
+        productoIds,
+      );
       toast.success('PDF descargado correctamente');
+      setDescargaModalOpen(false);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Error al descargar el PDF');
     } finally {
@@ -267,15 +301,11 @@ export default function ListaPreciosDetail() {
         </div>
         <Button
           variant="outline"
-          onClick={handleDescargarPdf}
-          disabled={descargandoPdf || precios.length === 0}
+          onClick={abrirModalDescarga}
+          disabled={precios.length === 0}
           title={precios.length === 0 ? 'Agregá productos a la lista antes de descargarla' : 'Descargar lista en PDF'}
         >
-          {descargandoPdf ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <FileDown className="h-4 w-4 mr-2" />
-          )}
+          <FileDown className="h-4 w-4 mr-2" />
           Descargar PDF
         </Button>
       </div>
@@ -513,6 +543,121 @@ export default function ListaPreciosDetail() {
                 : precioEditar
                 ? 'Guardar Cambios'
                 : 'Agregar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: seleccionar productos a descargar en el PDF */}
+      <Dialog open={descargaModalOpen} onOpenChange={setDescargaModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Descargar lista de precios</DialogTitle>
+            <DialogDescription>
+              Elegí qué productos incluir en el PDF. Por defecto están todos seleccionados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Buscar producto..."
+                value={busquedaDescarga}
+                onChange={(e) => setBusquedaDescarga(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setProductosDescarga(new Set(preciosConProducto.map((p) => p.producto_id)))
+                }
+              >
+                Todos
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setProductosDescarga(new Set())}
+              >
+                Ninguno
+              </Button>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              {productosDescarga.size} de {preciosConProducto.length} seleccionados
+            </div>
+
+            <div className="border rounded max-h-80 overflow-y-auto divide-y">
+              {preciosConProducto
+                .filter((pc) => {
+                  const q = busquedaDescarga.trim().toLowerCase();
+                  if (!q) return true;
+                  const nombre = pc.producto?.nombre?.toLowerCase() || '';
+                  const codigo = pc.producto?.codigo?.toLowerCase() || '';
+                  return nombre.includes(q) || codigo.includes(q);
+                })
+                .sort((a, b) => {
+                  const ca = (a.producto?.codigo || '').trim();
+                  const cb = (b.producto?.codigo || '').trim();
+                  const na = /^\d+$/.test(ca) ? parseInt(ca, 10) : Number.MAX_SAFE_INTEGER;
+                  const nb = /^\d+$/.test(cb) ? parseInt(cb, 10) : Number.MAX_SAFE_INTEGER;
+                  if (na !== nb) return na - nb;
+                  return (a.producto?.nombre || '').localeCompare(b.producto?.nombre || '');
+                })
+                .map((pc) => (
+                  <label
+                    key={pc.producto_id}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={productosDescarga.has(pc.producto_id)}
+                      onCheckedChange={() => toggleProductoDescarga(pc.producto_id)}
+                    />
+                    <span className="font-mono text-xs text-muted-foreground w-14">
+                      {pc.producto?.codigo || '—'}
+                    </span>
+                    <span className="flex-1 text-sm">{pc.producto?.nombre || '—'}</span>
+                    <span className="text-sm font-medium">
+                      {formatCurrency(Number(pc.precio_unitario))}
+                    </span>
+                  </label>
+                ))}
+              {preciosConProducto.filter((pc) => {
+                const q = busquedaDescarga.trim().toLowerCase();
+                if (!q) return false;
+                const nombre = pc.producto?.nombre?.toLowerCase() || '';
+                const codigo = pc.producto?.codigo?.toLowerCase() || '';
+                return !(nombre.includes(q) || codigo.includes(q));
+              }).length === preciosConProducto.length &&
+                busquedaDescarga.trim() && (
+                  <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    No hay productos que coincidan con "{busquedaDescarga}".
+                  </div>
+                )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setDescargaModalOpen(false)}
+              disabled={descargandoPdf}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmarDescarga}
+              disabled={descargandoPdf || productosDescarga.size === 0}
+            >
+              {descargandoPdf ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4 mr-2" />
+              )}
+              Descargar {productosDescarga.size > 0 ? `(${productosDescarga.size})` : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
