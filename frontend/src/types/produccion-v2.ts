@@ -178,6 +178,9 @@ export interface Remito {
   detalles: DetalleRemito[];
   tiene_complemento: boolean;
   remitos_complementarios: RemitoListItem[];
+  facturado?: boolean;
+  factura_id?: string | null;
+  factura_numero?: string | null;
 }
 
 export interface RemitoListItem {
@@ -190,6 +193,9 @@ export interface RemitoListItem {
   fecha_emision: string;
   total: number;
   tiene_complemento: boolean;
+  facturado?: boolean;
+  factura_id?: string | null;
+  factura_numero?: string | null;
 }
 
 export interface DetalleRemitoCreate {

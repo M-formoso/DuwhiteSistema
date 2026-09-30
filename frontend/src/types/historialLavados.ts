@@ -77,6 +77,9 @@ export interface HistorialRemitoDetalle extends HistorialRemitoResumen {
     precio_unitario: number;
     subtotal: number;
   }[];
+  facturado?: boolean;
+  factura_id?: string | null;
+  factura_numero?: string | null;
 }
 
 export interface HistorialLoteDetalle {

@@ -75,6 +75,10 @@ class RemitoListResponse(BaseModel):
     fecha_emision: date
     total: Decimal
     tiene_complemento: bool = False
+    # Facturación: si el remito ya fue facturado, se completan los tres campos.
+    facturado: bool = False
+    factura_id: Optional[UUID] = None
+    factura_numero: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -110,6 +114,10 @@ class RemitoResponse(BaseModel):
     # Remitos complementarios
     tiene_complemento: bool = False
     remitos_complementarios: List[RemitoListResponse] = []
+    # Facturación
+    facturado: bool = False
+    factura_id: Optional[UUID] = None
+    factura_numero: Optional[str] = None
 
     class Config:
         from_attributes = True

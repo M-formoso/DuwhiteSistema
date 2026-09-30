@@ -25,9 +25,65 @@ from app.schemas.remito import (
 )
 from app.services.remito_service import RemitoService
 from app.services import remito_pdf_service
+from app.models.cuenta_corriente import MovimientoCuentaCorriente
+from app.models.factura import Factura
 
 
 router = APIRouter()
+
+
+def _lookup_facturas_de_remitos(db: Session, remitos) -> dict:
+    """
+    Devuelve `{remito_id: (factura_id, factura_numero)}` para los remitos que
+    fueron facturados. Se resuelve via `remito.movimiento_cc.factura_id`.
+    Batch lookup para evitar N+1.
+    """
+    movimiento_ids = [r.movimiento_cc_id for r in remitos if r.movimiento_cc_id]
+    if not movimiento_ids:
+        return {}
+
+    # Trae los mov_cc de los remitos + sus factura_id, sin filtrar por activo
+    # (los CARGOS originales quedan activo=False tras el fix contra doble cargo,
+    # pero siguen guardando la referencia a la factura que los reemplazó).
+    filas = (
+        db.query(
+            MovimientoCuentaCorriente.id,
+            MovimientoCuentaCorriente.factura_id,
+            MovimientoCuentaCorriente.factura_numero,
+        )
+        .filter(MovimientoCuentaCorriente.id.in_(movimiento_ids))
+        .all()
+    )
+    mov_to_factura = {
+        mov_id: (fid, fnum) for mov_id, fid, fnum in filas if fid is not None
+    }
+
+    # Para mov_cc vinculados que no tenían factura_numero (flujo pre-fix o
+    # cargos que se vincularon antes de emitirse la factura), completamos con
+    # el numero_completo real de la factura.
+    factura_ids_faltantes = {
+        fid for fid, fnum in mov_to_factura.values() if fnum is None
+    }
+    numero_por_factura: dict = {}
+    if factura_ids_faltantes:
+        numero_por_factura = dict(
+            db.query(Factura.id, Factura.numero_completo)
+            .filter(Factura.id.in_(factura_ids_faltantes))
+            .all()
+        )
+
+    resultado: dict = {}
+    for r in remitos:
+        if not r.movimiento_cc_id:
+            continue
+        par = mov_to_factura.get(r.movimiento_cc_id)
+        if not par:
+            continue
+        fid, fnum = par
+        if fnum is None:
+            fnum = numero_por_factura.get(fid)
+        resultado[r.id] = (fid, fnum)
+    return resultado
 
 
 # ==================== LISTADOS ====================
@@ -57,6 +113,7 @@ def listar_remitos(
         skip=skip,
         limit=limit
     )
+    fact_map = _lookup_facturas_de_remitos(db, remitos)
 
     return [
         RemitoListResponse(
@@ -68,7 +125,10 @@ def listar_remitos(
             estado=r.estado,
             fecha_emision=r.fecha_emision,
             total=r.total,
-            tiene_complemento=r.tiene_complemento
+            tiene_complemento=r.tiene_complemento,
+            facturado=r.id in fact_map,
+            factura_id=fact_map.get(r.id, (None, None))[0],
+            factura_numero=fact_map.get(r.id, (None, None))[1],
         )
         for r in remitos
     ]
@@ -281,6 +341,10 @@ def obtener_remito(
         for d in remito.detalles
     ]
 
+    # Facturación del remito principal y de los complementarios (batch).
+    remitos_para_lookup = [remito] + list(remito.remitos_complementarios)
+    fact_map = _lookup_facturas_de_remitos(db, remitos_para_lookup)
+
     complementarios = [
         RemitoListResponse(
             id=c.id,
@@ -291,11 +355,15 @@ def obtener_remito(
             estado=c.estado,
             fecha_emision=c.fecha_emision,
             total=c.total,
-            tiene_complemento=False
+            tiene_complemento=False,
+            facturado=c.id in fact_map,
+            factura_id=fact_map.get(c.id, (None, None))[0],
+            factura_numero=fact_map.get(c.id, (None, None))[1],
         )
         for c in remito.remitos_complementarios
     ]
 
+    fact_principal = fact_map.get(remito.id, (None, None))
     return RemitoResponse(
         id=remito.id,
         numero=remito.numero,
@@ -322,7 +390,10 @@ def obtener_remito(
         created_at=remito.created_at,
         detalles=detalles,
         tiene_complemento=remito.tiene_complemento,
-        remitos_complementarios=complementarios
+        remitos_complementarios=complementarios,
+        facturado=fact_principal[0] is not None,
+        factura_id=fact_principal[0],
+        factura_numero=fact_principal[1],
     )
 
 
@@ -478,6 +549,7 @@ def obtener_remitos_cliente(
 ):
     """Obtiene los remitos de un cliente."""
     remitos = RemitoService.get_remitos_cliente(db, cliente_id, skip, limit)
+    fact_map = _lookup_facturas_de_remitos(db, remitos)
 
     return [
         RemitoListResponse(
@@ -489,7 +561,10 @@ def obtener_remitos_cliente(
             estado=r.estado,
             fecha_emision=r.fecha_emision,
             total=r.total,
-            tiene_complemento=r.tiene_complemento
+            tiene_complemento=r.tiene_complemento,
+            facturado=r.id in fact_map,
+            factura_id=fact_map.get(r.id, (None, None))[0],
+            factura_numero=fact_map.get(r.id, (None, None))[1],
         )
         for r in remitos
     ]
@@ -503,6 +578,7 @@ def obtener_remitos_lote(
 ):
     """Obtiene los remitos de un lote."""
     remitos = RemitoService.get_remitos_lote(db, lote_id)
+    fact_map = _lookup_facturas_de_remitos(db, remitos)
 
     return [
         RemitoListResponse(
@@ -514,7 +590,10 @@ def obtener_remitos_lote(
             estado=r.estado,
             fecha_emision=r.fecha_emision,
             total=r.total,
-            tiene_complemento=r.tiene_complemento
+            tiene_complemento=r.tiene_complemento,
+            facturado=r.id in fact_map,
+            factura_id=fact_map.get(r.id, (None, None))[0],
+            factura_numero=fact_map.get(r.id, (None, None))[1],
         )
         for r in remitos
     ]

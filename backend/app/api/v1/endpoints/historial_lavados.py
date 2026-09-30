@@ -304,10 +304,15 @@ def detalle_lote(
         for c in lote.consumos_insumo
     ]
 
+    # Batch: para cada remito activo del lote, resolver si ya está facturado
+    # (siguiendo el mov_cc → factura_id) para pintar el badge "Facturado".
+    remitos_activos = [r for r in lote.remitos if r.activo]
+    from app.api.v1.endpoints.remitos import _lookup_facturas_de_remitos
+    fact_map = _lookup_facturas_de_remitos(db, remitos_activos)
+
     remitos = []
-    for r in lote.remitos:
-        if not r.activo:
-            continue
+    for r in remitos_activos:
+        fid, fnum = fact_map.get(r.id, (None, None))
         remitos.append(
             {
                 "id": str(r.id),
@@ -329,6 +334,9 @@ def detalle_lote(
                     }
                     for d in r.detalles
                 ],
+                "facturado": fid is not None,
+                "factura_id": str(fid) if fid else None,
+                "factura_numero": fnum,
             }
         )
 

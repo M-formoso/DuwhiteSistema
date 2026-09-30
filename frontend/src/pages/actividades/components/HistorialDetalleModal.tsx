@@ -240,6 +240,11 @@ export default function HistorialDetalleModal({ loteId, open, onClose }: Props) 
                           <Badge variant="secondary" className="ml-1 capitalize">
                             {r.estado}
                           </Badge>
+                          {r.facturado && (
+                            <Badge className="ml-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                              Facturado{r.factura_numero ? ` · ${r.factura_numero}` : ''}
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-sm">
                           <span className="text-gray-500">Total: </span>
