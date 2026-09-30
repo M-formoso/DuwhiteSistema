@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.factura import Factura, EstadoFactura, TipoComprobante
+from app.models.remito import Remito
+from app.models.cuenta_corriente import MovimientoCuentaCorriente
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +137,29 @@ def _get_env():
 # ==================== API ====================
 
 
+def _remitos_de_factura(db: Session, factura: Factura) -> list[Remito]:
+    """
+    Trae los remitos consolidados en esta factura (via movimientos_cc).
+    Cadena: factura.id → MovimientoCuentaCorriente.factura_id → Remito.movimiento_cc_id.
+    Devuelve lista vacía si la factura no vino de remitos (ej: pedido, manual).
+    """
+    remitos = (
+        db.query(Remito)
+        .join(
+            MovimientoCuentaCorriente,
+            MovimientoCuentaCorriente.id == Remito.movimiento_cc_id,
+        )
+        .filter(
+            MovimientoCuentaCorriente.factura_id == factura.id,
+            MovimientoCuentaCorriente.activo == True,  # noqa: E712
+            Remito.activo == True,  # noqa: E712
+        )
+        .order_by(Remito.fecha_emision.asc(), Remito.numero.asc())
+        .all()
+    )
+    return remitos
+
+
 def generar_pdf(db: Session, factura: Factura) -> bytes:
     """Renderiza la factura a PDF y devuelve los bytes."""
     if factura.estado != EstadoFactura.AUTORIZADA.value:
@@ -155,6 +180,7 @@ def generar_pdf(db: Session, factura: Factura) -> bytes:
     template = env.get_template("factura.html")
 
     qr_datauri = _generar_qr_afip_datauri(factura)
+    remitos_periodo = _remitos_de_factura(db, factura)
 
     try:
         from app.services import configuracion_service
@@ -164,6 +190,7 @@ def generar_pdf(db: Session, factura: Factura) -> bytes:
             qr_datauri=qr_datauri,
             es_factura_a=factura.letra == "A",
             es_factura_b=factura.letra == "B",
+            remitos_periodo=remitos_periodo,
         )
     except Exception as exc:
         logger.exception("Error renderizando template factura.html para factura %s", factura.id)

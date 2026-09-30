@@ -37,8 +37,14 @@
     border-top: 2px solid #333; font-size: 13pt; font-weight: 800;
   }
 
-  /* Líneas — estilo "Productos Entregados" */
-  .detalle { margin-top: 14px; }
+  /* Título de sección tipo "REMITOS DEL PERÍODO" / "PRODUCTOS ENTREGADOS" */
+  .section-title {
+    color: #00BCD4; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.6px; font-size: 10pt; margin: 18px 0 6px;
+  }
+
+  /* Tablas de detalle */
+  .detalle { margin-top: 4px; }
   .detalle th, .detalle td {
     border-bottom: 1px solid #e0e0e0; padding: 7px 8px; vertical-align: middle;
   }
@@ -48,6 +54,7 @@
     letter-spacing: 0.5px; color: #555; font-weight: 700;
   }
   .detalle .codigo { color: #00BCD4; font-weight: 700; }
+  .detalle .remito-nro { color: #00BCD4; font-weight: 700; }
   .detalle tfoot td {
     border-top: 1px solid #333; border-bottom: none;
     padding-top: 8px; font-weight: 700; font-size: 10pt;
@@ -137,7 +144,45 @@
   {% endif %}
 {% endif %}
 
-<!-- Detalle estilo "Productos Entregados" -->
+<!-- Remitos del período (solo si la factura consolida remitos) -->
+{% if remitos_periodo %}
+<div class="section-title">Remitos del período</div>
+<table class="detalle">
+  <thead>
+    <tr>
+      <th style="width:22%">Nº Remito</th>
+      <th style="width:14%">Fecha</th>
+      <th style="width:22%">Lote</th>
+      <th style="width:14%">Estado</th>
+      <th class="right" style="width:28%">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in remitos_periodo %}
+      <tr>
+        <td class="remito-nro">{{ r.numero }}</td>
+        <td>{{ r.fecha_emision|fecha_ar }}</td>
+        <td>{{ r.lote.numero if r.lote else '—' }}</td>
+        <td>{{ r.estado|capitalize }}</td>
+        <td class="right">{{ r.total|moneda }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="4">Total del período ({{ remitos_periodo|length }} remitos)</td>
+      <td class="right">
+        {% set _tot_rem = namespace(v=0) %}
+        {% for r in remitos_periodo %}{% set _tot_rem.v = _tot_rem.v + (r.total|float) %}{% endfor %}
+        {{ _tot_rem.v|moneda }}
+      </td>
+    </tr>
+  </tfoot>
+</table>
+{% endif %}
+
+<!-- Productos entregados -->
+<div class="section-title">Productos entregados</div>
 <table class="detalle">
   <thead>
     <tr>
