@@ -2,8 +2,8 @@
  * Página de Productos del Proveedor
  */
 
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -201,6 +201,19 @@ export default function ProductosProveedorPage() {
     setFormData(initialFormData);
     setIsDialogOpen(true);
   };
+
+  // Si venimos con ?nuevo=1 (desde el detalle del proveedor), abrimos el
+  // diálogo de creación una sola vez y limpiamos el query param.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('nuevo') === '1') {
+      handleOpenCreate();
+      const next = new URLSearchParams(searchParams);
+      next.delete('nuevo');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOpenEdit = (producto: ProductoProveedor) => {
     setEditingProducto(producto);

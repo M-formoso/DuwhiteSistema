@@ -354,7 +354,7 @@ export default function ProveedorDetail() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate(`/proveedores/${id}/productos/nuevo`)}
+                onClick={() => navigate(`/proveedores/${id}/productos?nuevo=1`)}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Agregar Producto
@@ -376,7 +376,7 @@ export default function ProveedorDetail() {
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onClick={() => navigate(`/proveedores/${id}/productos/nuevo`)}
+                  onClick={() => navigate(`/proveedores/${id}/productos?nuevo=1`)}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Agregar Primer Producto
