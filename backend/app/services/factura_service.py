@@ -19,7 +19,7 @@ from uuid import UUID
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -1613,30 +1613,47 @@ def _registrar_impacto_cuenta_corriente(
     if not cliente:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
 
-    # Anular cargos previos del mismo pedido (típicamente de remitos generados
-    # automáticamente desde producción) para evitar doble cargo en cuenta
-    # corriente. Solo anulamos cargos SIN factura_id, así no tocamos los de
-    # otras facturas.
-    if factura.pedido_id and not factura.es_nota_credito:
+    # Anular cargos previos que ya representan lo que la factura va a cobrar,
+    # para evitar doble cargo en cuenta corriente. Cubrimos dos flujos:
+    #   1) Factura desde pedido: cargos de remitos autogenerados por producción
+    #      (mismo pedido / lotes del pedido), que no fueron facturados aún.
+    #   2) Factura desde remito(s): `crear_desde_remito` ya vinculó los
+    #      movimientos_cc de los remitos a esta factura vía `factura_id`. Al
+    #      emitir, esos cargos siguen sumando saldo — hay que anularlos antes
+    #      de crear el CARGO consolidado de la factura, si no el consumo del
+    #      mes queda duplicado.
+    if not factura.es_nota_credito:
         from app.models.lote_produccion import LoteProduccion
 
-        lote_ids_pedido = [
-            r[0]
-            for r in db.query(LoteProduccion.id)
-            .filter(LoteProduccion.pedido_id == factura.pedido_id)
-            .all()
-        ]
+        filtros_or = []
+        if factura.pedido_id:
+            lote_ids_pedido = [
+                r[0]
+                for r in db.query(LoteProduccion.id)
+                .filter(LoteProduccion.pedido_id == factura.pedido_id)
+                .all()
+            ]
+            filtros_or.append(
+                and_(
+                    MovimientoCuentaCorriente.factura_id.is_(None),
+                    or_(
+                        MovimientoCuentaCorriente.pedido_id == factura.pedido_id,
+                        MovimientoCuentaCorriente.lote_id.in_(lote_ids_pedido)
+                        if lote_ids_pedido
+                        else False,
+                    ),
+                )
+            )
+        # Movimientos ya vinculados a esta factura (flujo desde remitos).
+        filtros_or.append(MovimientoCuentaCorriente.factura_id == factura.id)
+
         cargos_previos = (
             db.query(MovimientoCuentaCorriente)
             .filter(
                 MovimientoCuentaCorriente.cliente_id == cliente.id,
                 MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
                 MovimientoCuentaCorriente.activo == True,
-                MovimientoCuentaCorriente.factura_id.is_(None),
-                or_(
-                    MovimientoCuentaCorriente.pedido_id == factura.pedido_id,
-                    MovimientoCuentaCorriente.lote_id.in_(lote_ids_pedido) if lote_ids_pedido else False,
-                ),
+                or_(*filtros_or),
             )
             .all()
         )
