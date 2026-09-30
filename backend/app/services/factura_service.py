@@ -1602,27 +1602,41 @@ def _construir_solicitud_cae(
 
 def _registrar_impacto_cuenta_corriente(
     db: Session, factura: Factura, usuario_id: UUID
-) -> MovimientoCuentaCorriente:
+) -> Optional[MovimientoCuentaCorriente]:
     """
-    Crea el movimiento de cuenta corriente correspondiente y actualiza el saldo del cliente.
+    Impacto de la factura sobre la cuenta corriente del cliente.
 
-    - Facturas y Notas de Débito → tipo CARGO (aumenta deuda).
-    - Notas de Crédito → tipo PAGO (disminuye deuda).
+    Reglas:
+    - **Facturas comunes con cargos previos** (típicamente desde remito(s) o
+      pedido con remitos autogenerados): esos cargos ya sumaron a la CC cuando
+      se emitieron los remitos. La factura NO genera un cargo adicional —
+      solo se **marca** cada cargo previo con la factura que los cubre
+      (factura_id / factura_numero / estado_facturacion). El saldo del cliente
+      no cambia. Los movimientos originales quedan visibles en la CC con badge
+      "Facturada".
+    - **Facturas sin cargos previos** (facturación manual sin remitos): se
+      crea un CARGO nuevo por el total de la factura, porque no hay
+      movimientos anteriores que cubran el importe.
+    - **Notas de Débito**: siempre generan un CARGO adicional (representan
+      una deuda extra sobre una factura ya emitida).
+    - **Notas de Crédito**: siempre generan un PAGO (cancelan deuda).
+
+    Retorna el movimiento creado (o `None` si la factura solo marcó cargos
+    previos y no generó movimiento nuevo).
     """
     cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
     if not cliente:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
 
-    # Anular cargos previos que ya representan lo que la factura va a cobrar,
-    # para evitar doble cargo en cuenta corriente. Cubrimos dos flujos:
-    #   1) Factura desde pedido: cargos de remitos autogenerados por producción
-    #      (mismo pedido / lotes del pedido), que no fueron facturados aún.
-    #   2) Factura desde remito(s): `crear_desde_remito` ya vinculó los
-    #      movimientos_cc de los remitos a esta factura vía `factura_id`. Al
-    #      emitir, esos cargos siguen sumando saldo — hay que anularlos antes
-    #      de crear el CARGO consolidado de la factura, si no el consumo del
-    #      mes queda duplicado.
-    if not factura.es_nota_credito:
+    estado_fact = (
+        EstadoFacturacion.FACTURA_A.value
+        if factura.letra == "A"
+        else EstadoFacturacion.FACTURA_B.value
+    )
+
+    # Facturas comunes (no NC/ND): buscar cargos previos que ya cubran el
+    # importe. Si los hay, la factura NO crea movimiento — solo los marca.
+    if not factura.es_nota_credito and not factura.es_nota_debito:
         from app.models.lote_produccion import LoteProduccion
 
         filtros_or = []
@@ -1644,7 +1658,8 @@ def _registrar_impacto_cuenta_corriente(
                     ),
                 )
             )
-        # Movimientos ya vinculados a esta factura (flujo desde remitos).
+        # Movimientos ya vinculados a esta factura (flujo desde remitos:
+        # crear_desde_remito setea factura_id antes de emitir).
         filtros_or.append(MovimientoCuentaCorriente.factura_id == factura.id)
 
         cargos_previos = (
@@ -1657,11 +1672,17 @@ def _registrar_impacto_cuenta_corriente(
             )
             .all()
         )
-        for cp in cargos_previos:
-            cliente.saldo_cuenta_corriente = Decimal(cliente.saldo_cuenta_corriente or 0) - Decimal(cp.monto)
-            cp.activo = False
-            cp.notas = (cp.notas or "") + f"\n[anulado] reemplazado por factura {factura.numero_completo or factura.id}"
 
+        if cargos_previos:
+            for cp in cargos_previos:
+                cp.factura_id = factura.id
+                cp.factura_numero = factura.numero_completo
+                cp.estado_facturacion = estado_fact
+            db.flush()
+            return None  # No hay movimiento nuevo — solo se marcaron previos.
+
+    # No hubo cargos previos (o es Nota de Débito): se crea el movimiento
+    # correspondiente.
     saldo_anterior = Decimal(cliente.saldo_cuenta_corriente or 0)
     monto = Decimal(factura.total)
 
@@ -1669,18 +1690,12 @@ def _registrar_impacto_cuenta_corriente(
         tipo_mov = TipoMovimientoCC.PAGO.value
         delta = -monto
         concepto_txt = f"Nota de Crédito {factura.letra} {factura.numero_completo}"
-    else:  # Factura o Nota de Débito
+    else:  # Factura sin cargos previos o Nota de Débito
         tipo_mov = TipoMovimientoCC.CARGO.value
         delta = monto
         concepto_txt = f"{'Nota de Débito' if factura.es_nota_debito else 'Factura'} {factura.letra} {factura.numero_completo}"
 
     saldo_posterior = saldo_anterior + delta
-
-    estado_fact = (
-        EstadoFacturacion.FACTURA_A.value
-        if factura.letra == "A"
-        else EstadoFacturacion.FACTURA_B.value
-    )
 
     movimiento = MovimientoCuentaCorriente(
         id=uuid.uuid4(),
@@ -1815,10 +1830,16 @@ def emitir_factura(db: Session, factura_id: UUID, usuario_id: UUID) -> Factura:
             factura.estado_pago = EstadoPago.SIN_COBRAR.value
             factura.monto_pagado = Decimal("0")
 
-        # Impacto en cuenta corriente (solo si factura no es borrador previo rechazado que ya creó mov)
+        # Impacto en cuenta corriente (solo si factura no es borrador previo rechazado que ya creó mov).
+        # Puede retornar None si la factura sólo marcó cargos previos (flujo
+        # desde remito(s)) sin generar movimiento nuevo — en ese caso la
+        # factura queda sin `movimiento_cuenta_corriente_id`, lo que es válido
+        # (el campo es nullable) y el vínculo con la CC se resuelve vía los
+        # movimientos con `factura_id == factura.id`.
         if not factura.movimiento_cuenta_corriente_id:
             mov = _registrar_impacto_cuenta_corriente(db, factura, usuario_id)
-            factura.movimiento_cuenta_corriente_id = mov.id
+            if mov is not None:
+                factura.movimiento_cuenta_corriente_id = mov.id
 
         # Solo facturas "comunes" actualizan el pedido asociado
         if not factura.es_nota_credito and not factura.es_nota_debito:
