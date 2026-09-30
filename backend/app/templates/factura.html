@@ -67,14 +67,6 @@
     padding: 6px 10px; margin-top: 8px; font-size: 9pt;
   }
 
-  /* Régimen RG 1575/03 — pago en CBU informada (obligatorio en Factura A).
-     Se muestra sobrio, en línea con el CAE, para no acaparar la factura. */
-  .cbu-box {
-    border: 1px solid #d0d0d0; background: #fafafa;
-    padding: 5px 10px; margin-top: 8px; font-size: 8pt; color: #555;
-    line-height: 1.4;
-  }
-  .cbu-box b { color: #333; }
 </style>
 </head>
 <body>
@@ -217,15 +209,6 @@
     <tr><td colspan="2" class="right small muted">(IVA incluido)</td></tr>
   {% endif %}
 </table>
-
-<!-- Régimen Pago en CBU Informada (obligatorio para Factura A según RG 5762/25).
-     Se mantiene en formato sobrio para no acaparar la factura. -->
-{% if es_factura_a and empresa.cbu %}
-<div class="cbu-box">
-  Pago mediante depósito/transferencia a CBU informada (RG 5762/25).
-  <b>CBU:</b> {{ empresa.cbu }}{% if empresa.banco %} · <b>Banco:</b> {{ empresa.banco }}{% endif %}{% if empresa.cuenta_titular %} · <b>Titular:</b> {{ empresa.cuenta_titular }}{% endif %}
-</div>
-{% endif %}
 
 <!-- CAE -->
 <div class="cae-box">
