@@ -710,41 +710,72 @@ def crear_desde_remito(
     db.add(factura)
     db.flush()
 
-    # Mapear DetalleRemito → FacturaDetalle (todos a IVA 21%)
+    # Mapear DetalleRemito → FacturaDetalle agrupando por producto + precio.
+    # Sin esto, facturar N remitos que comparten productos genera N líneas por
+    # producto ("SABANAS (Remito #REM-...)" × N) y la factura se vuelve un
+    # choclazo ilegible. Con el agrupamiento sale una línea por producto con
+    # la cantidad y el subtotal consolidados, como el reporte de
+    # "Productos entregados".
     iva_default = Decimal("21")
+    agrupados: dict = {}
     for remito in remitos:
         for det in remito.detalles:
-            montos = calcular_linea(
-                precio_unitario_neto=det.precio_unitario,
-                cantidad=det.cantidad,
-                descuento_porcentaje=Decimal("0"),
-                iva_porcentaje=iva_default,
-                precio_incluye_iva=incluye_iva,
-            )
-            # Resolver descripción: descripción del detalle o nombre del producto
             descripcion_base = det.descripcion
             if not descripcion_base and det.producto:
                 descripcion_base = det.producto.nombre
             if not descripcion_base:
                 descripcion_base = "Servicio de lavandería"
-            if len(remitos) > 1:
-                descripcion = f"{descripcion_base} (Remito #{remito.numero})"
-            else:
-                descripcion = descripcion_base
-            db.add(
-                FacturaDetalle(
-                    id=uuid.uuid4(),
-                    factura_id=factura.id,
-                    producto_lavado_id=det.producto_id,
-                    descripcion=descripcion[:255],
-                    cantidad=det.cantidad,
-                    unidad_medida="unidad",
-                    precio_unitario_neto=det.precio_unitario,
-                    descuento_porcentaje=Decimal("0"),
-                    iva_porcentaje=iva_default,
-                    **montos,
-                )
+
+            codigo = (det.producto.codigo if det.producto else "") or ""
+            # Clave de agrupación: producto_id si existe (líneas distintas por
+            # precio unitario, para no mezclar renglones con precios pactados
+            # diferentes); si no hay producto, agrupa por texto de la descripción.
+            clave_prod = (
+                str(det.producto_id)
+                if det.producto_id
+                else f"desc:{descripcion_base.strip().lower()}"
             )
+            clave = (clave_prod, Decimal(det.precio_unitario))
+
+            if clave in agrupados:
+                agrupados[clave]["cantidad"] += Decimal(det.cantidad)
+            else:
+                agrupados[clave] = {
+                    "producto_id": det.producto_id,
+                    "codigo": codigo,
+                    "descripcion": descripcion_base,
+                    "cantidad": Decimal(det.cantidad),
+                    "precio_unitario": Decimal(det.precio_unitario),
+                }
+
+    def _sort_key(item: dict):
+        cod = (item.get("codigo") or "").strip()
+        if cod.isdigit():
+            return (0, int(cod), "")
+        return (1, 0, (item.get("descripcion") or "").lower())
+
+    for datos in sorted(agrupados.values(), key=_sort_key):
+        montos = calcular_linea(
+            precio_unitario_neto=datos["precio_unitario"],
+            cantidad=datos["cantidad"],
+            descuento_porcentaje=Decimal("0"),
+            iva_porcentaje=iva_default,
+            precio_incluye_iva=incluye_iva,
+        )
+        db.add(
+            FacturaDetalle(
+                id=uuid.uuid4(),
+                factura_id=factura.id,
+                producto_lavado_id=datos["producto_id"],
+                descripcion=datos["descripcion"][:255],
+                cantidad=datos["cantidad"],
+                unidad_medida="unidad",
+                precio_unitario_neto=datos["precio_unitario"],
+                descuento_porcentaje=Decimal("0"),
+                iva_porcentaje=iva_default,
+                **montos,
+            )
+        )
 
     db.flush()
     db.refresh(factura)
