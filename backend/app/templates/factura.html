@@ -37,13 +37,21 @@
     border-top: 2px solid #333; font-size: 13pt; font-weight: 800;
   }
 
-  /* Líneas */
-  .detalle { margin-top: 12px; }
+  /* Líneas — estilo "Productos Entregados" */
+  .detalle { margin-top: 14px; }
   .detalle th, .detalle td {
-    border-bottom: 1px solid #e0e0e0; padding: 5px 6px; vertical-align: top;
+    border-bottom: 1px solid #e0e0e0; padding: 7px 8px; vertical-align: middle;
   }
-  .detalle thead tr { background: #f7f8fa; border-bottom: 2px solid #333; }
-  .detalle th { text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.3px; }
+  .detalle thead tr { border-top: 1px solid #333; border-bottom: 1px solid #333; }
+  .detalle th {
+    text-align: left; font-size: 9pt; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #555; font-weight: 700;
+  }
+  .detalle .codigo { color: #00BCD4; font-weight: 700; }
+  .detalle tfoot td {
+    border-top: 1px solid #333; border-bottom: none;
+    padding-top: 8px; font-weight: 700; font-size: 10pt;
+  }
 
   /* CAE y footer */
   .cae-box { border: 1px solid #333; padding: 6px 10px; margin-top: 12px; font-size: 9pt; }
@@ -59,18 +67,14 @@
     padding: 6px 10px; margin-top: 8px; font-size: 9pt;
   }
 
-  /* Régimen RG 1575/03 — pago en CBU informada (obligatorio en Factura A) */
+  /* Régimen RG 1575/03 — pago en CBU informada (obligatorio en Factura A).
+     Se muestra sobrio, en línea con el CAE, para no acaparar la factura. */
   .cbu-box {
-    border: 2px solid #1e40af; background: #eff6ff;
-    padding: 8px 10px; margin-top: 12px; font-size: 8.5pt;
+    border: 1px solid #d0d0d0; background: #fafafa;
+    padding: 5px 10px; margin-top: 8px; font-size: 8pt; color: #555;
+    line-height: 1.4;
   }
-  .cbu-box .titulo {
-    font-weight: 700; color: #1e40af; text-transform: uppercase;
-    letter-spacing: 0.5px; font-size: 8pt; margin-bottom: 4px;
-  }
-  .cbu-box .leyenda { color: #333; line-height: 1.35; }
-  .cbu-box .datos { margin-top: 6px; font-family: monospace; font-size: 9pt; }
-  .cbu-box .datos b { color: #1e40af; }
+  .cbu-box b { color: #333; }
 </style>
 </head>
 <body>
@@ -141,36 +145,53 @@
   {% endif %}
 {% endif %}
 
-<!-- Detalle -->
+<!-- Detalle estilo "Productos Entregados" -->
 <table class="detalle">
   <thead>
     <tr>
-      <th style="width:42%">Descripción</th>
-      <th class="right" style="width:10%">Cantidad</th>
-      <th class="right" style="width:15%">P. Unit.{% if es_factura_a %} (neto){% endif %}</th>
-      {% if es_factura_a %}<th class="right" style="width:8%">IVA%</th>{% endif %}
-      <th class="right" style="width:13%">Subtotal{% if es_factura_a %} neto{% endif %}</th>
-      <th class="right" style="width:12%">Total</th>
+      <th style="width:12%">Código</th>
+      <th style="width:58%">Producto</th>
+      <th class="right" style="width:14%">Cantidad</th>
+      <th class="right" style="width:16%">Subtotal{% if es_factura_a %} neto{% endif %}</th>
     </tr>
   </thead>
   <tbody>
     {% for d in factura.detalles %}
       <tr>
+        <td class="codigo">{{ d.producto_lavado.codigo if d.producto_lavado else '' }}</td>
         <td>{{ d.descripcion }}</td>
-        <td class="right">{{ d.cantidad }} {{ d.unidad_medida }}</td>
+        <td class="right">{{ d.cantidad|int if d.cantidad == d.cantidad|int else d.cantidad }}</td>
         {% if es_factura_a %}
-          <td class="right">{{ d.precio_unitario_neto|moneda }}</td>
-          <td class="right">{{ d.iva_porcentaje }}%</td>
           <td class="right">{{ d.subtotal_neto|moneda }}</td>
         {% else %}
-          {# Factura B: mostrar precio con IVA incluido #}
-          <td class="right">{{ d.total_linea|moneda if d.cantidad == 1 else (d.total_linea / d.cantidad)|moneda }}</td>
           <td class="right">{{ d.total_linea|moneda }}</td>
         {% endif %}
-        <td class="right bold">{{ d.total_linea|moneda }}</td>
       </tr>
     {% endfor %}
   </tbody>
+  {% if factura.detalles %}
+  <tfoot>
+    <tr>
+      <td colspan="2">Total</td>
+      <td class="right">
+        {% set _tot_qty = namespace(v=0) %}
+        {% for d in factura.detalles %}{% set _tot_qty.v = _tot_qty.v + (d.cantidad|float) %}{% endfor %}
+        {{ _tot_qty.v|int if _tot_qty.v == _tot_qty.v|int else _tot_qty.v }}
+      </td>
+      <td class="right">
+        {% if es_factura_a %}
+          {% set _tot_sub = namespace(v=0) %}
+          {% for d in factura.detalles %}{% set _tot_sub.v = _tot_sub.v + (d.subtotal_neto|float) %}{% endfor %}
+          {{ _tot_sub.v|moneda }}
+        {% else %}
+          {% set _tot_sub = namespace(v=0) %}
+          {% for d in factura.detalles %}{% set _tot_sub.v = _tot_sub.v + (d.total_linea|float) %}{% endfor %}
+          {{ _tot_sub.v|moneda }}
+        {% endif %}
+      </td>
+    </tr>
+  </tfoot>
+  {% endif %}
 </table>
 
 <!-- Totales -->
@@ -197,18 +218,12 @@
   {% endif %}
 </table>
 
-<!-- Régimen Pago en CBU Informada (obligatorio para Factura A según RG 5762/25) -->
-{% if es_factura_a %}
+<!-- Régimen Pago en CBU Informada (obligatorio para Factura A según RG 5762/25).
+     Se mantiene en formato sobrio para no acaparar la factura. -->
+{% if es_factura_a and empresa.cbu %}
 <div class="cbu-box">
-  <div class="titulo">Operación sujeta a Régimen de Pago en CBU Informada</div>
-  <div class="leyenda">{{ empresa.leyenda_cbu }}</div>
-  {% if empresa.cbu %}
-    <div class="datos">
-      <b>CBU:</b> {{ empresa.cbu }}
-      {% if empresa.banco %} &nbsp;·&nbsp; <b>Banco:</b> {{ empresa.banco }}{% endif %}
-      {% if empresa.cuenta_titular %} &nbsp;·&nbsp; <b>Titular:</b> {{ empresa.cuenta_titular }}{% endif %}
-    </div>
-  {% endif %}
+  Pago mediante depósito/transferencia a CBU informada (RG 5762/25).
+  <b>CBU:</b> {{ empresa.cbu }}{% if empresa.banco %} · <b>Banco:</b> {{ empresa.banco }}{% endif %}{% if empresa.cuenta_titular %} · <b>Titular:</b> {{ empresa.cuenta_titular }}{% endif %}
 </div>
 {% endif %}
 

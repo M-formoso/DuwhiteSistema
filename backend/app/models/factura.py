@@ -273,6 +273,7 @@ class FacturaDetalle(Base):
 
     # Relaciones
     factura = relationship("Factura", back_populates="detalles")
+    producto_lavado = relationship("ProductoLavado", lazy="joined")
 
     def __repr__(self) -> str:
         return f"<FacturaDetalle {self.descripcion}: ${self.total_linea}>"
