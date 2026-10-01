@@ -1203,6 +1203,14 @@ class ClienteService:
             or Decimal("0")
         )
 
+        # Saldo a favor: SIEMPRE se calcula sobre el saldo global del cliente.
+        # Si tiene plata a favor hoy, se muestra igual en admin y en el portal
+        # del cliente — no depende del filtro de período (si filtrara, el mismo
+        # cliente veria menos saldo a favor que el admin, que es lo que nos
+        # reportaron DOMUS AUDITORIUM: 2.727.594 en portal vs 4.201.289 en admin).
+        saldo_global = Decimal(cliente.saldo_cuenta_corriente or 0)
+        saldo_a_favor = -saldo_global if saldo_global < 0 else Decimal("0")
+
         if tiene_filtro_periodo:
             # Con filtros: saldo_actual = delta del período (cargos + ajustes - pagos).
             # Se usa el signo del ajuste con `saldo_posterior - saldo_anterior`
@@ -1246,11 +1254,9 @@ class ClienteService:
                 or Decimal("0")
             )
             saldo_actual = cargos_periodo - pagos_periodo + ajustes_delta
-            saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
         else:
             # Sin filtros: saldo global actual del cliente
-            saldo_actual = Decimal(cliente.saldo_cuenta_corriente or 0)
-            saldo_a_favor = -saldo_actual if saldo_actual < 0 else Decimal("0")
+            saldo_actual = saldo_global
 
         # ---- Métricas independientes del filtro (siempre "mes actual") ----
         #
