@@ -352,6 +352,24 @@ def anular_orden_pago(
     return MessageResponse(message="Orden de pago anulada correctamente")
 
 
+@router.get("/{orden_id}/pdf")
+def descargar_orden_pago_pdf(
+    orden_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """Genera e inlineea el PDF de la orden de pago."""
+    from fastapi.responses import Response
+    from app.services import orden_pago_pdf_service
+
+    pdf_bytes, filename = orden_pago_pdf_service.generar_pdf(db, orden_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=\"{filename}\""},
+    )
+
+
 # ==================== RESUMEN ====================
 
 @router.get("/resumen/general")
