@@ -621,6 +621,26 @@ export default function OrdenesPagoPage() {
                                 <DollarSign className="h-4 w-4 text-green-500" />
                               </Button>
                             )}
+                            {(orden.estado === 'confirmada' || orden.estado === 'pagada') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Descargar PDF"
+                                onClick={() =>
+                                  ordenesPagoService
+                                    .descargarPdf(orden.id, `orden_pago_${orden.numero}.pdf`)
+                                    .catch(() =>
+                                      toast({
+                                        title: 'Error',
+                                        description: 'No se pudo descargar el PDF.',
+                                        variant: 'destructive',
+                                      })
+                                    )
+                                }
+                              >
+                                <FileText className="h-4 w-4 text-primary" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

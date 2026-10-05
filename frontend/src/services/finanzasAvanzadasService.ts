@@ -408,6 +408,19 @@ export const ordenesPagoService = {
   },
 
   // Pagar orden
+  async descargarPdf(ordenId: string, filename?: string) {
+    const response = await api.get(`/ordenes-pago/${ordenId}/pdf`, { responseType: 'blob' });
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || `orden_pago_${ordenId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
+
   async pagar(ordenId: string, data: PagarOrdenPagoRequest) {
     const response = await api.post<{ message: string }>(
       `/ordenes-pago/${ordenId}/pagar`,
