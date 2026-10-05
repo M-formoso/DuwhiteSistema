@@ -38,6 +38,10 @@ from app.schemas.orden_compra import (
 from app.services.log_service import log_service
 from app.services.stock_service import StockService
 from app.services.cuenta_corriente_proveedor_service import CuentaCorrienteProveedorService
+from app.models.cuenta_corriente_proveedor import (
+    MovimientoCuentaCorrienteProveedor,
+    TipoMovimientoCCProveedor,
+)
 
 
 class ProveedorService:
@@ -549,6 +553,142 @@ class ProveedorService:
             usuario_id=usuario_id,
             notas=notas,
         )
+
+    def anular_orden_completada(
+        self,
+        orden_id: UUID,
+        usuario_id: UUID,
+        motivo: str,
+    ) -> OrdenCompra:
+        """
+        Anula una OC en estado COMPLETADA o PARCIAL revirtiendo todos sus
+        efectos colaterales:
+
+        - Por cada recepción activa de la OC: crea SALIDAs de stock
+          compensatorias por la cantidad recibida (origen=DEVOLUCION), y
+          decrementa ``cantidad_recibida`` del detalle original de la OC.
+        - Si la recepción tenía ``factura_numero`` y generó un CARGO en la
+          CC del proveedor, crea un AJUSTE a favor por el mismo monto para
+          revertirlo (en lugar de borrar el cargo original, para preservar
+          la trazabilidad histórica).
+        - Marca cada recepción como ``estado="anulada"``.
+        - Marca la OC como CANCELADA con el motivo en ``notas_internas``.
+
+        Todo dentro de una única transacción con rollback si algo falla.
+        Esta es la vía correcta para "deshacer" una OC ya recibida —
+        ``cancelar_orden`` no permite cancelar COMPLETADA/PARCIAL por diseño
+        (``puede_cancelar`` las excluye).
+        """
+        orden = self.get_orden_compra(orden_id)
+        if not orden:
+            raise ValueError("Orden de compra no encontrada")
+        if not orden.activo:
+            raise ValueError("La orden ya está inactiva")
+        if orden.estado not in [
+            EstadoOrdenCompra.COMPLETADA.value,
+            EstadoOrdenCompra.PARCIAL.value,
+        ]:
+            raise ValueError(
+                f"Solo se puede anular una OC en estado COMPLETADA o PARCIAL "
+                f"(estado actual: {orden.estado}). Para otras usá cancelar_orden."
+            )
+
+        try:
+            stock_service = StockService(self.db)
+            cc_service = CuentaCorrienteProveedorService(self.db)
+
+            for recepcion in orden.recepciones:
+                if recepcion.estado == "anulada":
+                    continue
+
+                for detalle in recepcion.items:
+                    if (detalle.cantidad_recibida or Decimal("0")) > 0:
+                        stock_service.registrar_salida(
+                            insumo_id=detalle.insumo_id,
+                            cantidad=detalle.cantidad_recibida,
+                            usuario_id=usuario_id,
+                            origen=OrigenMovimiento.DEVOLUCION,
+                            documento_tipo="orden_compra_anulada",
+                            documento_id=orden.id,
+                            numero_documento=orden.numero,
+                            notas=f"Anulación OC {orden.numero}: {motivo}",
+                            commit=False,
+                        )
+
+                    # Decrementar lo recibido en el detalle original de la OC
+                    orden_detalle = (
+                        self.db.query(OrdenCompraDetalle)
+                        .filter(OrdenCompraDetalle.id == detalle.orden_detalle_id)
+                        .first()
+                    )
+                    if orden_detalle:
+                        orden_detalle.cantidad_recibida = max(
+                            Decimal("0"),
+                            (orden_detalle.cantidad_recibida or Decimal("0"))
+                            - detalle.cantidad_recibida,
+                        )
+
+                # Revertir cargo en CC si había factura asociada a esta recepción
+                if recepcion.factura_numero:
+                    cargo = (
+                        self.db.query(MovimientoCuentaCorrienteProveedor)
+                        .filter(
+                            MovimientoCuentaCorrienteProveedor.recepcion_compra_id
+                            == str(recepcion.id),
+                            MovimientoCuentaCorrienteProveedor.tipo
+                            == TipoMovimientoCCProveedor.CARGO.value,
+                            MovimientoCuentaCorrienteProveedor.activo == True,
+                        )
+                        .first()
+                    )
+                    if cargo:
+                        cc_service.registrar_ajuste(
+                            proveedor_id=str(orden.proveedor_id),
+                            monto=Decimal(cargo.monto),
+                            concepto=(
+                                f"Reversa factura {recepcion.factura_numero} - "
+                                f"OC {orden.numero} anulada"
+                            ),
+                            fecha_movimiento=date.today(),
+                            usuario_id=str(usuario_id),
+                            es_a_favor=True,
+                            notas=motivo,
+                            commit=False,
+                        )
+
+                recepcion.estado = "anulada"
+                recepcion.notas = (recepcion.notas or "") + (
+                    f"\n[anulada {date.today()}] {motivo}"
+                )
+
+            orden.estado = EstadoOrdenCompra.CANCELADA.value
+            orden.notas_internas = (orden.notas_internas or "") + (
+                f"\n[anulada {date.today()} por {usuario_id}] {motivo}"
+            )
+
+            self.db.commit()
+            self.db.refresh(orden)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        # Auditoría best-effort
+        try:
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="anular_completada",
+                modulo="proveedores",
+                entidad_tipo="OrdenCompra",
+                entidad_id=orden.id,
+                datos_nuevos={"motivo": motivo, "numero": orden.numero},
+            )
+        except Exception as exc:
+            logger.warning(
+                "No se pudo auditar anulación de OC %s: %s", orden.id, exc,
+            )
+
+        return orden
 
     def cancelar_orden(
         self,

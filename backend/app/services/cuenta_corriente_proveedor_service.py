@@ -279,6 +279,7 @@ class CuentaCorrienteProveedorService:
         usuario_id: str,
         es_a_favor: bool = False,  # True = disminuye deuda, False = aumenta
         notas: Optional[str] = None,
+        commit: bool = True,
     ) -> MovimientoCuentaCorrienteProveedor:
         """Registra un ajuste en la CC del proveedor."""
         proveedor = self.db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
@@ -308,8 +309,11 @@ class CuentaCorrienteProveedorService:
         self.db.add(movimiento)
         proveedor.saldo_cuenta_corriente = saldo_posterior
 
-        self.db.commit()
-        self.db.refresh(movimiento)
+        if commit:
+            self.db.commit()
+            self.db.refresh(movimiento)
+        else:
+            self.db.flush()
 
         return movimiento
 

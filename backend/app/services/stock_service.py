@@ -398,8 +398,15 @@ class StockService:
         documento_id: Optional[UUID] = None,
         numero_documento: Optional[str] = None,
         notas: Optional[str] = None,
+        commit: bool = True,
     ) -> MovimientoStock:
-        """Registra una salida de stock."""
+        """
+        Registra una salida de stock.
+
+        Con ``commit=False`` solo hace ``flush()`` — para que un orquestador
+        externo (ej: anular OC con reversión de stock) pueda controlar la
+        transacción atómica.
+        """
         insumo = self.get_insumo(insumo_id)
         if not insumo:
             raise ValueError("Insumo no encontrado")
@@ -424,7 +431,10 @@ class StockService:
             notas=notas,
         )
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
 
         return movimiento
 

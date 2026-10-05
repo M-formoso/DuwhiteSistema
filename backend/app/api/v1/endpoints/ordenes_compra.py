@@ -366,6 +366,41 @@ def cancelar_orden_compra(
     return MessageResponse(message=f"Orden {orden.numero} cancelada")
 
 
+@router.post("/{orden_id}/anular", response_model=MessageResponse)
+def anular_orden_completada(
+    orden_id: UUID,
+    data: CambiarEstadoRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
+):
+    """
+    Anula una OC en estado COMPLETADA o PARCIAL revirtiendo:
+    - Las entradas de stock (SALIDAs compensatorias).
+    - El cargo en CC proveedor si tenía factura (AJUSTE a favor).
+    - El estado de la OC → CANCELADA.
+
+    A diferencia de ``/cancelar``, este endpoint acepta OC ya recibidas y
+    deshace sus efectos colaterales. Es la operación correcta cuando se
+    detecta un error después de haber recibido mercadería.
+    """
+    service = ProveedorService(db)
+    try:
+        orden = service.anular_orden_completada(
+            orden_id=orden_id,
+            usuario_id=current_user.id,
+            motivo=data.notas or "Sin motivo especificado",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return MessageResponse(
+        message=f"Orden {orden.numero} anulada. Stock y cuenta corriente revertidos."
+    )
+
+
 # ==================== RECEPCIÓN ====================
 
 @router.post("/{orden_id}/recepcion", response_model=RecepcionCompraResponse)
