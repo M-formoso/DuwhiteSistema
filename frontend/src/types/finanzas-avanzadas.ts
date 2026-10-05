@@ -64,6 +64,15 @@ export interface RegistrarPagoProveedorRequest {
   orden_pago_id?: string | null;
 }
 
+export interface RegistrarNotaCreditoProveedorRequest {
+  monto: number;
+  concepto: string;
+  fecha_movimiento: string;
+  factura_numero?: string | null;
+  movimiento_cargo_id?: string | null;
+  notas?: string | null;
+}
+
 export interface EstadoCuentaProveedor {
   proveedor_id: string;
   proveedor_nombre: string;

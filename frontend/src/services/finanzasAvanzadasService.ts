@@ -10,6 +10,7 @@ import {
   MovimientoCCProveedorList,
   RegistrarCargoProveedorRequest,
   RegistrarPagoProveedorRequest,
+  RegistrarNotaCreditoProveedorRequest,
   EstadoCuentaProveedor,
   AnalisisVencimientos,
   OrdenPago,
@@ -318,6 +319,18 @@ export const cuentaCorrienteProveedorService = {
   async registrarPago(proveedorId: string, data: RegistrarPagoProveedorRequest) {
     const response = await api.post<{ id: string; mensaje: string; saldo_posterior: number }>(
       `/proveedores/cuenta-corriente/${proveedorId}/pago`,
+      data
+    );
+    return response.data;
+  },
+
+  // Registrar nota de crédito
+  async registrarNotaCredito(
+    proveedorId: string,
+    data: RegistrarNotaCreditoProveedorRequest
+  ) {
+    const response = await api.post<{ id: string; mensaje: string; saldo_posterior: number }>(
+      `/proveedores/cuenta-corriente/${proveedorId}/nota-credito`,
       data
     );
     return response.data;

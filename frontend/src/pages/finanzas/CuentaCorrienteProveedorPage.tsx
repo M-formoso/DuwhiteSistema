@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -37,6 +37,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/use-toast';
+import { Receipt, Loader2 } from 'lucide-react';
 
 import { cuentaCorrienteProveedorService } from '@/services/finanzasAvanzadasService';
 import { proveedorService } from '@/services/proveedorService';
@@ -51,11 +64,71 @@ import type {
 export default function CuentaCorrienteProveedorPage() {
   const navigate = useNavigate();
   const { proveedorId } = useParams<{ proveedorId: string }>();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(0);
   const limite = 20;
+
+  // Nota de crédito modal
+  const [ncOpen, setNcOpen] = useState(false);
+  const [ncMonto, setNcMonto] = useState('');
+  const [ncConcepto, setNcConcepto] = useState('');
+  const [ncFactura, setNcFactura] = useState('');
+  const [ncFecha, setNcFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [ncCargoId, setNcCargoId] = useState<string>('_none');
+  const [ncNotas, setNcNotas] = useState('');
+
+  // Query comprobantes pendientes para imputar la NC
+  const { data: comprobantesPendientes = [] } = useQuery({
+    queryKey: ['cc-proveedor-pendientes', proveedorId],
+    queryFn: () => cuentaCorrienteProveedorService.getComprobantesPendientes(proveedorId!),
+    enabled: Boolean(proveedorId) && ncOpen,
+  });
+
+  const resetNcForm = () => {
+    setNcMonto('');
+    setNcConcepto('');
+    setNcFactura('');
+    setNcFecha(new Date().toISOString().slice(0, 10));
+    setNcCargoId('_none');
+    setNcNotas('');
+  };
+
+  const ncMutation = useMutation({
+    mutationFn: () =>
+      cuentaCorrienteProveedorService.registrarNotaCredito(proveedorId!, {
+        monto: parseFloat(ncMonto),
+        concepto: ncConcepto.trim(),
+        fecha_movimiento: ncFecha,
+        factura_numero: ncFactura.trim() || null,
+        movimiento_cargo_id: ncCargoId === '_none' ? null : ncCargoId,
+        notas: ncNotas.trim() || null,
+      }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['cc-proveedor-estado', proveedorId] });
+      queryClient.invalidateQueries({ queryKey: ['cc-proveedor-movimientos', proveedorId] });
+      queryClient.invalidateQueries({ queryKey: ['cc-proveedor-pendientes', proveedorId] });
+      toast({
+        title: 'Nota de crédito registrada',
+        description: `Saldo posterior: ${formatNumber(res.saldo_posterior, 'currency')}`,
+      });
+      resetNcForm();
+      setNcOpen(false);
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Error',
+        description: err?.response?.data?.detail || err?.message || 'No se pudo registrar la NC.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const ncMontoNum = parseFloat(ncMonto) || 0;
+  const ncValid = ncMontoNum > 0 && ncConcepto.trim().length > 0 && !!ncFecha;
 
   // Query proveedor
   const { data: proveedor } = useQuery({
@@ -141,6 +214,117 @@ export default function CuentaCorrienteProveedorPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Dialog
+            open={ncOpen}
+            onOpenChange={(open) => {
+              setNcOpen(open);
+              if (!open) resetNcForm();
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Receipt className="h-4 w-4 mr-2" />
+                Nota de Crédito
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Registrar Nota de Crédito</DialogTitle>
+                <DialogDescription>
+                  Disminuye la deuda con el proveedor. Si imputás contra un cargo específico,
+                  se descuenta de su saldo pendiente.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Monto *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={ncMonto}
+                      onChange={(e) => setNcMonto(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Fecha *</Label>
+                    <Input
+                      type="date"
+                      value={ncFecha}
+                      onChange={(e) => setNcFecha(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Concepto *</Label>
+                  <Input
+                    value={ncConcepto}
+                    onChange={(e) => setNcConcepto(e.target.value)}
+                    placeholder="Ej: NC N° 0001-00000012 por devolución"
+                    maxLength={255}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Nº de factura de la NC (opcional)</Label>
+                  <Input
+                    value={ncFactura}
+                    onChange={(e) => setNcFactura(e.target.value)}
+                    placeholder="Ej: 0001-00000012"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Imputar contra cargo (opcional)</Label>
+                  <Select value={ncCargoId} onValueChange={setNcCargoId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="— no imputar —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">— no imputar —</SelectItem>
+                      {comprobantesPendientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.factura_numero || c.concepto} · pendiente{' '}
+                          {formatNumber(Number(c.saldo_comprobante || 0), 'currency')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Si elegís un cargo, el monto se descuenta de su saldo pendiente (no puede
+                    superarlo).
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Notas internas</Label>
+                  <Textarea
+                    value={ncNotas}
+                    onChange={(e) => setNcNotas(e.target.value)}
+                    rows={2}
+                    placeholder="Opcional"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setNcOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={!ncValid || ncMutation.isPending}
+                  onClick={() => ncMutation.mutate()}
+                >
+                  {ncMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Registrar NC
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button
             variant="outline"
             onClick={() => navigate(`/finanzas/ordenes-pago/nueva?proveedor=${proveedorId}`)}
