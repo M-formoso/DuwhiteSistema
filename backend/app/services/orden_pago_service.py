@@ -19,6 +19,7 @@ from app.models.cuenta_corriente_proveedor import (
 from app.models.proveedor import Proveedor
 from app.models.caja import MovimientoCaja, TipoMovimientoCaja, Caja, EstadoCaja
 from app.models.cuenta_bancaria import MovimientoBancario, CuentaBancaria
+from app.models.tesoreria import Cheque, TipoCheque, OrigenCheque, EstadoCheque
 from app.services.cuenta_corriente_proveedor_service import CuentaCorrienteProveedorService
 from app.schemas.orden_pago import (
     OrdenPagoCreate,
@@ -252,7 +253,14 @@ class OrdenPagoService:
         data: PagarOrdenPagoRequest,
         usuario_id: str,
     ) -> OrdenPago:
-        """Efectúa el pago de una orden de pago."""
+        """
+        Efectúa el pago de una orden de pago en forma ATÓMICA.
+
+        El flujo toca varias tablas: PAGO en CC proveedor, imputaciones por
+        cada comprobante, y según el medio: MovimientoCaja (efectivo),
+        MovimientoBancario (transferencia/tarjeta) o Cheque + MovimientoCaja
+        (cheque emitido). Si algo falla a mitad se revierte todo.
+        """
         orden = self.get_orden_pago(orden_id)
         if not orden:
             raise ValueError("Orden de pago no encontrada")
@@ -260,48 +268,90 @@ class OrdenPagoService:
         if not orden.puede_pagar:
             raise ValueError("La orden no puede pagarse en su estado actual")
 
-        # Validar cuenta bancaria si no es efectivo
-        if data.medio_pago != "efectivo" and not data.cuenta_bancaria_id:
-            raise ValueError("Debe especificar una cuenta bancaria para pagos que no son en efectivo")
+        if data.medio_pago != "efectivo" and data.medio_pago != "cheque" and not data.cuenta_bancaria_id:
+            raise ValueError("Debe especificar una cuenta bancaria para pagos que no son en efectivo ni cheque")
 
-        # Registrar pago en CC proveedor
-        self.cc_service.registrar_pago(
-            proveedor_id=str(orden.proveedor_id),
-            monto=orden.monto_total,
-            concepto=f"Pago OP {orden.numero}",
-            fecha_movimiento=data.fecha_pago,
-            usuario_id=usuario_id,
-            orden_pago_id=str(orden.id),
-        )
+        if data.medio_pago == "cheque":
+            if not data.cheque_numero:
+                raise ValueError("Debe especificar el número de cheque")
+            if not data.cheque_fecha_vencimiento:
+                raise ValueError("Debe especificar la fecha de vencimiento del cheque")
 
-        # Imputar a cada comprobante
-        for detalle in orden.detalles:
-            self.cc_service.imputar_pago_a_comprobante(
-                movimiento_cargo_id=str(detalle.movimiento_id),
-                monto_a_imputar=detalle.monto_a_pagar,
-                orden_pago_id=str(orden.id),
+        try:
+            # 1) Pago en CC proveedor (sin commit)
+            self.cc_service.registrar_pago(
+                proveedor_id=str(orden.proveedor_id),
+                monto=orden.monto_total,
+                concepto=f"Pago OP {orden.numero}",
+                fecha_movimiento=data.fecha_pago,
                 usuario_id=usuario_id,
+                orden_pago_id=str(orden.id),
+                commit=False,
             )
 
-        # Registrar movimiento financiero según medio de pago
-        if data.medio_pago == "efectivo":
-            self._registrar_egreso_caja(orden, data, usuario_id)
-        elif data.cuenta_bancaria_id:
-            self._registrar_movimiento_banco(orden, data, usuario_id)
+            # 2) Imputar a cada comprobante
+            for detalle in orden.detalles:
+                self.cc_service.imputar_pago_a_comprobante(
+                    movimiento_cargo_id=str(detalle.movimiento_id),
+                    monto_a_imputar=detalle.monto_a_pagar,
+                    orden_pago_id=str(orden.id),
+                    usuario_id=usuario_id,
+                )
 
-        # Actualizar orden
-        orden.estado = EstadoOrdenPago.PAGADA.value
-        orden.fecha_pago_real = data.fecha_pago
-        orden.medio_pago = data.medio_pago
-        orden.cuenta_bancaria_id = data.cuenta_bancaria_id
-        orden.referencia_pago = data.referencia_pago
-        orden.monto_pagado = orden.monto_total
-        orden.pagado_por_id = usuario_id
+            # 3) Movimiento financiero según medio
+            if data.medio_pago == "cheque":
+                self._registrar_cheque_emitido(orden, data, usuario_id)
+            elif data.medio_pago == "efectivo":
+                self._registrar_egreso_caja(orden, data, usuario_id)
+            elif data.cuenta_bancaria_id:
+                self._registrar_movimiento_banco(orden, data, usuario_id)
 
-        self.db.commit()
-        self.db.refresh(orden)
+            # 4) Actualizar orden
+            orden.estado = EstadoOrdenPago.PAGADA.value
+            orden.fecha_pago_real = data.fecha_pago
+            orden.medio_pago = data.medio_pago
+            orden.cuenta_bancaria_id = data.cuenta_bancaria_id
+            orden.referencia_pago = data.referencia_pago
+            orden.monto_pagado = orden.monto_total
+            orden.pagado_por_id = usuario_id
+
+            self.db.commit()
+            self.db.refresh(orden)
+        except Exception:
+            self.db.rollback()
+            raise
 
         return orden
+
+    def _registrar_cheque_emitido(
+        self,
+        orden: OrdenPago,
+        data: PagarOrdenPagoRequest,
+        usuario_id: str,
+    ) -> None:
+        """
+        Crea el registro de Cheque emitido y además deja asiento del egreso.
+        El cheque arranca en estado EN_CARTERA (entregado al proveedor,
+        pendiente de que el banco lo debite cuando el proveedor lo cobre).
+        """
+        cheque = Cheque(
+            numero=data.cheque_numero,
+            tipo=data.cheque_tipo or TipoCheque.FISICO.value,
+            origen=OrigenCheque.EMITIDO.value,
+            estado=EstadoCheque.EN_CARTERA.value,
+            monto=orden.monto_total,
+            fecha_emision=data.cheque_fecha_emision or data.fecha_pago,
+            fecha_vencimiento=data.cheque_fecha_vencimiento,
+            banco_origen=data.cheque_banco_origen,
+            cuenta_destino_id=data.cuenta_bancaria_id,
+            proveedor_id=str(orden.proveedor_id),
+            librador=data.cheque_librador,
+            registrado_por_id=usuario_id,
+            fecha_registro=datetime.utcnow(),
+            notas=f"Pago OP {orden.numero}",
+        )
+        self.db.add(cheque)
+        self.db.flush()
 
     def _registrar_egreso_caja(
         self,

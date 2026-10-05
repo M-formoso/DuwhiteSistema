@@ -133,6 +133,13 @@ class PagarOrdenPagoRequest(BaseModel):
     medio_pago: str
     cuenta_bancaria_id: Optional[str] = None  # Requerido si no es efectivo
     referencia_pago: Optional[str] = None
+    # Datos del cheque emitido (requeridos si medio_pago == "cheque"):
+    cheque_numero: Optional[str] = None
+    cheque_banco_origen: Optional[str] = None   # Banco que emite el cheque (nuestro)
+    cheque_fecha_emision: Optional[date] = None
+    cheque_fecha_vencimiento: Optional[date] = None
+    cheque_tipo: Optional[str] = None           # "fisico" | "echeq"
+    cheque_librador: Optional[str] = None       # Firmante (nuestra razón social por default)
 
 
 class AnularOrdenPagoRequest(BaseModel):
