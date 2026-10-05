@@ -188,16 +188,23 @@ def _precio_incluye_iva(cliente: Cliente, lista=None) -> bool:
     Decide si los precios cargados en el remito/pedido deben tratarse como
     "finales" (IVA adentro) o "netos" (se les suma IVA al facturar).
 
-    Regla:
-    - Consumidor Final / Monotributo / Exento / No Responsable → Factura B,
-      el total al cliente debe ser el precio del remito (IVA queda adentro).
-    - Lista de precios cargada con ``incluye_iva=True`` → precios finales
-      independientemente del tipo de comprobante.
-    - Responsable Inscripto con lista de precios netos → precios netos, se
-      suma IVA (comportamiento clásico Factura A).
+    Única fuente de verdad: el flag ``incluye_iva`` de la lista de precios.
+    DUWHITE carga listas con precios NETOS por default. Al facturar siempre
+    se suma el 21% — sea Factura A (IVA discriminado arriba del neto) o
+    Factura B (IVA incluido en el total emitido al cliente CF / Monotributo
+    / Exento).
+
+    Reglas:
+    - Lista con ``incluye_iva=True`` → precios finales (IVA ya adentro),
+      la factura descompone IVA desde el total.
+    - Lista con ``incluye_iva=False`` (default) o sin lista → precios netos,
+      se suma IVA al emitir — independiente de la condición IVA del cliente.
+
+    Nota: antes esta función forzaba ``incluye_iva=True`` para todos los
+    clientes NO Responsables Inscriptos, lo que generaba Facturas B con
+    "IVA incluido" pero sobre precios netos — el total no incluía realmente
+    el 21%. Ver reporte VILLA PIREN APART 0002-00000006.
     """
-    if cliente.condicion_iva != CondicionIVA.RESPONSABLE_INSCRIPTO.value:
-        return True
     if lista is not None and getattr(lista, "incluye_iva", False):
         return True
     return False
