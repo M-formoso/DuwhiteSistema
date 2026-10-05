@@ -156,6 +156,30 @@ export default function OrdenCompraDetail() {
     },
   });
 
+  // Anular OC completada / parcial (revierte stock y CC)
+  const [motivoAnular, setMotivoAnular] = useState('');
+  const anularMutation = useMutation({
+    mutationFn: () => proveedorService.anularOrdenCompraCompletada(id!, motivoAnular),
+    onSuccess: (data: { message: string }) => {
+      queryClient.invalidateQueries({ queryKey: ['ordenes-compra'] });
+      queryClient.invalidateQueries({ queryKey: ['orden-compra', id] });
+      queryClient.invalidateQueries({ queryKey: ['insumos'] });
+      queryClient.invalidateQueries({ queryKey: ['cc-proveedor'] });
+      toast({
+        title: 'Orden anulada',
+        description: data.message || 'Stock y CC revertidos.',
+      });
+      setMotivoAnular('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.detail || error?.message || 'No se pudo anular la orden.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -238,6 +262,58 @@ export default function OrdenCompraDetail() {
                   <AlertDialogCancel>No, mantener</AlertDialogCancel>
                   <AlertDialogAction onClick={() => cancelarMutation.mutate()}>
                     Sí, cancelar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {(orden.estado === 'completada' || orden.estado === 'parcial') && (
+            <AlertDialog
+              onOpenChange={(open) => {
+                if (!open) setMotivoAnular('');
+              }}
+            >
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={anularMutation.isPending}>
+                  {anularMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Anular
+                    </>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Anular orden ya recibida?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta operación es <strong>irreversible</strong>. El sistema va a:
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>Dar de baja del stock todas las entradas de esta OC (SALIDAs compensatorias).</li>
+                      <li>Revertir el cargo en la cuenta corriente del proveedor con un ajuste a favor.</li>
+                      <li>Marcar las recepciones y la OC como anuladas.</li>
+                    </ul>
+                    <p className="mt-3 text-destructive">Indicá el motivo (mínimo 10 caracteres):</p>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <textarea
+                  className="w-full border rounded-md p-2 text-sm min-h-[80px]"
+                  value={motivoAnular}
+                  onChange={(e) => setMotivoAnular(e.target.value)}
+                  placeholder="Ej: Error de carga, mercadería devuelta por calidad, etc."
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={motivoAnular.trim().length < 10 || anularMutation.isPending}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      anularMutation.mutate();
+                    }}
+                  >
+                    Sí, anular y revertir
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

@@ -150,6 +150,18 @@ export async function cancelarOrdenCompra(
   return response.data;
 }
 
+/**
+ * Anula una OC que ya fue COMPLETADA o PARCIAL revirtiendo stock y CC.
+ * Para OC que aún no se recibieron, usar `cancelarOrdenCompra`.
+ */
+export async function anularOrdenCompraCompletada(
+  id: string,
+  motivo: string
+): Promise<{ message: string }> {
+  const response = await api.post(`/ordenes-compra/${id}/anular`, { notas: motivo });
+  return response.data;
+}
+
 export async function registrarRecepcion(
   ordenId: string,
   data: {
@@ -201,6 +213,7 @@ export const proveedorService = {
   aprobarOrdenCompra,
   enviarOrdenCompra,
   cancelarOrdenCompra,
+  anularOrdenCompraCompletada,
   registrarRecepcion,
 };
 
