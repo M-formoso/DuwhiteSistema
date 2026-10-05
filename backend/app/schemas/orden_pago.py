@@ -29,6 +29,7 @@ class DetalleOrdenPagoResponse(BaseModel):
 
     # Info del comprobante original
     factura_numero: Optional[str] = None
+    fecha_factura: Optional[date] = None
     fecha_vencimiento: Optional[date] = None
 
     class Config:

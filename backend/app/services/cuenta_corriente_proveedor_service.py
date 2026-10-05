@@ -94,8 +94,15 @@ class CuentaCorrienteProveedorService:
         orden_compra_id: Optional[str] = None,
         recepcion_compra_id: Optional[str] = None,
         notas: Optional[str] = None,
+        commit: bool = True,
     ) -> MovimientoCuentaCorrienteProveedor:
-        """Registra un cargo (factura) en la CC del proveedor."""
+        """
+        Registra un cargo (factura) en la CC del proveedor.
+
+        Con ``commit=False`` solo hace ``flush()``, permitiendo que un
+        orquestador externo (ej: ``registrar_recepcion``) controle la
+        transacción atómica.
+        """
         proveedor = self.db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
         if not proveedor:
             raise ValueError("Proveedor no encontrado")
@@ -125,8 +132,11 @@ class CuentaCorrienteProveedorService:
         self.db.add(movimiento)
         proveedor.saldo_cuenta_corriente = saldo_posterior
 
-        self.db.commit()
-        self.db.refresh(movimiento)
+        if commit:
+            self.db.commit()
+            self.db.refresh(movimiento)
+        else:
+            self.db.flush()
 
         return movimiento
 

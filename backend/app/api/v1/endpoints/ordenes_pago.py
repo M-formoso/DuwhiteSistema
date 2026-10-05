@@ -108,7 +108,7 @@ def obtener_orden_pago(
             monto_a_pagar=d.monto_a_pagar,
             numero_linea=d.numero_linea,
             factura_numero=d.movimiento.factura_numero if d.movimiento else None,
-            fecha_factura=d.movimiento.fecha_factura if d.movimiento else None,
+            fecha_factura=d.movimiento.factura_fecha if d.movimiento else None,
             fecha_vencimiento=d.movimiento.fecha_vencimiento if d.movimiento else None,
         ))
 
@@ -177,7 +177,7 @@ def crear_orden_pago(
             monto_a_pagar=d.monto_a_pagar,
             numero_linea=d.numero_linea,
             factura_numero=d.movimiento.factura_numero if d.movimiento else None,
-            fecha_factura=d.movimiento.fecha_factura if d.movimiento else None,
+            fecha_factura=d.movimiento.factura_fecha if d.movimiento else None,
             fecha_vencimiento=d.movimiento.fecha_vencimiento if d.movimiento else None,
         ))
 
@@ -247,7 +247,7 @@ def actualizar_orden_pago(
             monto_a_pagar=d.monto_a_pagar,
             numero_linea=d.numero_linea,
             factura_numero=d.movimiento.factura_numero if d.movimiento else None,
-            fecha_factura=d.movimiento.fecha_factura if d.movimiento else None,
+            fecha_factura=d.movimiento.factura_fecha if d.movimiento else None,
             fecha_vencimiento=d.movimiento.fecha_vencimiento if d.movimiento else None,
         ))
 

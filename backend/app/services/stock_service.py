@@ -342,8 +342,16 @@ class StockService:
         numero_lote: Optional[str] = None,
         fecha_vencimiento: Optional[datetime] = None,
         notas: Optional[str] = None,
+        commit: bool = True,
     ) -> MovimientoStock:
-        """Registra una entrada de stock."""
+        """
+        Registra una entrada de stock.
+
+        Si ``commit=False`` solo hace ``flush()``, permitiendo que el caller
+        (típicamente un orquestador como ``registrar_recepcion``) controle
+        la transacción y aborte todo si algo falla después. Default True
+        mantiene el comportamiento histórico para los demás callers.
+        """
         insumo = self.get_insumo(insumo_id)
         if not insumo:
             raise ValueError("Insumo no encontrado")
@@ -373,7 +381,10 @@ class StockService:
             notas=notas,
         )
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
 
         return movimiento
 

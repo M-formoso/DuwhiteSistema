@@ -2,6 +2,7 @@
 Servicio de Proveedores y Órdenes de Compra.
 """
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional, Tuple
@@ -9,6 +10,8 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
+
+logger = logging.getLogger(__name__)
 
 from app.models.proveedor import Proveedor
 from app.models.producto_proveedor import ProductoProveedor
@@ -211,30 +214,48 @@ class ProveedorService:
         data: ProductoProveedorCreate,
         usuario_id: UUID,
     ) -> ProductoProveedor:
-        """Crea un producto de proveedor."""
-        producto = ProductoProveedor(**data.model_dump())
-        self.db.add(producto)
-        self.db.commit()
-        self.db.refresh(producto)
+        """
+        Crea un producto de proveedor junto con su primera entrada de
+        historial de precios en una única transacción. Si el log de auditoría
+        falla queda el producto creado igual — es best-effort y no debe
+        bloquear la operación principal.
+        """
+        try:
+            producto = ProductoProveedor(**data.model_dump())
+            self.db.add(producto)
+            # flush() para disponer de producto.id sin cerrar la transacción
+            self.db.flush()
 
-        # Registrar en historial de precios
-        self._registrar_historial_precio(
-            producto_proveedor_id=producto.id,
-            precio_anterior=None,
-            precio_nuevo=data.precio_unitario,
-            moneda=data.moneda,
-            usuario_id=usuario_id,
-        )
+            self._registrar_historial_precio(
+                producto_proveedor_id=producto.id,
+                precio_anterior=None,
+                precio_nuevo=data.precio_unitario,
+                moneda=data.moneda,
+                usuario_id=usuario_id,
+            )
 
-        self.log_service.registrar(
-            db=self.db,
-            usuario_id=usuario_id,
-            accion="crear",
-            modulo="proveedores",
-            entidad_tipo="ProductoProveedor",
-            entidad_id=producto.id,
-            datos_nuevos=data.model_dump(),
-        )
+            self.db.commit()
+            self.db.refresh(producto)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        # Auditoría best-effort: si falla, no revertimos el producto.
+        try:
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="crear",
+                modulo="proveedores",
+                entidad_tipo="ProductoProveedor",
+                entidad_id=producto.id,
+                datos_nuevos=data.model_dump(),
+            )
+        except Exception as exc:
+            logger.warning(
+                "No se pudo registrar log de auditoría para producto %s: %s",
+                producto.id, exc,
+            )
 
         return producto
 
@@ -554,7 +575,20 @@ class ProveedorService:
         data: RecepcionCompraCreate,
         usuario_id: UUID,
     ) -> RecepcionCompra:
-        """Registra la recepción de una orden de compra."""
+        """
+        Registra la recepción de una orden de compra en forma ATÓMICA.
+
+        El flujo toca varias tablas: ``RecepcionCompra``,
+        ``RecepcionCompraDetalle``, ``OrdenCompraDetalle`` (cantidad_recibida),
+        ``MovimientoStock`` (entrada por cada item) e, cuando viene factura,
+        ``MovimientoCuentaCorrienteProveedor`` (cargo en CC). Antes esta
+        función delegaba en services que committeaban por su cuenta — si
+        fallaba uno a mitad del loop quedaban datos parciales (stock
+        incrementado sin cargo en CC, por ejemplo).
+
+        Ahora los services dependientes se llaman con ``commit=False`` y hay
+        un único commit al final envuelto en try/except con rollback.
+        """
         orden = self.get_orden_compra(data.orden_compra_id)
         if not orden:
             raise ValueError("Orden de compra no encontrada")
@@ -569,110 +603,123 @@ class ProveedorService:
         # Generar número de recepción
         numero = self._generar_numero_recepcion()
 
-        recepcion = RecepcionCompra(
-            orden_compra_id=data.orden_compra_id,
-            numero=numero,
-            remito_numero=data.remito_numero,
-            factura_numero=data.factura_numero,
-            recibido_por_id=usuario_id,
-            notas=data.notas,
-        )
-
-        self.db.add(recepcion)
-        self.db.flush()
-
-        stock_service = StockService(self.db)
-        tiene_diferencias = False
-
-        # Procesar items
-        for item_data in data.items:
-            # Actualizar cantidad recibida en el detalle de la orden
-            orden_detalle = (
-                self.db.query(OrdenCompraDetalle)
-                .filter(OrdenCompraDetalle.id == item_data.orden_detalle_id)
-                .first()
-            )
-            if orden_detalle:
-                orden_detalle.cantidad_recibida += item_data.cantidad_recibida
-
-            # Crear detalle de recepción
-            detalle = RecepcionCompraDetalle(
-                recepcion_id=recepcion.id,
-                orden_detalle_id=item_data.orden_detalle_id,
-                insumo_id=item_data.insumo_id,
-                cantidad_esperada=item_data.cantidad_esperada,
-                cantidad_recibida=item_data.cantidad_recibida,
-                cantidad_rechazada=item_data.cantidad_rechazada,
-                numero_lote=item_data.numero_lote,
-                fecha_vencimiento=item_data.fecha_vencimiento,
-                ubicacion=item_data.ubicacion,
-                motivo_rechazo=item_data.motivo_rechazo,
+        try:
+            recepcion = RecepcionCompra(
+                orden_compra_id=data.orden_compra_id,
+                numero=numero,
+                remito_numero=data.remito_numero,
+                factura_numero=data.factura_numero,
+                recibido_por_id=usuario_id,
+                notas=data.notas,
             )
 
-            if detalle.tiene_diferencia:
-                tiene_diferencias = True
-
-            self.db.add(detalle)
+            self.db.add(recepcion)
             self.db.flush()
 
-            # Registrar entrada de stock
-            if item_data.cantidad_recibida > 0:
-                movimiento = stock_service.registrar_entrada(
-                    insumo_id=item_data.insumo_id,
-                    cantidad=item_data.cantidad_recibida,
-                    usuario_id=usuario_id,
-                    origen=OrigenMovimiento.COMPRA,
-                    proveedor_id=orden.proveedor_id,
-                    documento_tipo="orden_compra",
-                    documento_id=orden.id,
-                    numero_documento=orden.numero,
-                    numero_lote=item_data.numero_lote,
-                    fecha_vencimiento=datetime.combine(item_data.fecha_vencimiento, datetime.min.time()) if item_data.fecha_vencimiento else None,
-                    notas=f"Recepción {numero}",
+            stock_service = StockService(self.db)
+            tiene_diferencias = False
+
+            # Procesar items
+            for item_data in data.items:
+                # Actualizar cantidad recibida en el detalle de la orden
+                orden_detalle = (
+                    self.db.query(OrdenCompraDetalle)
+                    .filter(OrdenCompraDetalle.id == item_data.orden_detalle_id)
+                    .first()
                 )
-                detalle.movimiento_stock_id = movimiento.id
+                if orden_detalle:
+                    orden_detalle.cantidad_recibida += item_data.cantidad_recibida
 
-        # Actualizar estado de la recepción
-        recepcion.estado = "con_diferencias" if tiene_diferencias else "completada"
+                # Crear detalle de recepción
+                detalle = RecepcionCompraDetalle(
+                    recepcion_id=recepcion.id,
+                    orden_detalle_id=item_data.orden_detalle_id,
+                    insumo_id=item_data.insumo_id,
+                    cantidad_esperada=item_data.cantidad_esperada,
+                    cantidad_recibida=item_data.cantidad_recibida,
+                    cantidad_rechazada=item_data.cantidad_rechazada,
+                    numero_lote=item_data.numero_lote,
+                    fecha_vencimiento=item_data.fecha_vencimiento,
+                    ubicacion=item_data.ubicacion,
+                    motivo_rechazo=item_data.motivo_rechazo,
+                )
 
-        # Verificar si la orden está completa
-        self._verificar_orden_completa(orden)
+                if detalle.tiene_diferencia:
+                    tiene_diferencias = True
 
-        # INTEGRACIÓN CC PROVEEDOR: Registrar cargo automático si hay factura
-        if data.factura_numero:
-            cc_service = CuentaCorrienteProveedorService(self.db)
+                self.db.add(detalle)
+                self.db.flush()
 
-            # Calcular fecha de vencimiento basada en condición de pago
-            fecha_vencimiento = None
-            if orden.plazo_pago_dias:
-                from datetime import timedelta
-                fecha_vencimiento = date.today() + timedelta(days=orden.plazo_pago_dias)
+                # Registrar entrada de stock SIN commit — participa de la txn.
+                if item_data.cantidad_recibida > 0:
+                    movimiento = stock_service.registrar_entrada(
+                        insumo_id=item_data.insumo_id,
+                        cantidad=item_data.cantidad_recibida,
+                        usuario_id=usuario_id,
+                        origen=OrigenMovimiento.COMPRA,
+                        proveedor_id=orden.proveedor_id,
+                        documento_tipo="orden_compra",
+                        documento_id=orden.id,
+                        numero_documento=orden.numero,
+                        numero_lote=item_data.numero_lote,
+                        fecha_vencimiento=datetime.combine(item_data.fecha_vencimiento, datetime.min.time()) if item_data.fecha_vencimiento else None,
+                        notas=f"Recepción {numero}",
+                        commit=False,
+                    )
+                    detalle.movimiento_stock_id = movimiento.id
 
-            # Registrar cargo en cuenta corriente del proveedor
-            cc_service.registrar_cargo(
-                proveedor_id=str(orden.proveedor_id),
-                monto=orden.total,
-                concepto=f"Factura {data.factura_numero} - OC {orden.numero}",
-                factura_numero=data.factura_numero,
-                fecha_factura=date.today(),
-                fecha_vencimiento=fecha_vencimiento,
-                fecha_movimiento=date.today(),
-                usuario_id=str(usuario_id),
-                recepcion_compra_id=str(recepcion.id),
+            # Actualizar estado de la recepción
+            recepcion.estado = "con_diferencias" if tiene_diferencias else "completada"
+
+            # Verificar si la orden está completa
+            self._verificar_orden_completa(orden)
+
+            # INTEGRACIÓN CC PROVEEDOR: cargo automático si vino factura.
+            # También sin commit para que quede atómico con el resto.
+            if data.factura_numero:
+                cc_service = CuentaCorrienteProveedorService(self.db)
+
+                fecha_vencimiento = None
+                if orden.plazo_pago_dias:
+                    from datetime import timedelta
+                    fecha_vencimiento = date.today() + timedelta(days=orden.plazo_pago_dias)
+
+                cc_service.registrar_cargo(
+                    proveedor_id=str(orden.proveedor_id),
+                    monto=orden.total,
+                    concepto=f"Factura {data.factura_numero} - OC {orden.numero}",
+                    factura_numero=data.factura_numero,
+                    factura_fecha=date.today(),
+                    fecha_vencimiento=fecha_vencimiento,
+                    fecha_movimiento=date.today(),
+                    usuario_id=str(usuario_id),
+                    recepcion_compra_id=str(recepcion.id),
+                    commit=False,
+                )
+
+            # Commit único de toda la operación.
+            self.db.commit()
+            self.db.refresh(recepcion)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        # Auditoría best-effort: si falla no revertimos la recepción.
+        try:
+            self.log_service.registrar(
+                db=self.db,
+                usuario_id=usuario_id,
+                accion="crear",
+                modulo="proveedores",
+                entidad_tipo="RecepcionCompra",
+                entidad_id=recepcion.id,
+                datos_nuevos={"numero": numero, "orden": orden.numero},
             )
-
-        self.db.commit()
-        self.db.refresh(recepcion)
-
-        self.log_service.registrar(
-            db=self.db,
-            usuario_id=usuario_id,
-            accion="crear",
-            modulo="proveedores",
-            entidad_tipo="RecepcionCompra",
-            entidad_id=recepcion.id,
-            datos_nuevos={"numero": numero, "orden": orden.numero},
-        )
+        except Exception as exc:
+            logger.warning(
+                "No se pudo registrar log de auditoría para recepción %s: %s",
+                recepcion.id, exc,
+            )
 
         return recepcion
 
@@ -907,10 +954,46 @@ class ProveedorService:
 
     def get_saldo_proveedor(self, proveedor_id: UUID) -> dict:
         """
-        Calcula el saldo pendiente a pagar a un proveedor.
+        Calcula el saldo del proveedor usando la cuenta corriente como fuente
+        de verdad (cargos activos − pagos activos).
+
+        Antes esta función sumaba ``orden.total`` de las OC completadas y
+        asumía ``total_pagado=0`` (TODO histórico), lo que devolvía un
+        saldo pendiente igual al total facturado — sin reflejar ningún pago
+        realmente registrado. Ahora consulta ``MovimientoCuentaCorrienteProveedor``
+        directamente, que es lo que efectivamente afecta al saldo del proveedor.
         """
-        ordenes = (
-            self.db.query(OrdenCompra)
+        from app.models.cuenta_corriente_proveedor import (
+            MovimientoCuentaCorrienteProveedor,
+            TipoMovimientoCCProveedor,
+        )
+
+        proveedor_id_str = str(proveedor_id)
+
+        total_facturado = (
+            self.db.query(func.sum(MovimientoCuentaCorrienteProveedor.monto))
+            .filter(
+                MovimientoCuentaCorrienteProveedor.proveedor_id == proveedor_id_str,
+                MovimientoCuentaCorrienteProveedor.tipo == TipoMovimientoCCProveedor.CARGO.value,
+                MovimientoCuentaCorrienteProveedor.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        total_pagado = (
+            self.db.query(func.sum(MovimientoCuentaCorrienteProveedor.monto))
+            .filter(
+                MovimientoCuentaCorrienteProveedor.proveedor_id == proveedor_id_str,
+                MovimientoCuentaCorrienteProveedor.tipo == TipoMovimientoCCProveedor.PAGO.value,
+                MovimientoCuentaCorrienteProveedor.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        saldo_pendiente = total_facturado - total_pagado
+
+        cantidad_ordenes = (
+            self.db.query(func.count(OrdenCompra.id))
             .filter(
                 OrdenCompra.proveedor_id == proveedor_id,
                 OrdenCompra.activo == True,
@@ -919,21 +1002,14 @@ class ProveedorService:
                     EstadoOrdenCompra.PARCIAL.value,
                 ]),
             )
-            .all()
+            .scalar()
+            or 0
         )
-
-        total_facturado = Decimal("0")
-        total_pagado = Decimal("0")  # TODO: Integrar con módulo de pagos cuando exista
-
-        for orden in ordenes:
-            total_facturado += orden.total or Decimal("0")
-
-        saldo_pendiente = total_facturado - total_pagado
 
         return {
             "proveedor_id": str(proveedor_id),
             "total_facturado": float(total_facturado),
             "total_pagado": float(total_pagado),
             "saldo_pendiente": float(saldo_pendiente),
-            "cantidad_ordenes": len(ordenes),
+            "cantidad_ordenes": int(cantidad_ordenes),
         }
