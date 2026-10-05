@@ -16,6 +16,7 @@ from app.schemas.cuenta_corriente_proveedor import (
     MovimientoCCProveedorList,
     RegistrarCargoProveedorRequest,
     RegistrarPagoProveedorRequest,
+    RegistrarNotaCreditoProveedorRequest,
     EstadoCuentaProveedorResponse,
     AnalisisVencimientosResponse,
     TIPOS_MOVIMIENTO_CC_PROVEEDOR,
@@ -178,6 +179,45 @@ def registrar_pago(
     return {
         "id": str(movimiento.id),
         "mensaje": "Pago registrado correctamente",
+        "saldo_posterior": float(movimiento.saldo_posterior),
+    }
+
+
+@router.post("/{proveedor_id}/nota-credito", status_code=status.HTTP_201_CREATED)
+def registrar_nota_credito(
+    proveedor_id: str,
+    data: RegistrarNotaCreditoProveedorRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
+):
+    """
+    Registra una Nota de Crédito del proveedor en la CC (disminuye deuda).
+
+    Si ``movimiento_cargo_id`` viene en el request, el monto se descuenta
+    del saldo_comprobante de ese cargo (la factura que la NC compensa).
+    """
+    service = CuentaCorrienteProveedorService(db)
+
+    try:
+        movimiento = service.registrar_nota_credito(
+            proveedor_id=proveedor_id,
+            monto=data.monto,
+            concepto=data.concepto,
+            fecha_movimiento=data.fecha_movimiento,
+            usuario_id=str(current_user.id),
+            factura_numero=data.factura_numero,
+            movimiento_cargo_id=data.movimiento_cargo_id,
+            notas=data.notas,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return {
+        "id": str(movimiento.id),
+        "mensaje": "Nota de crédito registrada correctamente",
         "saldo_posterior": float(movimiento.saldo_posterior),
     }
 

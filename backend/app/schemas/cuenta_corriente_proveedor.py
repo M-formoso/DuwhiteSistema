@@ -97,6 +97,18 @@ class RegistrarPagoProveedorRequest(BaseModel):
     aplicar_a_comprobantes: Optional[List[str]] = None
 
 
+class RegistrarNotaCreditoProveedorRequest(BaseModel):
+    """Request para registrar una Nota de Crédito del proveedor (disminuye deuda)."""
+    monto: Decimal = Field(..., gt=0)
+    concepto: str = Field(..., min_length=1, max_length=255)
+    fecha_movimiento: date
+    factura_numero: Optional[str] = None
+    # Si se referencia, el monto de la NC se descuenta del saldo_comprobante
+    # del cargo (típicamente la factura que la NC compensa).
+    movimiento_cargo_id: Optional[str] = None
+    notas: Optional[str] = None
+
+
 # ==================== ESTADO DE CUENTA PROVEEDOR ====================
 
 class EstadoCuentaProveedorResponse(BaseModel):

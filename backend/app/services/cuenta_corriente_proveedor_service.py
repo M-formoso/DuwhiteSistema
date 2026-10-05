@@ -149,8 +149,15 @@ class CuentaCorrienteProveedorService:
         usuario_id: str,
         orden_pago_id: Optional[str] = None,
         notas: Optional[str] = None,
+        commit: bool = True,
     ) -> MovimientoCuentaCorrienteProveedor:
-        """Registra un pago en la CC del proveedor."""
+        """
+        Registra un pago en la CC del proveedor.
+
+        Con ``commit=False`` solo hace ``flush()``, permitiendo que un
+        orquestador externo (ej: ``OrdenPagoService.pagar``) controle la
+        transacción atómica.
+        """
         proveedor = self.db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
         if not proveedor:
             raise ValueError("Proveedor no encontrado")
@@ -176,8 +183,90 @@ class CuentaCorrienteProveedorService:
         self.db.add(movimiento)
         proveedor.saldo_cuenta_corriente = saldo_posterior
 
-        self.db.commit()
-        self.db.refresh(movimiento)
+        if commit:
+            self.db.commit()
+            self.db.refresh(movimiento)
+        else:
+            self.db.flush()
+
+        return movimiento
+
+    def registrar_nota_credito(
+        self,
+        proveedor_id: str,
+        monto: Decimal,
+        concepto: str,
+        fecha_movimiento: date,
+        usuario_id: str,
+        factura_numero: Optional[str] = None,
+        movimiento_cargo_id: Optional[str] = None,
+        notas: Optional[str] = None,
+        commit: bool = True,
+    ) -> MovimientoCuentaCorrienteProveedor:
+        """
+        Registra una Nota de Crédito del proveedor en la CC (disminuye deuda).
+
+        Si viene ``movimiento_cargo_id`` (la factura que la NC compensa) se
+        imputa el monto contra ese cargo igual que un pago parcial, reduciendo
+        su ``saldo_comprobante``. Si no viene, queda como crédito "libre" que
+        se puede imputar después.
+        """
+        proveedor = self.db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
+        if not proveedor:
+            raise ValueError("Proveedor no encontrado")
+
+        if monto is None or Decimal(monto) <= 0:
+            raise ValueError("El monto de la nota de crédito debe ser positivo")
+
+        saldo_anterior = proveedor.saldo_cuenta_corriente
+        saldo_posterior = saldo_anterior - monto
+
+        movimiento = MovimientoCuentaCorrienteProveedor(
+            id=str(uuid4()),
+            proveedor_id=proveedor_id,
+            tipo=TipoMovimientoCCProveedor.NOTA_CREDITO.value,
+            concepto=concepto,
+            monto=monto,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            saldo_comprobante=Decimal("0"),
+            fecha_movimiento=fecha_movimiento,
+            factura_numero=factura_numero,
+            registrado_por_id=usuario_id,
+            notas=notas,
+        )
+
+        self.db.add(movimiento)
+        proveedor.saldo_cuenta_corriente = saldo_posterior
+        self.db.flush()
+
+        # Imputar contra el cargo si vino referenciado. La tabla
+        # `ImputacionPagoProveedor` hoy solo modela imputaciones de Orden de
+        # Pago → Cargo. Para NC → Cargo se descuenta directamente del
+        # saldo_comprobante del cargo (sin fila intermedia). Si en el futuro
+        # se amplía el modelo de imputaciones, acá va la fila N-M.
+        if movimiento_cargo_id:
+            cargo = (
+                self.db.query(MovimientoCuentaCorrienteProveedor)
+                .filter(MovimientoCuentaCorrienteProveedor.id == movimiento_cargo_id)
+                .first()
+            )
+            if not cargo:
+                raise ValueError("Comprobante a imputar no encontrado")
+            if cargo.tipo != TipoMovimientoCCProveedor.CARGO.value:
+                raise ValueError("Solo se puede imputar una NC contra un CARGO")
+            if Decimal(cargo.saldo_comprobante or 0) < monto:
+                raise ValueError(
+                    f"El cargo {cargo.factura_numero or cargo.id} no tiene saldo "
+                    f"suficiente para imputar la NC (saldo {cargo.saldo_comprobante}, "
+                    f"NC {monto})"
+                )
+            cargo.saldo_comprobante = Decimal(cargo.saldo_comprobante or 0) - monto
+            self.db.flush()
+
+        if commit:
+            self.db.commit()
+            self.db.refresh(movimiento)
 
         return movimiento
 
