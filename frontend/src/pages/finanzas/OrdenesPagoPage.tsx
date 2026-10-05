@@ -79,6 +79,12 @@ export default function OrdenesPagoPage() {
   const [medioPago, setMedioPago] = useState<MedioPago>('transferencia');
   const [referenciaPago, setReferenciaPago] = useState('');
   const [chequeNumero, setChequeNumero] = useState('');
+  const [chequeBancoOrigen, setChequeBancoOrigen] = useState('');
+  const [chequeFechaEmision, setChequeFechaEmision] = useState('');
+  const [chequeFechaVencimiento, setChequeFechaVencimiento] = useState('');
+  const [chequeTipo, setChequeTipo] = useState<'fisico' | 'echeq'>('fisico');
+  const [chequeLibrador, setChequeLibrador] = useState('');
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>('');
 
   // Query órdenes
   const { data: ordenesData, isLoading } = useQuery({
@@ -136,6 +142,12 @@ export default function OrdenesPagoPage() {
       setOrdenPagar(null);
       setReferenciaPago('');
       setChequeNumero('');
+      setChequeBancoOrigen('');
+      setChequeFechaEmision('');
+      setChequeFechaVencimiento('');
+      setChequeTipo('fisico');
+      setChequeLibrador('');
+      setCuentaBancariaId('');
     },
     onError: () => {
       toast({
@@ -184,15 +196,29 @@ export default function OrdenesPagoPage() {
 
   const handlePagar = () => {
     if (!ordenPagar) return;
-    pagarMutation.mutate({
-      ordenId: ordenPagar.id,
-      data: {
-        fecha_pago: new Date().toLocaleDateString('en-CA'),
-        medio_pago: medioPago,
-        referencia_pago: medioPago === 'cheque' ? chequeNumero : referenciaPago || undefined,
-      },
-    });
+    const payload: any = {
+      fecha_pago: new Date().toLocaleDateString('en-CA'),
+      medio_pago: medioPago,
+      referencia_pago: medioPago === 'cheque' ? chequeNumero : referenciaPago || undefined,
+    };
+    if (medioPago === 'cheque') {
+      payload.cheque_numero = chequeNumero;
+      payload.cheque_banco_origen = chequeBancoOrigen || null;
+      payload.cheque_fecha_emision = chequeFechaEmision || null;
+      payload.cheque_fecha_vencimiento = chequeFechaVencimiento;
+      payload.cheque_tipo = chequeTipo;
+      payload.cheque_librador = chequeLibrador || null;
+      // La cuenta_bancaria_id para cheque indica DE QUÉ CUENTA se gira.
+      payload.cuenta_bancaria_id = cuentaBancariaId || null;
+    } else if (medioPago !== 'efectivo') {
+      payload.cuenta_bancaria_id = cuentaBancariaId || null;
+    }
+    pagarMutation.mutate({ ordenId: ordenPagar.id, data: payload });
   };
+
+  const chequeFormValido =
+    medioPago !== 'cheque' ||
+    (chequeNumero.trim().length > 0 && chequeFechaVencimiento.length > 0);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -751,13 +777,66 @@ export default function OrdenesPagoPage() {
             </div>
 
             {medioPago === 'cheque' && (
-              <div className="space-y-2">
-                <Label>Número de Cheque</Label>
-                <Input
-                  value={chequeNumero}
-                  onChange={(e) => setChequeNumero(e.target.value)}
-                  placeholder="Ej: 00012345"
-                />
+              <div className="space-y-3 border rounded-md p-3 bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Datos del cheque emitido
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Número *</Label>
+                    <Input
+                      value={chequeNumero}
+                      onChange={(e) => setChequeNumero(e.target.value)}
+                      placeholder="00012345"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tipo *</Label>
+                    <Select value={chequeTipo} onValueChange={(v) => setChequeTipo(v as 'fisico' | 'echeq')}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fisico">Físico</SelectItem>
+                        <SelectItem value="echeq">E-cheq</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Fecha de emisión</Label>
+                    <Input
+                      type="date"
+                      value={chequeFechaEmision}
+                      onChange={(e) => setChequeFechaEmision(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Vencimiento *</Label>
+                    <Input
+                      type="date"
+                      value={chequeFechaVencimiento}
+                      onChange={(e) => setChequeFechaVencimiento(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Banco emisor (nuestro)</Label>
+                  <Input
+                    value={chequeBancoOrigen}
+                    onChange={(e) => setChequeBancoOrigen(e.target.value)}
+                    placeholder="Ej: Banco Galicia"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Librador</Label>
+                  <Input
+                    value={chequeLibrador}
+                    onChange={(e) => setChequeLibrador(e.target.value)}
+                    placeholder="Nombre del firmante"
+                  />
+                </div>
               </div>
             )}
 
@@ -778,7 +857,7 @@ export default function OrdenesPagoPage() {
             </Button>
             <Button
               onClick={handlePagar}
-              disabled={pagarMutation.isPending || (medioPago === 'cheque' && !chequeNumero)}
+              disabled={pagarMutation.isPending || !chequeFormValido}
               className="bg-green-600 hover:bg-green-700"
             >
               <Check className="h-4 w-4 mr-2" />
