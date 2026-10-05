@@ -227,9 +227,11 @@ class ProveedorService:
         )
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="ProductoProveedor",
+            modulo="proveedores",
+            entidad_tipo="ProductoProveedor",
             entidad_id=producto.id,
             datos_nuevos=data.model_dump(),
         )
@@ -437,9 +439,11 @@ class ProveedorService:
         self.db.refresh(orden)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="OrdenCompra",
+            modulo="proveedores",
+            entidad_tipo="OrdenCompra",
             entidad_id=orden.id,
             datos_nuevos={"numero": numero, "total": str(orden.total)},
         )
@@ -495,9 +499,11 @@ class ProveedorService:
         self.db.refresh(orden)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="cambiar_estado",
-            entidad="OrdenCompra",
+            modulo="proveedores",
+            entidad_tipo="OrdenCompra",
             entidad_id=orden.id,
             datos_anteriores={"estado": estado_anterior},
             datos_nuevos={"estado": nuevo_estado.value},
@@ -659,9 +665,11 @@ class ProveedorService:
         self.db.refresh(recepcion)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="crear",
-            entidad="RecepcionCompra",
+            modulo="proveedores",
+            entidad_tipo="RecepcionCompra",
             entidad_id=recepcion.id,
             datos_nuevos={"numero": numero, "orden": orden.numero},
         )
@@ -885,9 +893,11 @@ class ProveedorService:
         self.db.refresh(proveedor)
 
         self.log_service.registrar(
+            db=self.db,
             usuario_id=usuario_id,
             accion="calificar",
-            entidad="Proveedor",
+            modulo="proveedores",
+            entidad_tipo="Proveedor",
             entidad_id=proveedor.id,
             datos_anteriores={"calificacion": calificacion_anterior},
             datos_nuevos={"calificacion": calificacion, "comentario": comentario},
