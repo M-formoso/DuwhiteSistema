@@ -127,10 +127,17 @@ export default function ProductosProveedorPage() {
     enabled: Boolean(proveedorId),
   });
 
+  // Mostrar inactivos (por default solo activos, para que la "eliminación" se vea reflejada)
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+
   // Cargar productos
   const { data: productosData, isLoading, refetch } = useQuery({
-    queryKey: ['proveedor-productos', proveedorId],
-    queryFn: () => proveedorService.getProductosProveedor(proveedorId!, { limit: 100, solo_activos: false }),
+    queryKey: ['proveedor-productos', proveedorId, mostrarInactivos],
+    queryFn: () =>
+      proveedorService.getProductosProveedor(proveedorId!, {
+        limit: 100,
+        solo_activos: !mostrarInactivos,
+      }),
     enabled: Boolean(proveedorId),
   });
 
@@ -159,13 +166,22 @@ export default function ProductosProveedorPage() {
     },
   });
 
-  // Actualizar producto
+  // Actualizar producto (también se usa para soft-delete con activo=false)
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<ProductoProveedorCreate> }) =>
       proveedorService.updateProductoProveedor(id, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['proveedor-productos', proveedorId] });
-      toast({ title: 'Producto actualizado', description: 'El producto se actualizó correctamente.' });
+      // Si fue un soft-delete (activo=false) refrescamos el detalle del
+      // proveedor para que el conteo del Resumen baje.
+      queryClient.invalidateQueries({ queryKey: ['proveedor', proveedorId] });
+      const esSoftDelete = (variables as any)?.data?.activo === false;
+      toast({
+        title: esSoftDelete ? 'Producto eliminado' : 'Producto actualizado',
+        description: esSoftDelete
+          ? 'El producto fue dado de baja del catálogo.'
+          : 'El producto se actualizó correctamente.',
+      });
       handleCloseDialog();
     },
     onError: (error: Error) => {
@@ -352,7 +368,16 @@ export default function ProductosProveedorPage() {
             <p className="text-gray-500">{proveedor?.razon_social || 'Cargando...'}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={mostrarInactivos}
+              onChange={(e) => setMostrarInactivos(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Mostrar eliminados
+          </label>
           <Button variant="outline" size="icon" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
           </Button>

@@ -25,8 +25,26 @@ from app.schemas.producto_proveedor import (
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.services.proveedor_service import ProveedorService
+from app.models.producto_proveedor import ProductoProveedor
+from app.models.orden_compra import OrdenCompra
 
 router = APIRouter()
+
+
+def _contar_productos_activos(prov) -> int:
+    """Cantidad de productos ACTIVOS en el catálogo del proveedor."""
+    try:
+        return prov.productos.filter(ProductoProveedor.activo == True).count()
+    except Exception:
+        return 0
+
+
+def _contar_ordenes_activas(prov) -> int:
+    """Cantidad de órdenes de compra ACTIVAS del proveedor."""
+    try:
+        return prov.ordenes_compra.filter(OrdenCompra.activo == True).count()
+    except Exception:
+        return 0
 
 
 @router.get("", response_model=PaginatedResponse)
@@ -77,8 +95,8 @@ def listar_proveedores(
             is_active=prov.activo,
             nombre_display=prov.nombre_display,
             cuit_formateado=prov.cuit_formateado,
-            cantidad_productos=prov.productos.count() if prov.productos else 0,
-            cantidad_ordenes=prov.ordenes_compra.count() if prov.ordenes_compra else 0,
+            cantidad_productos=_contar_productos_activos(prov),
+            cantidad_ordenes=_contar_ordenes_activas(prov),
         ))
 
     return PaginatedResponse(
@@ -151,8 +169,8 @@ def obtener_proveedor(
         is_active=proveedor.activo,
         nombre_display=proveedor.nombre_display,
         cuit_formateado=proveedor.cuit_formateado,
-        cantidad_productos=proveedor.productos.count() if proveedor.productos else 0,
-        cantidad_ordenes=proveedor.ordenes_compra.count() if proveedor.ordenes_compra else 0,
+        cantidad_productos=_contar_productos_activos(proveedor),
+        cantidad_ordenes=_contar_ordenes_activas(proveedor),
     )
 
 
@@ -265,8 +283,8 @@ def actualizar_proveedor(
         is_active=proveedor.activo,
         nombre_display=proveedor.nombre_display,
         cuit_formateado=proveedor.cuit_formateado,
-        cantidad_productos=proveedor.productos.count() if proveedor.productos else 0,
-        cantidad_ordenes=proveedor.ordenes_compra.count() if proveedor.ordenes_compra else 0,
+        cantidad_productos=_contar_productos_activos(proveedor),
+        cantidad_ordenes=_contar_ordenes_activas(proveedor),
     )
 
 
@@ -618,8 +636,8 @@ async def actualizar_calificacion_proveedor(
         is_active=proveedor.activo,
         nombre_display=proveedor.nombre_display,
         cuit_formateado=proveedor.cuit_formateado,
-        cantidad_productos=proveedor.productos.count() if proveedor.productos else 0,
-        cantidad_ordenes=proveedor.ordenes_compra.count() if proveedor.ordenes_compra else 0,
+        cantidad_productos=_contar_productos_activos(proveedor),
+        cantidad_ordenes=_contar_ordenes_activas(proveedor),
     )
 
 
