@@ -250,10 +250,31 @@
     <tr><td class="muted">Percepciones</td><td class="right">{{ factura.percepciones|moneda }}</td></tr>
   {% endif %}
   <tr class="grand-total"><td>TOTAL</td><td class="right">{{ factura.total|moneda }}</td></tr>
-  {% if es_factura_b %}
-    <tr><td colspan="2" class="right small muted">(IVA incluido)</td></tr>
+</table>
+
+{# ==== Transparencia Fiscal (RG 5614/2024) ====
+   En Factura B el IVA no se discrimina como débito/crédito, pero el
+   régimen de transparencia fiscal exige informar el IVA CONTENIDO en el
+   precio final. Mostramos el neto y el IVA 21% / 10,5% desglosados.
+   Ref: ARCA — "Al Consumidor: discriminación del IVA contenido". #}
+{% if es_factura_b %}
+<table class="totales" style="width: 55%; margin-left: auto; margin-top: 8px; border: 1px solid #333;">
+  <tr><td colspan="2" class="small bold" style="background:#f7f8fa; padding:4px 8px; border-bottom:1px solid #333;">
+    IVA contenido en el precio — Régimen de Transparencia Fiscal al Consumidor (RG 5614/24)
+  </td></tr>
+  {% if factura.neto_gravado_21 and factura.neto_gravado_21|float > 0 %}
+    <tr><td class="muted">Importe neto gravado 21%</td><td class="right">{{ factura.neto_gravado_21|moneda }}</td></tr>
+    <tr><td class="muted">IVA contenido 21%</td><td class="right">{{ factura.iva_21|moneda }}</td></tr>
+  {% endif %}
+  {% if factura.neto_gravado_105 and factura.neto_gravado_105|float > 0 %}
+    <tr><td class="muted">Importe neto gravado 10,5%</td><td class="right">{{ factura.neto_gravado_105|moneda }}</td></tr>
+    <tr><td class="muted">IVA contenido 10,5%</td><td class="right">{{ factura.iva_105|moneda }}</td></tr>
+  {% endif %}
+  {% if factura.neto_no_gravado and factura.neto_no_gravado|float > 0 %}
+    <tr><td class="muted">Importe no gravado</td><td class="right">{{ factura.neto_no_gravado|moneda }}</td></tr>
   {% endif %}
 </table>
+{% endif %}
 
 <!-- CAE -->
 <div class="cae-box">
