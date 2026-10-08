@@ -197,6 +197,31 @@ export function IniciarEtapaModal({
     }
   }, [open, refetchCanastos, muestraCanastos]);
 
+  // Listener global de teclado para que el PIN se pueda escribir aunque
+  // el focus se haya ido del input (ej: usuario toco el pad en pantalla
+  // o fue a seleccionar una maquina). Solo se activa cuando el focus NO
+  // esta en otro input para no robar teclas al campo de kg.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (active === pinInputRef.current) return;
+      const tag = active?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        setPin((p) => (p.length >= 6 ? p : p + e.key));
+        setError(null);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setPin((p) => p.slice(0, -1));
+        setError(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   // Auto-identifica al operario mientras el PIN se va tipeando.
   // Why: el operario ya no selecciona su nombre — el PIN identifica solo.
   // Con debounce de 300ms para no golpear el backend cada tecla y para dar
@@ -416,10 +441,12 @@ export function IniciarEtapaModal({
                 <button
                   key={d}
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     if (pin.length >= 6) return;
                     setPin((p) => p + d);
                     setError(null);
+                    pinInputRef.current?.focus();
                   }}
                   className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
                              active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -430,7 +457,8 @@ export function IniciarEtapaModal({
               <button
                 type="button"
                 disabled={pin.length === 0}
-                onClick={() => { setPin(''); setError(null); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setPin(''); setError(null); pinInputRef.current?.focus(); }}
                 className="h-12 rounded-md border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
                            active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -438,10 +466,12 @@ export function IniciarEtapaModal({
               </button>
               <button
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   if (pin.length >= 6) return;
                   setPin((p) => p + '0');
                   setError(null);
+                  pinInputRef.current?.focus();
                 }}
                 className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -451,7 +481,8 @@ export function IniciarEtapaModal({
               <button
                 type="button"
                 disabled={pin.length === 0}
-                onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); pinInputRef.current?.focus(); }}
                 className="h-12 rounded-md border border-gray-300 bg-white text-base font-semibold text-gray-700
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >

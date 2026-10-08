@@ -813,6 +813,30 @@ function PinModalGrande({
     }
   }, [open]);
 
+  // Listener global: permite tipear el PIN con el teclado fisico incluso
+  // si el focus se perdio (ej: usuario toco el pad en pantalla o un selector
+  // de canastos/maquinas). No actua cuando el focus esta en otro input.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (active === pinInputRef.current) return;
+      const tag = active?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        setPin((p) => (p.length >= 6 ? p : p + e.key));
+        setError('');
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setPin((p) => p.slice(0, -1));
+        setError('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   useEffect(() => {
     if (muestraMaquinasLav && lavadoras.length > 0) {
       setMaquinasConKg(lavadoras.map((m) => ({ maquinaId: m.id, kg: 0 })));
@@ -1012,10 +1036,12 @@ function PinModalGrande({
                 <button
                   key={d}
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     if (pin.length >= 6) return;
                     setPin((p) => p + d);
                     setError('');
+                    pinInputRef.current?.focus();
                   }}
                   className="h-14 sm:h-16 rounded-xl border border-gray-300 bg-white text-2xl font-bold text-gray-800
                              active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1026,9 +1052,11 @@ function PinModalGrande({
               <button
                 type="button"
                 disabled={pin.length === 0}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setPin('');
                   setError('');
+                  pinInputRef.current?.focus();
                 }}
                 className="h-14 sm:h-16 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
                            active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1037,10 +1065,12 @@ function PinModalGrande({
               </button>
               <button
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   if (pin.length >= 6) return;
                   setPin((p) => p + '0');
                   setError('');
+                  pinInputRef.current?.focus();
                 }}
                 className="h-14 sm:h-16 rounded-xl border border-gray-300 bg-white text-2xl font-bold text-gray-800
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1050,9 +1080,11 @@ function PinModalGrande({
               <button
                 type="button"
                 disabled={pin.length === 0}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setPin((p) => p.slice(0, -1));
                   setError('');
+                  pinInputRef.current?.focus();
                 }}
                 className="h-14 sm:h-16 rounded-xl border border-gray-300 bg-white text-xl font-semibold text-gray-700
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"

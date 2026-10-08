@@ -78,6 +78,37 @@ export function PinValidationModal({
     }
   }, [operarioId]);
 
+  // Listener global de teclado: si el usuario tocó un boton del pad en
+  // pantalla y perdio el focus del input, igual puede seguir tipeando con
+  // el teclado fisico. Solo se activa cuando el focus NO esta en otro
+  // input/textarea para no interferir con otros campos del modal.
+  useEffect(() => {
+    if (!open || !operarioId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const isInput = active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA';
+      // Si el focus ya esta en el input del PIN, dejamos que lo maneje nativo.
+      if (active === pinInputRef.current) return;
+      // Si esta en otro input (por si en el futuro agregan campos) no robamos teclas.
+      if (isInput) return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        setPin((p) => (p.length >= 6 ? p : p + e.key));
+        setError(null);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setPin((p) => p.slice(0, -1));
+        setError(null);
+      } else if (e.key === 'Enter' && pin.length >= 4) {
+        e.preventDefault();
+        handleValidate();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, operarioId, pin]);
+
   const handleValidate = async () => {
     if (!operarioId || !pin) {
       setError('Selecciona un operario e ingresa el PIN');
@@ -187,10 +218,12 @@ export function PinValidationModal({
                   key={d}
                   type="button"
                   disabled={!operarioId}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     if (pin.length >= 6) return;
                     setPin((p) => p + d);
                     setError(null);
+                    pinInputRef.current?.focus();
                   }}
                   className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
                              active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -201,7 +234,8 @@ export function PinValidationModal({
               <button
                 type="button"
                 disabled={!operarioId || pin.length === 0}
-                onClick={() => { setPin(''); setError(null); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setPin(''); setError(null); pinInputRef.current?.focus(); }}
                 className="h-12 rounded-md border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700
                            active:bg-amber-100 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -210,10 +244,12 @@ export function PinValidationModal({
               <button
                 type="button"
                 disabled={!operarioId}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   if (pin.length >= 6) return;
                   setPin((p) => p + '0');
                   setError(null);
+                  pinInputRef.current?.focus();
                 }}
                 className="h-12 rounded-md border border-gray-300 bg-white text-xl font-bold text-gray-800
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
@@ -223,7 +259,8 @@ export function PinValidationModal({
               <button
                 type="button"
                 disabled={!operarioId || pin.length === 0}
-                onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setPin((p) => p.slice(0, -1)); setError(null); pinInputRef.current?.focus(); }}
                 className="h-12 rounded-md border border-gray-300 bg-white text-base font-semibold text-gray-700
                            active:bg-gray-200 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
