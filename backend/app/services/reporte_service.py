@@ -3,13 +3,15 @@ Servicio de Reportes para DUWHITE ERP
 """
 
 from datetime import date, datetime, timedelta
+from datetime import timezone as _tz
 from decimal import Decimal
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from uuid import UUID
 
 from sqlalchemy import func, and_, or_, extract, case
 from sqlalchemy.orm import Session
 
+from app.core.timezone import TZ_AR
 from app.models.pedido import Pedido, DetallePedido, EstadoPedido
 from app.models.cliente import Cliente
 from app.models.lote_produccion import LoteProduccion, LoteEtapa, EstadoLote
@@ -22,6 +24,28 @@ from app.models.lista_precios import Servicio
 from app.models.etapa_produccion import EtapaProduccion
 from app.models.producto_lavado import ProductoLavado
 from app.models.remito import Remito, DetalleRemito, EstadoRemito
+
+
+def _rango_ar_a_utc(fecha_desde: date, fecha_hasta: date) -> Tuple[datetime, datetime]:
+    """
+    Convierte un rango de FECHAS ARG a bounds UTC naive para comparar contra
+    columnas tipo `fecha_ingreso` que se almacenan como UTC naive.
+
+    Esto evita que lotes creados entre las 21:00 y 23:59 hora Córdoba (= 00:00
+    a 02:59 UTC del día siguiente) caigan en el día equivocado al filtrar o
+    agrupar. Usar siempre que el filtro semánticamente quiera decir "lotes
+    del día X ARG" y la columna sea UTC.
+    """
+    inicio_ar = datetime.combine(fecha_desde, datetime.min.time(), tzinfo=TZ_AR)
+    fin_ar = datetime.combine(fecha_hasta, datetime.max.time(), tzinfo=TZ_AR)
+    inicio = inicio_ar.astimezone(_tz.utc).replace(tzinfo=None)
+    fin = fin_ar.astimezone(_tz.utc).replace(tzinfo=None)
+    return inicio, fin
+
+
+def _utc_naive_a_ar(dt: datetime) -> datetime:
+    """UTC naive de la BD → datetime aware en hora Argentina."""
+    return dt.replace(tzinfo=_tz.utc).astimezone(TZ_AR)
 
 
 # ==================== ANÁLISIS DE PRODUCCIÓN ====================
@@ -246,6 +270,17 @@ def get_kg_ingresados(
     Kg de ropa ingresados (lotes creados) en el rango — independiente
     del estado actual del lote.
 
+    IMPORTANTE: `fecha_ingreso` en la BD se guarda como UTC naive, pero las
+    fechas de entrada (`fecha_desde` / `fecha_hasta`) representan DÍAS ARG.
+    Antes se comparaba directo UTC vs ARG y los lotes creados entre las
+    21:00-23:59 hora Córdoba (= 00:00-02:59 UTC del día siguiente) caían en
+    el día equivocado — por eso un reporte del 14/10 podía mostrar 68 lotes
+    y después 34, según cuándo se consultaba y con qué rango. Ahora:
+
+    - Los bounds del filtro SQL se convierten a UTC naive partiendo de ARG.
+    - El agrupamiento por día / hora se hace sobre el `fecha_ingreso`
+      convertido a hora ARG, no sobre el valor UTC crudo.
+
     Devuelve:
     - total_kg / total_lotes
     - por_dia: [{fecha, kg, lotes}]
@@ -253,11 +288,12 @@ def get_kg_ingresados(
     - hora_pico: {hora, kg, lotes}
     - lotes: [{id, numero, cliente, kg, fecha_ingreso}]
     """
-    hoy = date.today()
+    from app.core.timezone import today_ar
+
+    hoy = today_ar()
     desde = fecha_desde or hoy
     hasta = fecha_hasta or hoy
-    inicio = datetime.combine(desde, datetime.min.time())
-    fin = datetime.combine(hasta, datetime.max.time())
+    inicio, fin = _rango_ar_a_utc(desde, hasta)
 
     lotes = (
         db.query(LoteProduccion, Cliente.razon_social)
@@ -282,13 +318,15 @@ def get_kg_ingresados(
         total_kg += kg
         total_lotes += 1
 
-        dia_key = lote.fecha_ingreso.date().isoformat()
+        fecha_ar = _utc_naive_a_ar(lote.fecha_ingreso)
+
+        dia_key = fecha_ar.date().isoformat()
         if dia_key not in por_dia:
             por_dia[dia_key] = {"kg": 0.0, "lotes": 0}
         por_dia[dia_key]["kg"] += kg
         por_dia[dia_key]["lotes"] += 1
 
-        hora = lote.fecha_ingreso.hour
+        hora = fecha_ar.hour
         por_hora[hora]["kg"] += kg
         por_hora[hora]["lotes"] += 1
 
@@ -297,7 +335,7 @@ def get_kg_ingresados(
             "numero": lote.numero,
             "cliente": cliente_nombre,
             "kg": round(kg, 2),
-            "fecha_ingreso": lote.fecha_ingreso.isoformat(),
+            "fecha_ingreso": fecha_ar.isoformat(),
         })
 
     por_dia_list = [
@@ -383,8 +421,7 @@ def get_produccion_por_usuario_posta(
     if fecha_hasta < fecha_desde:
         fecha_hasta = fecha_desde
 
-    inicio = datetime.combine(fecha_desde, datetime.min.time())
-    fin = datetime.combine(fecha_hasta, datetime.max.time())
+    inicio, fin = _rango_ar_a_utc(fecha_desde, fecha_hasta)
 
     rows = (
         db.query(
@@ -435,8 +472,7 @@ def get_clientes_produccion(
     Mejores clientes por kg lavados en el rango.
     Si se pasa cliente_id devuelve además el desglose de lotes de ese cliente.
     """
-    inicio = datetime.combine(fecha_desde, datetime.min.time())
-    fin = datetime.combine(fecha_hasta, datetime.max.time())
+    inicio, fin = _rango_ar_a_utc(fecha_desde, fecha_hasta)
 
     base_filter = [
         LoteProduccion.activo == True,
@@ -515,8 +551,7 @@ def get_tiempo_muerto_produccion(
     if fecha_hasta < fecha_desde:
         fecha_hasta = fecha_desde
 
-    inicio = datetime.combine(fecha_desde, datetime.min.time())
-    fin = datetime.combine(fecha_hasta, datetime.max.time())
+    inicio, fin = _rango_ar_a_utc(fecha_desde, fecha_hasta)
 
     lotes_ids_q = (
         db.query(LoteEtapa.lote_id)
