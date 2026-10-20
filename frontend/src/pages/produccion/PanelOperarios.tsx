@@ -274,6 +274,11 @@ function LoteCard({
             <div className="text-[11px] font-bold text-emerald-700 mb-1.5 uppercase tracking-wide">
               Resumen del proceso
             </div>
+            {lote.fecha_llegada_etapa && (
+              <div className="text-[11px] text-emerald-800 font-medium mb-1.5">
+                Finalizado: {formatDateTimeAR(lote.fecha_llegada_etapa)}
+              </div>
+            )}
             <div className="space-y-1">
               {lote.etapas_resumen.map((er) => (
                 <div key={er.etapa_codigo} className="flex items-center justify-between text-xs">

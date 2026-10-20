@@ -301,6 +301,17 @@ function KanbanCard({ lote, columna, onIniciar, onFinalizar, onDividir, onCorreg
               <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-1">
                 Resumen del proceso
               </div>
+              {lote.fecha_llegada_etapa && (
+                <div className="text-[10px] text-emerald-800 font-medium mb-1">
+                  Finalizado: {formatDateAR(lote.fecha_llegada_etapa)}
+                  {' '}
+                  {new Date(lote.fecha_llegada_etapa).toLocaleTimeString('es-AR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                  hs
+                </div>
+              )}
               <div className="space-y-0.5">
                 {lote.etapas_resumen.map((er) => (
                   <div key={er.etapa_codigo} className="flex items-center justify-between text-[11px]">
