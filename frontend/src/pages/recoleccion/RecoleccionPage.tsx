@@ -27,6 +27,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { clienteService } from '@/services/clienteService';
 import { produccionService } from '@/services/produccionService';
 import { recoleccionService, type RecoleccionItem } from '@/services/recoleccionService';
+import { SelectorVehiculo } from '@/components/geotrackers/SelectorVehiculo';
 
 type Paso = 'cliente' | 'pin' | 'confirmado';
 
@@ -35,6 +36,7 @@ export default function RecoleccionPage() {
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clienteSel, setClienteSel] = useState<{ id: string; nombre: string } | null>(null);
   const [repartidorSel, setRepartidorSel] = useState<{ id: string; nombre: string } | null>(null);
+  const [vehiculoSelId, setVehiculoSelId] = useState<string>(''); // uuid local (opcional)
   const [pin, setPin] = useState('');
   const [identificando, setIdentificando] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export default function RecoleccionPage() {
         cliente_id: clienteSel!.id,
         repartidor_id: repartidorSel!.id,
         pin,
+        vehiculo_id: vehiculoSelId || undefined,
       }),
     onSuccess: (data) => {
       const hora = new Date(data.hora_inicio_retiro).toLocaleTimeString('es-AR', {
@@ -316,6 +319,8 @@ export default function RecoleccionPage() {
                 ←
               </button>
             </div>
+
+            <SelectorVehiculo value={vehiculoSelId} onChange={setVehiculoSelId} />
 
             <Button
               size="lg"

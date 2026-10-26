@@ -35,6 +35,7 @@ import ProductosLavadoPage from '@/pages/produccion/ProductosLavadoPage';
 import ConteoFinalizacionPage from '@/pages/produccion/ConteoFinalizacionPage';
 import EstadoRecursosPage from '@/pages/produccion/EstadoRecursosPage';
 import RecoleccionPage from '@/pages/recoleccion/RecoleccionPage';
+import GeolocalizacionPage from '@/pages/geolocalizacion/GeolocalizacionPage';
 import RemitoManualPage from '@/pages/remitos/RemitoManualPage';
 
 // Clientes
@@ -173,6 +174,9 @@ function App() {
 
         {/* Recolección (mobile-first para el chico que retira) */}
         <Route path="/recoleccion" element={<RecoleccionPage />} />
+
+        {/* Geolocalización — mapa en vivo de la flota (GeoTrackers) */}
+        <Route path="/geolocalizacion" element={<GeolocalizacionPage />} />
 
         {/* Remito manual (sin flujo de producción) */}
         <Route path="/remitos/manual" element={<RemitoManualPage />} />

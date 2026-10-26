@@ -63,6 +63,7 @@ import { clienteService } from '@/services/clienteService';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { ProductoConPrecio } from '@/types/produccion-v2';
 import ProductoLookupModal from '@/components/produccion/ProductoLookupModal';
+import { SelectorVehiculo } from '@/components/geotrackers/SelectorVehiculo';
 
 const formatearCodigo = (codigo: string) => {
   const limpio = (codigo || '').trim();
@@ -93,6 +94,7 @@ export default function ConteoFinalizacionPage() {
   // Estado principal
   const [conteoItems, setConteoItems] = useState<ConteoItem[]>([]);
   const [observaciones, setObservaciones] = useState('');
+  const [vehiculoEntregaId, setVehiculoEntregaId] = useState<string>('');
   const [tieneRelevado, setTieneRelevado] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   // Por defecto se imprime CON precios. El checkbox del dialog lo invierte:
@@ -396,6 +398,7 @@ export default function ConteoFinalizacionPage() {
                 cantidad: item.cantidad_relevado,
               }))
           : undefined,
+        vehiculo_id: vehiculoEntregaId || undefined,
       });
     },
     onSuccess: (response) => {
@@ -825,13 +828,20 @@ export default function ConteoFinalizacionPage() {
             </div>
           </div>
 
-          <div>
-            <Label className="text-sm">Observaciones</Label>
-            <Textarea
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Notas para el remito..."
-              rows={2}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-sm">Observaciones</Label>
+              <Textarea
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                placeholder="Notas para el remito..."
+                rows={2}
+              />
+            </div>
+            <SelectorVehiculo
+              value={vehiculoEntregaId}
+              onChange={setVehiculoEntregaId}
+              label="Vehículo que hace la entrega (opcional)"
             />
           </div>
 

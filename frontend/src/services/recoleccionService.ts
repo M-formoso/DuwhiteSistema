@@ -13,6 +13,8 @@ export interface IniciarRecoleccionRequest {
   repartidor_id: string;
   pin: string;
   notas?: string;
+  /** uuid local del vehículo (ver /geotrackers/local). Opcional. */
+  vehiculo_id?: string;
 }
 
 export interface IniciarRecoleccionResponse {

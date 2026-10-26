@@ -213,6 +213,8 @@ export interface GenerarRemitoRequest {
   observaciones?: string;
   generar_relevado?: boolean;
   items_relevado?: { producto_id: string; cantidad: number }[];
+  /** uuid local del vehículo asignado para la entrega (opcional). */
+  vehiculo_id?: string;
 }
 
 export interface GenerarRemitoResponse {

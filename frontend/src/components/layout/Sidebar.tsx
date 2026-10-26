@@ -26,6 +26,7 @@ import {
   Clock,
   Receipt,
   Archive,
+  MapPin,
   X,
 } from 'lucide-react';
 
@@ -111,6 +112,12 @@ const navSectionsInternal: NavSection[] = [
         href: '/recoleccion',
         icon: Truck,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'operador'],
+      },
+      {
+        title: 'Geolocalización',
+        href: '/geolocalizacion',
+        icon: MapPin,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial'],
       },
     ],
   },
