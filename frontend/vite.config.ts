@@ -7,12 +7,18 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       injectRegister: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',
+        // Forzamos que el SW nuevo tome control de la pestaña abierta
+        // sin esperar a que todas las pestañas se cierren. Importante
+        // cuando una regla de caché estaba mal (como pasó con /geotrackers,
+        // que necesita datos en vivo y no debe cachearse).
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -38,6 +44,15 @@ export default defineConfig({
               request.method === 'GET' &&
               /\/api\/v1\//.test(url.pathname) &&
               /\/pdf$/.test(url.pathname),
+            handler: 'NetworkOnly' as const,
+          },
+          {
+            // Geolocalización: datos EN VIVO. Nunca cachear. Si el SW
+            // guarda un 503 viejo acá, el mapa queda roto para siempre
+            // (que es exactamente lo que paso al primer intento).
+            urlPattern: ({ url, request }: { url: URL; request: Request }) =>
+              request.method === 'GET' &&
+              /\/api\/v1\/geotrackers\//.test(url.pathname),
             handler: 'NetworkOnly' as const,
           },
           {
