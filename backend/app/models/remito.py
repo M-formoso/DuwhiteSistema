@@ -138,8 +138,18 @@ class Remito(Base, TimestampMixin):
     # Estado del registro
     activo = Column(Boolean, default=True, nullable=False)
 
+    # Vehículo asignado para la ENTREGA (opcional — GeoTrackers).
+    # Se cruza con la telemetría por vehiculo.geotrackers_id.
+    vehiculo_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("vehiculos.id"),
+        nullable=True,
+        index=True,
+    )
+
     # Relaciones
     lote = relationship("LoteProduccion", back_populates="remitos")
+    vehiculo = relationship("Vehiculo", foreign_keys=[vehiculo_id])
     cliente = relationship("Cliente", back_populates="remitos")
     remito_padre = relationship("Remito", remote_side=[id], back_populates="remitos_complementarios")
     remitos_complementarios = relationship("Remito", back_populates="remito_padre")

@@ -159,6 +159,11 @@ class GenerarRemitoRequest(BaseModel):
     notas: Optional[str] = None
     # Para relevado
     items_relevado: Optional[List[dict]] = Field(None, description="Items a relavar: [{producto_id, cantidad}]")
+    # Vehículo (de la flota GeoTrackers) que hace la ENTREGA. Opcional —
+    # si viene, se persiste en Remito.vehiculo_id y aparece en el mapa.
+    vehiculo_id: Optional[UUID] = Field(
+        None, description="UUID local del vehículo asignado a la entrega",
+    )
 
 
 class GenerarRemitoResponse(BaseModel):

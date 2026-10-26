@@ -179,7 +179,10 @@ class RemitoService:
             descuento=descuento,
             total=total,
             notas=request.notas,
-            emitido_por_id=usuario_id
+            emitido_por_id=usuario_id,
+            # Vehículo (opcional) que hace la entrega — hereda del lote si
+            # ya tenía uno asignado para la recolección y no se mandó otro.
+            vehiculo_id=request.vehiculo_id or lote.vehiculo_recoleccion_id,
         )
         db.add(remito)
         db.flush()  # Para obtener el ID

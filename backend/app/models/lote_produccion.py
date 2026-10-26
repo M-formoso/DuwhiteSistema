@@ -182,6 +182,19 @@ class LoteProduccion(Base, BaseModelMixin):
     # Relaciones de remitos
     remitos = relationship("Remito", back_populates="lote")
 
+    # Vehículo asignado para la RECOLECCIÓN de este lote (opcional).
+    # Se setea cuando el admin planifica la recolección — se cruza con la
+    # telemetría de GeoTrackers por vehiculo.geotrackers_id.
+    vehiculo_recoleccion_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("vehiculos.id"),
+        nullable=True,
+        index=True,
+    )
+    vehiculo_recoleccion = relationship(
+        "Vehiculo", foreign_keys=[vehiculo_recoleccion_id]
+    )
+
     def __repr__(self) -> str:
         return f"<LoteProduccion {self.numero}>"
 

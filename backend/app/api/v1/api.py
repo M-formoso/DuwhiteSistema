@@ -38,6 +38,7 @@ from app.api.v1.endpoints import (
     cobranzas,
     recoleccion,
     configuracion,
+    geotrackers,
 )
 
 api_router = APIRouter()
@@ -263,4 +264,11 @@ api_router.include_router(
     configuracion.router,
     prefix="/configuracion",
     tags=["Configuración"],
+)
+
+# GeoTrackers (geolocalización de flota — proxy a www.geotrackers.com.ar)
+api_router.include_router(
+    geotrackers.router,
+    prefix="/geotrackers",
+    tags=["Geolocalización"],
 )

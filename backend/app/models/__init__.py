@@ -148,6 +148,9 @@ from app.models.tesoreria import (
 # Configuración
 from app.models.configuracion_sistema import ConfiguracionSistema
 
+# Geolocalización (catálogo local sincronizado con GeoTrackers)
+from app.models.vehiculo import Vehiculo
+
 # Facturación
 from app.models.factura import (
     Factura,

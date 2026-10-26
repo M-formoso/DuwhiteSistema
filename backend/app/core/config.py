@@ -95,6 +95,12 @@ class Settings(BaseSettings):
         "mediante depósito o transferencia bancaria a la CBU informada por el emisor."
     )
 
+    # GeoTrackers (sistema de geolocalización de la flota de DUWHITE).
+    # La API key SIEMPRE va en el servidor — el frontend llama al proxy
+    # /api/v1/geotrackers/* que inyecta esta key en el header X-API-Key.
+    GEOTRACKERS_API_KEY: str = ""
+    GEOTRACKERS_BASE_URL: str = "https://www.geotrackers.com.ar/api/v1"
+
     # ARCA / AFIP - Facturación Electrónica (WSFEv1 + WSAA)
     AFIP_ENTORNO: str = "homologacion"  # "homologacion" | "produccion"
     # PV 2: "RECE para aplicativo y web services" en DUWHITE (PV 1 es Factura en Línea, no sirve para WS)

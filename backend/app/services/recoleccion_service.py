@@ -182,6 +182,7 @@ class RecoleccionService:
             creado_por_id=usuario_logueado_id,
             descripcion=f"Retiro iniciado por {repartidor.nombre_completo}",
             notas_internas=data.notas,
+            vehiculo_recoleccion_id=data.vehiculo_id,
         )
         self.db.add(lote)
         self.db.flush()

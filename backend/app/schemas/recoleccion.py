@@ -12,6 +12,11 @@ class IniciarRecoleccionRequest(BaseModel):
     repartidor_id: UUID = Field(..., description="ID del usuario que valida con PIN como recolector")
     pin: str = Field(..., min_length=4, max_length=6)
     notas: Optional[str] = None
+    # Opcional: vehículo de la flota (uuid local — ver /geotrackers/local).
+    # Permite ver en el mapa qué pedido está yendo a recolectar cada auto.
+    vehiculo_id: Optional[UUID] = Field(
+        None, description="ID local del vehículo asignado a la recolección",
+    )
 
 
 class IniciarRecoleccionResponse(BaseModel):
