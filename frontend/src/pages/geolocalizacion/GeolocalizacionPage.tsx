@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -172,6 +172,7 @@ function formatFechaCorta(fecha: string | null): string {
 export default function GeolocalizacionPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['gt-ubicaciones'],
@@ -197,6 +198,11 @@ export default function GeolocalizacionPage() {
         `Sincronizado:\n+ ${res.creados} nuevos\n~ ${res.actualizados} actualizados\n- ${res.desactivados} desactivados`,
       );
       refetch();
+      // Importante: invalidar queries de asignaciones (popups) y del
+      // catalogo local (selectores). Si no, el popup del marker sigue
+      // diciendo "no sincronizado" aunque acabamos de sincronizar.
+      queryClient.invalidateQueries({ queryKey: ['gt-asignaciones'] });
+      queryClient.invalidateQueries({ queryKey: ['gt-vehiculos-locales'] });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al sincronizar';
       alert(msg);
