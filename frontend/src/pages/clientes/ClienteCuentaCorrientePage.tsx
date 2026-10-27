@@ -802,7 +802,13 @@ export default function ClienteCuentaCorrientePage() {
       </div>
 
       {/* Cards del mes en curso (fijas, no dependen del filtro) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          estadoCuenta?.frecuencia_cobro && estadoCuenta.frecuencia_cobro !== 'mensual'
+            ? 'md:grid-cols-4'
+            : 'md:grid-cols-3'
+        }`}
+      >
         <Card className={(estadoCuenta?.deuda_vencida || 0) > 0 ? 'border-red-300 bg-red-50/40' : ''}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -845,6 +851,66 @@ export default function ClienteCuentaCorrientePage() {
             </div>
           </CardContent>
         </Card>
+
+        {estadoCuenta?.frecuencia_cobro && estadoCuenta.frecuencia_cobro !== 'mensual' && (() => {
+          const pendiente = Number(estadoCuenta?.pendiente_periodo || 0);
+          const excedente = Number(estadoCuenta?.excedente_periodo || 0);
+          const consumo = Number(estadoCuenta?.consumo_periodo || 0);
+          const pagos = Number(estadoCuenta?.pagos_periodo || 0);
+          const label =
+            estadoCuenta.frecuencia_cobro === 'diaria'
+              ? 'Pendiente del día'
+              : 'Pendiente de la semana';
+          const rango =
+            estadoCuenta.periodo_inicio && estadoCuenta.periodo_fin
+              ? estadoCuenta.frecuencia_cobro === 'diaria'
+                ? `Hoy ${formatDate(estadoCuenta.periodo_fin)}`
+                : `Del ${formatDate(estadoCuenta.periodo_inicio)} al ${formatDate(estadoCuenta.periodo_fin)}`
+              : '';
+          const borde =
+            pendiente > 0
+              ? 'border-amber-300 bg-amber-50/40'
+              : excedente > 0
+              ? 'border-green-300 bg-green-50/40'
+              : '';
+          return (
+            <Card className={borde}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">{label}</p>
+                    <p
+                      className={`text-2xl font-bold ${
+                        pendiente > 0
+                          ? 'text-amber-600'
+                          : excedente > 0
+                          ? 'text-green-600'
+                          : 'text-gray-700'
+                      }`}
+                    >
+                      {formatNumber(pendiente > 0 ? pendiente : excedente, 'currency')}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {rango}
+                      {rango ? ' · ' : ''}
+                      Consumo {formatNumber(consumo, 'currency')} − Pagos {formatNumber(pagos, 'currency')}
+                      {excedente > 0 && pendiente === 0 ? ' (excedente a favor)' : ''}
+                    </p>
+                  </div>
+                  <CalendarRange
+                    className={`h-10 w-10 ${
+                      pendiente > 0
+                        ? 'text-amber-200'
+                        : excedente > 0
+                        ? 'text-green-300'
+                        : 'text-gray-200'
+                    }`}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {(() => {
           const adeudado = Number(estadoCuenta?.total_adeudado || 0);

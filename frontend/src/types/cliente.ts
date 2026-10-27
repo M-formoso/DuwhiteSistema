@@ -9,6 +9,7 @@ export type EstadoPedido = 'borrador' | 'confirmado' | 'en_proceso' | 'listo' | 
 export type TipoEntrega = 'retiro_local' | 'delivery' | 'envio';
 export type TipoMovimientoCC = 'cargo' | 'pago' | 'ajuste';
 export type MedioPago = 'efectivo' | 'transferencia' | 'tarjeta_debito' | 'tarjeta_credito' | 'cheque' | 'mercado_pago' | 'cuenta_corriente' | 'otro';
+export type FrecuenciaCobro = 'mensual' | 'semanal' | 'diaria';
 
 // Cliente
 export interface Cliente {
@@ -37,6 +38,8 @@ export interface Cliente {
   horario_retiro_preferido: string | null;
   requiere_factura: boolean;
   enviar_notificaciones: boolean;
+  frecuencia_cobro: FrecuenciaCobro;
+  dia_corte_semana: number;
   fecha_alta: string | null;
   fecha_ultima_compra: string | null;
   notas: string | null;
@@ -61,6 +64,7 @@ export interface ClienteList {
   telefono: string | null;
   ciudad: string | null;
   saldo_cuenta_corriente: number;
+  frecuencia_cobro?: FrecuenciaCobro;
   activo: boolean;
   tiene_deuda: boolean;
   lista_precios_id?: string | null;
@@ -89,6 +93,8 @@ export interface ClienteCreate {
   horario_retiro_preferido?: string | null;
   requiere_factura?: boolean;
   enviar_notificaciones?: boolean;
+  frecuencia_cobro?: FrecuenciaCobro;
+  dia_corte_semana?: number;
   notas?: string | null;
   notas_internas?: string | null;
 }
@@ -265,6 +271,15 @@ export interface EstadoCuenta {
   filtro_periodo?: boolean;
   fecha_desde?: string | null;
   fecha_hasta?: string | null;
+  // Período según la frecuencia de cobro del cliente (ver backend).
+  frecuencia_cobro?: FrecuenciaCobro;
+  dia_corte_semana?: number;
+  periodo_inicio?: string;
+  periodo_fin?: string;
+  consumo_periodo?: number;
+  pagos_periodo?: number;
+  pendiente_periodo?: number;
+  excedente_periodo?: number;
 }
 
 export interface RegistrarPagoRequest {
@@ -339,4 +354,20 @@ export const MEDIOS_PAGO = [
   { value: 'mercado_pago', label: 'Mercado Pago' },
   { value: 'cuenta_corriente', label: 'Cuenta Corriente' },
   { value: 'otro', label: 'Otro' },
+];
+
+export const FRECUENCIAS_COBRO: { value: FrecuenciaCobro; label: string }[] = [
+  { value: 'mensual', label: 'Mensual (cierre fin de mes)' },
+  { value: 'semanal', label: 'Semanal' },
+  { value: 'diaria', label: 'Diaria / por entrega' },
+];
+
+export const DIAS_SEMANA = [
+  { value: 0, label: 'Lunes' },
+  { value: 1, label: 'Martes' },
+  { value: 2, label: 'Miércoles' },
+  { value: 3, label: 'Jueves' },
+  { value: 4, label: 'Viernes' },
+  { value: 5, label: 'Sábado' },
+  { value: 6, label: 'Domingo' },
 ];

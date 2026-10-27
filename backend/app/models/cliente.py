@@ -31,6 +31,18 @@ class CondicionIVA(str, Enum):
     NO_RESPONSABLE = "no_responsable"
 
 
+class FrecuenciaCobro(str, Enum):
+    """Frecuencia con la que el cliente paga su consumo.
+
+    - MENSUAL: facturación tradicional, cierre a fin de mes.
+    - SEMANAL: paga en el período de la semana.
+    - DIARIA: paga por entrega (período = el día).
+    """
+    MENSUAL = "mensual"
+    SEMANAL = "semanal"
+    DIARIA = "diaria"
+
+
 class Cliente(Base, BaseModelMixin):
     """
     Modelo de Cliente.
@@ -75,6 +87,14 @@ class Cliente(Base, BaseModelMixin):
 
     # Estado de cuenta
     saldo_cuenta_corriente = Column(Numeric(12, 2), nullable=False, default=0)
+    frecuencia_cobro = Column(
+        String(20),
+        nullable=False,
+        default=FrecuenciaCobro.MENSUAL.value,
+        server_default=FrecuenciaCobro.MENSUAL.value,
+    )
+    # Day of week when the weekly period starts (0=Monday ... 6=Sunday).
+    dia_corte_semana = Column(Integer, nullable=False, default=0, server_default="0")
 
     # Preferencias
     dia_retiro_preferido = Column(String(20), nullable=True)  # lunes, martes, etc.

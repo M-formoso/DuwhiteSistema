@@ -27,8 +27,13 @@ import { useToast } from '@/hooks/use-toast';
 
 import { clienteService } from '@/services/clienteService';
 import { listaPreciosService } from '@/services/servicioService';
-import { TIPOS_CLIENTE, CONDICIONES_IVA } from '@/types/cliente';
-import type { ClienteCreate } from '@/types/cliente';
+import {
+  TIPOS_CLIENTE,
+  CONDICIONES_IVA,
+  FRECUENCIAS_COBRO,
+  DIAS_SEMANA,
+} from '@/types/cliente';
+import type { ClienteCreate, FrecuenciaCobro } from '@/types/cliente';
 
 const clienteSchema = z.object({
   tipo: z.string().default('particular'),
@@ -58,6 +63,8 @@ const clienteSchema = z.object({
   horario_retiro_preferido: z.string().nullable().optional(),
   requiere_factura: z.boolean().default(false),
   enviar_notificaciones: z.boolean().default(true),
+  frecuencia_cobro: z.enum(['mensual', 'semanal', 'diaria']).default('mensual'),
+  dia_corte_semana: z.coerce.number().int().min(0).max(6).default(0),
   notas: z.string().nullable().optional(),
   notas_internas: z.string().nullable().optional(),
 });
@@ -86,6 +93,8 @@ export default function ClienteFormPage() {
       provincia: 'Córdoba',
       requiere_factura: false,
       enviar_notificaciones: true,
+      frecuencia_cobro: 'mensual',
+      dia_corte_semana: 0,
     },
   });
 
@@ -127,6 +136,8 @@ export default function ClienteFormPage() {
         horario_retiro_preferido: cliente.horario_retiro_preferido,
         requiere_factura: cliente.requiere_factura,
         enviar_notificaciones: cliente.enviar_notificaciones,
+        frecuencia_cobro: (cliente.frecuencia_cobro ?? 'mensual') as FrecuenciaCobro,
+        dia_corte_semana: cliente.dia_corte_semana ?? 0,
         notas: cliente.notas,
         notas_internas: cliente.notas_internas,
       });
@@ -437,6 +448,58 @@ export default function ClienteFormPage() {
                   {...register('dias_credito')}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="frecuencia_cobro">Modalidad de cobro *</Label>
+                <Select
+                  value={watch('frecuencia_cobro') || 'mensual'}
+                  onValueChange={(v) =>
+                    setValue('frecuencia_cobro', v as FrecuenciaCobro, { shouldDirty: true })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FRECUENCIAS_COBRO.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Mensual: cierre a fin de mes. Semanal/Diaria: muestra "pendiente del período" y cada pago se descuenta del consumo en curso.
+                </p>
+              </div>
+
+              {watch('frecuencia_cobro') === 'semanal' && (
+                <div className="space-y-2">
+                  <Label htmlFor="dia_corte_semana">Día de corte de la semana</Label>
+                  <Select
+                    value={String(watch('dia_corte_semana') ?? 0)}
+                    onValueChange={(v) =>
+                      setValue('dia_corte_semana', Number(v), { shouldDirty: true })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DIAS_SEMANA.map((d) => (
+                        <SelectItem key={d.value} value={String(d.value)}>
+                          {d.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Qué día arranca cada período semanal (default: lunes).
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

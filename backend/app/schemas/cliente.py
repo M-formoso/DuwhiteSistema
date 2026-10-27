@@ -53,6 +53,8 @@ class ClienteBase(BaseModel):
     horario_retiro_preferido: Optional[str] = None
     requiere_factura: bool = False
     enviar_notificaciones: bool = True
+    frecuencia_cobro: str = "mensual"
+    dia_corte_semana: int = Field(default=0, ge=0, le=6)
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
 
@@ -60,6 +62,13 @@ class ClienteBase(BaseModel):
     @classmethod
     def _cuit_format(cls, v: Optional[str]) -> Optional[str]:
         return _validar_cuit_opcional(v)
+
+    @field_validator("frecuencia_cobro")
+    @classmethod
+    def _frecuencia_valida(cls, v: str) -> str:
+        if v not in {"mensual", "semanal", "diaria"}:
+            raise ValueError("frecuencia_cobro debe ser mensual, semanal o diaria")
+        return v
 
 
 class ClienteCreate(ClienteBase):
@@ -93,6 +102,8 @@ class ClienteUpdate(BaseModel):
     horario_retiro_preferido: Optional[str] = None
     requiere_factura: Optional[bool] = None
     enviar_notificaciones: Optional[bool] = None
+    frecuencia_cobro: Optional[str] = None
+    dia_corte_semana: Optional[int] = Field(default=None, ge=0, le=6)
     notas: Optional[str] = None
     notas_internas: Optional[str] = None
     activo: Optional[bool] = None
@@ -101,6 +112,15 @@ class ClienteUpdate(BaseModel):
     @classmethod
     def _cuit_format(cls, v: Optional[str]) -> Optional[str]:
         return _validar_cuit_opcional(v)
+
+    @field_validator("frecuencia_cobro")
+    @classmethod
+    def _frecuencia_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in {"mensual", "semanal", "diaria"}:
+            raise ValueError("frecuencia_cobro debe ser mensual, semanal o diaria")
+        return v
 
 
 class ClienteResponse(ClienteBase):
@@ -140,6 +160,7 @@ class ClienteList(BaseModel):
     telefono: Optional[str] = None
     ciudad: Optional[str] = None
     saldo_cuenta_corriente: Decimal
+    frecuencia_cobro: str = "mensual"
     activo: bool
     tiene_deuda: bool
     titular_fiscal_id: Optional[str] = None
@@ -178,4 +199,10 @@ CONDICIONES_IVA = [
     {"value": "exento", "label": "Exento"},
     {"value": "consumidor_final", "label": "Consumidor Final"},
     {"value": "no_responsable", "label": "No Responsable"},
+]
+
+FRECUENCIAS_COBRO = [
+    {"value": "mensual", "label": "Mensual (cierre fin de mes)"},
+    {"value": "semanal", "label": "Semanal"},
+    {"value": "diaria", "label": "Diaria / por entrega"},
 ]

@@ -2,7 +2,7 @@
 Servicio de Clientes.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, List, Tuple
 from uuid import UUID, uuid4
@@ -1413,6 +1413,103 @@ class ClienteService:
         saldo_cliente = Decimal(cliente.saldo_cuenta_corriente or 0)
         total_adeudado = saldo_cliente if saldo_cliente > 0 else Decimal("0")
 
+        # Período según la frecuencia de cobro del cliente.
+        # Para clientes "mensual" el período coincide con el mes en curso;
+        # para "semanal" arranca el día_corte_semana de esta semana; para
+        # "diaria" el período es solo hoy. Nos sirve para mostrar
+        # "pendiente del período" en hoteles que pagan por entrega.
+        frecuencia = (cliente.frecuencia_cobro or "mensual").lower()
+        dia_corte = int(cliente.dia_corte_semana or 0)
+        if frecuencia == "diaria":
+            periodo_inicio = hoy
+            periodo_fin = hoy
+        elif frecuencia == "semanal":
+            # weekday(): lunes=0 ... domingo=6
+            offset = (hoy.weekday() - dia_corte) % 7
+            periodo_inicio = hoy - timedelta(days=offset)
+            periodo_fin = hoy
+        else:
+            periodo_inicio = primer_dia_mes
+            periodo_fin = hoy
+
+        cargos_periodo = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.CARGO.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= periodo_inicio,
+                MovimientoCuentaCorriente.fecha_movimiento <= periodo_fin,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        ajustes_positivos_periodo = (
+            self.db.query(
+                func.sum(
+                    case(
+                        (
+                            MovimientoCuentaCorriente.saldo_posterior
+                            > MovimientoCuentaCorriente.saldo_anterior,
+                            MovimientoCuentaCorriente.saldo_posterior
+                            - MovimientoCuentaCorriente.saldo_anterior,
+                        ),
+                        else_=0,
+                    )
+                )
+            )
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.AJUSTE.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= periodo_inicio,
+                MovimientoCuentaCorriente.fecha_movimiento <= periodo_fin,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        pagos_periodo_raw = (
+            self.db.query(func.sum(MovimientoCuentaCorriente.monto))
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.PAGO.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= periodo_inicio,
+                MovimientoCuentaCorriente.fecha_movimiento <= periodo_fin,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+        ajustes_negativos_periodo = (
+            self.db.query(
+                func.sum(
+                    case(
+                        (
+                            MovimientoCuentaCorriente.saldo_posterior
+                            < MovimientoCuentaCorriente.saldo_anterior,
+                            MovimientoCuentaCorriente.saldo_anterior
+                            - MovimientoCuentaCorriente.saldo_posterior,
+                        ),
+                        else_=0,
+                    )
+                )
+            )
+            .filter(
+                MovimientoCuentaCorriente.cliente_id == cliente_id,
+                MovimientoCuentaCorriente.tipo == TipoMovimientoCC.AJUSTE.value,
+                MovimientoCuentaCorriente.fecha_movimiento >= periodo_inicio,
+                MovimientoCuentaCorriente.fecha_movimiento <= periodo_fin,
+                MovimientoCuentaCorriente.activo == True,
+            )
+            .scalar()
+            or Decimal("0")
+        )
+
+        consumo_periodo = cargos_periodo + ajustes_positivos_periodo
+        pagos_periodo = pagos_periodo_raw + ajustes_negativos_periodo
+        pendiente_periodo = max(Decimal("0"), consumo_periodo - pagos_periodo)
+        excedente_periodo = max(Decimal("0"), pagos_periodo - consumo_periodo)
+
         # Cierre del desglose facturado / sin facturar (sin filtro):
         # el total_facturado se acota al total_adeudado para que ambas cards
         # sumen exactamente el saldo actual (no se muestran negativos ni
@@ -1454,6 +1551,18 @@ class ClienteService:
             "total_adeudado": total_adeudado,
             "mes_actual_desde": primer_dia_mes.isoformat(),
             "mes_actual_hasta": hoy.isoformat(),
+            # Período según la frecuencia de cobro del cliente.
+            # En "mensual" coincide con mes_actual_* y pendiente_periodo
+            # ≈ consumo_mes_actual. En "semanal"/"diaria" apunta a la
+            # semana/día en curso para hoteles que pagan por entrega.
+            "frecuencia_cobro": frecuencia,
+            "dia_corte_semana": dia_corte,
+            "periodo_inicio": periodo_inicio.isoformat(),
+            "periodo_fin": periodo_fin.isoformat(),
+            "consumo_periodo": consumo_periodo,
+            "pagos_periodo": pagos_periodo,
+            "pendiente_periodo": pendiente_periodo,
+            "excedente_periodo": excedente_periodo,
         }
 
     def _generar_numero_recibo(self) -> str:
