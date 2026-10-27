@@ -58,6 +58,31 @@ export interface MisProductosEntregadosResponse {
   total_subtotal: number;
 }
 
+export interface SeguimientoRemitoVehiculo {
+  id: string;
+  patente: string;
+  nombre: string | null;
+}
+
+export interface SeguimientoRemitoUbicacion {
+  lat: number;
+  lng: number;
+  velocidad: number | null;
+  fecha: string | null;
+  direccion: string | null;
+}
+
+export interface SeguimientoRemitoResponse {
+  remito_id: string;
+  remito_numero: string;
+  estado: string;
+  fecha_emision: string | null;
+  fecha_entrega: string | null;
+  vehiculo: SeguimientoRemitoVehiculo | null;
+  ubicacion: SeguimientoRemitoUbicacion | null;
+  mensaje: string | null;
+}
+
 export const remitoService = {
   /**
    * Lista remitos con filtros
@@ -151,6 +176,16 @@ export const remitoService = {
     fecha_hasta?: string;
   }): Promise<MisProductosEntregadosResponse> {
     const response = await api.get(`${BASE_URL}/mis-productos-entregados`, { params });
+    return response.data;
+  },
+
+  /**
+   * Portal cliente: posición actual del vehículo que lleva el remito del
+   * cliente logueado. Devuelve ubicacion=null si el remito no está en
+   * tránsito o si todavía no tiene vehículo asignado.
+   */
+  async getSeguimientoMiRemito(remitoId: string): Promise<SeguimientoRemitoResponse> {
+    const response = await api.get(`${BASE_URL}/mis-remitos/${remitoId}/seguimiento`);
     return response.data;
   },
 

@@ -313,6 +313,107 @@ def obtener_mi_remito(
     return _serializar_remito_para_portal(remito)
 
 
+@router.get("/mis-remitos/{remito_id}/seguimiento")
+def obtener_seguimiento_mi_remito(
+    remito_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Seguimiento del remito propio: posición actual del vehículo que lo lleva.
+
+    Devuelve estado del remito + info del vehículo + última posición GPS
+    (si el remito está en estado EMITIDO con un vehículo asignado). Si el
+    remito ya fue entregado o no tiene vehículo asignado, ``vehiculo`` y
+    ``ubicacion`` vienen en ``null`` y el frontend muestra el mensaje
+    correspondiente.
+
+    Validamos que el remito pertenezca al cliente logueado — devolvemos 404
+    (no 403) si no coincide, para no filtrar la existencia del remito.
+    """
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+
+    from sqlalchemy.orm import joinedload
+    from app.models.remito import Remito
+    from app.integrations.geotrackers import client as gt_client
+    from app.integrations.geotrackers.client import GeoTrackersError
+
+    remito = (
+        db.query(Remito)
+        .options(joinedload(Remito.vehiculo))
+        .filter(Remito.id == remito_id, Remito.activo == True)
+        .first()
+    )
+    if not remito or remito.cliente_id != current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Remito no encontrado",
+        )
+
+    base = {
+        "remito_id": str(remito.id),
+        "remito_numero": remito.numero,
+        "estado": remito.estado,
+        "fecha_emision": remito.fecha_emision.isoformat() if remito.fecha_emision else None,
+        "fecha_entrega": remito.fecha_entrega.isoformat() if remito.fecha_entrega else None,
+        "vehiculo": None,
+        "ubicacion": None,
+        "mensaje": None,
+    }
+
+    # Solo tiene sentido mostrar seguimiento si el remito está EN TRÁNSITO
+    # (emitido). Entregado = ya llegó; borrador/anulado = no corresponde.
+    if remito.estado != "emitido":
+        if remito.estado == "entregado":
+            base["mensaje"] = "El remito ya fue entregado."
+        elif remito.estado == "anulado":
+            base["mensaje"] = "El remito fue anulado."
+        else:
+            base["mensaje"] = "El remito todavía no fue emitido."
+        return base
+
+    if not remito.vehiculo_id or not remito.vehiculo:
+        base["mensaje"] = "El pedido todavía no tiene un vehículo asignado."
+        return base
+
+    base["vehiculo"] = {
+        "id": str(remito.vehiculo.id),
+        "patente": remito.vehiculo.patente,
+        "nombre": remito.vehiculo.nombre,
+    }
+
+    # Pedimos la última ubicación al proveedor. Si falla no rompemos la vista:
+    # devolvemos vehículo sin coords y un mensaje claro para que el frontend
+    # muestre "sin señal" en lugar de un error rojo.
+    try:
+        payload = gt_client.ubicacion_dispositivo(remito.vehiculo.geotrackers_id)
+    except GeoTrackersError as exc:
+        base["mensaje"] = (
+            "No se pudo obtener la ubicación en vivo del vehículo. Reintentá en unos segundos."
+        )
+        return base
+
+    data = payload.get("data") or {}
+    lat = data.get("latitud") or data.get("lat")
+    lng = data.get("longitud") or data.get("lng") or data.get("lon")
+    if lat is None or lng is None:
+        base["mensaje"] = "El vehículo todavía no reporta posición GPS."
+        return base
+
+    base["ubicacion"] = {
+        "lat": float(lat),
+        "lng": float(lng),
+        "velocidad": data.get("velocidad"),
+        "fecha": data.get("fecha") or data.get("timestamp"),
+        "direccion": data.get("direccion"),
+    }
+    return base
+
+
 @router.get("/{remito_id}", response_model=RemitoResponse)
 def obtener_remito(
     remito_id: UUID,
