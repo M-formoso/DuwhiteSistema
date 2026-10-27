@@ -129,6 +129,9 @@ def listar_remitos(
             facturado=r.id in fact_map,
             factura_id=fact_map.get(r.id, (None, None))[0],
             factura_numero=fact_map.get(r.id, (None, None))[1],
+            vehiculo_id=r.vehiculo_id,
+            vehiculo_patente=r.vehiculo.patente if r.vehiculo else None,
+            vehiculo_nombre=r.vehiculo.nombre if r.vehiculo else None,
         )
         for r in remitos
     ]
@@ -516,6 +519,65 @@ def marcar_remito_entregado(
         "remito_id": remito.id,
         "estado": remito.estado,
         "fecha_entrega": remito.fecha_entrega
+    }
+
+
+from pydantic import BaseModel as _PydanticBaseModel
+
+
+class _AsignarVehiculoRequest(_PydanticBaseModel):
+    """Body para PATCH /remitos/{id}/vehiculo."""
+    vehiculo_id: Optional[UUID] = None  # None = desvincular
+
+
+@router.patch("/{remito_id}/vehiculo")
+def asignar_vehiculo_remito(
+    remito_id: UUID,
+    request: _AsignarVehiculoRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador"))
+):
+    """
+    Asigna, cambia o quita el vehículo que hace la entrega de un remito.
+
+    - Si ``vehiculo_id`` viene con un UUID → se asigna o reemplaza.
+    - Si viene ``null`` → se desvincula (el remito pasa a no tener auto).
+
+    No permite reasignar remitos ya ENTREGADOS o ANULADOS.
+    """
+    from app.models.remito import Remito, EstadoRemito
+    from app.models.vehiculo import Vehiculo
+
+    remito = db.query(Remito).filter(Remito.id == remito_id, Remito.activo == True).first()
+    if not remito:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Remito no encontrado")
+
+    if remito.estado in (EstadoRemito.ENTREGADO.value, EstadoRemito.ANULADO.value):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"No se puede cambiar el vehículo de un remito en estado {remito.estado}",
+        )
+
+    if request.vehiculo_id is not None:
+        vehiculo = (
+            db.query(Vehiculo)
+            .filter(Vehiculo.id == request.vehiculo_id, Vehiculo.activo == True)
+            .first()
+        )
+        if not vehiculo:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "Vehículo no encontrado o inactivo",
+            )
+
+    remito.vehiculo_id = request.vehiculo_id
+    db.commit()
+    db.refresh(remito)
+
+    return {
+        "mensaje": "Vehículo actualizado",
+        "remito_id": str(remito.id),
+        "vehiculo_id": str(remito.vehiculo_id) if remito.vehiculo_id else None,
     }
 
 

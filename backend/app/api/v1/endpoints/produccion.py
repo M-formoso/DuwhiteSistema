@@ -1056,6 +1056,71 @@ def revertir_ultima_accion_lote(
     return result
 
 
+from pydantic import BaseModel as _PydanticBaseModelProd
+
+
+class _AsignarVehiculoLoteRequest(_PydanticBaseModelProd):
+    """Body para PATCH /produccion/lotes/{id}/vehiculo-recoleccion."""
+    vehiculo_id: Optional[UUID] = None  # None = desvincular
+
+
+@router.patch("/lotes/{lote_id}/vehiculo-recoleccion")
+def asignar_vehiculo_recoleccion_lote(
+    lote_id: UUID,
+    request: _AsignarVehiculoLoteRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador"))
+):
+    """
+    Asigna, cambia o quita el vehículo que hizo (o va a hacer) la
+    recolección de este lote.
+
+    - Si ``vehiculo_id`` viene con un UUID → se asigna o reemplaza.
+    - Si viene ``null`` → se desvincula.
+
+    No permite reasignar lotes ya completados o cancelados — en ese caso
+    el vehículo quedó como registro histórico de qué auto trajo la ropa y
+    no tiene sentido cambiarlo.
+    """
+    from app.models.lote_produccion import LoteProduccion, EstadoLote
+    from app.models.vehiculo import Vehiculo
+
+    lote = (
+        db.query(LoteProduccion)
+        .filter(LoteProduccion.id == lote_id, LoteProduccion.activo == True)
+        .first()
+    )
+    if not lote:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lote no encontrado")
+
+    if lote.estado in (EstadoLote.COMPLETADO.value,):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "No se puede cambiar el vehículo de un lote ya completado",
+        )
+
+    if request.vehiculo_id is not None:
+        vehiculo = (
+            db.query(Vehiculo)
+            .filter(Vehiculo.id == request.vehiculo_id, Vehiculo.activo == True)
+            .first()
+        )
+        if not vehiculo:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "Vehículo no encontrado o inactivo",
+            )
+
+    lote.vehiculo_recoleccion_id = request.vehiculo_id
+    db.commit()
+    db.refresh(lote)
+
+    return {
+        "mensaje": "Vehículo de recolección actualizado",
+        "lote_id": str(lote.id),
+        "vehiculo_id": str(lote.vehiculo_recoleccion_id) if lote.vehiculo_recoleccion_id else None,
+    }
+
+
 @router.post("/lotes/{lote_id}/estado", response_model=MessageResponse)
 def cambiar_estado_lote(
     lote_id: UUID,

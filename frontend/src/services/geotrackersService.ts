@@ -68,6 +68,22 @@ export const geotrackersService = {
     const r = await api.get(`/geotrackers/vehiculos/${geotrackersId}/asignaciones`);
     return r.data;
   },
+
+  /** Reasigna el vehículo de recolección de un lote (pasa null para desvincular). */
+  async asignarVehiculoLote(loteId: string, vehiculoId: string | null) {
+    const r = await api.patch(`/produccion/lotes/${loteId}/vehiculo-recoleccion`, {
+      vehiculo_id: vehiculoId,
+    });
+    return r.data as { mensaje: string; lote_id: string; vehiculo_id: string | null };
+  },
+
+  /** Reasigna el vehículo de entrega de un remito (pasa null para desvincular). */
+  async asignarVehiculoRemito(remitoId: string, vehiculoId: string | null) {
+    const r = await api.patch(`/remitos/${remitoId}/vehiculo`, {
+      vehiculo_id: vehiculoId,
+    });
+    return r.data as { mensaje: string; remito_id: string; vehiculo_id: string | null };
+  },
 };
 
 export default geotrackersService;

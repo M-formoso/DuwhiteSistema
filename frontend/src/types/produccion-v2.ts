@@ -196,6 +196,9 @@ export interface RemitoListItem {
   facturado?: boolean;
   factura_id?: string | null;
   factura_numero?: string | null;
+  vehiculo_id?: string | null;
+  vehiculo_patente?: string | null;
+  vehiculo_nombre?: string | null;
 }
 
 export interface DetalleRemitoCreate {

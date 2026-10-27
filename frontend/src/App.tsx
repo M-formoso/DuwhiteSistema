@@ -36,6 +36,7 @@ import ConteoFinalizacionPage from '@/pages/produccion/ConteoFinalizacionPage';
 import EstadoRecursosPage from '@/pages/produccion/EstadoRecursosPage';
 import RecoleccionPage from '@/pages/recoleccion/RecoleccionPage';
 import GeolocalizacionPage from '@/pages/geolocalizacion/GeolocalizacionPage';
+import EntregasEnCursoPage from '@/pages/entregas/EntregasEnCursoPage';
 import RemitoManualPage from '@/pages/remitos/RemitoManualPage';
 
 // Clientes
@@ -177,6 +178,9 @@ function App() {
 
         {/* Geolocalización — mapa en vivo de la flota (GeoTrackers) */}
         <Route path="/geolocalizacion" element={<GeolocalizacionPage />} />
+
+        {/* Entregas en curso — remitos emitidos pendientes de entrega */}
+        <Route path="/entregas" element={<EntregasEnCursoPage />} />
 
         {/* Remito manual (sin flujo de producción) */}
         <Route path="/remitos/manual" element={<RemitoManualPage />} />

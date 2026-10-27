@@ -119,6 +119,12 @@ const navSectionsInternal: NavSection[] = [
         icon: MapPin,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial'],
       },
+      {
+        title: 'Entregas en curso',
+        href: '/entregas',
+        icon: Receipt,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'operador'],
+      },
     ],
   },
   {

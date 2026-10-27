@@ -308,17 +308,17 @@ def obtener_asignaciones_vehiculo(
         .all()
     )
 
-    # ENTREGAS — remitos con este vehículo asignado, aún no entregados
+    # ENTREGAS — remitos emitidos (= EN tránsito) con este vehículo asignado.
+    # Al marcar un remito como ENTREGADO desaparece del popup del mapa, que
+    # es exactamente la expectativa del operador: "este auto deja de llevar
+    # el pedido en el momento que lo entrega".
     entregas_q = (
         db.query(Remito)
         .options(joinedload(Remito.cliente))
         .filter(
             Remito.vehiculo_id == vehiculo.id,
             Remito.activo == True,
-            Remito.estado.in_([
-                EstadoRemito.EMITIDO.value,
-                EstadoRemito.ENTREGADO.value,
-            ]),
+            Remito.estado == EstadoRemito.EMITIDO.value,
         )
         .order_by(Remito.fecha_emision.desc())
         .limit(20)

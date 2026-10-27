@@ -79,6 +79,10 @@ class RemitoListResponse(BaseModel):
     facturado: bool = False
     factura_id: Optional[UUID] = None
     factura_numero: Optional[str] = None
+    # Vehículo asignado para la entrega (opcional).
+    vehiculo_id: Optional[UUID] = None
+    vehiculo_patente: Optional[str] = None
+    vehiculo_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True

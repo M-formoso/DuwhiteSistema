@@ -77,7 +77,13 @@ class RemitoService:
         limit: int = 50
     ) -> List[Remito]:
         """Obtiene remitos con filtros."""
-        query = db.query(Remito)
+        from sqlalchemy.orm import joinedload
+
+        query = db.query(Remito).options(
+            joinedload(Remito.cliente),
+            joinedload(Remito.lote),
+            joinedload(Remito.vehiculo),
+        )
 
         if solo_activos:
             query = query.filter(Remito.activo == True)
