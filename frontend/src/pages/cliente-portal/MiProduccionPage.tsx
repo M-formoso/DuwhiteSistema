@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Factory,
   Package,
@@ -22,6 +23,7 @@ import {
   AlertTriangle,
   Calendar,
   Filter,
+  MapPin,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -135,6 +137,18 @@ function LoteCardReadOnly({ lote, columna }: { lote: KanbanLote; columna: Kanban
           <span>Entrega: {formatearFecha(lote.fecha_compromiso)}</span>
         </div>
       )}
+
+      {/* "Ver seguimiento" lleva al mapa full-screen. El endpoint decide
+          qué vehículo mostrar (recolección / entrega / nada todavía) y la
+          página se encarga de los estados vacíos — por eso siempre
+          mostramos el botón, no filtramos acá por estado del lote. */}
+      <Link
+        to={`/mi-produccion/seguimiento/${lote.id}`}
+        className="mt-2 flex items-center justify-center gap-1 text-[11px] font-medium text-primary border border-primary/30 rounded-md px-2 py-1 hover:bg-primary/5 transition"
+      >
+        <MapPin className="h-3 w-3" />
+        Ver seguimiento
+      </Link>
     </div>
   );
 }

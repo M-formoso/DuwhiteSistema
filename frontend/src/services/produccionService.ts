@@ -96,6 +96,39 @@ export async function getMiHistorial(params?: {
   return response.data;
 }
 
+// Seguimiento del lote del cliente logueado. El backend decide qué fase
+// mostrar (recolección vs entrega) según el estado actual del lote.
+export interface SeguimientoLoteVehiculo {
+  id: string;
+  patente: string;
+  nombre: string | null;
+}
+
+export interface SeguimientoLoteUbicacion {
+  lat: number;
+  lng: number;
+  velocidad: number | null;
+  fecha: string | null;
+  direccion: string | null;
+}
+
+export interface SeguimientoLoteResponse {
+  lote_id: string;
+  lote_numero: string;
+  estado: string;
+  tipo_seguimiento: 'recoleccion' | 'entrega' | null;
+  vehiculo: SeguimientoLoteVehiculo | null;
+  ubicacion: SeguimientoLoteUbicacion | null;
+  mensaje: string | null;
+}
+
+export async function getSeguimientoMiLote(
+  loteId: string,
+): Promise<SeguimientoLoteResponse> {
+  const response = await api.get(`/produccion/mis-lotes/${loteId}/seguimiento`);
+  return response.data;
+}
+
 export interface PedidoEnCamino {
   id: string;
   numero: string;
@@ -548,6 +581,7 @@ export const produccionService = {
   // Portal cliente
   getMiKanban,
   getMiHistorial,
+  getSeguimientoMiLote,
 };
 
 export default produccionService;

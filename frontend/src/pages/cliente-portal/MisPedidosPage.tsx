@@ -15,8 +15,6 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  MapPin,
-  Truck,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -40,10 +38,7 @@ import {
 
 import { useAuthStore } from '@/stores/authStore';
 import { clienteService } from '@/services/clienteService';
-import { remitoService } from '@/services/remitoService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { formatDateAR } from '@/lib/utils';
-import { SeguimientoRemitoDialog } from '@/components/cliente-portal/SeguimientoRemitoDialog';
 
 const ESTADOS_PEDIDO = [
   { value: 'borrador', label: 'Borrador', color: 'secondary' },
@@ -86,7 +81,6 @@ export default function MisPedidosPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const [filtroEstado, setFiltroEstado] = useState<string>('');
-  const [seguimiento, setSeguimiento] = useState<{ id: string; numero: string } | null>(null);
   const vePrecios = user?.ve_precios !== false;
 
   // Cargar pedidos del cliente
@@ -102,18 +96,6 @@ export default function MisPedidosPage() {
   });
 
   const pedidos = pedidosData?.items || [];
-
-  // Remitos EMITIDOS = entregas en tránsito (todavía no entregadas).
-  // Se cargan desde el endpoint del portal cliente, que ya restringe por
-  // cliente logueado en el backend. Refresca cada 60s para captar nuevos
-  // remitos emitidos sin que el cliente tenga que recargar la página.
-  const { data: misRemitos = [] } = useQuery({
-    queryKey: ['mis-remitos-en-curso', user?.cliente_id],
-    queryFn: () => remitoService.getMisRemitos({ limit: 50 }),
-    enabled: !!user?.cliente_id,
-    refetchInterval: 60_000,
-  });
-  const entregasEnCurso = misRemitos.filter((r) => r.estado === 'emitido');
 
   // Calcular estadísticas
   const totalPedidos = pedidos.length;
@@ -186,56 +168,6 @@ export default function MisPedidosPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Entregas en curso — remitos ya emitidos, en camino hacia el cliente.
-          Cuando el logístico marca el remito como entregado desaparecen de
-          este bloque. El botón "Ver seguimiento" abre un mini mapa con la
-          posición del vehículo que lleva ese pedido en particular. */}
-      {entregasEnCurso.length > 0 && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Truck className="h-5 w-5 text-primary" />
-              Entregas en curso
-            </CardTitle>
-            <CardDescription>
-              Tus pedidos que ya salieron a entregarse. Hacé clic en "Ver seguimiento"
-              para ver dónde está el vehículo en vivo.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 md:grid-cols-2">
-              {entregasEnCurso.map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-lg border bg-white p-3 flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <div className="font-mono text-xs text-muted-foreground truncate">
-                      {r.numero}
-                    </div>
-                    <div className="text-sm font-medium">
-                      Emitido {formatDateAR(r.fecha_emision)}
-                    </div>
-                    {r.lote_numero && (
-                      <div className="text-xs text-muted-foreground">
-                        Lote {r.lote_numero}
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => setSeguimiento({ id: r.id, numero: r.numero })}
-                  >
-                    <MapPin className="h-4 w-4 mr-1" />
-                    Ver seguimiento
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filtros */}
       <Card>
@@ -331,14 +263,6 @@ export default function MisPedidosPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Modal con mini mapa de seguimiento del remito elegido */}
-      <SeguimientoRemitoDialog
-        open={!!seguimiento}
-        onOpenChange={(o) => !o && setSeguimiento(null)}
-        remitoId={seguimiento?.id ?? null}
-        remitoNumero={seguimiento?.numero}
-      />
     </div>
   );
 }

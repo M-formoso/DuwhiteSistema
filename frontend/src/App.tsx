@@ -79,7 +79,7 @@ import { PerfilPage } from '@/pages/perfil';
 import UsuariosPage from '@/pages/usuarios/UsuariosPage';
 
 // Portal Cliente
-import { MisPedidosPage, MiCuentaCorrientePage, MiProduccionPage } from '@/pages/cliente-portal';
+import { MisPedidosPage, MiCuentaCorrientePage, MiProduccionPage, MiSeguimientoPage } from '@/pages/cliente-portal';
 
 // Servicios y Listas de Precios
 import { ServiciosPage, ListaPreciosDetail, MatrizPreciosPage } from '@/pages/servicios';
@@ -266,6 +266,7 @@ function App() {
         <Route path="/mis-pedidos" element={<MisPedidosPage />} />
         <Route path="/mi-cuenta" element={<MiCuentaCorrientePage />} />
         <Route path="/mi-produccion" element={<MiProduccionPage />} />
+        <Route path="/mi-produccion/seguimiento/:loteId" element={<MiSeguimientoPage />} />
       </Route>
 
       {/* Página de acceso no autorizado */}

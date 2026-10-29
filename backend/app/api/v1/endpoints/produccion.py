@@ -211,6 +211,149 @@ def obtener_mi_historial(
     return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
+@router.get("/mis-lotes/{lote_id}/seguimiento")
+def obtener_seguimiento_mi_lote(
+    lote_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Seguimiento unificado del lote del cliente logueado.
+
+    Decide qué vehículo mostrar según en qué parte del flujo está el lote:
+    - EN_CAMINO + vehiculo_recoleccion → camioneta YENDO a buscar el pedido.
+    - Cualquier remito EMITIDO con vehiculo → camioneta ENTREGANDO el pedido.
+    - En otro caso → vehiculo/ubicacion en null + mensaje explicativo
+      ("está en la planta", "no hay vehículo asignado", etc.) para que el
+      frontend muestre un cartelito en vez de un error.
+
+    Devolvemos 404 (no 403) si el lote no es del cliente, para no filtrar
+    la existencia de otros lotes.
+    """
+    from sqlalchemy.orm import joinedload as _joinedload
+    from app.models.lote_produccion import LoteProduccion, EstadoLote
+    from app.models.remito import Remito, EstadoRemito
+    from app.integrations.geotrackers import client as gt_client
+    from app.integrations.geotrackers.client import GeoTrackersError
+
+    if current_user.rol != "cliente" or not current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint reservado para clientes",
+        )
+
+    lote = (
+        db.query(LoteProduccion)
+        .options(_joinedload(LoteProduccion.vehiculo_recoleccion))
+        .filter(LoteProduccion.id == lote_id, LoteProduccion.activo == True)
+        .first()
+    )
+    if not lote or lote.cliente_id != current_user.cliente_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lote no encontrado",
+        )
+
+    base = {
+        "lote_id": str(lote.id),
+        "lote_numero": lote.numero,
+        "estado": lote.estado,
+        "tipo_seguimiento": None,  # "recoleccion" | "entrega" | None
+        "vehiculo": None,
+        "ubicacion": None,
+        "mensaje": None,
+    }
+
+    # --- Decidir qué fase mostramos ---
+    vehiculo = None
+    tipo = None
+
+    # 1. Fase RECOLECCIÓN: lote todavía en camino hacia la planta.
+    if lote.estado == EstadoLote.EN_CAMINO.value and lote.vehiculo_recoleccion_id:
+        vehiculo = lote.vehiculo_recoleccion
+        tipo = "recoleccion"
+
+    # 2. Fase ENTREGA: si el lote generó un remito EMITIDO con vehículo
+    #    asignado, es la entrega al cliente. Tomamos el más reciente.
+    if vehiculo is None:
+        remito_entrega = (
+            db.query(Remito)
+            .options(_joinedload(Remito.vehiculo))
+            .filter(
+                Remito.lote_id == lote.id,
+                Remito.activo == True,
+                Remito.estado == EstadoRemito.EMITIDO.value,
+                Remito.vehiculo_id.isnot(None),
+            )
+            .order_by(Remito.fecha_emision.desc())
+            .first()
+        )
+        if remito_entrega:
+            vehiculo = remito_entrega.vehiculo
+            tipo = "entrega"
+
+    # --- Mensajes contextuales cuando no hay nada que trackear ---
+    if vehiculo is None:
+        if lote.estado == EstadoLote.EN_CAMINO.value:
+            base["mensaje"] = (
+                "Tu pedido está pendiente de recolección pero todavía no "
+                "hay un vehículo asignado."
+            )
+        elif lote.estado in (
+            EstadoLote.PENDIENTE.value,
+            EstadoLote.EN_PROCESO.value,
+            EstadoLote.PAUSADO.value,
+            EstadoLote.PARCIALMENTE_COMPLETADO.value,
+        ):
+            base["mensaje"] = (
+                "Tu pedido está en la planta siendo procesado. "
+                "El seguimiento del vehículo va a estar disponible cuando "
+                "salga a entregarse."
+            )
+        elif lote.estado == EstadoLote.COMPLETADO.value:
+            base["mensaje"] = (
+                "El pedido ya fue completado y entregado."
+            )
+        elif lote.estado == EstadoLote.CANCELADO.value:
+            base["mensaje"] = "El pedido fue cancelado."
+        else:
+            base["mensaje"] = "No hay vehículo asignado todavía."
+        return base
+
+    base["tipo_seguimiento"] = tipo
+    base["vehiculo"] = {
+        "id": str(vehiculo.id),
+        "patente": vehiculo.patente,
+        "nombre": vehiculo.nombre,
+    }
+
+    # --- Posición en vivo ---
+    try:
+        payload = gt_client.ubicacion_dispositivo(vehiculo.geotrackers_id)
+    except GeoTrackersError:
+        base["mensaje"] = (
+            "No pudimos obtener la ubicación en vivo del vehículo. "
+            "Reintentá en unos segundos."
+        )
+        return base
+
+    data = payload.get("data") or {}
+    lat = data.get("latitud") or data.get("lat")
+    lng = data.get("longitud") or data.get("lng") or data.get("lon")
+    if lat is None or lng is None:
+        base["mensaje"] = "El vehículo todavía no reporta posición GPS."
+        return base
+
+    base["ubicacion"] = {
+        "lat": float(lat),
+        "lng": float(lng),
+        "velocidad": data.get("velocidad"),
+        "fecha": data.get("fecha") or data.get("timestamp"),
+        "direccion": data.get("direccion"),
+    }
+    return base
+
+
 @router.get("/pedidos-en-camino", response_model=List[Dict[str, Any]])
 def obtener_pedidos_en_camino(
     db: Session = Depends(get_db),
