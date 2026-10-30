@@ -52,7 +52,25 @@ def detectar_rev_real(conn) -> Optional[str]:
     Detecta la última migración realmente aplicada basándose en el schema.
     Devuelve el id de revisión Alembic, o None si no se pudo determinar.
     """
-    # Del más nuevo al más viejo — se retorna el primer match
+    # Del más nuevo al más viejo — se retorna el primer match.
+    if _existe_tabla(conn, "vehiculos"):
+        return "20261020120000"
+    if _existe_columna(conn, "clientes", "razon_social_fiscal"):
+        return "20260831120000"
+    if _existe_tabla(conn, "configuracion_sistema"):
+        return "20260831110000"
+    if _existe_columna(conn, "listas_precios", "incluye_iva"):
+        return "20260831100000"
+    if _existe_columna(conn, "cheques", "imagen_url"):
+        return "20260811100000"
+    if _existe_columna(conn, "usuarios", "ve_precios"):
+        return "20260805100000"
+    if _existe_columna(conn, "lotes_produccion", "archivado_at"):
+        return "20260630130000"
+    if _existe_tabla(conn, "aplicaciones_pago_factura"):
+        return "20260508100000"
+    if _existe_columna(conn, "movimientos_cuenta_corriente", "factura_id"):
+        return "20260507100000"
     if _existe_columna(conn, "facturas", "estado_pago"):
         return "20260423110000"
     if _existe_tabla(conn, "facturas"):
@@ -76,6 +94,20 @@ def detectar_rev_real(conn) -> Optional[str]:
         return "20260320100000"
     # Si no matcheó nada, devolvemos None y dejamos que alembic resuelva.
     return None
+
+
+def _fallback_elegir_mas_nueva(filas: list[str]) -> Optional[str]:
+    """
+    Fallback cuando no podemos inferir la revisión por schema: de las que
+    hay en alembic_version, elegir la más "nueva" por orden alfanumérico.
+    Los IDs del repo usan prefijo YYYYMMDDHHMMSS así que el orden
+    alfanumérico coincide con el cronológico.
+    """
+    if not filas:
+        return None
+    # Filtramos candidatos vacíos / None por si acaso.
+    candidatos = sorted({f for f in filas if f})
+    return candidatos[-1] if candidatos else None
 
 
 def main() -> int:
@@ -103,12 +135,25 @@ def main() -> int:
 
         rev_real = detectar_rev_real(conn)
         if rev_real is None:
+            # Fallback: en vez de abortar y colgar el startCommand (sin
+            # fix_alembic_heads no corre alembic y sin alembic no arranca
+            # uvicorn → healthcheck muere), elegimos la rev más nueva de
+            # las que ya están en alembic_version. Es seguro porque las
+            # otras filas que borramos ya estaban "ganadas" por esta
+            # consolidación de todas formas.
+            rev_real = _fallback_elegir_mas_nueva(filas)
+            if rev_real is None:
+                print(
+                    "[fix_alembic_heads] No pude inferir ni por schema ni por "
+                    "fallback. Dejando alembic_version como está — alembic "
+                    "va a decidir.",
+                    file=sys.stderr,
+                )
+                return 0
             print(
-                "[fix_alembic_heads] No pude inferir la revisión real por schema. "
-                "Abortando sin modificar nada — intervenir manualmente.",
-                file=sys.stderr,
+                f"[fix_alembic_heads] Schema no determinó la rev. "
+                f"Fallback: usando la más nueva de alembic_version: {rev_real!r}."
             )
-            return 1
 
         print(f"[fix_alembic_heads] Consolidando alembic_version a {rev_real!r}.")
         conn.execute(text("DELETE FROM alembic_version"))

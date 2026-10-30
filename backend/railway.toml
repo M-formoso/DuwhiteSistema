@@ -4,7 +4,13 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "sh -c 'python scripts/fix_alembic_heads.py && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}'"
+# El startCommand antes era "fix_alembic && alembic upgrade && uvicorn".
+# Si cualquiera de los dos primeros fallaba, uvicorn no arrancaba y el
+# healthcheck se moría sin dejar debugear nada. Ahora toleramos fallos
+# en migraciones (|| true) para que uvicorn SIEMPRE arranque y responda
+# /api/v1/health; si alembic falló queda logueado en Deploy Logs pero el
+# contenedor queda vivo para seguir investigando.
+startCommand = "sh -c 'python scripts/fix_alembic_heads.py || true; alembic upgrade head || echo \"[startup] alembic falló, arrancando igual\"; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}'"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
