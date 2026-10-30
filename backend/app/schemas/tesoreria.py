@@ -363,6 +363,39 @@ class ResumenTesoreria(BaseModel):
     saldo_periodo: Decimal
 
 
+# ==================== TRANSFERENCIAS ENTRE CUENTAS ====================
+
+class TransferenciaEntreCuentasRequest(BaseModel):
+    """Request para transferir fondos entre dos cuentas propias.
+
+    Al menos uno de los dos extremos (origen o destino) tiene que ser una
+    cuenta bancaria. Caja de efectivo se representa con origen/destino en
+    None y usamos el flag correspondiente.
+    """
+    cuenta_origen_id: Optional[UUID] = None  # None = caja de efectivo
+    cuenta_destino_id: Optional[UUID] = None  # None = caja de efectivo
+    monto: Decimal = Field(..., gt=0)
+    fecha: date
+    concepto: str = Field(..., min_length=1, max_length=200)
+    notas: Optional[str] = None
+
+    @field_validator("fecha", mode="before")
+    @classmethod
+    def _parse_fecha(cls, v):
+        return parse_date_without_timezone(v)
+
+
+class TransferenciaEntreCuentasResponse(BaseModel):
+    """Resultado de la transferencia."""
+    movimiento_origen_id: str
+    movimiento_destino_id: str
+    cuenta_origen: str  # label legible
+    cuenta_destino: str
+    monto: Decimal
+    saldo_origen_posterior: Decimal
+    saldo_destino_posterior: Decimal
+
+
 # ==================== CONSTANTES ====================
 
 from app.models.tesoreria import (

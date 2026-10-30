@@ -266,6 +266,27 @@ export const movimientosTesoreriaService = {
   async eliminarMovimiento(movimientoId: string) {
     await api.delete(`/tesoreria/movimientos/${movimientoId}`);
   },
+
+  /** Transferencia entre dos cuentas propias (caja ↔ banco o banco ↔ banco). */
+  async transferirEntreCuentas(payload: {
+    cuenta_origen_id?: string | null;
+    cuenta_destino_id?: string | null;
+    monto: number;
+    fecha: string;
+    concepto: string;
+    notas?: string;
+  }) {
+    const response = await api.post<{
+      movimiento_origen_id: string;
+      movimiento_destino_id: string;
+      cuenta_origen: string;
+      cuenta_destino: string;
+      monto: number;
+      saldo_origen_posterior: number;
+      saldo_destino_posterior: number;
+    }>('/tesoreria/transferencias', payload);
+    return response.data;
+  },
 };
 
 // Export all services

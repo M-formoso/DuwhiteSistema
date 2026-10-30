@@ -23,11 +23,16 @@ import {
   Banknote,
   CreditCard,
   ArrowRight,
+  ArrowRightLeft,
   Building2,
   Calendar,
   User,
   Pencil,
   Trash2,
+  BarChart3,
+  PieChart as PieChartIcon,
+  TrendingUp,
+  Info,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -51,6 +56,7 @@ import { tesoreriaService } from '@/services/tesoreriaService';
 import { clienteService } from '@/services/clienteService';
 import { proveedorService } from '@/services/proveedorService';
 import { finanzasService } from '@/services/finanzasService';
+import { TesoreriaGraficos } from '@/components/tesoreria/TesoreriaGraficos';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { toastApiError } from '@/utils/apiErrors';
 import {
@@ -125,6 +131,22 @@ export default function TesoreriaPage() {
   const [showCerrarCajaModal, setShowCerrarCajaModal] = useState(false);
   const [abrirCajaForm, setAbrirCajaForm] = useState({ saldo_inicial: '', observaciones: '' });
   const [cerrarCajaForm, setCerrarCajaForm] = useState({ saldo_real: '', observaciones: '' });
+
+  // Transferencia entre cuentas: origen y destino se eligen con el mismo
+  // formato de ids que el selector unificado del modal de movimiento:
+  // "caja" = caja de efectivo, UUID = cuenta bancaria.
+  const [showTransferenciaModal, setShowTransferenciaModal] = useState(false);
+  const [transferenciaForm, setTransferenciaForm] = useState({
+    cuenta_origen: 'caja' as string,
+    cuenta_destino: '' as string,
+    monto: '',
+    fecha: getLocalDateString(),
+    concepto: '',
+    notas: '',
+  });
+
+  // Detalle de movimiento (modal al clickear una fila del listado).
+  const [movimientoDetalle, setMovimientoDetalle] = useState<MovimientoConsolidado | null>(null);
 
   // Form cuenta bancaria
   const [cuentaBancariaForm, setCuentaBancariaForm] = useState({
@@ -289,6 +311,30 @@ export default function TesoreriaPage() {
   const totalBancos = cuentasBancarias?.reduce((acc, c) => acc + Number(c.saldo_actual || 0), 0) || 0;
   const saldoCaja = Number(cajaActual?.saldo_calculado || 0);
 
+  // Resuelve "qué cuenta/fondo elegiste" en un identificador unificado para
+  // el selector del modal. "caja" = caja de efectivo, "cheque" = flujo
+  // especial con cheque, cualquier otro valor = UUID de una CuentaBancaria.
+  const fondoSeleccionado: 'caja' | 'cheque' | string = (() => {
+    if (movimientoForm.metodo_pago === 'cheque') return 'cheque';
+    if (movimientoForm.metodo_pago === 'efectivo') return 'caja';
+    return movimientoForm.cuenta_destino_id || 'caja';
+  })();
+
+  // Saldo actual del fondo elegido (para el preview "quedará en $X").
+  const saldoFondoActual = (() => {
+    if (fondoSeleccionado === 'caja') return saldoCaja;
+    if (fondoSeleccionado === 'cheque') return 0;
+    const cuenta = cuentasBancarias?.find((c) => c.id === fondoSeleccionado);
+    return Number(cuenta?.saldo_actual || 0);
+  })();
+
+  const saldoFondoResultante = (() => {
+    const monto = Number(movimientoForm.monto || 0);
+    if (!monto) return saldoFondoActual;
+    const delta = movimientoForm.es_ingreso ? monto : -monto;
+    return saldoFondoActual + delta;
+  })();
+
   // Mutations
   const crearMovimientoMutation = useMutation({
     mutationFn: (data: MovimientoTesoreriaCreate) =>
@@ -360,6 +406,40 @@ export default function TesoreriaPage() {
       setCerrarCajaForm({ saldo_real: '', observaciones: '' });
     },
     onError: (err) => toastApiError(toast, err, 'No se pudo cerrar la caja'),
+  });
+
+  const transferenciaMutation = useMutation({
+    mutationFn: () =>
+      tesoreriaService.movimientos.transferirEntreCuentas({
+        cuenta_origen_id:
+          transferenciaForm.cuenta_origen === 'caja' ? null : transferenciaForm.cuenta_origen,
+        cuenta_destino_id:
+          transferenciaForm.cuenta_destino === 'caja' ? null : transferenciaForm.cuenta_destino,
+        monto: Number(transferenciaForm.monto || 0),
+        fecha: transferenciaForm.fecha,
+        concepto: transferenciaForm.concepto,
+        notas: transferenciaForm.notas || undefined,
+      }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
+      queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+      toast({
+        title: 'Transferencia registrada',
+        description: `${res.cuenta_origen} → ${res.cuenta_destino}`,
+      });
+      setShowTransferenciaModal(false);
+      setTransferenciaForm({
+        cuenta_origen: 'caja',
+        cuenta_destino: '',
+        monto: '',
+        fecha: getLocalDateString(),
+        concepto: '',
+        notas: '',
+      });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo registrar la transferencia'),
   });
 
   const depositarChequeMutation = useMutation({
@@ -775,6 +855,10 @@ export default function TesoreriaPage() {
           <p className="text-gray-500">Gestión de cheques y movimientos de fondos</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowTransferenciaModal(true)}>
+            <ArrowRightLeft className="h-4 w-4 mr-2" />
+            Transferir
+          </Button>
           <Button onClick={() => setShowMovimientoModal(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Movimiento
@@ -864,6 +948,13 @@ export default function TesoreriaPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Gráficos — insight visual rápido sobre ingresos vs egresos y
+              composición. Datos derivados de `movimientos.items` que ya se
+              carga para la tab Movimientos. */}
+          {movimientos?.items && movimientos.items.length > 0 && (
+            <TesoreriaGraficos movimientos={movimientos.items} cuentas={cuentasBancarias || []} />
+          )}
 
           {/* Detalle Cuentas Bancarias */}
           {cuentasBancarias && cuentasBancarias.length > 0 && (
@@ -1519,7 +1610,8 @@ export default function TesoreriaPage() {
                   {movimientos.items.map((mov) => (
                     <div
                       key={mov.id}
-                      className={`flex items-center justify-between p-4 rounded-lg ${
+                      onClick={() => setMovimientoDetalle(mov)}
+                      className={`flex items-center justify-between p-4 rounded-lg cursor-pointer hover:ring-2 hover:ring-primary/40 transition ${
                         mov.es_ingreso
                           ? 'bg-green-50'
                           : 'bg-red-50'
@@ -1571,7 +1663,10 @@ export default function TesoreriaPage() {
                               variant="ghost"
                               size="icon"
                               title="Editar movimiento"
-                              onClick={() => abrirEditarMovimiento(mov)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirEditarMovimiento(mov);
+                              }}
                             >
                               <Pencil className="h-4 w-4 text-gray-400 hover:text-blue-500" />
                             </Button>
@@ -1579,7 +1674,8 @@ export default function TesoreriaPage() {
                               variant="ghost"
                               size="icon"
                               title="Eliminar movimiento"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (confirm('¿Está seguro de eliminar este movimiento?')) {
                                   eliminarMovimientoMutation.mutate(mov.id);
                                 }
@@ -1595,7 +1691,8 @@ export default function TesoreriaPage() {
                               variant="ghost"
                               size="icon"
                               title="Editar cheque"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 // Buscar el cheque en la lista y abrir el modal de edición
                                 const cheque = cheques?.items?.find(c => c.id === mov.id);
                                 if (cheque) {
@@ -1609,7 +1706,8 @@ export default function TesoreriaPage() {
                               variant="ghost"
                               size="icon"
                               title="Eliminar cheque"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const cheque = cheques?.items?.find(c => c.id === mov.id);
                                 if (cheque) {
                                   setChequeAEliminar(cheque);
@@ -1911,65 +2009,87 @@ export default function TesoreriaPage() {
                 </div>
               </div>
 
+              {/* Selector unificado de cuenta/fondo: engloba "método de pago"
+                  + "qué cuenta se afecta" en una sola decisión concreta para
+                  el operador ("¿de dónde / a dónde sale la plata?"). */}
               <div className="space-y-2">
-                <Label>Método de Pago *</Label>
+                <Label>{movimientoForm.es_ingreso ? 'Cuenta destino' : 'Cuenta origen'} *</Label>
                 <Select
-                  value={movimientoForm.metodo_pago}
-                  onValueChange={(v) => setMovimientoForm({ ...movimientoForm, metodo_pago: v as any })}
+                  value={fondoSeleccionado}
+                  onValueChange={(v) => {
+                    if (v === 'caja') {
+                      setMovimientoForm({
+                        ...movimientoForm,
+                        metodo_pago: 'efectivo',
+                        cuenta_destino_id: null,
+                        banco_origen: undefined,
+                        banco_destino: undefined,
+                      });
+                    } else if (v === 'cheque') {
+                      setMovimientoForm({
+                        ...movimientoForm,
+                        metodo_pago: 'cheque',
+                        cuenta_destino_id: null,
+                      });
+                    } else {
+                      // v = UUID de cuenta bancaria
+                      setMovimientoForm({
+                        ...movimientoForm,
+                        metodo_pago: 'transferencia',
+                        cuenta_destino_id: v,
+                      });
+                    }
+                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Elegí la cuenta..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {METODOS_PAGO_TESORERIA.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
+                    <SelectItem value="caja">
+                      💵 Caja de Efectivo
+                      {cajaActual && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          · ${formatNumber(saldoCaja, 2)}
+                        </span>
+                      )}
+                    </SelectItem>
+                    {cuentasBancarias?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        🏦 {c.banco} - {c.numero_cuenta}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          · ${formatNumber(Number(c.saldo_actual || 0), 2)}
+                        </span>
                       </SelectItem>
                     ))}
+                    <SelectItem value="cheque">📄 Cheque</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
 
-              {movimientoForm.metodo_pago === 'transferencia' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Banco Origen</Label>
-                    <Select
-                      value={movimientoForm.banco_origen || ''}
-                      onValueChange={(v) => setMovimientoForm({ ...movimientoForm, banco_origen: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BANCOS_ARGENTINA.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {/* Preview del impacto sobre el fondo elegido (no aplica a cheques). */}
+                {fondoSeleccionado !== 'cheque' && Number(movimientoForm.monto || 0) > 0 && (
+                  <div
+                    className={`text-xs rounded-md border px-3 py-2 ${
+                      saldoFondoResultante < 0
+                        ? 'bg-amber-50 border-amber-200 text-amber-800'
+                        : 'bg-gray-50 border-gray-200 text-gray-700'
+                    }`}
+                  >
+                    Saldo actual: <strong>${formatNumber(saldoFondoActual, 2)}</strong>
+                    {' → '}
+                    Después del movimiento:{' '}
+                    <strong>${formatNumber(saldoFondoResultante, 2)}</strong>
+                    {saldoFondoResultante < 0 && (
+                      <span className="ml-1">(quedará en negativo)</span>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Banco Destino</Label>
-                    <Select
-                      value={movimientoForm.banco_destino || ''}
-                      onValueChange={(v) => setMovimientoForm({ ...movimientoForm, banco_destino: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BANCOS_ARGENTINA.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                )}
+                {fondoSeleccionado === 'caja' && !cajaActual && (
+                  <div className="text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
+                    No hay una caja abierta. Abrí la caja desde la pestaña
+                    "Caja" para registrar movimientos en efectivo.
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Datos del cheque (unificado: reemplaza al modal "Nuevo Cheque" separado) */}
               {movimientoForm.metodo_pago === 'cheque' && (
@@ -2716,6 +2836,261 @@ export default function TesoreriaPage() {
                   {cerrarCajaMutation.isPending ? 'Cerrando...' : 'Cerrar Caja'}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Transferencia entre cuentas — crea dos movimientos vinculados
+          (egreso en origen + ingreso en destino) con la misma referencia. */}
+      {showTransferenciaModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5 text-primary" />
+                Transferencia entre cuentas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Desde *</Label>
+                  <Select
+                    value={transferenciaForm.cuenta_origen}
+                    onValueChange={(v) =>
+                      setTransferenciaForm({ ...transferenciaForm, cuenta_origen: v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Cuenta origen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="caja">💵 Caja de Efectivo</SelectItem>
+                      {cuentasBancarias?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          🏦 {c.banco} - {c.numero_cuenta}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Hacia *</Label>
+                  <Select
+                    value={transferenciaForm.cuenta_destino}
+                    onValueChange={(v) =>
+                      setTransferenciaForm({ ...transferenciaForm, cuenta_destino: v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Cuenta destino" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="caja">💵 Caja de Efectivo</SelectItem>
+                      {cuentasBancarias?.map((c) => (
+                        <SelectItem
+                          key={c.id}
+                          value={c.id}
+                          disabled={c.id === transferenciaForm.cuenta_origen}
+                        >
+                          🏦 {c.banco} - {c.numero_cuenta}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Monto *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={transferenciaForm.monto}
+                    onChange={(e) =>
+                      setTransferenciaForm({ ...transferenciaForm, monto: e.target.value })
+                    }
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha *</Label>
+                  <Input
+                    type="date"
+                    value={transferenciaForm.fecha}
+                    onChange={(e) =>
+                      setTransferenciaForm({ ...transferenciaForm, fecha: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Concepto *</Label>
+                <Input
+                  value={transferenciaForm.concepto}
+                  onChange={(e) =>
+                    setTransferenciaForm({ ...transferenciaForm, concepto: e.target.value })
+                  }
+                  placeholder="Ej: Depósito de recaudación del día"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={transferenciaForm.notas}
+                  onChange={(e) =>
+                    setTransferenciaForm({ ...transferenciaForm, notas: e.target.value })
+                  }
+                  placeholder="Observaciones adicionales..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" onClick={() => setShowTransferenciaModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => transferenciaMutation.mutate()}
+                  disabled={
+                    !transferenciaForm.concepto ||
+                    !transferenciaForm.monto ||
+                    !transferenciaForm.cuenta_destino ||
+                    transferenciaForm.cuenta_origen === transferenciaForm.cuenta_destino ||
+                    transferenciaMutation.isPending
+                  }
+                >
+                  {transferenciaMutation.isPending ? 'Transfiriendo...' : 'Transferir'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Detalle de Movimiento — vista expandida del movimiento con todas
+          las vinculaciones (cliente, proveedor, cheque, caja, cuenta bancaria,
+          usuario que lo registró). Se abre al clickear una fila del listado. */}
+      {movimientoDetalle && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-xl m-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5 text-primary" />
+                  Detalle del movimiento
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setMovimientoDetalle(null)}
+                >
+                  <XCircle className="h-5 w-5" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="flex items-center gap-3">
+                {movimientoDetalle.es_ingreso ? (
+                  <ArrowUpCircle className="h-8 w-8 text-green-600" />
+                ) : (
+                  <ArrowDownCircle className="h-8 w-8 text-red-600" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-base">{movimientoDetalle.concepto}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {movimientoDetalle.tipo?.replace(/_/g, ' ')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p
+                    className={`text-xl font-bold ${
+                      movimientoDetalle.es_ingreso ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {movimientoDetalle.es_ingreso ? '+' : '-'}$
+                    {formatNumber(Number(movimientoDetalle.monto || 0), 2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatearFecha(movimientoDetalle.fecha)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                <div>
+                  <p className="text-xs text-muted-foreground">Método de pago</p>
+                  <p className="font-medium capitalize">
+                    {(movimientoDetalle as any).metodo_pago || '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Origen del registro</p>
+                  <p className="font-medium capitalize">
+                    {movimientoDetalle.origen?.replace(/_/g, ' ') || '—'}
+                  </p>
+                </div>
+                {(movimientoDetalle as any).cliente_nombre && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cliente</p>
+                    <p className="font-medium">{(movimientoDetalle as any).cliente_nombre}</p>
+                  </div>
+                )}
+                {(movimientoDetalle as any).proveedor_nombre && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Proveedor</p>
+                    <p className="font-medium">{(movimientoDetalle as any).proveedor_nombre}</p>
+                  </div>
+                )}
+                {(movimientoDetalle as any).cheque_numero && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cheque</p>
+                    <p className="font-medium">#{(movimientoDetalle as any).cheque_numero}</p>
+                  </div>
+                )}
+                {(movimientoDetalle as any).cuenta_destino_nombre && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cuenta bancaria</p>
+                    <p className="font-medium">{(movimientoDetalle as any).cuenta_destino_nombre}</p>
+                  </div>
+                )}
+                {(movimientoDetalle as any).registrado_por_nombre && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Registrado por</p>
+                    <p className="font-medium">
+                      {(movimientoDetalle as any).registrado_por_nombre}
+                    </p>
+                  </div>
+                )}
+                {(movimientoDetalle as any).numero_transferencia && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">N° transferencia</p>
+                    <p className="font-medium font-mono text-xs">
+                      {(movimientoDetalle as any).numero_transferencia}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {(movimientoDetalle as any).descripcion && (
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">Descripción</p>
+                  <p className="whitespace-pre-wrap">
+                    {(movimientoDetalle as any).descripcion}
+                  </p>
+                </div>
+              )}
+
+              {(movimientoDetalle as any).notas && (
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">Notas</p>
+                  <p className="whitespace-pre-wrap">{(movimientoDetalle as any).notas}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

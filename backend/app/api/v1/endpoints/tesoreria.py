@@ -36,6 +36,8 @@ from app.schemas.tesoreria import (
     MovimientoConsolidado,
     AnularMovimientoRequest,
     ResumenTesoreria,
+    TransferenciaEntreCuentasRequest,
+    TransferenciaEntreCuentasResponse,
     TIPOS_CHEQUE,
     ORIGENES_CHEQUE,
     ESTADOS_CHEQUE,
@@ -479,6 +481,37 @@ def anular_movimiento(
         )
 
     return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
+
+
+@router.post(
+    "/transferencias",
+    response_model=TransferenciaEntreCuentasResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def transferir_entre_cuentas(
+    data: TransferenciaEntreCuentasRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador", "contador")
+    ),
+):
+    """Transferencia de fondos entre dos cuentas propias (caja ↔ banco o
+    banco ↔ banco). Crea los dos movimientos vinculados en una sola
+    operación atómica y actualiza saldos."""
+    service = TesoreriaService(db)
+    try:
+        resultado = service.transferir_entre_cuentas(
+            cuenta_origen_id=data.cuenta_origen_id,
+            cuenta_destino_id=data.cuenta_destino_id,
+            monto=data.monto,
+            fecha=data.fecha,
+            concepto=data.concepto,
+            notas=data.notas,
+            usuario_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return TransferenciaEntreCuentasResponse(**resultado)
 
 
 # ==================== ENDPOINT UNIFICADO: MOVIMIENTO + CHEQUE ====================
