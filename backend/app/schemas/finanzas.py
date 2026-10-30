@@ -12,7 +12,10 @@ from pydantic import BaseModel, Field
 
 class CajaBase(BaseModel):
     """Schema base de caja."""
-    saldo_inicial: Decimal = Field(..., ge=0)
+    # Permitimos saldo inicial negativo: en la lavandería es común abrir una
+    # caja con deuda del día anterior (vales adelantados, egresos sin cobrar
+    # todavía). La BD no tiene CheckConstraint — es decisión operativa.
+    saldo_inicial: Decimal = Field(...)
     observaciones_apertura: Optional[str] = None
 
 
@@ -23,7 +26,9 @@ class AbrirCajaRequest(CajaBase):
 
 class CerrarCajaRequest(BaseModel):
     """Request para cerrar caja."""
-    saldo_real: Decimal = Field(..., ge=0)
+    # Puede cerrarse en negativo si hubo sobreturno real durante el día
+    # (ej. se pagaron egresos por encima del efectivo disponible).
+    saldo_real: Decimal = Field(...)
     observaciones_cierre: Optional[str] = None
 
 
@@ -138,7 +143,9 @@ class CuentaBancariaBase(BaseModel):
 
 class CuentaBancariaCreate(CuentaBancariaBase):
     """Request para crear cuenta bancaria."""
-    saldo_actual: Decimal = Field(default=0, ge=0)
+    # Permitimos saldo negativo: cuentas pueden crearse con sobregiro
+    # autorizado o reflejando una deuda bancaria ya existente al dar de alta.
+    saldo_actual: Decimal = Field(default=0)
     es_principal: bool = False
 
 

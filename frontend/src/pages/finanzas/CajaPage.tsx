@@ -377,11 +377,13 @@ export default function CajaPage() {
                 <Input
                   type="number"
                   step="0.01"
-                  min="0"
                   value={saldoInicial}
                   onChange={(e) => setSaldoInicial(e.target.value)}
                   placeholder="0.00"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Puede ser negativo si la caja arrastra deuda del día anterior.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -429,11 +431,13 @@ export default function CajaPage() {
                 <Input
                   type="number"
                   step="0.01"
-                  min="0"
                   value={saldoReal}
                   onChange={(e) => setSaldoReal(e.target.value)}
                   placeholder="0.00"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Puede ser negativo si hubo sobreturno real durante el día.
+                </p>
               </div>
 
               {saldoReal && (

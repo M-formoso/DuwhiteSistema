@@ -506,6 +506,9 @@ export default function CuentasBancariasPage() {
                   value={cuentaForm.saldo_inicial}
                   onChange={(e) => setCuentaForm({ ...cuentaForm, saldo_inicial: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Puede ser negativo si la cuenta tiene sobregiro autorizado.
+                </p>
               </div>
             </div>
 
