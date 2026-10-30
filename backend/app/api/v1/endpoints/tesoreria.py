@@ -168,7 +168,12 @@ def create_cheque(
 ):
     """Crea un nuevo cheque."""
     service = TesoreriaService(db)
-    cheque = service.create_cheque(data, current_user.id)
+    try:
+        cheque = service.create_cheque(data, current_user.id)
+    except ValueError as e:
+        # Validaciones de dominio (ej: cheque recibido sin cliente_id) → 400
+        # legible para el frontend en vez de 500 genérico.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return ChequeResponse(**service.enrich_cheque(cheque))
 
 
@@ -181,7 +186,10 @@ def update_cheque(
 ):
     """Actualiza un cheque."""
     service = TesoreriaService(db)
-    cheque = service.update_cheque(cheque_id, data)
+    try:
+        cheque = service.update_cheque(cheque_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     if not cheque:
         raise HTTPException(
