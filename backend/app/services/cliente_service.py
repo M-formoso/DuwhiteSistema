@@ -2,6 +2,7 @@
 Servicio de Clientes.
 """
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Tuple
@@ -9,6 +10,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, or_, and_, case
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.timezone import today_ar
 from app.models.cliente import Cliente
@@ -715,11 +718,17 @@ class ClienteService:
         )
         movimiento.saldo_posterior = nuevo_saldo_posterior_este
 
+        # IMPORTANTE: filtramos activo=True. Antes esto no estaba y al editar
+        # un movimiento viejo también se recalculaban los soft-deleteados,
+        # pisando saldos que no deberían afectar al trail actual del cliente
+        # y propagando el error hacia adelante. `eliminar_ajuste` ya lo hace
+        # bien (ver línea 780), lo alineamos acá.
         posteriores = (
             self.db.query(MovimientoCuentaCorriente)
             .filter(
                 MovimientoCuentaCorriente.cliente_id == movimiento.cliente_id,
                 MovimientoCuentaCorriente.created_at > movimiento.created_at,
+                MovimientoCuentaCorriente.activo == True,
             )
             .order_by(MovimientoCuentaCorriente.created_at.asc())
             .all()
@@ -728,6 +737,20 @@ class ClienteService:
         saldo_running = nuevo_saldo_posterior_este
         for mov_post in posteriores:
             delta_post = Decimal(mov_post.saldo_posterior) - Decimal(mov_post.saldo_anterior)
+            # Chequeo defensivo de integridad: delta debería ser ±monto del
+            # movimiento. Si no cuadra (data legacy corrupta o editada a mano
+            # en la BD), logueamos pero NO abortamos — el usuario necesita
+            # poder editar igual, y abortar dejaría la CC bloqueada. El log
+            # queda en servidor para que si alguien reporta un saldo raro
+            # podamos rastrearlo.
+            monto_post = Decimal(mov_post.monto)
+            if abs(abs(delta_post) - monto_post) > Decimal("0.01"):
+                logger.warning(
+                    "Movimiento CC %s del cliente %s tiene delta inconsistente "
+                    "(saldo_posterior - saldo_anterior = %s, pero monto = %s). "
+                    "Recálculo continúa preservando el delta original.",
+                    mov_post.id, mov_post.cliente_id, delta_post, monto_post,
+                )
             mov_post.saldo_anterior = saldo_running
             mov_post.saldo_posterior = saldo_running + delta_post
             saldo_running = mov_post.saldo_posterior
