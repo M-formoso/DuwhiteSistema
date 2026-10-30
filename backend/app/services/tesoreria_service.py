@@ -454,12 +454,37 @@ class TesoreriaService:
         data: MovimientoTesoreriaCreate,
         registrado_por_id: UUID
     ) -> MovimientoTesoreria:
-        """Crea un nuevo movimiento de tesorería."""
+        """Crea un nuevo movimiento de tesorería.
+
+        Si el método de pago es efectivo, además refleja el movimiento en la
+        caja abierta (actualiza totales + crea MovimientoCaja vinculado).
+        Antes esto no se hacía y los egresos en efectivo "no se guardaban"
+        desde el punto de vista del operador: aparecían en el listado de
+        tesorería pero la caja seguía mostrando el mismo saldo, dando la
+        sensación de que el gasto no se había registrado.
+        """
         # Si es con cheque existente, verificar
         if data.cheque_id:
             cheque = self.get_cheque(data.cheque_id)
             if not cheque:
                 raise ValueError("Cheque no encontrado")
+
+        # Para efectivo necesitamos caja abierta sí o sí. Si no hay, fallamos
+        # ANTES de persistir nada así no quedan movimientos huérfanos sin
+        # reflejar en la caja.
+        caja_abierta = None
+        if data.metodo_pago == "efectivo":
+            from app.models.caja import Caja, MovimientoCaja, EstadoCaja, TipoMovimientoCaja, CategoriaMovimiento
+            caja_abierta = (
+                self.db.query(Caja)
+                .filter(Caja.estado == EstadoCaja.ABIERTA.value)
+                .first()
+            )
+            if caja_abierta is None:
+                raise ValueError(
+                    "No hay una caja abierta. Para registrar movimientos en "
+                    "efectivo primero tenés que abrir la caja del día."
+                )
 
         movimiento = MovimientoTesoreria(
             id=str(uuid4()),
@@ -484,6 +509,42 @@ class TesoreriaService:
         )
 
         self.db.add(movimiento)
+
+        # Reflejo en caja: MovimientoCaja vinculado + actualizar totales.
+        # Categorización por default inferida del contexto (cliente/proveedor);
+        # si no hay nada, cae en "otro_ingreso"/"otro_egreso".
+        if caja_abierta is not None:
+            if data.es_ingreso:
+                tipo_caja = TipoMovimientoCaja.INGRESO.value
+                if data.cliente_id:
+                    categoria = CategoriaMovimiento.COBRO_CLIENTE.value
+                else:
+                    categoria = CategoriaMovimiento.OTRO_INGRESO.value
+                caja_abierta.total_ingresos = (caja_abierta.total_ingresos or Decimal("0")) + data.monto
+            else:
+                tipo_caja = TipoMovimientoCaja.EGRESO.value
+                if data.proveedor_id:
+                    categoria = CategoriaMovimiento.PAGO_PROVEEDOR.value
+                else:
+                    categoria = CategoriaMovimiento.OTRO_EGRESO.value
+                caja_abierta.total_egresos = (caja_abierta.total_egresos or Decimal("0")) + data.monto
+
+            mov_caja = MovimientoCaja(
+                id=str(uuid4()),
+                caja_id=caja_abierta.id,
+                tipo=tipo_caja,
+                categoria=categoria,
+                concepto=data.concepto,
+                descripcion=data.descripcion,
+                monto=data.monto,
+                medio_pago="efectivo",
+                referencia=f"TES-{movimiento.id}",
+                cliente_id=str(data.cliente_id) if data.cliente_id else None,
+                proveedor_id=str(data.proveedor_id) if data.proveedor_id else None,
+                registrado_por_id=str(registrado_por_id),
+            )
+            self.db.add(mov_caja)
+
         self.db.commit()
         self.db.refresh(movimiento)
 

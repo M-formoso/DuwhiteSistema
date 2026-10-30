@@ -118,6 +118,14 @@ export default function TesoreriaPage() {
   const [movimientoAEditar, setMovimientoAEditar] = useState<MovimientoConsolidado | null>(null);
   const [editMovimientoForm, setEditMovimientoForm] = useState<MovimientoTesoreriaUpdate>({});
 
+  // Apertura / cierre de caja — modales inline para no obligar al usuario
+  // a navegar a otra pantalla (antes el texto remitía a "módulo de Finanzas"
+  // que no existe como ruta propia, dejaba al usuario sin forma de abrir caja).
+  const [showAbrirCajaModal, setShowAbrirCajaModal] = useState(false);
+  const [showCerrarCajaModal, setShowCerrarCajaModal] = useState(false);
+  const [abrirCajaForm, setAbrirCajaForm] = useState({ saldo_inicial: '', observaciones: '' });
+  const [cerrarCajaForm, setCerrarCajaForm] = useState({ saldo_real: '', observaciones: '' });
+
   // Form cuenta bancaria
   const [cuentaBancariaForm, setCuentaBancariaForm] = useState({
     nombre: '',
@@ -288,6 +296,8 @@ export default function TesoreriaPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
       queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      // Si el movimiento era en efectivo, el backend tocó la caja — refrescamos.
+      queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
       toast({ title: 'Movimiento registrado correctamente' });
       setShowMovimientoModal(false);
       resetMovimientoForm();
@@ -316,6 +326,40 @@ export default function TesoreriaPage() {
     },
     onError: (err) =>
       toastApiError(toast, err, 'No se pudo registrar el movimiento con cheque'),
+  });
+
+  const abrirCajaMutation = useMutation({
+    mutationFn: () =>
+      finanzasService.abrirCaja({
+        saldo_inicial: Number(abrirCajaForm.saldo_inicial || 0),
+        observaciones_apertura: abrirCajaForm.observaciones || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Caja abierta correctamente' });
+      setShowAbrirCajaModal(false);
+      setAbrirCajaForm({ saldo_inicial: '', observaciones: '' });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo abrir la caja'),
+  });
+
+  const cerrarCajaMutation = useMutation({
+    mutationFn: () => {
+      if (!cajaActual) throw new Error('No hay caja abierta');
+      return finanzasService.cerrarCaja(cajaActual.id, {
+        saldo_real: Number(cerrarCajaForm.saldo_real || 0),
+        observaciones_cierre: cerrarCajaForm.observaciones || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
+      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      toast({ title: 'Caja cerrada correctamente' });
+      setShowCerrarCajaModal(false);
+      setCerrarCajaForm({ saldo_real: '', observaciones: '' });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo cerrar la caja'),
   });
 
   const depositarChequeMutation = useMutation({
@@ -1009,10 +1053,29 @@ export default function TesoreriaPage() {
         <TabsContent value="caja" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Banknote className="h-5 w-5 text-green-600" />
-                Caja de Efectivo
-              </CardTitle>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Banknote className="h-5 w-5 text-green-600" />
+                  Caja de Efectivo
+                </CardTitle>
+                {cajaActual ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowCerrarCajaModal(true)}
+                    disabled={cerrarCajaMutation.isPending}
+                  >
+                    Cerrar Caja
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setShowAbrirCajaModal(true)}
+                    disabled={abrirCajaMutation.isPending}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Abrir Caja
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {cajaActual ? (
@@ -1044,8 +1107,10 @@ export default function TesoreriaPage() {
               ) : (
                 <div className="text-center py-8">
                   <Banknote className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No hay caja abierta actualmente</p>
-                  <p className="text-sm text-gray-400">Abrí una caja desde el módulo de Finanzas para registrar movimientos de efectivo</p>
+                  <p className="text-gray-500 font-medium">No hay caja abierta</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Abrí la caja del día para registrar movimientos en efectivo.
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -2529,6 +2594,126 @@ export default function TesoreriaPage() {
                   className={editMovimientoForm.es_ingreso ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
                 >
                   {actualizarMovimientoMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Abrir Caja — inline, antes había que ir a /finanzas/caja que no
+          existía como ruta activa. Permitimos saldo inicial negativo (ver fix
+          en schemas/finanzas.py). */}
+      {showAbrirCajaModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle>Abrir Caja de Efectivo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Saldo Inicial *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={abrirCajaForm.saldo_inicial}
+                  onChange={(e) =>
+                    setAbrirCajaForm({ ...abrirCajaForm, saldo_inicial: e.target.value })
+                  }
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Puede ser negativo si la caja arrastra deuda del día anterior.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Observaciones</Label>
+                <Textarea
+                  value={abrirCajaForm.observaciones}
+                  onChange={(e) =>
+                    setAbrirCajaForm({ ...abrirCajaForm, observaciones: e.target.value })
+                  }
+                  placeholder="Observaciones de apertura..."
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" onClick={() => setShowAbrirCajaModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => abrirCajaMutation.mutate()}
+                  disabled={abrirCajaForm.saldo_inicial === '' || abrirCajaMutation.isPending}
+                >
+                  {abrirCajaMutation.isPending ? 'Abriendo...' : 'Abrir Caja'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Cerrar Caja — muestra el saldo calculado vs lo que el operador
+          cuenta físicamente; la diferencia (positiva o negativa) la registra
+          el backend sin bloquear. */}
+      {showCerrarCajaModal && cajaActual && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle>Cerrar Caja de Efectivo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded-lg flex justify-between items-center text-sm">
+                <span className="text-gray-500">Saldo calculado:</span>
+                <span className="font-bold">
+                  ${formatNumber(cajaActual.saldo_calculado || 0, 2)}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <Label>Saldo Real (conteo físico) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={cerrarCajaForm.saldo_real}
+                  onChange={(e) =>
+                    setCerrarCajaForm({ ...cerrarCajaForm, saldo_real: e.target.value })
+                  }
+                  placeholder="0.00"
+                />
+                {cerrarCajaForm.saldo_real !== '' && (
+                  <p
+                    className={`text-xs ${
+                      Number(cerrarCajaForm.saldo_real) === (cajaActual.saldo_calculado || 0)
+                        ? 'text-green-600'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    Diferencia:{' '}
+                    {formatNumber(
+                      Number(cerrarCajaForm.saldo_real) - (cajaActual.saldo_calculado || 0),
+                      2,
+                    )}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Observaciones</Label>
+                <Textarea
+                  value={cerrarCajaForm.observaciones}
+                  onChange={(e) =>
+                    setCerrarCajaForm({ ...cerrarCajaForm, observaciones: e.target.value })
+                  }
+                  placeholder="Observaciones del cierre..."
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" onClick={() => setShowCerrarCajaModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => cerrarCajaMutation.mutate()}
+                  disabled={cerrarCajaForm.saldo_real === '' || cerrarCajaMutation.isPending}
+                >
+                  {cerrarCajaMutation.isPending ? 'Cerrando...' : 'Cerrar Caja'}
                 </Button>
               </div>
             </CardContent>
