@@ -99,7 +99,7 @@ def listar_remitos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "comercial", "chofer"))
 ):
     """Lista remitos con filtros."""
     remitos = RemitoService.get_all(
@@ -507,7 +507,7 @@ def marcar_remito_entregado(
     remito_id: UUID,
     request: EntregarRemitoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "operador", "chofer"))
 ):
     """Marca un remito como entregado."""
     remito = RemitoService.marcar_entregado(
@@ -535,7 +535,7 @@ def asignar_vehiculo_remito(
     remito_id: UUID,
     request: _AsignarVehiculoRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador", "chofer"))
 ):
     """
     Asigna, cambia o quita el vehículo que hace la entrega de un remito.

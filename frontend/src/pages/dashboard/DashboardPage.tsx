@@ -236,10 +236,14 @@ export default function DashboardPage() {
           const diaMes = new Date().getDate(); // días transcurridos incl. hoy
           const promedioDia = diaMes > 0 ? kpis.ventas.mes.total / diaMes : 0;
           const promedioPedidos = diaMes > 0 ? kpis.ventas.mes.cantidad / diaMes : 0;
+          // "Producido" en vez de "Ventas" porque son remitos/facturas
+          // emitidos — ya salieron de la lavandería, pero el cobro vive
+          // en Cuentas Corrientes y puede no estar hecho todavía. "Ventas"
+          // en el lenguaje de la casa sonaba a cobrado y confundía.
           const label =
-            ventasCardMode === 'mes' ? 'Ventas del Mes'
+            ventasCardMode === 'mes' ? 'Producido del Mes'
             : ventasCardMode === 'promedio' ? 'Promedio por Día'
-            : 'Ventas de Hoy';
+            : 'Producido Hoy';
           const valor =
             ventasCardMode === 'mes' ? kpis.ventas.mes.total
             : ventasCardMode === 'promedio' ? promedioDia
@@ -422,14 +426,14 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-start justify-between space-y-0">
             <div>
               <CardTitle>
-                {rangoGrafico === 'semana' && 'Ventas de la Semana'}
-                {rangoGrafico === 'mes' && 'Ventas del Mes'}
-                {rangoGrafico === 'anio' && 'Ventas del Año'}
+                {rangoGrafico === 'semana' && 'Producido en la Semana'}
+                {rangoGrafico === 'mes' && 'Producido en el Mes'}
+                {rangoGrafico === 'anio' && 'Producido en el Año'}
               </CardTitle>
               <CardDescription>
-                {rangoGrafico === 'semana' && 'Total facturado por día (últimos 7 días)'}
-                {rangoGrafico === 'mes' && 'Total facturado por día (últimos 30 días)'}
-                {rangoGrafico === 'anio' && 'Total facturado por mes (últimos 12 meses)'}
+                {rangoGrafico === 'semana' && 'Total emitido por día (últimos 7 días)'}
+                {rangoGrafico === 'mes' && 'Total emitido por día (últimos 30 días)'}
+                {rangoGrafico === 'anio' && 'Total emitido por mes (últimos 12 meses)'}
               </CardDescription>
             </div>
             <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">

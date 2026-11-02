@@ -29,13 +29,15 @@ from app.models.vehiculo import Vehiculo
 
 router = APIRouter()
 
-# Roles con acceso al módulo de geolocalización. Operador queda afuera
-# por default — si en el futuro los choferes necesitan ver el mapa se agrega.
+# Roles con acceso al módulo de geolocalización. Chofer entra acá porque
+# es su herramienta principal: ve en vivo dónde está la flota y qué pedidos
+# tiene cada vehículo asignado.
 REQUIERE_ROL = require_permission(
     "superadmin",
     "administrador",
     "jefe_produccion",
     "comercial",
+    "chofer",
 )
 
 

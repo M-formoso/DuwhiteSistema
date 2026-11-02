@@ -245,13 +245,31 @@ const getClientNavSections = (_clienteId: string | null): NavSection[] => [
   },
 ];
 
+// Menú del chofer: entra directo al mapa y a las dos acciones que puede
+// hacer en el día (recolectar y entregar). No ve nada administrativo.
+const choferNavSections: NavSection[] = [
+  {
+    title: 'Mi ruta',
+    defaultOpen: true,
+    items: [
+      { title: 'Mapa de la flota',   href: '/geolocalizacion', icon: MapPin   },
+      { title: 'Recolección',        href: '/recoleccion',     icon: Truck    },
+      { title: 'Entregas en curso',  href: '/entregas',        icon: Receipt  },
+      { title: 'Mi Perfil',          href: '/perfil',          icon: User     },
+    ],
+  },
+];
+
 export function Sidebar({ isCollapsed, onToggle, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
 
   const isCliente = user?.rol === 'cliente';
+  const isChofer = user?.rol === 'chofer';
   const navSections = isCliente
     ? getClientNavSections(user?.cliente_id || null)
+    : isChofer
+    ? choferNavSections
     : navSectionsInternal;
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {

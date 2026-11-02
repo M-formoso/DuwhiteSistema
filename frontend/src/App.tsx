@@ -108,6 +108,11 @@ function HomeRedirect() {
     return <Navigate to="/produccion" replace />;
   }
 
+  // Choferes entran directo al mapa de la flota, es su herramienta principal.
+  if (user?.rol === 'chofer') {
+    return <Navigate to="/geolocalizacion" replace />;
+  }
+
   return <Navigate to="/dashboard" replace />;
 }
 

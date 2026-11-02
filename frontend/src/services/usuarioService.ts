@@ -101,6 +101,7 @@ export const ROLES = [
   { value: 'contador', label: 'Contador' },
   { value: 'solo_lectura', label: 'Solo Lectura' },
   { value: 'cliente', label: 'Cliente' },
+  { value: 'chofer', label: 'Chofer (recolección y entregas)' },
 ];
 
 export const MODULOS_LABELS: Record<string, string> = {

@@ -47,6 +47,7 @@ def listar_recolecciones_del_dia(
             "jefe_produccion",
             "operador",
             "comercial",
+            "chofer",
         )
     ),
 ):

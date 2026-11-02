@@ -1212,7 +1212,7 @@ def asignar_vehiculo_recoleccion_lote(
     lote_id: UUID,
     request: _AsignarVehiculoLoteRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador"))
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador", "jefe_produccion", "comercial", "operador", "chofer"))
 ):
     """
     Asigna, cambia o quita el vehículo que hizo (o va a hacer) la

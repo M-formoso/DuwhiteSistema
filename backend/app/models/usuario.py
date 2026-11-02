@@ -67,6 +67,14 @@ PERMISOS_POR_ROL = {
         "clientes": False, "pedidos": True, "finanzas": True, "costos": False,
         "empleados": False, "reportes": False, "usuarios": False, "configuracion": False,
     },
+    # Chofer: solo ve el mapa de la flota y las secciones donde opera
+    # (recoger pedidos y entregar remitos). Nada de stock, administración,
+    # facturación, clientes ni costos.
+    "chofer": {
+        "dashboard": False, "stock": False, "proveedores": False, "produccion": False,
+        "clientes": False, "pedidos": False, "finanzas": False, "costos": False,
+        "empleados": False, "reportes": False, "usuarios": False, "configuracion": False,
+    },
 }
 
 
@@ -83,6 +91,7 @@ class Usuario(Base, BaseModelMixin):
     - contador: Finanzas, facturación, reportes financieros
     - solo_lectura: Solo puede ver, no puede modificar nada
     - cliente: Usuario de cliente, solo ve sus propios datos
+    - chofer: Solo ve mapa de flota + recolecciones + entregas en curso
     """
 
     __tablename__ = "usuarios"
@@ -114,6 +123,7 @@ class Usuario(Base, BaseModelMixin):
             "contador",
             "solo_lectura",
             "cliente",
+            "chofer",
             name="rol_usuario",
         ),
         nullable=False,

@@ -28,7 +28,8 @@ export type RolUsuario =
   | 'comercial'
   | 'contador'
   | 'solo_lectura'
-  | 'cliente';
+  | 'cliente'
+  | 'chofer';
 
 export interface LoginRequest {
   email: string;
