@@ -706,6 +706,48 @@ from app.schemas.categoria_gasto import (
 )
 
 
+# Lista fija de categorías con las que arranca una lavandería tipo DUWHITE.
+# El seed se intenta aplicar vía migración Alembic, pero si por alguna razón
+# la tabla queda vacía (migración saltada, DB nueva, rollback), este listado
+# sirve de fallback para el endpoint /seed.
+CATEGORIAS_SEED = [
+    "ARCA-931", "IVA", "COOPERATIVA", "SINDICATO",
+    "AUTOPLAN MERCEDES", "CUOTA CITROEN", "CONTADOR", "DOLARES ERNESTO",
+    "SAMU - EMERGENCIAS", "SEGURO CAMIONETAS", "SEGURO EMPLEADOS", "SEGURO GALPON",
+    "ECOGAS", "EPEC", "CLARO", "PLANES DE PAGO ARCA",
+    "GASTOS MACRO", "SUELDO - HS. EXTR - FERIAD. - FRANC.", "GASTOS VARIOS",
+    "PORCENTAJE JEREMIAS", "MONOTRIBUTO LU", "IND. Y COM MALAGUEÑO",
+    "GPS", "OBRA CALDERA", "DOBLADORA LUCAS", "POZO", "ELECTRICISTA",
+]
+
+
+@router.post("/categorias-gasto/seed")
+def seed_categorias_gasto(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador", "contador")
+    ),
+):
+    """Carga las categorías por defecto de la casa si faltan. Idempotente:
+    las que ya existen se saltean. Pensado para resolver el caso en que la
+    migración Alembic no haya aplicado el seed (DB migrada de otra forma,
+    rollback, etc). Devuelve cuántas creó."""
+    from uuid import uuid4
+    existentes_lower = {
+        n.lower()
+        for (n,) in db.query(CategoriaGasto.nombre).all()
+    }
+    creadas = 0
+    for nombre in CATEGORIAS_SEED:
+        if nombre.lower() in existentes_lower:
+            continue
+        db.add(CategoriaGasto(id=str(uuid4()), nombre=nombre, activo=True))
+        existentes_lower.add(nombre.lower())
+        creadas += 1
+    db.commit()
+    return {"creadas": creadas, "total_disponibles": len(existentes_lower)}
+
+
 @router.get("/categorias-gasto", response_model=List[CategoriaGastoResponse])
 def listar_categorias_gasto(
     solo_activas: bool = Query(True),

@@ -37,4 +37,14 @@ export const categoriaGastoService = {
   async disable(id: string): Promise<void> {
     await api.delete(`/tesoreria/categorias-gasto/${id}`);
   },
+
+  /** Carga las categorías por defecto de la casa. Idempotente: inserta solo
+   * las que faltan. Devuelve cuántas se crearon. Útil si la migración
+   * Alembic no aplicó el seed inicial. */
+  async seed(): Promise<{ creadas: number; total_disponibles: number }> {
+    const { data } = await api.post<{ creadas: number; total_disponibles: number }>(
+      '/tesoreria/categorias-gasto/seed',
+    );
+    return data;
+  },
 };

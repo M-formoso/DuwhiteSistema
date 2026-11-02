@@ -318,6 +318,20 @@ export default function TesoreriaPage() {
     onError: (err) => toastApiError(toast, err, 'No se pudo crear la categoría'),
   });
 
+  // Botón de rescate: carga las 27 categorías del seed si por algún motivo
+  // la migración Alembic no las dejó cargadas (DB nueva, rollback, etc).
+  const seedCategoriasMutation = useMutation({
+    mutationFn: () => categoriaGastoService.seed(),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['categorias-gasto'] });
+      toast({
+        title: `${res.creadas} categorías cargadas`,
+        description: `Ya tenés ${res.total_disponibles} categorías disponibles.`,
+      });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo cargar el seed'),
+  });
+
   // Caja abierta/cerrada quedó deprecated — no la consultamos. El saldo
   // "efectivo" ahora es simplemente otra cuenta más (tipo="efectivo").
   const cajaActual = null as null | { saldo_calculado?: number; saldo_inicial?: number; total_ingresos?: number; total_egresos?: number; id?: string };
@@ -2205,32 +2219,57 @@ export default function TesoreriaPage() {
                       isLoading={loadingProveedores}
                     />
                   ) : (
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <Combobox
-                          options={categoriasGasto.map((c) => ({
-                            value: c.id,
-                            label: c.nombre,
-                          }))}
-                          value={movimientoForm.categoria_gasto_id ?? null}
-                          onChange={(v) =>
-                            setMovimientoForm({ ...movimientoForm, categoria_gasto_id: v })
-                          }
-                          placeholder="Elegí la categoría..."
-                          searchPlaceholder="Escribí para buscar..."
-                          emptyText="No hay categorías. Creá una con el +"
-                          isLoading={loadingCategorias}
-                        />
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Combobox
+                            options={categoriasGasto.map((c) => ({
+                              value: c.id,
+                              label: c.nombre,
+                            }))}
+                            value={movimientoForm.categoria_gasto_id ?? null}
+                            onChange={(v) =>
+                              setMovimientoForm({ ...movimientoForm, categoria_gasto_id: v })
+                            }
+                            placeholder="Elegí la categoría..."
+                            searchPlaceholder="Escribí para buscar..."
+                            emptyText="No hay categorías. Creá una con el +"
+                            isLoading={loadingCategorias}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          title="Agregar categoría nueva"
+                          onClick={() => setNuevaCategoriaDialog(true)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        title="Agregar categoría nueva"
-                        onClick={() => setNuevaCategoriaDialog(true)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
+
+                      {/* Si todavía no hay ninguna categoría cargada mostramos
+                          el atajo para cargar el seed con un clic (ocurre si la
+                          migración Alembic no corrió). */}
+                      {!loadingCategorias && categoriasGasto.length === 0 && (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-2">
+                          <p>
+                            Todavía no tenés categorías cargadas. Podés cargar las
+                            27 que usa la casa por defecto (ARCA, IVA, EPEC, etc.) con un clic.
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={seedCategoriasMutation.isPending}
+                            onClick={() => seedCategoriasMutation.mutate()}
+                          >
+                            {seedCategoriasMutation.isPending
+                              ? 'Cargando...'
+                              : 'Cargar categorías por defecto'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
