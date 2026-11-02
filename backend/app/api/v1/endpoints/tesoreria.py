@@ -721,6 +721,44 @@ CATEGORIAS_SEED = [
 ]
 
 
+def _asegurar_tabla_categorias_gasto(db: Session) -> None:
+    """Crea la tabla + FK si todavía no existen.
+
+    Normalmente esto lo hace la migración Alembic, pero si falló por el
+    motivo que sea (DB vieja, rollback, etc.) la primera vez que se consulta
+    el endpoint queda sin tabla y revienta con "relation does not exist".
+    Esta función es la red de seguridad: idempotente (IF NOT EXISTS en todo)
+    y rápida (cero costo si ya está creado).
+    """
+    from sqlalchemy import text
+    db.execute(text(
+        """
+        CREATE TABLE IF NOT EXISTS categorias_gasto (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            nombre VARCHAR(100) NOT NULL UNIQUE,
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        """
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_categorias_gasto_nombre ON categorias_gasto(nombre)"
+    ))
+    db.execute(text(
+        """
+        ALTER TABLE movimientos_tesoreria
+        ADD COLUMN IF NOT EXISTS categoria_gasto_id UUID
+        REFERENCES categorias_gasto(id)
+        """
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_movimientos_tesoreria_categoria_gasto_id "
+        "ON movimientos_tesoreria(categoria_gasto_id)"
+    ))
+    db.commit()
+
+
 @router.post("/categorias-gasto/seed")
 def seed_categorias_gasto(
     db: Session = Depends(get_db),
@@ -733,6 +771,7 @@ def seed_categorias_gasto(
     migración Alembic no haya aplicado el seed (DB migrada de otra forma,
     rollback, etc). Devuelve cuántas creó."""
     from uuid import uuid4
+    _asegurar_tabla_categorias_gasto(db)
     existentes_lower = {
         n.lower()
         for (n,) in db.query(CategoriaGasto.nombre).all()
@@ -756,19 +795,30 @@ def listar_categorias_gasto(
         require_permission("superadmin", "administrador", "contador")
     ),
 ):
-    """Lista las categorías de gasto, por default solo las activas."""
-    q = db.query(CategoriaGasto)
-    if solo_activas:
-        q = q.filter(CategoriaGasto.activo == True)
-    return [
-        CategoriaGastoResponse(
-            id=str(c.id),
-            nombre=c.nombre,
-            activo=c.activo,
-            created_at=c.created_at,
-        )
-        for c in q.order_by(CategoriaGasto.nombre.asc()).all()
-    ]
+    """Lista las categorías de gasto, por default solo las activas.
+
+    Resiliente: si la tabla todavía no fue creada (migración no corrió),
+    devolvemos lista vacía en vez de 500. El frontend entonces muestra el
+    botón "Cargar categorías por defecto" que invoca el endpoint /seed y
+    deja todo en orden.
+    """
+    from sqlalchemy.exc import ProgrammingError
+    try:
+        q = db.query(CategoriaGasto)
+        if solo_activas:
+            q = q.filter(CategoriaGasto.activo == True)
+        return [
+            CategoriaGastoResponse(
+                id=str(c.id),
+                nombre=c.nombre,
+                activo=c.activo,
+                created_at=c.created_at,
+            )
+            for c in q.order_by(CategoriaGasto.nombre.asc()).all()
+        ]
+    except ProgrammingError:
+        db.rollback()
+        return []
 
 
 @router.post(
