@@ -547,6 +547,42 @@ class TesoreriaService:
             )
             self.db.add(mov_banco)
 
+        # Reflejo en cuenta corriente del cliente/proveedor.
+        # Ingreso de cliente = cliente te pagó → pago en su CC (baja deuda).
+        # Egreso al cliente = devolución → cargo en su CC (aumenta deuda).
+        # Egreso al proveedor = le pagaste → pago en su CC (baja deuda tuya).
+        # Ingreso de proveedor = ajuste/nota crédito → cargo en su CC.
+        #
+        # Cheques quedan excluidos acá: ya los maneja _imputar_cheque_cliente
+        # desde el endpoint específico (create_movimiento_con_cheque /
+        # create_cheque), y pasar también por acá generaría dos movimientos
+        # de CC por el mismo cheque.
+        referencia_cc = data.numero_transferencia or data.comprobante
+
+        if data.cliente_id and data.metodo_pago != "cheque":
+            self._imputar_a_cc_cliente(
+                cliente_id=str(data.cliente_id),
+                monto=data.monto,
+                es_pago=data.es_ingreso,
+                concepto=data.concepto,
+                usuario_id=str(registrado_por_id),
+                medio_pago=data.metodo_pago,
+                referencia_pago=referencia_cc,
+                fecha_movimiento=data.fecha_movimiento,
+                notas=data.notas,
+            )
+
+        if data.proveedor_id and data.metodo_pago != "cheque":
+            self._imputar_a_cc_proveedor(
+                proveedor_id=str(data.proveedor_id),
+                monto=data.monto,
+                es_pago=not data.es_ingreso,
+                concepto=data.concepto,
+                usuario_id=str(registrado_por_id),
+                fecha_movimiento=data.fecha_movimiento,
+                notas=data.notas,
+            )
+
         self.db.commit()
         self.db.refresh(movimiento)
 
@@ -973,6 +1009,125 @@ class TesoreriaService:
 
     # ==================== CUENTA CORRIENTE ====================
 
+    def _imputar_a_cc_cliente(
+        self,
+        *,
+        cliente_id: str,
+        monto: Decimal,
+        es_pago: bool,
+        concepto: str,
+        usuario_id: str,
+        medio_pago: str,
+        referencia_pago: Optional[str],
+        fecha_movimiento: date,
+        notas: Optional[str] = None,
+        con_recibo: bool = True,
+    ) -> MovimientoCuentaCorriente:
+        """Impacta un movimiento en la cuenta corriente del cliente.
+
+        Es el único punto que actualiza `cliente.saldo_cuenta_corriente` desde
+        este módulo. Lo usan tanto el flujo de cheques (vía
+        ``_imputar_cheque_cliente``) como el de movimientos directos de
+        tesorería (vía ``create_movimiento``), evitando duplicación de la
+        lógica de recálculo de saldos y generación de recibo.
+
+        - ``es_pago=True`` → tipo PAGO, baja la deuda, genera recibo si
+          ``con_recibo`` (es lo normal: un ingreso de cliente a tesorería ES un pago).
+        - ``es_pago=False`` → tipo CARGO, aumenta la deuda (usado para
+          reversiones: cheque rechazado, egreso al cliente por devolución).
+        """
+        cliente = self.db.query(Cliente).filter(Cliente.id == cliente_id).first()
+        if not cliente:
+            raise ValueError(f"Cliente no encontrado: {cliente_id}")
+
+        saldo_anterior = cliente.saldo_cuenta_corriente or Decimal("0")
+        delta = -monto if es_pago else monto
+        saldo_posterior = saldo_anterior + delta
+
+        numero_recibo: Optional[str] = None
+        if es_pago and con_recibo:
+            numero_recibo = self._generar_numero_recibo()
+            self.db.add(Recibo(
+                id=str(uuid4()),
+                numero=numero_recibo,
+                cliente_id=cliente_id,
+                fecha=fecha_movimiento,
+                monto_total=monto,
+                medio_pago=medio_pago,
+                referencia_pago=referencia_pago,
+                emitido_por_id=usuario_id,
+                notas=notas,
+            ))
+
+        movimiento = MovimientoCuentaCorriente(
+            id=str(uuid4()),
+            cliente_id=cliente_id,
+            tipo=TipoMovimientoCC.PAGO.value if es_pago else TipoMovimientoCC.CARGO.value,
+            concepto=concepto,
+            monto=monto,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            medio_pago=medio_pago,
+            referencia_pago=referencia_pago,
+            fecha_movimiento=fecha_movimiento,
+            registrado_por_id=usuario_id,
+            recibo_numero=numero_recibo,
+            notas=notas,
+        )
+        self.db.add(movimiento)
+        cliente.saldo_cuenta_corriente = saldo_posterior
+        return movimiento
+
+    def _imputar_a_cc_proveedor(
+        self,
+        *,
+        proveedor_id: str,
+        monto: Decimal,
+        es_pago: bool,
+        concepto: str,
+        usuario_id: str,
+        fecha_movimiento: date,
+        notas: Optional[str] = None,
+    ) -> "MovimientoCuentaCorrienteProveedor":
+        """Impacta un movimiento en la cuenta corriente del proveedor.
+
+        - ``es_pago=True`` → tipo PAGO (le pagaste al proveedor → tu deuda con
+          él baja).
+        - ``es_pago=False`` → tipo CARGO (volvió a aumentar tu deuda, p.ej.
+          por reversión / nota débito).
+        """
+        from app.models.cuenta_corriente_proveedor import (
+            MovimientoCuentaCorrienteProveedor,
+            TipoMovimientoCCProveedor,
+        )
+        proveedor = self.db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
+        if not proveedor:
+            raise ValueError(f"Proveedor no encontrado: {proveedor_id}")
+
+        saldo_anterior = proveedor.saldo_cuenta_corriente or Decimal("0")
+        delta = -monto if es_pago else monto
+        saldo_posterior = saldo_anterior + delta
+
+        movimiento = MovimientoCuentaCorrienteProveedor(
+            id=str(uuid4()),
+            proveedor_id=proveedor_id,
+            tipo=(
+                TipoMovimientoCCProveedor.PAGO.value
+                if es_pago
+                else TipoMovimientoCCProveedor.CARGO.value
+            ),
+            concepto=concepto,
+            monto=monto,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            fecha_movimiento=fecha_movimiento,
+            registrado_por_id=usuario_id,
+            notas=notas,
+        )
+        self.db.add(movimiento)
+        proveedor.saldo_cuenta_corriente = saldo_posterior
+        return movimiento
+
     def _imputar_cheque_cliente(
         self,
         cheque: Cheque,
@@ -981,78 +1136,30 @@ class TesoreriaService:
         es_pago: bool = True,
         motivo: Optional[str] = None
     ) -> MovimientoCuentaCorriente:
-        """
-        Imputa un cheque a la cuenta corriente del cliente.
-
-        Args:
-            cheque: El cheque a imputar
-            cliente_id: ID del cliente
-            usuario_id: ID del usuario que registra
-            es_pago: True = pago (disminuye deuda), False = cargo (aumenta deuda, ej: rechazo)
-            motivo: Motivo opcional (usado en rechazos)
-
-        Returns:
-            MovimientoCuentaCorriente creado
-        """
-        cliente = self.db.query(Cliente).filter(Cliente.id == cliente_id).first()
-        if not cliente:
-            raise ValueError(f"Cliente no encontrado: {cliente_id}")
-
-        saldo_anterior = cliente.saldo_cuenta_corriente or Decimal("0")
-
+        """Wrapper específico para cheques: delega en ``_imputar_a_cc_cliente``
+        armando el concepto y las notas con los datos del cheque."""
         if es_pago:
-            # Pago: disminuye la deuda del cliente
-            tipo = TipoMovimientoCC.PAGO.value
-            saldo_posterior = saldo_anterior - cheque.monto
             concepto = f"Pago con cheque #{cheque.numero}"
             if cheque.banco_origen:
                 concepto += f" - {cheque.banco_origen}"
-
-            # Generar número de recibo
-            numero_recibo = self._generar_numero_recibo()
-
-            # Crear recibo
-            recibo = Recibo(
-                id=str(uuid4()),
-                numero=numero_recibo,
-                cliente_id=cliente_id,
-                fecha=today_ar(),
-                monto_total=cheque.monto,
-                medio_pago="cheque",
-                referencia_pago=f"CH-{cheque.numero}",
-                emitido_por_id=usuario_id,
-                notas=f"Cheque {cheque.numero} - Vto: {cheque.fecha_vencimiento}",
-            )
-            self.db.add(recibo)
         else:
-            # Cargo (reversión por rechazo): aumenta la deuda del cliente
-            tipo = TipoMovimientoCC.CARGO.value
-            saldo_posterior = saldo_anterior + cheque.monto
             concepto = motivo or f"Reversión cheque rechazado #{cheque.numero}"
-            numero_recibo = None
 
-        movimiento = MovimientoCuentaCorriente(
-            id=str(uuid4()),
+        notas = (
+            f"Cheque #{cheque.numero} - Banco: {cheque.banco_origen or 'N/A'} "
+            f"- Vto: {cheque.fecha_vencimiento}"
+        )
+        return self._imputar_a_cc_cliente(
             cliente_id=cliente_id,
-            tipo=tipo,
-            concepto=concepto,
             monto=cheque.monto,
-            saldo_anterior=saldo_anterior,
-            saldo_posterior=saldo_posterior,
+            es_pago=es_pago,
+            concepto=concepto,
+            usuario_id=usuario_id,
             medio_pago="cheque",
             referencia_pago=f"CH-{cheque.numero}",
             fecha_movimiento=today_ar(),
-            registrado_por_id=usuario_id,
-            recibo_numero=numero_recibo if es_pago else None,
-            notas=f"Cheque #{cheque.numero} - Banco: {cheque.banco_origen or 'N/A'} - Vto: {cheque.fecha_vencimiento}",
+            notas=notas,
         )
-
-        self.db.add(movimiento)
-
-        # Actualizar saldo del cliente
-        cliente.saldo_cuenta_corriente = saldo_posterior
-
-        return movimiento
 
     def _generar_numero_recibo(self) -> str:
         """Genera número único de recibo."""
