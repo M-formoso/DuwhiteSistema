@@ -209,6 +209,8 @@ class MovimientoTesoreriaCreate(BaseModel):
     # Relaciones
     cliente_id: Optional[UUID] = None
     proveedor_id: Optional[UUID] = None
+    # Categoría de gasto para egresos sin proveedor concreto (IVA, EPEC, etc).
+    categoria_gasto_id: Optional[UUID] = None
 
     notas: Optional[str] = None
     comprobante: Optional[str] = None
@@ -240,6 +242,7 @@ class MovimientoTesoreriaResponse(BaseModel):
     cheque_id: Optional[UUID]
     cliente_id: Optional[UUID]
     proveedor_id: Optional[UUID]
+    categoria_gasto_id: Optional[UUID] = None
 
     registrado_por_id: UUID
     notas: Optional[str]
@@ -254,6 +257,7 @@ class MovimientoTesoreriaResponse(BaseModel):
     # Campos calculados
     cliente_nombre: Optional[str] = None
     proveedor_nombre: Optional[str] = None
+    categoria_gasto_nombre: Optional[str] = None
     registrado_por_nombre: Optional[str] = None
     cheque_numero: Optional[str] = None
 
@@ -272,6 +276,7 @@ class MovimientoTesoreriaList(BaseModel):
     metodo_pago: str
     cliente_nombre: Optional[str] = None
     proveedor_nombre: Optional[str] = None
+    categoria_gasto_nombre: Optional[str] = None
     cheque_numero: Optional[str] = None
     anulado: bool
 
@@ -327,6 +332,8 @@ class MovimientoConsolidado(BaseModel):
     cliente_nombre: Optional[str] = None
     proveedor_id: Optional[UUID] = None
     proveedor_nombre: Optional[str] = None
+    categoria_gasto_id: Optional[UUID] = None
+    categoria_gasto_nombre: Optional[str] = None
 
     # Info adicional según tipo
     numero_referencia: Optional[str] = None  # número de cheque, transferencia, etc.

@@ -155,6 +155,7 @@ export interface MovimientoTesoreria {
   // Campos calculados
   cliente_nombre: string | null;
   proveedor_nombre: string | null;
+  categoria_gasto_nombre?: string | null;
   registrado_por_nombre: string | null;
   cheque_numero: string | null;
 }
@@ -169,6 +170,7 @@ export interface MovimientoTesoreriaList {
   metodo_pago: MetodoPagoTesoreria;
   cliente_nombre: string | null;
   proveedor_nombre: string | null;
+  categoria_gasto_nombre?: string | null;
   cheque_numero: string | null;
   anulado: boolean;
 }
@@ -189,6 +191,7 @@ export interface MovimientoTesoreriaCreate {
   cheque_id?: string | null;
   cliente_id?: string | null;
   proveedor_id?: string | null;
+  categoria_gasto_id?: string | null;
   notas?: string | null;
   comprobante?: string | null;
 }
@@ -231,6 +234,8 @@ export interface MovimientoConsolidado {
   cliente_nombre: string | null;
   proveedor_id: string | null;
   proveedor_nombre: string | null;
+  categoria_gasto_id?: string | null;
+  categoria_gasto_nombre?: string | null;
   numero_referencia: string | null;
   banco: string | null;
   estado: string | null;

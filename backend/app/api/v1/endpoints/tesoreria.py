@@ -689,3 +689,131 @@ def get_imagen_cheque(
         media_type=content_type_por_extension(ruta),
         filename=f"cheque-{cheque.numero}{ruta.suffix}",
     )
+
+
+# ==================== CATEGORÍAS DE GASTO ====================
+#
+# Las categorías son el "a qué le pagás" cuando el egreso no corresponde
+# a un proveedor concreto: IVA, EPEC, sindicato, cuotas de autos, obras,
+# sueldos, etc. La admin puede agregar más desde la UI; el seed inicial
+# está en la migración.
+
+from app.models.categoria_gasto import CategoriaGasto
+from app.schemas.categoria_gasto import (
+    CategoriaGastoCreate,
+    CategoriaGastoUpdate,
+    CategoriaGastoResponse,
+)
+
+
+@router.get("/categorias-gasto", response_model=List[CategoriaGastoResponse])
+def listar_categorias_gasto(
+    solo_activas: bool = Query(True),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador", "contador")
+    ),
+):
+    """Lista las categorías de gasto, por default solo las activas."""
+    q = db.query(CategoriaGasto)
+    if solo_activas:
+        q = q.filter(CategoriaGasto.activo == True)
+    return [
+        CategoriaGastoResponse(
+            id=str(c.id),
+            nombre=c.nombre,
+            activo=c.activo,
+            created_at=c.created_at,
+        )
+        for c in q.order_by(CategoriaGasto.nombre.asc()).all()
+    ]
+
+
+@router.post(
+    "/categorias-gasto",
+    response_model=CategoriaGastoResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def crear_categoria_gasto(
+    data: CategoriaGastoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador", "contador")
+    ),
+):
+    """Crea una categoría de gasto nueva. El nombre es único — si ya existe
+    (case-insensitive) devolvemos 409 en vez de IntegrityError."""
+    from uuid import uuid4
+    nombre = data.nombre.strip()
+    existente = (
+        db.query(CategoriaGasto)
+        .filter(CategoriaGasto.nombre.ilike(nombre))
+        .first()
+    )
+    if existente:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya existe una categoría con el nombre '{existente.nombre}'",
+        )
+    cat = CategoriaGasto(id=str(uuid4()), nombre=nombre, activo=True)
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return CategoriaGastoResponse(
+        id=str(cat.id),
+        nombre=cat.nombre,
+        activo=cat.activo,
+        created_at=cat.created_at,
+    )
+
+
+@router.patch("/categorias-gasto/{categoria_id}", response_model=CategoriaGastoResponse)
+def actualizar_categoria_gasto(
+    categoria_id: UUID,
+    data: CategoriaGastoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador", "contador")
+    ),
+):
+    """Renombra o activa/desactiva una categoría."""
+    cat = db.query(CategoriaGasto).filter(CategoriaGasto.id == str(categoria_id)).first()
+    if not cat:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
+    if data.nombre is not None:
+        nombre = data.nombre.strip()
+        colision = (
+            db.query(CategoriaGasto)
+            .filter(CategoriaGasto.nombre.ilike(nombre), CategoriaGasto.id != str(categoria_id))
+            .first()
+        )
+        if colision:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe otra categoría con ese nombre")
+        cat.nombre = nombre
+    if data.activo is not None:
+        cat.activo = data.activo
+    db.commit()
+    db.refresh(cat)
+    return CategoriaGastoResponse(
+        id=str(cat.id),
+        nombre=cat.nombre,
+        activo=cat.activo,
+        created_at=cat.created_at,
+    )
+
+
+@router.delete("/categorias-gasto/{categoria_id}", status_code=status.HTTP_204_NO_CONTENT)
+def desactivar_categoria_gasto(
+    categoria_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(
+        require_permission("superadmin", "administrador")
+    ),
+):
+    """Soft-delete: la categoría se marca como inactiva pero no se borra —
+    los movimientos históricos que la referencian siguen válidos."""
+    cat = db.query(CategoriaGasto).filter(CategoriaGasto.id == str(categoria_id)).first()
+    if not cat:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
+    cat.activo = False
+    db.commit()

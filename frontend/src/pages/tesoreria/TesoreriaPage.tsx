@@ -55,6 +55,7 @@ import { useToast } from '@/hooks/use-toast';
 import { tesoreriaService } from '@/services/tesoreriaService';
 import { clienteService } from '@/services/clienteService';
 import { proveedorService } from '@/services/proveedorService';
+import { categoriaGastoService, type CategoriaGasto } from '@/services/categoriaGastoService';
 import { finanzasService } from '@/services/finanzasService';
 import { TesoreriaGraficos } from '@/components/tesoreria/TesoreriaGraficos';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
@@ -289,6 +290,32 @@ export default function TesoreriaPage() {
   const { data: proveedores, isLoading: loadingProveedores } = useQuery({
     queryKey: ['proveedores-lista'],
     queryFn: () => proveedorService.getProveedores({ limit: 100, solo_activos: true }),
+  });
+
+  // Categorías de gasto (seed de la casa + las que agregue la admin desde la UI).
+  const { data: categoriasGasto = [], isLoading: loadingCategorias } = useQuery<CategoriaGasto[]>({
+    queryKey: ['categorias-gasto'],
+    queryFn: () => categoriaGastoService.list(true),
+  });
+
+  // Toggle del modal de egreso: "Pagás a: Proveedor | Categoría". Default
+  // "categoria" porque la mayoría de los egresos de la casa son recurrentes
+  // (IVA, EPEC, sueldos) y no proveedores concretos.
+  const [imputacionEgreso, setImputacionEgreso] = useState<'proveedor' | 'categoria'>('categoria');
+  const [nuevaCategoriaDialog, setNuevaCategoriaDialog] = useState(false);
+  const [nuevaCategoriaNombre, setNuevaCategoriaNombre] = useState('');
+
+  const crearCategoriaGastoMutation = useMutation({
+    mutationFn: (nombre: string) => categoriaGastoService.create(nombre),
+    onSuccess: (nueva) => {
+      queryClient.invalidateQueries({ queryKey: ['categorias-gasto'] });
+      // Auto-selecciona la recién creada en el movimiento.
+      setMovimientoForm((f) => ({ ...f, categoria_gasto_id: nueva.id }));
+      setNuevaCategoriaDialog(false);
+      setNuevaCategoriaNombre('');
+      toast({ title: `Categoría "${nueva.nombre}" creada` });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo crear la categoría'),
   });
 
   // Caja abierta/cerrada quedó deprecated — no la consultamos. El saldo
@@ -2133,21 +2160,79 @@ export default function TesoreriaPage() {
                   />
                 </div>
               ) : (
+                // EGRESO: la plata puede ir a un proveedor concreto o a una
+                // categoría genérica (IVA, EPEC, sindicato, cuotas, etc).
+                // El toggle resetea el otro campo para que no quede ambiguo.
                 <div className="space-y-2">
-                  <Label>Proveedor (opcional)</Label>
-                  <Combobox
-                    options={proveedores?.items?.map((p) => ({
-                      value: p.id,
-                      label: p.razon_social,
-                      sublabel: p.cuit || undefined,
-                    })) || []}
-                    value={movimientoForm.proveedor_id ?? null}
-                    onChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v })}
-                    placeholder="Buscar proveedor..."
-                    searchPlaceholder="Escribí para buscar..."
-                    emptyText="No se encontró el proveedor"
-                    isLoading={loadingProveedores}
-                  />
+                  <Label>Imputación del egreso *</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={imputacionEgreso === 'proveedor' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setImputacionEgreso('proveedor');
+                        setMovimientoForm({ ...movimientoForm, categoria_gasto_id: null });
+                      }}
+                    >
+                      Proveedor
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={imputacionEgreso === 'categoria' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setImputacionEgreso('categoria');
+                        setMovimientoForm({ ...movimientoForm, proveedor_id: null });
+                      }}
+                    >
+                      Categoría de gasto
+                    </Button>
+                  </div>
+
+                  {imputacionEgreso === 'proveedor' ? (
+                    <Combobox
+                      options={proveedores?.items?.map((p) => ({
+                        value: p.id,
+                        label: p.razon_social,
+                        sublabel: p.cuit || undefined,
+                      })) || []}
+                      value={movimientoForm.proveedor_id ?? null}
+                      onChange={(v) => setMovimientoForm({ ...movimientoForm, proveedor_id: v })}
+                      placeholder="Buscar proveedor..."
+                      searchPlaceholder="Escribí para buscar..."
+                      emptyText="No se encontró el proveedor"
+                      isLoading={loadingProveedores}
+                    />
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Combobox
+                          options={categoriasGasto.map((c) => ({
+                            value: c.id,
+                            label: c.nombre,
+                          }))}
+                          value={movimientoForm.categoria_gasto_id ?? null}
+                          onChange={(v) =>
+                            setMovimientoForm({ ...movimientoForm, categoria_gasto_id: v })
+                          }
+                          placeholder="Elegí la categoría..."
+                          searchPlaceholder="Escribí para buscar..."
+                          emptyText="No hay categorías. Creá una con el +"
+                          isLoading={loadingCategorias}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        title="Agregar categoría nueva"
+                        onClick={() => setNuevaCategoriaDialog(true)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2937,6 +3022,14 @@ export default function TesoreriaPage() {
                     <p className="font-medium">{(movimientoDetalle as any).proveedor_nombre}</p>
                   </div>
                 )}
+                {(movimientoDetalle as any).categoria_gasto_nombre && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Categoría de gasto</p>
+                    <p className="font-medium">
+                      {(movimientoDetalle as any).categoria_gasto_nombre}
+                    </p>
+                  </div>
+                )}
                 {(movimientoDetalle as any).cheque_numero && (
                   <div>
                     <p className="text-xs text-muted-foreground">Cheque</p>
@@ -2982,6 +3075,55 @@ export default function TesoreriaPage() {
                   <p className="whitespace-pre-wrap">{(movimientoDetalle as any).notas}</p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal "Nueva categoría de gasto" — abierto desde el "+" al lado del
+          selector de categoría. Al crearla, se auto-selecciona en el form. */}
+      {nuevaCategoriaDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <Card className="w-full max-w-sm m-4">
+            <CardHeader>
+              <CardTitle className="text-base">Nueva categoría de gasto</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <Label>Nombre *</Label>
+                <Input
+                  autoFocus
+                  value={nuevaCategoriaNombre}
+                  onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
+                  placeholder="Ej: Mantenimiento edificio"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && nuevaCategoriaNombre.trim()) {
+                      crearCategoriaGastoMutation.mutate(nuevaCategoriaNombre.trim());
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setNuevaCategoriaDialog(false);
+                    setNuevaCategoriaNombre('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!nuevaCategoriaNombre.trim() || crearCategoriaGastoMutation.isPending}
+                  onClick={() =>
+                    crearCategoriaGastoMutation.mutate(nuevaCategoriaNombre.trim())
+                  }
+                >
+                  {crearCategoriaGastoMutation.isPending ? 'Creando...' : 'Crear'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

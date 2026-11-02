@@ -498,6 +498,7 @@ class TesoreriaService:
             cheque_id=str(data.cheque_id) if data.cheque_id else None,
             cliente_id=str(data.cliente_id) if data.cliente_id else None,
             proveedor_id=str(data.proveedor_id) if data.proveedor_id else None,
+            categoria_gasto_id=str(data.categoria_gasto_id) if data.categoria_gasto_id else None,
             notas=data.notas,
             comprobante=data.comprobante,
             registrado_por_id=str(registrado_por_id),
@@ -1102,6 +1103,7 @@ class TesoreriaService:
 
     def enrich_movimiento(self, movimiento: MovimientoTesoreria) -> dict:
         """Enriquece un movimiento con datos relacionados."""
+        from app.models.categoria_gasto import CategoriaGasto
         data = movimiento.__dict__.copy()
 
         # Cliente
@@ -1113,6 +1115,15 @@ class TesoreriaService:
         if movimiento.proveedor_id:
             proveedor = self.db.query(Proveedor).filter(Proveedor.id == movimiento.proveedor_id).first()
             data['proveedor_nombre'] = proveedor.razon_social if proveedor else None
+
+        # Categoría de gasto (para egresos sin proveedor concreto).
+        if movimiento.categoria_gasto_id:
+            cat = (
+                self.db.query(CategoriaGasto)
+                .filter(CategoriaGasto.id == movimiento.categoria_gasto_id)
+                .first()
+            )
+            data['categoria_gasto_nombre'] = cat.nombre if cat else None
 
         # Usuario que registró
         if movimiento.registrado_por_id:
@@ -1245,15 +1256,24 @@ class TesoreriaService:
                 )
             )
 
+        from app.models.categoria_gasto import CategoriaGasto
         for mov in mov_teso_query.all():
             cliente_nombre = None
             proveedor_nombre = None
+            categoria_gasto_nombre = None
             if mov.cliente_id:
                 cliente = self.db.query(Cliente).filter(Cliente.id == mov.cliente_id).first()
                 cliente_nombre = cliente.razon_social if cliente else None
             if mov.proveedor_id:
                 proveedor = self.db.query(Proveedor).filter(Proveedor.id == mov.proveedor_id).first()
                 proveedor_nombre = proveedor.razon_social if proveedor else None
+            if mov.categoria_gasto_id:
+                cat = (
+                    self.db.query(CategoriaGasto)
+                    .filter(CategoriaGasto.id == mov.categoria_gasto_id)
+                    .first()
+                )
+                categoria_gasto_nombre = cat.nombre if cat else None
 
             movimientos.append({
                 'id': str(mov.id),
@@ -1268,6 +1288,8 @@ class TesoreriaService:
                 'cliente_nombre': cliente_nombre,
                 'proveedor_id': str(mov.proveedor_id) if mov.proveedor_id else None,
                 'proveedor_nombre': proveedor_nombre,
+                'categoria_gasto_id': str(mov.categoria_gasto_id) if mov.categoria_gasto_id else None,
+                'categoria_gasto_nombre': categoria_gasto_nombre,
                 'numero_referencia': mov.numero_transferencia,
                 'banco': mov.banco_origen or mov.banco_destino,
                 'estado': None,

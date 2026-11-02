@@ -94,6 +94,23 @@ export function TesoreriaGraficos({ movimientos, cuentas }: Props) {
     }));
   }, [movimientos]);
 
+  // Egresos por categoría de gasto — barras horizontales porque suelen
+  // ser muchas categorías (20+) y en donut no se leen los nombres. Las
+  // ordenamos de mayor a menor para que "lo que más gasta la casa" quede
+  // arriba del todo.
+  const porCategoria = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of movimientos) {
+      if (m.es_ingreso) continue;
+      const cat = (m as any).categoria_gasto_nombre;
+      if (!cat) continue;
+      map.set(cat, (map.get(cat) || 0) + Number(m.monto || 0));
+    }
+    return Array.from(map.entries())
+      .map(([nombre, total]) => ({ nombre, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [movimientos]);
+
   // Saldos por cuenta — barras horizontales.
   const dataCuentas = useMemo(
     () =>
@@ -212,6 +229,51 @@ export function TesoreriaGraficos({ movimientos, cuentas }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Egresos por categoría de gasto — barras horizontales ordenadas de
+          mayor a menor. Útil para ver "a dónde se va la plata" de un vistazo. */}
+      {porCategoria.length > 0 && (
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart3 className="h-5 w-5 text-red-600" />
+              Egresos por categoría de gasto
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer
+              width="100%"
+              height={Math.max(180, Math.min(porCategoria.length, 15) * 32)}
+            >
+              <BarChart
+                data={porCategoria.slice(0, 15)}
+                layout="vertical"
+                margin={{ left: 10, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `$${formatNumber(Number(v), 0)}`}
+                />
+                <YAxis
+                  dataKey="nombre"
+                  type="category"
+                  tick={{ fontSize: 11 }}
+                  width={180}
+                />
+                <Tooltip formatter={(v: number) => `$${formatNumber(v, 2)}`} />
+                <Bar dataKey="total" fill="#EF4444" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            {porCategoria.length > 15 && (
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Mostrando top 15 — hay {porCategoria.length} categorías con egresos en el período.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Saldos por cuenta — barras horizontales */}
       {dataCuentas.length > 0 && (

@@ -143,6 +143,15 @@ class MovimientoTesoreria(Base, BaseModelMixin):
     # Relaciones con entidades
     cliente_id = Column(UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True)
     proveedor_id = Column(UUID(as_uuid=True), ForeignKey("proveedores.id"), nullable=True)
+    # Categoría de gasto (solo para egresos, en la práctica mutuamente
+    # excluyente con proveedor: o le pagás a un proveedor concreto, o lo
+    # imputás a una categoría genérica como "IVA" / "EPEC" / "Sindicato").
+    categoria_gasto_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("categorias_gasto.id"),
+        nullable=True,
+        index=True,
+    )
 
     # Auditoría
     registrado_por_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
@@ -163,6 +172,7 @@ class MovimientoTesoreria(Base, BaseModelMixin):
     proveedor = relationship("Proveedor", foreign_keys=[proveedor_id])
     cuenta_destino = relationship("CuentaBancaria", foreign_keys=[cuenta_destino_id])
     cheque = relationship("Cheque", back_populates="movimientos")
+    categoria_gasto = relationship("CategoriaGasto", foreign_keys=[categoria_gasto_id])
     registrado_por = relationship("Usuario", foreign_keys=[registrado_por_id])
     anulado_por = relationship("Usuario", foreign_keys=[anulado_por_id])
 
