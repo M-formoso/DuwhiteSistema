@@ -456,35 +456,30 @@ class TesoreriaService:
     ) -> MovimientoTesoreria:
         """Crea un nuevo movimiento de tesorería.
 
-        Si el método de pago es efectivo, además refleja el movimiento en la
-        caja abierta (actualiza totales + crea MovimientoCaja vinculado).
-        Antes esto no se hacía y los egresos en efectivo "no se guardaban"
-        desde el punto de vista del operador: aparecían en el listado de
-        tesorería pero la caja seguía mostrando el mismo saldo, dando la
-        sensación de que el gasto no se había registrado.
+        Cada movimiento se imputa a UNA cuenta (banco / efectivo / billetera
+        virtual). Se exige `cuenta_destino_id` salvo para los cheques, que
+        no afectan saldos de cuenta hasta que se depositan/cobran.
+
+        Al imputar: suma/resta el monto al saldo de la cuenta y deja un
+        MovimientoBancario de trail con `saldo_anterior`/`saldo_posterior`
+        para que la vista "detalle de la cuenta" pueda reconstruir cómo
+        llegó al saldo actual.
         """
-        # Si es con cheque existente, verificar
         if data.cheque_id:
             cheque = self.get_cheque(data.cheque_id)
             if not cheque:
                 raise ValueError("Cheque no encontrado")
 
-        # Para efectivo necesitamos caja abierta sí o sí. Si no hay, fallamos
-        # ANTES de persistir nada así no quedan movimientos huérfanos sin
-        # reflejar en la caja.
-        caja_abierta = None
-        if data.metodo_pago == "efectivo":
-            from app.models.caja import Caja, MovimientoCaja, EstadoCaja, TipoMovimientoCaja, CategoriaMovimiento
-            caja_abierta = (
-                self.db.query(Caja)
-                .filter(Caja.estado == EstadoCaja.ABIERTA.value)
-                .first()
+        # Validación: todo movimiento que no sea cheque exige cuenta destino.
+        # Antes esto era implícito ("sin cuenta → va a la caja genérica abierta"),
+        # pero eliminamos la lógica de caja y ahora todo pasa por cuentas
+        # nombradas. Si querés registrar un movimiento sin afectar saldos,
+        # creá primero una cuenta "sin asignar" tipo efectivo y usála.
+        if data.metodo_pago != "cheque" and not data.cuenta_destino_id:
+            raise ValueError(
+                "Elegí una cuenta para imputar el movimiento (banco, "
+                "efectivo o billetera virtual)."
             )
-            if caja_abierta is None:
-                raise ValueError(
-                    "No hay una caja abierta. Para registrar movimientos en "
-                    "efectivo primero tenés que abrir la caja del día."
-                )
 
         movimiento = MovimientoTesoreria(
             id=str(uuid4()),
@@ -510,48 +505,9 @@ class TesoreriaService:
 
         self.db.add(movimiento)
 
-        # Reflejo en caja: MovimientoCaja vinculado + actualizar totales.
-        # Categorización por default inferida del contexto (cliente/proveedor);
-        # si no hay nada, cae en "otro_ingreso"/"otro_egreso".
-        if caja_abierta is not None:
-            if data.es_ingreso:
-                tipo_caja = TipoMovimientoCaja.INGRESO.value
-                if data.cliente_id:
-                    categoria = CategoriaMovimiento.COBRO_CLIENTE.value
-                else:
-                    categoria = CategoriaMovimiento.OTRO_INGRESO.value
-                caja_abierta.total_ingresos = (caja_abierta.total_ingresos or Decimal("0")) + data.monto
-            else:
-                tipo_caja = TipoMovimientoCaja.EGRESO.value
-                if data.proveedor_id:
-                    categoria = CategoriaMovimiento.PAGO_PROVEEDOR.value
-                else:
-                    categoria = CategoriaMovimiento.OTRO_EGRESO.value
-                caja_abierta.total_egresos = (caja_abierta.total_egresos or Decimal("0")) + data.monto
-
-            mov_caja = MovimientoCaja(
-                id=str(uuid4()),
-                caja_id=caja_abierta.id,
-                tipo=tipo_caja,
-                categoria=categoria,
-                concepto=data.concepto,
-                descripcion=data.descripcion,
-                monto=data.monto,
-                medio_pago="efectivo",
-                referencia=f"TES-{movimiento.id}",
-                cliente_id=str(data.cliente_id) if data.cliente_id else None,
-                proveedor_id=str(data.proveedor_id) if data.proveedor_id else None,
-                registrado_por_id=str(registrado_por_id),
-            )
-            self.db.add(mov_caja)
-
-        # Si el movimiento afecta una cuenta bancaria concreta (vía
-        # cuenta_destino_id), creamos también MovimientoBancario con el
-        # trail saldo_anterior / saldo_posterior y actualizamos el saldo
-        # de la cuenta. Esto es lo que faltaba para que el operador vea
-        # "el egreso le dejó esta cuenta en $X". Sirve para cualquier
-        # método que no sea efectivo (transferencia, débito, etc).
-        if data.cuenta_destino_id and data.metodo_pago != "efectivo":
+        # Reflejo en la cuenta elegida (banco/efectivo/billetera_virtual):
+        # saldo nuevo + fila en MovimientoBancario para el trail.
+        if data.cuenta_destino_id:
             from app.models.cuenta_bancaria import MovimientoBancario, TipoMovimientoBanco
             cuenta = (
                 self.db.query(CuentaBancaria)
@@ -559,7 +515,7 @@ class TesoreriaService:
                 .first()
             )
             if cuenta is None:
-                raise ValueError("Cuenta bancaria destino no encontrada")
+                raise ValueError("Cuenta destino no encontrada")
 
             saldo_anterior = cuenta.saldo_actual or Decimal("0")
             delta = data.monto if data.es_ingreso else -data.monto
@@ -764,79 +720,41 @@ class TesoreriaService:
         notas: Optional[str],
         usuario_id: UUID,
     ) -> dict:
-        """Transfiere monto de una cuenta propia a otra.
-
-        Reglas:
-        - Origen y destino no pueden ser la misma.
-        - Al menos uno tiene que ser cuenta bancaria (si ambos son caja no
-          tiene sentido operativo).
-        - Si origen es caja: requiere caja abierta y la vacía por `monto`.
-        - Si destino es caja: requiere caja abierta y le suma `monto`.
-        - Crea dos MovimientoTesoreria vinculados por numero_transferencia
-          compartido para que en la vista se vean como par.
-        - El commit es atómico: si falla cualquier paso, no queda nada.
-        """
-        from app.models.caja import (
-            Caja, MovimientoCaja, EstadoCaja, TipoMovimientoCaja,
-            CategoriaMovimiento,
-        )
+        """Transfiere monto de una cuenta propia a otra. Ambas cuentas son
+        obligatorias (banco, efectivo o billetera virtual). Operación atómica."""
         from app.models.cuenta_bancaria import MovimientoBancario, TipoMovimientoBanco
 
-        if cuenta_origen_id == cuenta_destino_id and cuenta_origen_id is not None:
+        if cuenta_origen_id is None or cuenta_destino_id is None:
+            raise ValueError("Elegí cuenta origen y cuenta destino")
+        if cuenta_origen_id == cuenta_destino_id:
             raise ValueError("La cuenta origen y destino no pueden ser la misma")
-        if cuenta_origen_id is None and cuenta_destino_id is None:
-            raise ValueError(
-                "Al menos una de las dos cuentas tiene que ser cuenta bancaria"
-            )
         if monto <= 0:
             raise ValueError("El monto debe ser positivo")
 
         ref_transferencia = f"TR-{uuid4().hex[:12].upper()}"
 
-        # --- Resolver cuenta origen ---
-        cuenta_origen_obj = None
-        label_origen = "Caja de Efectivo"
-        if cuenta_origen_id is not None:
-            cuenta_origen_obj = (
-                self.db.query(CuentaBancaria)
-                .filter(CuentaBancaria.id == str(cuenta_origen_id))
-                .first()
-            )
-            if not cuenta_origen_obj:
-                raise ValueError("Cuenta origen no encontrada")
-            label_origen = f"{cuenta_origen_obj.banco} - {cuenta_origen_obj.numero_cuenta}"
+        cuenta_origen_obj = (
+            self.db.query(CuentaBancaria)
+            .filter(CuentaBancaria.id == str(cuenta_origen_id))
+            .first()
+        )
+        if not cuenta_origen_obj:
+            raise ValueError("Cuenta origen no encontrada")
 
-        # --- Resolver cuenta destino ---
-        cuenta_destino_obj = None
-        label_destino = "Caja de Efectivo"
-        if cuenta_destino_id is not None:
-            cuenta_destino_obj = (
-                self.db.query(CuentaBancaria)
-                .filter(CuentaBancaria.id == str(cuenta_destino_id))
-                .first()
-            )
-            if not cuenta_destino_obj:
-                raise ValueError("Cuenta destino no encontrada")
-            label_destino = f"{cuenta_destino_obj.banco} - {cuenta_destino_obj.numero_cuenta}"
+        cuenta_destino_obj = (
+            self.db.query(CuentaBancaria)
+            .filter(CuentaBancaria.id == str(cuenta_destino_id))
+            .first()
+        )
+        if not cuenta_destino_obj:
+            raise ValueError("Cuenta destino no encontrada")
 
-        # --- Caja abierta si alguno de los extremos es efectivo ---
-        caja_abierta = None
-        if cuenta_origen_id is None or cuenta_destino_id is None:
-            caja_abierta = (
-                self.db.query(Caja)
-                .filter(Caja.estado == EstadoCaja.ABIERTA.value)
-                .first()
-            )
-            if not caja_abierta:
-                raise ValueError(
-                    "No hay caja abierta. Para transferencias que involucran "
-                    "efectivo primero tenés que abrir la caja del día."
-                )
-
+        label_origen = cuenta_origen_obj.nombre or f"{cuenta_origen_obj.banco} - {cuenta_origen_obj.numero_cuenta}"
+        label_destino = cuenta_destino_obj.nombre or f"{cuenta_destino_obj.banco} - {cuenta_destino_obj.numero_cuenta}"
         concepto_origen = f"{concepto} → {label_destino}"
         concepto_destino = f"{concepto} ← {label_origen}"
 
-        # --- Movimiento egreso (origen) ---
+        # Dos MovimientoTesoreria vinculados por numero_transferencia.
         mov_origen = MovimientoTesoreria(
             id=str(uuid4()),
             tipo="transferencia_salida",
@@ -846,15 +764,14 @@ class TesoreriaService:
             es_ingreso=False,
             fecha_movimiento=fecha,
             fecha_valor=fecha,
-            metodo_pago="efectivo" if cuenta_origen_id is None else "transferencia",
-            cuenta_destino_id=str(cuenta_origen_id) if cuenta_origen_id else None,
+            metodo_pago="transferencia",
+            cuenta_destino_id=str(cuenta_origen_id),
             numero_transferencia=ref_transferencia,
             notas=notas,
             registrado_por_id=str(usuario_id),
         )
         self.db.add(mov_origen)
 
-        # --- Movimiento ingreso (destino) ---
         mov_destino = MovimientoTesoreria(
             id=str(uuid4()),
             tipo="transferencia_entrada",
@@ -864,93 +781,48 @@ class TesoreriaService:
             es_ingreso=True,
             fecha_movimiento=fecha,
             fecha_valor=fecha,
-            metodo_pago="efectivo" if cuenta_destino_id is None else "transferencia",
-            cuenta_destino_id=str(cuenta_destino_id) if cuenta_destino_id else None,
+            metodo_pago="transferencia",
+            cuenta_destino_id=str(cuenta_destino_id),
             numero_transferencia=ref_transferencia,
             notas=notas,
             registrado_por_id=str(usuario_id),
         )
         self.db.add(mov_destino)
 
-        # --- Impactos en cuentas / caja ---
-        saldo_origen_posterior = Decimal("0")
-        saldo_destino_posterior = Decimal("0")
+        # Saldos + MovimientoBancario de trail para cada cuenta.
+        saldo_origen_prev = cuenta_origen_obj.saldo_actual or Decimal("0")
+        saldo_origen_posterior = saldo_origen_prev - monto
+        cuenta_origen_obj.saldo_actual = saldo_origen_posterior
+        self.db.add(MovimientoBancario(
+            id=str(uuid4()),
+            cuenta_id=str(cuenta_origen_obj.id),
+            tipo=TipoMovimientoBanco.TRANSFERENCIA_SALIDA.value,
+            concepto=concepto_origen,
+            monto=monto,
+            saldo_anterior=saldo_origen_prev,
+            saldo_posterior=saldo_origen_posterior,
+            fecha_movimiento=fecha,
+            fecha_valor=fecha,
+            numero_comprobante=ref_transferencia,
+            registrado_por_id=str(usuario_id),
+        ))
 
-        # Origen
-        if cuenta_origen_obj is not None:
-            saldo_anterior = cuenta_origen_obj.saldo_actual or Decimal("0")
-            saldo_origen_posterior = saldo_anterior - monto
-            cuenta_origen_obj.saldo_actual = saldo_origen_posterior
-            self.db.add(MovimientoBancario(
-                id=str(uuid4()),
-                cuenta_id=str(cuenta_origen_obj.id),
-                tipo=TipoMovimientoBanco.TRANSFERENCIA_SALIDA.value,
-                concepto=concepto_origen,
-                monto=monto,
-                saldo_anterior=saldo_anterior,
-                saldo_posterior=saldo_origen_posterior,
-                fecha_movimiento=fecha,
-                fecha_valor=fecha,
-                numero_comprobante=ref_transferencia,
-                registrado_por_id=str(usuario_id),
-            ))
-        else:
-            # Caja egresa
-            caja_abierta.total_egresos = (caja_abierta.total_egresos or Decimal("0")) + monto
-            saldo_origen_posterior = (
-                (caja_abierta.saldo_inicial or Decimal("0"))
-                + (caja_abierta.total_ingresos or Decimal("0"))
-                - (caja_abierta.total_egresos or Decimal("0"))
-            )
-            self.db.add(MovimientoCaja(
-                id=str(uuid4()),
-                caja_id=caja_abierta.id,
-                tipo=TipoMovimientoCaja.EGRESO.value,
-                categoria=CategoriaMovimiento.OTRO_EGRESO.value,
-                concepto=concepto_origen,
-                monto=monto,
-                medio_pago="efectivo",
-                referencia=ref_transferencia,
-                registrado_por_id=str(usuario_id),
-            ))
-
-        # Destino
-        if cuenta_destino_obj is not None:
-            saldo_anterior = cuenta_destino_obj.saldo_actual or Decimal("0")
-            saldo_destino_posterior = saldo_anterior + monto
-            cuenta_destino_obj.saldo_actual = saldo_destino_posterior
-            self.db.add(MovimientoBancario(
-                id=str(uuid4()),
-                cuenta_id=str(cuenta_destino_obj.id),
-                tipo=TipoMovimientoBanco.TRANSFERENCIA_ENTRADA.value,
-                concepto=concepto_destino,
-                monto=monto,
-                saldo_anterior=saldo_anterior,
-                saldo_posterior=saldo_destino_posterior,
-                fecha_movimiento=fecha,
-                fecha_valor=fecha,
-                numero_comprobante=ref_transferencia,
-                registrado_por_id=str(usuario_id),
-            ))
-        else:
-            # Caja ingresa
-            caja_abierta.total_ingresos = (caja_abierta.total_ingresos or Decimal("0")) + monto
-            saldo_destino_posterior = (
-                (caja_abierta.saldo_inicial or Decimal("0"))
-                + (caja_abierta.total_ingresos or Decimal("0"))
-                - (caja_abierta.total_egresos or Decimal("0"))
-            )
-            self.db.add(MovimientoCaja(
-                id=str(uuid4()),
-                caja_id=caja_abierta.id,
-                tipo=TipoMovimientoCaja.INGRESO.value,
-                categoria=CategoriaMovimiento.OTRO_INGRESO.value,
-                concepto=concepto_destino,
-                monto=monto,
-                medio_pago="efectivo",
-                referencia=ref_transferencia,
-                registrado_por_id=str(usuario_id),
-            ))
+        saldo_destino_prev = cuenta_destino_obj.saldo_actual or Decimal("0")
+        saldo_destino_posterior = saldo_destino_prev + monto
+        cuenta_destino_obj.saldo_actual = saldo_destino_posterior
+        self.db.add(MovimientoBancario(
+            id=str(uuid4()),
+            cuenta_id=str(cuenta_destino_obj.id),
+            tipo=TipoMovimientoBanco.TRANSFERENCIA_ENTRADA.value,
+            concepto=concepto_destino,
+            monto=monto,
+            saldo_anterior=saldo_destino_prev,
+            saldo_posterior=saldo_destino_posterior,
+            fecha_movimiento=fecha,
+            fecha_valor=fecha,
+            numero_comprobante=ref_transferencia,
+            registrado_por_id=str(usuario_id),
+        ))
 
         self.db.commit()
         self.db.refresh(mov_origen)

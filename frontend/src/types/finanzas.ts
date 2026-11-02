@@ -18,7 +18,11 @@ export type CategoriaMovimiento =
   | 'retiro'
   | 'otro_egreso';
 
-export type TipoCuentaBancaria = 'caja_ahorro' | 'cuenta_corriente';
+export type TipoCuentaBancaria =
+  | 'caja_ahorro'
+  | 'cuenta_corriente'
+  | 'efectivo'
+  | 'billetera_virtual';
 export type TipoMovimientoBanco =
   | 'deposito'
   | 'extraccion'
@@ -243,8 +247,10 @@ export const MEDIOS_PAGO_CAJA = [
 ];
 
 export const TIPOS_CUENTA_BANCARIA = [
-  { value: 'caja_ahorro', label: 'Caja de Ahorro' },
-  { value: 'cuenta_corriente', label: 'Cuenta Corriente' },
+  { value: 'caja_ahorro', label: '🏦 Caja de Ahorro' },
+  { value: 'cuenta_corriente', label: '🏦 Cuenta Corriente' },
+  { value: 'efectivo', label: '💵 Efectivo (caja nombrada)' },
+  { value: 'billetera_virtual', label: '📱 Billetera virtual' },
 ];
 
 export const MONEDAS = [

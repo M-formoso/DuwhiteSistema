@@ -13,9 +13,19 @@ from app.models.base import BaseModelMixin
 
 
 class TipoCuenta(str, Enum):
-    """Tipos de cuenta bancaria."""
+    """Tipos de cuenta.
+
+    "Cuenta" acá es el contenedor genérico de fondos del negocio: puede
+    ser un banco (con CBU y titular) o una caja de efectivo nombrada
+    ("Efectivo Lucho", "Caja chica") o una billetera virtual ("Mercado
+    Pago", "Ualá"). Para los no-bancarios los campos banco/cbu/numero
+    quedan opcionales a nivel UX; a nivel schema seguimos pidiendo banco
+    y numero_cuenta pero el frontend los auto-rellena.
+    """
     CAJA_AHORRO = "caja_ahorro"
     CUENTA_CORRIENTE = "cuenta_corriente"
+    EFECTIVO = "efectivo"
+    BILLETERA_VIRTUAL = "billetera_virtual"
 
 
 class Moneda(str, Enum):
