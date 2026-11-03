@@ -408,6 +408,8 @@ def create_movimiento(
     current_user: Usuario = Depends(require_permission("superadmin", "administrador", "contador")),
 ):
     """Crea un nuevo movimiento de tesorería."""
+    import logging
+    logger = logging.getLogger(__name__)
     service = TesoreriaService(db)
 
     try:
@@ -416,6 +418,17 @@ def create_movimiento(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except Exception as e:
+        # Antes cualquier excepción distinta a ValueError se transformaba en 500
+        # sin cuerpo y en el frontend aparecía "Network Error". Ahora logueamos
+        # la traza y devolvemos 500 con JSON legible para que al menos el usuario
+        # vea qué está pasando.
+        db.rollback()
+        logger.exception("Error al crear movimiento de tesoreria")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error del servidor al registrar el movimiento: {e}",
         )
 
     return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
