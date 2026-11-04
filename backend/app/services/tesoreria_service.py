@@ -18,46 +18,32 @@ _SCHEMA_MOV_BANCARIOS_OK = False
 
 def _asegurar_schema_movimientos_bancarios(db: Session) -> None:
     """Red de seguridad: garantiza que la tabla ``movimientos_bancarios``
-    tenga las columnas de conciliación.
-
-    En algunas DBs de producción la migración Alembic 20260310100000
-    (`add finanzas avanzadas`) no llegó a aplicarse (startCommand con
-    ``alembic || true``, DB restaurada de backup viejo, etc.) y el INSERT
-    revienta con ``column "conciliacion_id" does not exist``. Esta función
-    usa ``ADD COLUMN IF NOT EXISTS`` que es idempotente, y además deja un
-    flag a nivel módulo para no ejecutar nada en los requests siguientes.
+    tenga las columnas de conciliación. Idempotente y sin tocar la session
+    actual: los ALTER corren en una CONEXIÓN SEPARADA con autocommit, así
+    no commiteamos registros pendientes de la sesión del request (que
+    antes causaba que el MovimientoTesoreria se persistiera antes de
+    crear su MovimientoBancario asociado).
     """
     global _SCHEMA_MOV_BANCARIOS_OK
     if _SCHEMA_MOV_BANCARIOS_OK:
         return
+    from app.db.base import engine
     try:
-        db.execute(text(
-            "ALTER TABLE movimientos_bancarios "
-            "ADD COLUMN IF NOT EXISTS conciliado BOOLEAN NOT NULL DEFAULT FALSE"
-        ))
-        db.execute(text(
-            "ALTER TABLE movimientos_bancarios "
-            "ADD COLUMN IF NOT EXISTS fecha_conciliacion TIMESTAMP"
-        ))
-        db.execute(text(
-            "ALTER TABLE movimientos_bancarios "
-            "ADD COLUMN IF NOT EXISTS conciliacion_id UUID"
-        ))
-        db.execute(text(
-            "ALTER TABLE movimientos_bancarios "
-            "ADD COLUMN IF NOT EXISTS conciliado_por_id UUID"
-        ))
-        db.execute(text(
-            "ALTER TABLE movimientos_bancarios "
-            "ADD COLUMN IF NOT EXISTS referencia_conciliacion VARCHAR(100)"
-        ))
-        db.commit()
+        with engine.connect() as conn:
+            conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+            for stmt in (
+                "ALTER TABLE movimientos_bancarios ADD COLUMN IF NOT EXISTS conciliado BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE movimientos_bancarios ADD COLUMN IF NOT EXISTS fecha_conciliacion TIMESTAMP",
+                "ALTER TABLE movimientos_bancarios ADD COLUMN IF NOT EXISTS conciliacion_id UUID",
+                "ALTER TABLE movimientos_bancarios ADD COLUMN IF NOT EXISTS conciliado_por_id UUID",
+                "ALTER TABLE movimientos_bancarios ADD COLUMN IF NOT EXISTS referencia_conciliacion VARCHAR(100)",
+            ):
+                conn.execute(text(stmt))
         _SCHEMA_MOV_BANCARIOS_OK = True
     except Exception:
-        # Si falla el ALTER (sin permisos, etc), dejamos pasar: el INSERT
-        # va a tirar error claro igual. El try es solo para no romper si
-        # ya está todo OK y el usuario de la DB no tiene permiso de ALTER.
-        db.rollback()
+        # Si el ALTER falla (sin permisos, ya están, etc), el INSERT
+        # va a tirar error claro igual. No rompemos el request.
+        pass
 
 from app.core.timezone import now_utc_naive, today_ar
 from app.models.tesoreria import (
@@ -1457,68 +1443,13 @@ class TesoreriaService:
                 'created_at': mov.created_at,
             })
 
-        # 3. MOVIMIENTOS BANCARIOS
-        try:
-            from app.models.cuenta_bancaria import MovimientoBancario, CuentaBancaria
-
-            mov_banco_query = self.db.query(MovimientoBancario)
-
-            if fecha_desde:
-                mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento >= fecha_desde)
-            if fecha_hasta:
-                mov_banco_query = mov_banco_query.filter(MovimientoBancario.fecha_movimiento <= fecha_hasta)
-            if buscar:
-                mov_banco_query = mov_banco_query.filter(
-                    or_(
-                        MovimientoBancario.concepto.ilike(f"%{buscar}%"),
-                        MovimientoBancario.descripcion.ilike(f"%{buscar}%"),
-                    )
-                )
-
-            # Tipos que son ingresos
-            tipos_ingreso = ['deposito', 'transferencia_entrada', 'credito', 'interes', 'cheque_depositado']
-
-            for mov in mov_banco_query.all():
-                es_ing = mov.tipo in tipos_ingreso
-
-                if es_ingreso is not None and es_ing != es_ingreso:
-                    continue
-
-                cliente_nombre = None
-                proveedor_nombre = None
-                if mov.cliente_id:
-                    cliente = self.db.query(Cliente).filter(Cliente.id == mov.cliente_id).first()
-                    cliente_nombre = cliente.razon_social if cliente else None
-                if mov.proveedor_id:
-                    proveedor = self.db.query(Proveedor).filter(Proveedor.id == mov.proveedor_id).first()
-                    proveedor_nombre = proveedor.razon_social if proveedor else None
-
-                # Obtener nombre de cuenta
-                cuenta = self.db.query(CuentaBancaria).filter(CuentaBancaria.id == mov.cuenta_id).first()
-                banco_nombre = cuenta.banco if cuenta else None
-
-                movimientos.append({
-                    'id': str(mov.id),
-                    'fecha': mov.fecha_movimiento,
-                    'tipo': mov.tipo,
-                    'origen': 'movimiento_bancario',
-                    'concepto': mov.concepto,
-                    'monto': mov.monto,
-                    'es_ingreso': es_ing,
-                    'metodo_pago': 'transferencia' if 'transferencia' in mov.tipo else 'banco',
-                    'cliente_id': str(mov.cliente_id) if mov.cliente_id else None,
-                    'cliente_nombre': cliente_nombre,
-                    'proveedor_id': str(mov.proveedor_id) if mov.proveedor_id else None,
-                    'proveedor_nombre': proveedor_nombre,
-                    'numero_referencia': mov.numero_comprobante,
-                    'banco': banco_nombre,
-                    'estado': None,
-                    'created_at': mov.created_at,
-                })
-        except Exception as e:
-            # Si falla la consulta de movimientos bancarios, continuar sin ellos
-            import logging
-            logging.warning(f"Error al obtener movimientos bancarios: {e}")
+        # Los MovimientoBancario son el "trail interno" de cada cuenta —
+        # cada vez que se crea un MovimientoTesoreria con cuenta destino se
+        # deja además una fila bancaria para reconstruir el historial de la
+        # cuenta. NO los listamos acá para no duplicar (antes aparecían
+        # dos filas por el mismo pago: una con botones editar/eliminar y
+        # otra sin ellos) y para que los totales no cuenten doble. El
+        # historial por cuenta se ve en el detalle de la cuenta puntual.
 
         # Ordenar por fecha descendente
         movimientos.sort(key=lambda x: (x['fecha'], x['created_at']), reverse=True)
