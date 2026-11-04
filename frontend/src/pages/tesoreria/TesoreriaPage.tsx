@@ -378,14 +378,31 @@ export default function TesoreriaPage() {
   })();
 
   // Mutations
+  /**
+   * Invalida TODO lo que puede cambiar cuando se mueve plata: movimientos
+   * listados, resumen con totales, saldos por cuenta, cuenta corriente
+   * cliente/proveedor, cheques. Centralizado para que no se nos escape
+   * ninguna query cuando agreguemos features — ya tuvimos el bug de que
+   * el saldo de la cuenta quedaba viejo porque una mutation olvidaba
+   * invalidar "cuentas-bancarias".
+   */
+  const invalidarTesoreria = () => {
+    queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
+    queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+    queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
+    queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+    queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
+    queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+    queryClient.invalidateQueries({ queryKey: ['clientes'] });
+    queryClient.invalidateQueries({ queryKey: ['proveedores'] });
+    queryClient.invalidateQueries({ queryKey: ['proveedores-lista'] });
+  };
+
   const crearMovimientoMutation = useMutation({
     mutationFn: (data: MovimientoTesoreriaCreate) =>
       tesoreriaService.movimientos.crearMovimiento(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      // Si el movimiento era en efectivo, el backend tocó la caja — refrescamos.
-      queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
+      invalidarTesoreria();
       toast({ title: 'Movimiento registrado correctamente' });
       setShowMovimientoModal(false);
       resetMovimientoForm();
@@ -398,11 +415,7 @@ export default function TesoreriaPage() {
     mutationFn: (payload: Parameters<typeof tesoreriaService.movimientos.crearMovimientoConCheque>[0]) =>
       tesoreriaService.movimientos.crearMovimientoConCheque(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+      invalidarTesoreria();
       toast({
         title: 'Movimiento y cheque registrados',
         description: movimientoForm.cliente_id
@@ -427,10 +440,7 @@ export default function TesoreriaPage() {
         notas: transferenciaForm.notas || undefined,
       }),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      queryClient.invalidateQueries({ queryKey: ['caja-actual'] });
-      queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+      invalidarTesoreria();
       toast({
         title: 'Transferencia registrada',
         description: `${res.cuenta_origen} → ${res.cuenta_destino}`,
@@ -452,8 +462,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
       tesoreriaService.cheques.depositarCheque(chequeId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Cheque depositado correctamente' });
       cerrarAccionModal();
     },
@@ -464,8 +473,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
       tesoreriaService.cheques.cobrarCheque(chequeId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Cheque cobrado correctamente' });
       cerrarAccionModal();
     },
@@ -476,11 +484,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
       tesoreriaService.cheques.rechazarCheque(chequeId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      // Invalidar cuenta corriente (se revierte el pago automáticamente)
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+      invalidarTesoreria();
       toast({
         title: 'Cheque rechazado',
         description: chequeSeleccionado?.cliente_nombre
@@ -496,8 +500,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ chequeId, data }: { chequeId: string; data: any }) =>
       tesoreriaService.cheques.entregarCheque(chequeId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Cheque entregado correctamente' });
       cerrarAccionModal();
     },
@@ -508,8 +511,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ movimientoId, motivo }: { movimientoId: string; motivo: string }) =>
       tesoreriaService.movimientos.anularMovimiento(movimientoId, { motivo }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Movimiento anulado' });
     },
     onError: (err) => toastApiError(toast, err, 'No se pudo anular el movimiento'),
@@ -519,8 +521,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ chequeId, data }: { chequeId: string; data: ChequeUpdate }) =>
       tesoreriaService.cheques.actualizarCheque(chequeId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Cheque actualizado correctamente' });
       setShowChequeModal(false);
       setEditingCheque(null);
@@ -532,11 +533,7 @@ export default function TesoreriaPage() {
   const eliminarChequeMutation = useMutation({
     mutationFn: (chequeId: string) => tesoreriaService.cheques.eliminarCheque(chequeId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-cheques'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
-      // Invalidar cuenta corriente (se revierte el pago si era de cliente)
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['cc-cliente'] });
+      invalidarTesoreria();
       toast({
         title: 'Cheque eliminado',
         description: chequeAEliminar?.cliente_nombre
@@ -553,8 +550,7 @@ export default function TesoreriaPage() {
     mutationFn: ({ movimientoId, data }: { movimientoId: string; data: MovimientoTesoreriaUpdate }) =>
       tesoreriaService.movimientos.actualizarMovimiento(movimientoId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Movimiento actualizado correctamente' });
       setShowEditMovimientoModal(false);
       setMovimientoAEditar(null);
@@ -566,8 +562,7 @@ export default function TesoreriaPage() {
   const eliminarMovimientoMutation = useMutation({
     mutationFn: (movimientoId: string) => tesoreriaService.movimientos.eliminarMovimiento(movimientoId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-movimientos'] });
-      queryClient.invalidateQueries({ queryKey: ['tesoreria-resumen'] });
+      invalidarTesoreria();
       toast({ title: 'Movimiento eliminado correctamente' });
     },
     onError: (err) => toastApiError(toast, err, 'No se pudo eliminar el movimiento'),
@@ -576,7 +571,7 @@ export default function TesoreriaPage() {
   const crearCuentaBancariaMutation = useMutation({
     mutationFn: (data: Partial<CuentaBancaria>) => finanzasService.createCuentaBancaria(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+      invalidarTesoreria();
       toast({ title: 'Cuenta bancaria creada correctamente' });
       setShowCuentaBancariaModal(false);
       resetCuentaBancariaForm();
@@ -595,7 +590,7 @@ export default function TesoreriaPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+      invalidarTesoreria();
       queryClient.invalidateQueries({ queryKey: ['ajustes-manuales', editarSaldoCuenta?.id] });
       toast({ title: 'Saldo actualizado y registrado en el historial' });
       setEditarSaldoCuenta(null);
