@@ -712,19 +712,132 @@ class TesoreriaService:
         self.db.refresh(movimiento)
         return cheque, movimiento
 
+    def _revertir_impactos_movimiento(self, movimiento: MovimientoTesoreria) -> None:
+        """Revierte todos los side-effects que ``create_movimiento`` dejó al
+        crear este ``MovimientoTesoreria``:
+
+        - Saldo de la cuenta destino + soft-delete del MovimientoBancario espejo.
+        - Saldo del cliente + soft-delete del MovimientoCuentaCorriente de
+          pago + Recibo asociado.
+        - Saldo del proveedor + soft-delete del MovimientoCuentaCorrienteProveedor.
+
+        No commitea — queda a cargo del caller (anular / delete) para que
+        toda la reversión sea atómica.
+        """
+        from app.models.cuenta_bancaria import MovimientoBancario
+        from app.models.cuenta_corriente_proveedor import MovimientoCuentaCorrienteProveedor
+        from datetime import timedelta
+
+        # Para encontrar los registros espejo usamos una ventana de 5s alrededor
+        # del created_at del movimiento + match de cuenta + monto. Es la mejor
+        # heurística con el schema actual (no hay FK explícita).
+        ventana_ini = movimiento.created_at - timedelta(seconds=5)
+        ventana_fin = movimiento.created_at + timedelta(seconds=5)
+
+        # 1. Cuenta bancaria destino
+        if movimiento.cuenta_destino_id:
+            cuenta = (
+                self.db.query(CuentaBancaria)
+                .filter(CuentaBancaria.id == str(movimiento.cuenta_destino_id))
+                .first()
+            )
+            if cuenta is not None:
+                # Revertimos el delta: si fue ingreso resto, si fue egreso sumo.
+                delta = -movimiento.monto if movimiento.es_ingreso else movimiento.monto
+                cuenta.saldo_actual = (cuenta.saldo_actual or Decimal("0")) + delta
+
+            # Soft-delete del MovimientoBancario espejo (si existe).
+            mov_banco = (
+                self.db.query(MovimientoBancario)
+                .filter(
+                    MovimientoBancario.cuenta_id == str(movimiento.cuenta_destino_id),
+                    MovimientoBancario.monto == movimiento.monto,
+                    MovimientoBancario.created_at >= ventana_ini,
+                    MovimientoBancario.created_at <= ventana_fin,
+                )
+                .first()
+            )
+            if mov_banco is not None:
+                self.db.delete(mov_banco)
+
+        # 2. Cuenta corriente del cliente (si no era cheque, que tiene su
+        # propio flujo de reversión en los endpoints de cheque).
+        if movimiento.cliente_id and movimiento.metodo_pago != "cheque":
+            mov_cc = (
+                self.db.query(MovimientoCuentaCorriente)
+                .filter(
+                    MovimientoCuentaCorriente.cliente_id == str(movimiento.cliente_id),
+                    MovimientoCuentaCorriente.monto == movimiento.monto,
+                    MovimientoCuentaCorriente.activo == True,
+                    MovimientoCuentaCorriente.created_at >= ventana_ini,
+                    MovimientoCuentaCorriente.created_at <= ventana_fin,
+                )
+                .first()
+            )
+            if mov_cc is not None:
+                # Revertir saldo del cliente
+                cliente = self.db.query(Cliente).filter(Cliente.id == movimiento.cliente_id).first()
+                if cliente is not None:
+                    # Si era un PAGO (ingreso), el cliente bajó deuda → al
+                    # revertir vuelve a subir. Si era CARGO (egreso), vuelve a bajar.
+                    delta = movimiento.monto if movimiento.es_ingreso else -movimiento.monto
+                    cliente.saldo_cuenta_corriente = (
+                        (cliente.saldo_cuenta_corriente or Decimal("0")) + delta
+                    )
+                # Recibo asociado al mov_cc (si lo había)
+                if mov_cc.recibo_numero:
+                    recibo = (
+                        self.db.query(Recibo)
+                        .filter(Recibo.numero == mov_cc.recibo_numero)
+                        .first()
+                    )
+                    if recibo is not None:
+                        self.db.delete(recibo)
+                mov_cc.activo = False
+
+        # 3. Cuenta corriente del proveedor
+        if movimiento.proveedor_id and movimiento.metodo_pago != "cheque":
+            mov_cc_prov = (
+                self.db.query(MovimientoCuentaCorrienteProveedor)
+                .filter(
+                    MovimientoCuentaCorrienteProveedor.proveedor_id == str(movimiento.proveedor_id),
+                    MovimientoCuentaCorrienteProveedor.monto == movimiento.monto,
+                    MovimientoCuentaCorrienteProveedor.created_at >= ventana_ini,
+                    MovimientoCuentaCorrienteProveedor.created_at <= ventana_fin,
+                )
+                .first()
+            )
+            if mov_cc_prov is not None:
+                proveedor = (
+                    self.db.query(Proveedor)
+                    .filter(Proveedor.id == movimiento.proveedor_id)
+                    .first()
+                )
+                if proveedor is not None:
+                    # Si era PAGO al proveedor (egreso tuyo), bajaste deuda →
+                    # al revertir vuelve a subir. Al revés si era CARGO.
+                    delta = movimiento.monto if not movimiento.es_ingreso else -movimiento.monto
+                    proveedor.saldo_cuenta_corriente = (
+                        (proveedor.saldo_cuenta_corriente or Decimal("0")) + delta
+                    )
+                self.db.delete(mov_cc_prov)
+
     def anular_movimiento(
         self,
         movimiento_id: UUID,
         data: AnularMovimientoRequest,
         usuario_id: UUID
     ) -> MovimientoTesoreria:
-        """Anula un movimiento de tesorería."""
+        """Anula un movimiento de tesorería y revierte todos sus impactos
+        laterales (saldos de cuenta, CC cliente/proveedor, recibo)."""
         movimiento = self.get_movimiento(movimiento_id)
         if not movimiento:
             raise ValueError("Movimiento no encontrado")
 
         if movimiento.anulado:
             raise ValueError("El movimiento ya está anulado")
+
+        self._revertir_impactos_movimiento(movimiento)
 
         movimiento.anulado = True
         movimiento.motivo_anulacion = data.motivo
@@ -766,13 +879,20 @@ class TesoreriaService:
         movimiento_id: UUID,
         usuario_id: UUID
     ) -> bool:
-        """Elimina un movimiento de tesorería (soft delete)."""
+        """Elimina (soft delete) un movimiento de tesorería y revierte todos
+        sus impactos laterales (saldo de cuenta, CC cliente/proveedor,
+        recibo). Antes solo anulaba el registro dejando los saldos
+        cambiados — bug reportado por el usuario al ver que la cuenta
+        bancaria seguia con el monto despues de eliminar el movimiento.
+        """
         movimiento = self.get_movimiento(movimiento_id)
         if not movimiento:
             raise ValueError("Movimiento no encontrado")
 
         if movimiento.anulado:
             raise ValueError("El movimiento ya está anulado, no se puede eliminar")
+
+        self._revertir_impactos_movimiento(movimiento)
 
         # Soft delete: marcar como anulado y desactivar
         movimiento.anulado = True

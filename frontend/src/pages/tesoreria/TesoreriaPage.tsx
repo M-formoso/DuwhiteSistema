@@ -59,6 +59,7 @@ import { proveedorService } from '@/services/proveedorService';
 import { categoriaGastoService, type CategoriaGasto } from '@/services/categoriaGastoService';
 import { finanzasService } from '@/services/finanzasService';
 import { TesoreriaGraficos } from '@/components/tesoreria/TesoreriaGraficos';
+import { HistorialAjustesCuenta } from '@/components/tesoreria/HistorialAjustesCuenta';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { toastApiError } from '@/utils/apiErrors';
 import {
@@ -130,6 +131,15 @@ export default function TesoreriaPage() {
   // por cuentas nombradas (banco / efectivo / billetera_virtual) que se
   // gestionan en la tab Cuentas. Los movimientos siempre se imputan a una
   // cuenta específica.
+
+  // Edición manual de saldo de una cuenta (ajuste puntual, no reemplaza el
+  // flujo normal de movimientos). Cada edición queda registrada en
+  // ajustes_manuales_cuenta con quién/cuándo/motivo para auditoría.
+  const [editarSaldoCuenta, setEditarSaldoCuenta] = useState<CuentaBancaria | null>(null);
+  const [nuevoSaldoCuenta, setNuevoSaldoCuenta] = useState<number | null>(null);
+  const [motivoAjuste, setMotivoAjuste] = useState<string>('');
+  // IDs de cuentas con su historial de ajustes expandido en pantalla.
+  const [historialAbierto, setHistorialAbierto] = useState<Set<string>>(new Set());
 
   // Transferencia entre dos cuentas propias (banco / efectivo / billetera).
   const [showTransferenciaModal, setShowTransferenciaModal] = useState(false);
@@ -573,6 +583,28 @@ export default function TesoreriaPage() {
     },
     onError: (err) => toastApiError(toast, err, 'No se pudo crear la cuenta bancaria'),
   });
+
+  const editarSaldoMutation = useMutation({
+    mutationFn: () => {
+      if (!editarSaldoCuenta || nuevoSaldoCuenta == null) {
+        throw new Error('Datos incompletos');
+      }
+      return finanzasService.updateCuentaBancaria(editarSaldoCuenta.id, {
+        saldo_actual: nuevoSaldoCuenta,
+        motivo_ajuste: motivoAjuste || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cuentas-bancarias'] });
+      queryClient.invalidateQueries({ queryKey: ['ajustes-manuales', editarSaldoCuenta?.id] });
+      toast({ title: 'Saldo actualizado y registrado en el historial' });
+      setEditarSaldoCuenta(null);
+      setNuevoSaldoCuenta(null);
+      setMotivoAjuste('');
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo actualizar el saldo'),
+  });
+
 
   // Helpers
   const resetChequeForm = () => {
@@ -1198,31 +1230,83 @@ export default function TesoreriaPage() {
                 </div>
               ) : cuentasBancarias && cuentasBancarias.length > 0 ? (
                 <div className="space-y-3">
-                  {cuentasBancarias.map((cuenta) => (
-                    <div key={cuenta.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-lg">
-                          <CreditCard className="h-6 w-6 text-purple-600" />
+                  {cuentasBancarias.map((cuenta) => {
+                    const esEfectivo = cuenta.tipo_cuenta === 'efectivo';
+                    const esBilletera = cuenta.tipo_cuenta === 'billetera_virtual';
+                    const icono = esEfectivo ? '💵' : esBilletera ? '📱' : null;
+                    const historialOpen = historialAbierto.has(cuenta.id);
+                    return (
+                      <div key={cuenta.id} className="p-4 border rounded-lg hover:bg-gray-50/40">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="p-3 bg-purple-100 rounded-lg flex items-center justify-center text-xl">
+                              {icono || <CreditCard className="h-6 w-6 text-purple-600" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold truncate">
+                                {cuenta.nombre || cuenta.banco}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {esEfectivo
+                                  ? 'Efectivo'
+                                  : esBilletera
+                                  ? 'Billetera virtual'
+                                  : cuenta.tipo_cuenta === 'cuenta_corriente'
+                                  ? 'Cuenta Corriente'
+                                  : cuenta.tipo_cuenta === 'caja_ahorro'
+                                  ? 'Caja de Ahorro'
+                                  : cuenta.tipo_cuenta}
+                              </p>
+                              {!esEfectivo && !esBilletera && (
+                                <p className="text-xs text-gray-400">
+                                  {cuenta.alias && `${cuenta.alias} - `}{cuenta.numero_cuenta}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className={`text-xl font-bold ${(cuenta.saldo_actual || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {cuenta.moneda === 'USD' ? 'US$' : '$'}{formatNumber(cuenta.saldo_actual || 0, 2)}
+                              </p>
+                              <p className="text-xs text-gray-400">{cuenta.moneda === 'USD' ? 'Dólares' : 'Pesos'}</p>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                title="Editar saldo manualmente"
+                                onClick={() => {
+                                  setEditarSaldoCuenta(cuenta);
+                                  setNuevoSaldoCuenta(Number(cuenta.saldo_actual || 0));
+                                  setMotivoAjuste('');
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5 mr-1" />
+                                Editar saldo
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => {
+                                  setHistorialAbierto((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(cuenta.id)) next.delete(cuenta.id);
+                                    else next.add(cuenta.id);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                {historialOpen ? 'Ocultar historial' : 'Ver historial de ajustes'}
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold">{cuenta.banco}</p>
-                          <p className="text-sm text-gray-500">
-                            {cuenta.tipo_cuenta === 'cuenta_corriente' ? 'Cuenta Corriente' :
-                             cuenta.tipo_cuenta === 'caja_ahorro' ? 'Caja de Ahorro' : cuenta.tipo_cuenta}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {cuenta.alias && `${cuenta.alias} - `}{cuenta.numero_cuenta}
-                          </p>
-                        </div>
+                        <HistorialAjustesCuenta cuentaId={cuenta.id} abierto={historialOpen} />
                       </div>
-                      <div className="text-right">
-                        <p className={`text-xl font-bold ${(cuenta.saldo_actual || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {cuenta.moneda === 'USD' ? 'US$' : '$'}{formatNumber(cuenta.saldo_actual || 0, 2)}
-                        </p>
-                        <p className="text-xs text-gray-400">{cuenta.moneda === 'USD' ? 'Dólares' : 'Pesos'}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -3146,6 +3230,90 @@ export default function TesoreriaPage() {
                   }
                 >
                   {crearCategoriaGastoMutation.isPending ? 'Creando...' : 'Crear'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Editar saldo de una cuenta — ajuste manual auditado. */}
+      {editarSaldoCuenta && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <Card className="w-full max-w-md m-4">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Ajustar saldo — {editarSaldoCuenta.nombre || editarSaldoCuenta.banco}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="bg-gray-50 rounded-md px-3 py-2 text-sm flex justify-between">
+                <span className="text-muted-foreground">Saldo actual:</span>
+                <span className="font-semibold">
+                  ${formatNumber(Number(editarSaldoCuenta.saldo_actual || 0), 2)}
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Nuevo saldo *</Label>
+                <InputMoneda
+                  value={nuevoSaldoCuenta}
+                  onChange={(v) => setNuevoSaldoCuenta(v)}
+                />
+                {nuevoSaldoCuenta != null && (
+                  <p className="text-xs text-muted-foreground">
+                    Diferencia:{' '}
+                    <span
+                      className={
+                        nuevoSaldoCuenta - Number(editarSaldoCuenta.saldo_actual || 0) >= 0
+                          ? 'text-green-700 font-medium'
+                          : 'text-red-700 font-medium'
+                      }
+                    >
+                      {nuevoSaldoCuenta - Number(editarSaldoCuenta.saldo_actual || 0) >= 0 ? '+' : ''}
+                      ${formatNumber(
+                        nuevoSaldoCuenta - Number(editarSaldoCuenta.saldo_actual || 0),
+                        2,
+                      )}
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label>Motivo del ajuste</Label>
+                <Textarea
+                  value={motivoAjuste}
+                  onChange={(e) => setMotivoAjuste(e.target.value)}
+                  placeholder="Ej: Corrección de carga inicial / conciliación con extracto / etc."
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Queda guardado en el historial abajo de la cuenta junto con tu usuario y la fecha.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditarSaldoCuenta(null);
+                    setNuevoSaldoCuenta(null);
+                    setMotivoAjuste('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={
+                    nuevoSaldoCuenta == null ||
+                    nuevoSaldoCuenta === Number(editarSaldoCuenta.saldo_actual || 0) ||
+                    editarSaldoMutation.isPending
+                  }
+                  onClick={() => editarSaldoMutation.mutate()}
+                >
+                  {editarSaldoMutation.isPending ? 'Guardando...' : 'Guardar ajuste'}
                 </Button>
               </div>
             </CardContent>

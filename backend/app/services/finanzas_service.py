@@ -289,20 +289,53 @@ class FinanzasService:
         return cuenta
 
     def update_cuenta_bancaria(
-        self, cuenta_id: str, data: CuentaBancariaUpdate
+        self,
+        cuenta_id: str,
+        data: CuentaBancariaUpdate,
+        usuario_id: Optional[str] = None,
     ) -> Optional[CuentaBancaria]:
-        """Actualiza una cuenta bancaria."""
+        """Actualiza una cuenta bancaria.
+
+        Si el request cambia ``saldo_actual``, además registra un
+        ``AjusteManualCuenta`` con el diff, el usuario y el motivo para
+        tener trazabilidad del ajuste (quién, cuándo, por qué). Los
+        movimientos de tesorería normales NO pasan por acá — este flujo
+        es solo para correcciones manuales puntuales.
+        """
+        from decimal import Decimal
+        from uuid import uuid4
+        from app.models.ajuste_cuenta import AjusteManualCuenta
+
         cuenta = self.get_cuenta_bancaria(cuenta_id)
         if not cuenta:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        motivo_ajuste = update_data.pop("motivo_ajuste", None)
+        nuevo_saldo = update_data.get("saldo_actual")
 
         # Si se marca como principal, desmarcar las otras
         if update_data.get("es_principal"):
             self.db.query(CuentaBancaria).filter(
                 CuentaBancaria.id != cuenta_id
             ).update({"es_principal": False})
+
+        # Si el saldo cambió, registramos el ajuste manual ANTES de pisar
+        # el valor. Esto queda en el historial auditable que la UI muestra
+        # abajo de cada cuenta.
+        if nuevo_saldo is not None and usuario_id is not None:
+            saldo_prev = cuenta.saldo_actual or Decimal("0")
+            nuevo_dec = Decimal(str(nuevo_saldo))
+            if nuevo_dec != saldo_prev:
+                self.db.add(AjusteManualCuenta(
+                    id=str(uuid4()),
+                    cuenta_id=str(cuenta.id),
+                    saldo_anterior=saldo_prev,
+                    saldo_nuevo=nuevo_dec,
+                    diff=nuevo_dec - saldo_prev,
+                    motivo=motivo_ajuste,
+                    usuario_id=usuario_id,
+                ))
 
         for field, value in update_data.items():
             setattr(cuenta, field, value)

@@ -95,6 +95,29 @@ export async function createCuentaBancaria(data: Partial<CuentaBancaria>): Promi
   return response.data;
 }
 
+export async function updateCuentaBancaria(
+  cuentaId: string,
+  data: Partial<CuentaBancaria> & { motivo_ajuste?: string },
+): Promise<CuentaBancaria> {
+  const response = await api.patch(`/finanzas/bancos/cuentas/${cuentaId}`, data);
+  return response.data;
+}
+
+export interface AjusteManualCuenta {
+  id: string;
+  saldo_anterior: number;
+  saldo_nuevo: number;
+  diff: number;
+  motivo: string | null;
+  usuario_nombre: string | null;
+  fecha: string | null;
+}
+
+export async function getAjustesManualesCuenta(cuentaId: string): Promise<AjusteManualCuenta[]> {
+  const response = await api.get(`/finanzas/bancos/cuentas/${cuentaId}/ajustes-manuales`);
+  return response.data;
+}
+
 export async function getMovimientosBancarios(
   cuentaId: string,
   params?: {
@@ -154,6 +177,8 @@ export const finanzasService = {
   getCategorias,
   getCuentasBancarias,
   createCuentaBancaria,
+  updateCuentaBancaria,
+  getAjustesManualesCuenta,
   getMovimientosBancarios,
   createMovimientoBancario,
   getTiposCuenta,

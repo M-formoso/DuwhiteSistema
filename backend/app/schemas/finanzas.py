@@ -156,6 +156,14 @@ class CuentaBancariaUpdate(BaseModel):
     es_principal: Optional[bool] = None
     activa: Optional[bool] = None
     notas: Optional[str] = None
+    # Permitimos editar el saldo actual para que la admin pueda ajustar
+    # a mano si el saldo quedó desfasado por algún motivo (importación
+    # histórica, corrección puntual). Si cambia respecto al valor actual,
+    # el endpoint registra un AjusteManualCuenta con quién/cuándo/motivo
+    # para dejar trazabilidad. Los movimientos nuevos siguen actualizando
+    # el saldo automáticamente, no pasan por acá.
+    saldo_actual: Optional[Decimal] = None
+    motivo_ajuste: Optional[str] = None
 
 
 class CuentaBancariaResponse(CuentaBancariaBase):

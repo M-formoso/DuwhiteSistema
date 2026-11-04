@@ -400,6 +400,107 @@ def crear_cuenta_bancaria(
     )
 
 
+def _asegurar_tabla_ajustes_manuales(db: Session) -> None:
+    """Red de seguridad: crea ajustes_manuales_cuenta si la migración
+    todavía no corrió. Idempotente."""
+    from sqlalchemy import text
+    db.execute(text(
+        """
+        CREATE TABLE IF NOT EXISTS ajustes_manuales_cuenta (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            cuenta_id UUID NOT NULL REFERENCES cuentas_bancarias(id),
+            saldo_anterior NUMERIC(14, 2) NOT NULL,
+            saldo_nuevo NUMERIC(14, 2) NOT NULL,
+            diff NUMERIC(14, 2) NOT NULL,
+            motivo TEXT,
+            usuario_id UUID NOT NULL REFERENCES usuarios(id),
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        """
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_ajustes_manuales_cuenta_cuenta_id "
+        "ON ajustes_manuales_cuenta(cuenta_id)"
+    ))
+    db.commit()
+
+
+@router.patch("/bancos/cuentas/{cuenta_id}", response_model=CuentaBancariaResponse)
+def actualizar_cuenta_bancaria(
+    cuenta_id: str,
+    data: CuentaBancariaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Actualiza una cuenta bancaria. Permite editar nombre, alias, estado
+    y saldo actual. Si cambia el saldo, registra un ajuste manual con
+    quién/cuándo/motivo para auditoría."""
+    _asegurar_tabla_ajustes_manuales(db)
+    service = FinanzasService(db)
+    cuenta = service.update_cuenta_bancaria(cuenta_id, data, usuario_id=str(current_user.id))
+    if not cuenta:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta no encontrada")
+    return CuentaBancariaResponse(
+        id=str(cuenta.id),
+        nombre=cuenta.nombre,
+        banco=cuenta.banco,
+        tipo_cuenta=cuenta.tipo_cuenta,
+        numero_cuenta=cuenta.numero_cuenta,
+        cbu=cuenta.cbu,
+        alias=cuenta.alias,
+        titular=cuenta.titular,
+        cuit_titular=cuenta.cuit_titular,
+        saldo_actual=cuenta.saldo_actual,
+        saldo_disponible=cuenta.saldo_disponible,
+        activa=cuenta.activa,
+        es_principal=cuenta.es_principal,
+        notas=cuenta.notas,
+        created_at=cuenta.created_at,
+        updated_at=cuenta.updated_at,
+    )
+
+
+@router.get("/bancos/cuentas/{cuenta_id}/ajustes-manuales")
+def listar_ajustes_manuales(
+    cuenta_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Historial de ajustes manuales al saldo de la cuenta, ordenado
+    cronológicamente descendente. Resiliente: si la tabla no existe
+    todavía devuelve [] (el PATCH la crea cuando hace falta)."""
+    from sqlalchemy.exc import ProgrammingError
+    from app.models.ajuste_cuenta import AjusteManualCuenta
+    try:
+        ajustes = (
+            db.query(AjusteManualCuenta)
+            .filter(AjusteManualCuenta.cuenta_id == cuenta_id)
+            .order_by(AjusteManualCuenta.created_at.desc())
+            .all()
+        )
+    except ProgrammingError:
+        db.rollback()
+        return []
+
+    return [
+        {
+            "id": str(a.id),
+            "saldo_anterior": float(a.saldo_anterior),
+            "saldo_nuevo": float(a.saldo_nuevo),
+            "diff": float(a.diff),
+            "motivo": a.motivo,
+            "usuario_nombre": (
+                f"{a.usuario.nombre} {a.usuario.apellido}"
+                if getattr(a, "usuario", None)
+                else None
+            ),
+            "fecha": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in ajustes
+    ]
+
+
 @router.get("/bancos/cuentas/{cuenta_id}/movimientos")
 def listar_movimientos_bancarios(
     cuenta_id: str,
