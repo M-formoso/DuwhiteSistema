@@ -37,6 +37,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InputMoneda } from '@/components/ui/input-moneda';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -1713,13 +1714,9 @@ export default function TesoreriaPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Monto *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={chequeForm.monto || ''}
-                    onChange={(e) => setChequeForm({ ...chequeForm, monto: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
+                  <InputMoneda
+                    value={chequeForm.monto || null}
+                    onChange={(v) => setChequeForm({ ...chequeForm, monto: v || 0 })}
                   />
                 </div>
               </div>
@@ -1951,13 +1948,9 @@ export default function TesoreriaPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Monto *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={movimientoForm.monto || ''}
-                    onChange={(e) => setMovimientoForm({ ...movimientoForm, monto: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
+                  <InputMoneda
+                    value={movimientoForm.monto || null}
+                    onChange={(v) => setMovimientoForm({ ...movimientoForm, monto: v || 0 })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -2636,12 +2629,9 @@ export default function TesoreriaPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Saldo Inicial</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={cuentaBancariaForm.saldo_actual || ''}
-                    onChange={(e) => setCuentaBancariaForm({ ...cuentaBancariaForm, saldo_actual: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
+                  <InputMoneda
+                    value={cuentaBancariaForm.saldo_actual || null}
+                    onChange={(v) => setCuentaBancariaForm({ ...cuentaBancariaForm, saldo_actual: v || 0 })}
                   />
                 </div>
                 <div className="space-y-2 flex items-end">
@@ -2756,13 +2746,9 @@ export default function TesoreriaPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Monto *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={editMovimientoForm.monto || ''}
-                    onChange={(e) => setEditMovimientoForm({ ...editMovimientoForm, monto: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
+                  <InputMoneda
+                    value={editMovimientoForm.monto || null}
+                    onChange={(v) => setEditMovimientoForm({ ...editMovimientoForm, monto: v || 0 })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -2920,15 +2906,14 @@ export default function TesoreriaPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Monto *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={transferenciaForm.monto}
-                    onChange={(e) =>
-                      setTransferenciaForm({ ...transferenciaForm, monto: e.target.value })
+                  <InputMoneda
+                    value={transferenciaForm.monto ? Number(transferenciaForm.monto) : null}
+                    onChange={(v) =>
+                      setTransferenciaForm({
+                        ...transferenciaForm,
+                        monto: v != null ? String(v) : '',
+                      })
                     }
-                    placeholder="0.00"
                   />
                 </div>
                 <div className="space-y-2">
