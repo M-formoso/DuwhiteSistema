@@ -7,8 +7,57 @@ from decimal import Decimal
 from typing import Optional, List, Tuple
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, and_, desc
+from sqlalchemy import func, or_, and_, desc, text
 from sqlalchemy.orm import Session
+
+
+# Flag de módulo: el "schema healing" corre solo una vez por proceso.
+# Zero overhead para todos los requests posteriores.
+_SCHEMA_MOV_BANCARIOS_OK = False
+
+
+def _asegurar_schema_movimientos_bancarios(db: Session) -> None:
+    """Red de seguridad: garantiza que la tabla ``movimientos_bancarios``
+    tenga las columnas de conciliación.
+
+    En algunas DBs de producción la migración Alembic 20260310100000
+    (`add finanzas avanzadas`) no llegó a aplicarse (startCommand con
+    ``alembic || true``, DB restaurada de backup viejo, etc.) y el INSERT
+    revienta con ``column "conciliacion_id" does not exist``. Esta función
+    usa ``ADD COLUMN IF NOT EXISTS`` que es idempotente, y además deja un
+    flag a nivel módulo para no ejecutar nada en los requests siguientes.
+    """
+    global _SCHEMA_MOV_BANCARIOS_OK
+    if _SCHEMA_MOV_BANCARIOS_OK:
+        return
+    try:
+        db.execute(text(
+            "ALTER TABLE movimientos_bancarios "
+            "ADD COLUMN IF NOT EXISTS conciliado BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        db.execute(text(
+            "ALTER TABLE movimientos_bancarios "
+            "ADD COLUMN IF NOT EXISTS fecha_conciliacion TIMESTAMP"
+        ))
+        db.execute(text(
+            "ALTER TABLE movimientos_bancarios "
+            "ADD COLUMN IF NOT EXISTS conciliacion_id UUID"
+        ))
+        db.execute(text(
+            "ALTER TABLE movimientos_bancarios "
+            "ADD COLUMN IF NOT EXISTS conciliado_por_id UUID"
+        ))
+        db.execute(text(
+            "ALTER TABLE movimientos_bancarios "
+            "ADD COLUMN IF NOT EXISTS referencia_conciliacion VARCHAR(100)"
+        ))
+        db.commit()
+        _SCHEMA_MOV_BANCARIOS_OK = True
+    except Exception:
+        # Si falla el ALTER (sin permisos, etc), dejamos pasar: el INSERT
+        # va a tirar error claro igual. El try es solo para no romper si
+        # ya está todo OK y el usuario de la DB no tiene permiso de ALTER.
+        db.rollback()
 
 from app.core.timezone import now_utc_naive, today_ar
 from app.models.tesoreria import (
@@ -510,6 +559,11 @@ class TesoreriaService:
         # saldo nuevo + fila en MovimientoBancario para el trail.
         if data.cuenta_destino_id:
             from app.models.cuenta_bancaria import MovimientoBancario, TipoMovimientoBanco
+            # Red de seguridad: si la migracion 20260310100000 (campos de
+            # conciliacion bancaria) no corrio en esta DB, el INSERT revienta
+            # con "column conciliacion_id does not exist". Nos aseguramos de
+            # que las columnas esten una vez por proceso antes de insertar.
+            _asegurar_schema_movimientos_bancarios(self.db)
             cuenta = (
                 self.db.query(CuentaBancaria)
                 .filter(CuentaBancaria.id == str(data.cuenta_destino_id))
