@@ -20,6 +20,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # BaseModelMixin agrega la columna `activo` (soft delete) a todos los
+    # modelos, hay que incluirla en el DDL o el INSERT revienta con
+    # "column 'activo' does not exist".
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS ajustes_manuales_cuenta (
@@ -30,10 +33,17 @@ def upgrade() -> None:
             diff NUMERIC(14, 2) NOT NULL,
             motivo TEXT,
             usuario_id UUID NOT NULL REFERENCES usuarios(id),
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP NOT NULL DEFAULT NOW()
         )
         """
+    )
+    # Para DBs donde la tabla ya existía sin la columna (p.ej. creada por el
+    # helper resiliente del endpoint antes de este fix), la agregamos.
+    op.execute(
+        "ALTER TABLE ajustes_manuales_cuenta "
+        "ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE"
     )
     op.execute(
         "CREATE INDEX IF NOT EXISTS ix_ajustes_manuales_cuenta_cuenta_id "

@@ -402,7 +402,10 @@ def crear_cuenta_bancaria(
 
 def _asegurar_tabla_ajustes_manuales(db: Session) -> None:
     """Red de seguridad: crea ajustes_manuales_cuenta si la migración
-    todavía no corrió. Idempotente."""
+    todavía no corrió, y le agrega la columna `activo` si por alguna razón
+    fue creada antes sin ella (la primera versión del helper la omitió
+    y generaba INSERTs rotos). Todo idempotente.
+    """
     from sqlalchemy import text
     db.execute(text(
         """
@@ -414,10 +417,17 @@ def _asegurar_tabla_ajustes_manuales(db: Session) -> None:
             diff NUMERIC(14, 2) NOT NULL,
             motivo TEXT,
             usuario_id UUID NOT NULL REFERENCES usuarios(id),
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP NOT NULL DEFAULT NOW()
         )
         """
+    ))
+    # Para la fila que ya existia sin la columna activo (primer deploy del
+    # helper, sin DEFAULT definido al INSERT): la agregamos despues.
+    db.execute(text(
+        "ALTER TABLE ajustes_manuales_cuenta "
+        "ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE"
     ))
     db.execute(text(
         "CREATE INDEX IF NOT EXISTS ix_ajustes_manuales_cuenta_cuenta_id "
