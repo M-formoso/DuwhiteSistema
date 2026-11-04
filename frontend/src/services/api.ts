@@ -30,49 +30,68 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor para manejar errores y refresh token
+// Interceptor para manejar errores y refresh token.
+// Dos fixes importantes respecto a la versión anterior:
+// 1. Marcamos el request con _retry para evitar loop infinito si el reintento
+//    también devuelve 401 (antes podía dar vueltas hasta timeout y mostrar
+//    "Network Error" vacío al usuario).
+// 2. Si el refresh falla, ANTES del redirect a /login mostramos el error
+//    con mensaje claro para que el usuario entienda qué pasó.
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
 
-    // Si el error es 401 y no es el endpoint de login/refresh
+    const esAuthEndpoint =
+      originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/refresh');
+
     if (
       error.response?.status === 401 &&
       originalRequest &&
-      !originalRequest.url?.includes('/auth/login') &&
-      !originalRequest.url?.includes('/auth/refresh')
+      !esAuthEndpoint &&
+      !originalRequest._retry
     ) {
+      originalRequest._retry = true;
       const refreshToken = sessionStorage.getItem('refresh_token');
 
       if (refreshToken) {
         try {
-          // Intentar refrescar el token
           const response = await axios.post(`${API_URL}/auth/refresh`, {
             refresh_token: refreshToken,
           });
 
           const { access_token, refresh_token } = response.data;
-
-          // Guardar nuevos tokens en sessionStorage
           sessionStorage.setItem('access_token', access_token);
           sessionStorage.setItem('refresh_token', refresh_token);
 
-          // Reintentar la petición original
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${access_token}`;
           }
           return api(originalRequest);
         } catch (refreshError) {
-          // Si falla el refresh, limpiar tokens y redirigir a login
+          // Refresh fallido → sesión muerta. Limpiamos, avisamos, redirigimos.
           sessionStorage.removeItem('access_token');
           sessionStorage.removeItem('refresh_token');
-          window.location.href = '/login';
-          return Promise.reject(refreshError);
+          const msg = 'Tu sesión expiró. Redirigiendo al login...';
+          // Pequeña espera para que el usuario lea el mensaje antes del reload.
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 1200);
+          }
+          const err = new Error(msg);
+          return Promise.reject(err);
         }
       } else {
-        // No hay refresh token, redirigir a login
-        window.location.href = '/login';
+        // No hay refresh token: idem.
+        const msg = 'No hay sesión activa. Redirigiendo al login...';
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1200);
+        }
+        return Promise.reject(new Error(msg));
       }
     }
 
