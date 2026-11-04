@@ -5,7 +5,7 @@ Schemas de Finanzas (Caja, Movimientos, Cuentas Bancarias).
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ==================== CAJA ====================
@@ -133,12 +133,35 @@ class CuentaBancariaBase(BaseModel):
     banco: str = Field(..., min_length=1, max_length=100)
     tipo_cuenta: str
     numero_cuenta: str = Field(..., min_length=1, max_length=50)
-    cbu: Optional[str] = Field(None, min_length=22, max_length=22)
+    # Para cuentas tipo "efectivo" / "billetera_virtual" el CBU no aplica.
+    # Antes forzábamos exactamente 22 chars y el frontend mandaba "" para
+    # esos casos → 400 "String should have at least 22 characters". Ahora
+    # aceptamos None/vacío/22 chars; el validator normaliza "" a None.
+    cbu: Optional[str] = Field(None, max_length=22)
     alias: Optional[str] = None
-    titular: str = Field(..., min_length=1, max_length=200)
+    # Titular también opcional porque para efectivo/billetera no tiene
+    # sentido pedirlo (el frontend lo auto-rellena con el nombre).
+    titular: Optional[str] = Field(None, max_length=200)
     cuit_titular: Optional[str] = None
     moneda: str = Field(default="ARS")  # ARS, USD
     notas: Optional[str] = None
+
+    @field_validator("cbu", "alias", "cuit_titular", "titular", mode="before")
+    @classmethod
+    def _normalizar_vacios(cls, v):
+        """Convierte strings vacíos y espacios a None para que Pydantic no
+        valide longitud sobre strings sin contenido."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("cbu")
+    @classmethod
+    def _validar_cbu_si_viene(cls, v: Optional[str]) -> Optional[str]:
+        """Si el CBU viene con contenido, exigimos los 22 dígitos."""
+        if v is not None and len(v) != 22:
+            raise ValueError("El CBU debe tener exactamente 22 dígitos")
+        return v
 
 
 class CuentaBancariaCreate(CuentaBancariaBase):
