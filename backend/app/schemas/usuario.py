@@ -18,6 +18,9 @@ ROLES_VALIDOS = [
     "contador",
     "solo_lectura",
     "cliente",
+    # chofer: solo mapa de la flota + recolecciones + entregas en curso
+    # (ver migración 20261102100000_add_rol_chofer).
+    "chofer",
 ]
 
 
