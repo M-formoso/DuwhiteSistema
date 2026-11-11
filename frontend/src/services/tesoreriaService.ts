@@ -267,6 +267,24 @@ export const movimientosTesoreriaService = {
     await api.delete(`/tesoreria/movimientos/${movimientoId}`);
   },
 
+  /** Setea la fecha de corte de totales a hoy: las cards se "resetean" a 0
+   * desde este momento y solo cuentan movimientos nuevos. Los movimientos
+   * viejos siguen apareciendo en la lista pero no suman. */
+  async reiniciarTotales() {
+    const { data } = await api.post<{ fecha_corte: string; mensaje: string }>(
+      '/tesoreria/admin/reiniciar-totales',
+    );
+    return data;
+  },
+
+  /** Quita la fecha de corte: las cards vuelven a sumar todos los movimientos. */
+  async quitarCorteTotales() {
+    const { data } = await api.delete<{ mensaje: string }>(
+      '/tesoreria/admin/reiniciar-totales',
+    );
+    return data;
+  },
+
   /** Transferencia entre dos cuentas propias (caja ↔ banco o banco ↔ banco). */
   async transferirEntreCuentas(payload: {
     cuenta_origen_id?: string | null;

@@ -496,6 +496,74 @@ def anular_movimiento(
     return MovimientoTesoreriaResponse(**service.enrich_movimiento(movimiento))
 
 
+def _asegurar_columna_fecha_corte(db: Session) -> None:
+    """Red de seguridad: crea la columna `tesoreria_fecha_corte_totales`
+    en `configuracion_sistema` si la migración no corrió. Idempotente."""
+    from sqlalchemy import text
+    try:
+        db.execute(text(
+            "ALTER TABLE configuracion_sistema "
+            "ADD COLUMN IF NOT EXISTS tesoreria_fecha_corte_totales DATE"
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+@router.post("/admin/reiniciar-totales")
+def reiniciar_totales_tesoreria(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
+):
+    """Setea la fecha de corte de totales a HOY. A partir de este momento
+    las cards (Total Ingresos / Egresos / Saldo) solo cuentan movimientos
+    con fecha >= hoy. Los movimientos anteriores siguen visibles en la
+    lista; solo no suman en los totales.
+
+    Útil para "empezar a usar el sistema de verdad desde hoy" sin borrar
+    data histórica. Es reversible: DELETE a este endpoint quita el corte.
+    """
+    from app.models.configuracion_sistema import ConfiguracionSistema
+    from app.core.timezone import today_ar
+
+    _asegurar_columna_fecha_corte(db)
+
+    config = db.query(ConfiguracionSistema).first()
+    if config is None:
+        # Si no hay registro aún, lo creamos vacío.
+        from uuid import uuid4
+        config = ConfiguracionSistema(id=uuid4())
+        db.add(config)
+        db.flush()
+
+    hoy = today_ar()
+    config.tesoreria_fecha_corte_totales = hoy
+    db.commit()
+    return {
+        "fecha_corte": hoy.isoformat(),
+        "mensaje": (
+            "Totales reiniciados. A partir de hoy las cards solo cuentan "
+            "movimientos nuevos. Los anteriores siguen en la lista."
+        ),
+    }
+
+
+@router.delete("/admin/reiniciar-totales")
+def quitar_corte_totales(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin", "administrador")),
+):
+    """Quita la fecha de corte: las cards vuelven a sumar todos los
+    movimientos históricos."""
+    from app.models.configuracion_sistema import ConfiguracionSistema
+    _asegurar_columna_fecha_corte(db)
+    config = db.query(ConfiguracionSistema).first()
+    if config is not None:
+        config.tesoreria_fecha_corte_totales = None
+        db.commit()
+    return {"mensaje": "Fecha de corte quitada. Los totales vuelven a contar todo."}
+
+
 @router.post(
     "/transferencias",
     response_model=TransferenciaEntreCuentasResponse,

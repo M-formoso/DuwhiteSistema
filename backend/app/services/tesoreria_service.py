@@ -1574,10 +1574,26 @@ class TesoreriaService:
         # Ordenar por fecha descendente
         movimientos.sort(key=lambda x: (x['fecha'], x['created_at']), reverse=True)
 
-        # Calcular totales
+        # Totales: si existe una "fecha de corte" configurada en el sistema,
+        # solo cuentan los movimientos a partir de esa fecha (inclusive).
+        # Los movimientos anteriores siguen apareciendo en la lista para
+        # consulta histórica, pero NO suman en las cards de totales.
+        # Pensado para "empezar a usar el sistema desde hoy" sin perder la
+        # historia previa.
+        fecha_corte = self._obtener_fecha_corte_totales()
+        if fecha_corte is not None:
+            def _cuenta_en_totales(m):
+                f = m.get('fecha')
+                if f is None:
+                    return True
+                return f >= fecha_corte
+            para_totales = [m for m in movimientos if _cuenta_en_totales(m)]
+        else:
+            para_totales = movimientos
+
         total = len(movimientos)
-        total_ingresos = sum(m['monto'] for m in movimientos if m['es_ingreso'])
-        total_egresos = sum(m['monto'] for m in movimientos if not m['es_ingreso'])
+        total_ingresos = sum(m['monto'] for m in para_totales if m['es_ingreso'])
+        total_egresos = sum(m['monto'] for m in para_totales if not m['es_ingreso'])
 
         # Aplicar paginación
         movimientos_paginados = movimientos[skip:skip + limit]
@@ -1587,6 +1603,22 @@ class TesoreriaService:
             'total': total,
             'total_ingresos': total_ingresos,
             'total_egresos': total_egresos,
+            'fecha_corte_totales': fecha_corte.isoformat() if fecha_corte else None,
             'skip': skip,
             'limit': limit,
         }
+
+    def _obtener_fecha_corte_totales(self):
+        """Lee la fecha de corte desde ConfiguracionSistema. Resiliente: si
+        la columna o la tabla no existe (migración no corrió), devuelve
+        None para no romper el endpoint."""
+        from sqlalchemy.exc import ProgrammingError, OperationalError
+        try:
+            from app.models.configuracion_sistema import ConfiguracionSistema
+            config = self.db.query(ConfiguracionSistema).first()
+            if config is None:
+                return None
+            return getattr(config, "tesoreria_fecha_corte_totales", None)
+        except (ProgrammingError, OperationalError, AttributeError):
+            self.db.rollback()
+            return None

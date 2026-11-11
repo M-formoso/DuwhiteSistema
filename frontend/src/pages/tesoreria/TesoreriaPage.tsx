@@ -579,6 +579,30 @@ export default function TesoreriaPage() {
     onError: (err) => toastApiError(toast, err, 'No se pudo crear la cuenta bancaria'),
   });
 
+  const reiniciarTotalesMutation = useMutation({
+    mutationFn: () => tesoreriaService.movimientos.reiniciarTotales(),
+    onSuccess: (res) => {
+      invalidarTesoreria();
+      toast({
+        title: 'Totales reiniciados',
+        description: `Las cards cuentan movimientos desde ${res.fecha_corte}.`,
+      });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo reiniciar los totales'),
+  });
+
+  const quitarCorteTotalesMutation = useMutation({
+    mutationFn: () => tesoreriaService.movimientos.quitarCorteTotales(),
+    onSuccess: () => {
+      invalidarTesoreria();
+      toast({
+        title: 'Fecha de corte quitada',
+        description: 'Las cards vuelven a contar todos los movimientos.',
+      });
+    },
+    onError: (err) => toastApiError(toast, err, 'No se pudo quitar la fecha de corte'),
+  });
+
   const editarSaldoMutation = useMutation({
     mutationFn: () => {
       if (!editarSaldoCuenta || nuevoSaldoCuenta == null) {
@@ -1637,6 +1661,50 @@ export default function TesoreriaPage() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Punto de corte de totales: badge con la fecha + botones para
+              setear / quitar el corte. Permite "empezar de cero" sin borrar
+              la historia. */}
+          <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+            {movimientos?.fecha_corte_totales ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 text-amber-800 px-2 py-0.5">
+                  📌 Totales contados desde {movimientos.fecha_corte_totales}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7"
+                  disabled={quitarCorteTotalesMutation.isPending}
+                  onClick={() => quitarCorteTotalesMutation.mutate()}
+                >
+                  Quitar corte y volver a contar todo
+                </Button>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Las cards suman todos los movimientos históricos.
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              disabled={reiniciarTotalesMutation.isPending}
+              onClick={() => {
+                if (
+                  confirm(
+                    'Esto va a poner las cards (Total Ingresos / Egresos / Saldo) en $0 desde hoy. ' +
+                    'Los movimientos anteriores siguen visibles en la lista pero no suman. Es reversible. ¿Continuar?',
+                  )
+                ) {
+                  reiniciarTotalesMutation.mutate();
+                }
+              }}
+            >
+              Reiniciar totales a 0 desde hoy
+            </Button>
           </div>
 
           {/* Lista de Movimientos */}

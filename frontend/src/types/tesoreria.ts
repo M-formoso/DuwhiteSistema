@@ -247,6 +247,9 @@ export interface MovimientosConsolidadosResponse {
   total: number;
   total_ingresos: number;
   total_egresos: number;
+  /** Si no es null, las cards de totales solo cuentan movimientos a partir
+   * de esta fecha. Los anteriores se siguen listando pero no suman. */
+  fecha_corte_totales: string | null;
   skip: number;
   limit: number;
 }
