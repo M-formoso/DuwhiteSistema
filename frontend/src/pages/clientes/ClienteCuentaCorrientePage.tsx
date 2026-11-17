@@ -72,6 +72,7 @@ import {
   cuentaCorrienteClienteService,
   type RegistrarCobranzaRequest,
 } from '@/services/finanzasAvanzadasService';
+import { getCuentasBancarias } from '@/services/finanzasService';
 import { historialLavadosService } from '@/services/historialLavadosService';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { toastApiError } from '@/utils/apiErrors';
@@ -193,6 +194,8 @@ export default function ClienteCuentaCorrientePage() {
   // Detalle Transferencia
   const [transferenciaBanco, setTransferenciaBanco] = useState('');
   const [transferenciaNumero, setTransferenciaNumero] = useState('');
+  // Cuenta destino de tesorería donde se acredita el pago
+  const [cobranzaCuentaDestinoId, setCobranzaCuentaDestinoId] = useState('');
 
   // Query del cliente
   const { data: cliente, isLoading: loadingCliente } = useQuery({
@@ -248,6 +251,42 @@ export default function ClienteCuentaCorrientePage() {
     queryFn: () => cuentaCorrienteClienteService.getLotesCliente(id!),
     enabled: Boolean(id) && showPagoModal,
   });
+
+  // Cuentas de tesorería activas (banco / efectivo / billetera virtual)
+  // donde se puede acreditar la cobranza.
+  const { data: cuentasTesoreria } = useQuery({
+    queryKey: ['cuentas-tesoreria-activas'],
+    queryFn: () => getCuentasBancarias(true),
+    enabled: showPagoModal,
+  });
+
+  // Tipos de cuenta válidos según el medio de pago. null => no requiere cuenta
+  // (p.ej. cheque, que entra a cartera de cheques, no a una cuenta).
+  const tiposPermitidosPorMedio = (medio: MedioPago): string[] | null => {
+    switch (medio) {
+      case 'efectivo':
+        return ['efectivo'];
+      case 'transferencia':
+        return ['caja_ahorro', 'cuenta_corriente'];
+      case 'mercado_pago':
+        return ['billetera_virtual'];
+      case 'tarjeta_debito':
+      case 'tarjeta_credito':
+        return ['caja_ahorro', 'cuenta_corriente', 'billetera_virtual'];
+      case 'cheque':
+      case 'cuenta_corriente':
+        return null;
+      case 'otro':
+      default:
+        return ['caja_ahorro', 'cuenta_corriente', 'efectivo', 'billetera_virtual'];
+    }
+  };
+
+  const tiposCuentaPermitidos = tiposPermitidosPorMedio(cobranzaMedio);
+  const requiereCuentaDestino = tiposCuentaPermitidos !== null;
+  const cuentasFiltradas = (cuentasTesoreria || []).filter(
+    (c) => tiposCuentaPermitidos?.includes(String(c.tipo_cuenta)),
+  );
 
   // Filtrar localmente por tipo si es necesario
   const movimientosFiltrados = movimientosData?.items?.filter((mov) => {
@@ -522,10 +561,23 @@ export default function ClienteCuentaCorrientePage() {
     setChequeTipo('fisico');
     setTransferenciaBanco('');
     setTransferenciaNumero('');
+    setCobranzaCuentaDestinoId('');
   };
 
   const handleRegistrarCobranza = () => {
     if (!cobranzaMonto) return;
+
+    // Cuenta destino obligatoria para todos los medios salvo cheque y uso
+    // interno de CC (cheque va a cartera; CC es un asiento interno).
+    if (requiereCuentaDestino && !cobranzaCuentaDestinoId) {
+      toast({
+        title: 'Falta la cuenta destino',
+        description:
+          'Seleccioná a qué cuenta de tesorería se acredita el pago.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     // Validación cliente-side de campos obligatorios por medio de pago
     if (cobranzaMedio === 'cheque') {
@@ -603,6 +655,9 @@ export default function ClienteCuentaCorrientePage() {
         cobranzaMedio === 'transferencia' && transferenciaNumero
           ? transferenciaNumero
           : undefined,
+      // Cuenta de tesorería donde se acredita el pago (cualquier medio salvo
+      // cheque/CC interna). El backend actualiza saldo y crea MovimientoBancario.
+      cuenta_destino_id: cobranzaCuentaDestinoId || undefined,
     });
   };
 
@@ -2043,7 +2098,13 @@ export default function ClienteCuentaCorrientePage() {
 
                     <div className="space-y-2">
                       <Label>Medio de Pago *</Label>
-                      <Select value={cobranzaMedio} onValueChange={(v) => setCobranzaMedio(v as MedioPago)}>
+                      <Select
+                        value={cobranzaMedio}
+                        onValueChange={(v) => {
+                          setCobranzaMedio(v as MedioPago);
+                          setCobranzaCuentaDestinoId('');
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -2057,6 +2118,36 @@ export default function ClienteCuentaCorrientePage() {
                       </Select>
                     </div>
                   </div>
+
+                  {requiereCuentaDestino && (
+                    <div className="space-y-2">
+                      <Label>Acreditar en cuenta *</Label>
+                      <Select
+                        value={cobranzaCuentaDestinoId}
+                        onValueChange={setCobranzaCuentaDestinoId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar cuenta destino" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cuentasFiltradas.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-gray-500">
+                              No hay cuentas compatibles con este medio de pago.
+                            </div>
+                          ) : (
+                            cuentasFiltradas.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.nombre || c.banco} — {formatNumber(c.saldo_actual || 0, 'currency')}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500">
+                        El monto se acreditará en el saldo de esta cuenta.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Referencia de Pago</Label>

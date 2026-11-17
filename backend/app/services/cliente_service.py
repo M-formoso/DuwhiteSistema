@@ -38,6 +38,11 @@ from app.models.caja import (
     TipoMovimientoCaja,
     CategoriaMovimiento,
 )
+from app.models.cuenta_bancaria import (
+    CuentaBancaria,
+    MovimientoBancario,
+    TipoMovimientoBanco,
+)
 from app.models.factura import Factura, EstadoFactura, TipoComprobante
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.schemas.pedido import PedidoCreate, PedidoUpdate, DetallePedidoCreate
@@ -901,7 +906,13 @@ class ClienteService:
 
         # Validaciones y creación de entidades asociadas según medio
         cheque_creado: Optional[Cheque] = None
-        cuenta_destino_id: Optional[str] = None
+        # cuenta_destino_id aplica a cualquier medio salvo cheque (que va a
+        # cartera de cheques, no a una cuenta hasta que se deposite/cobre).
+        cuenta_destino_id: Optional[str] = (
+            getattr(data, "cuenta_destino_id", None)
+            if metodo_pago_norm != "cheque"
+            else None
+        )
         transferencia_banco_origen: Optional[str] = None
         transferencia_numero: Optional[str] = None
         fecha_valor: Optional[date] = None
@@ -944,7 +955,6 @@ class ClienteService:
             transferencia_numero = (
                 getattr(data, "transferencia_numero", None) or data.referencia_pago
             )
-            cuenta_destino_id = getattr(data, "cuenta_destino_id", None)
 
         movimiento_tesoreria = MovimientoTesoreria(
             id=str(uuid4()),
@@ -965,6 +975,43 @@ class ClienteService:
             cuenta_destino_id=cuenta_destino_id,
         )
         self.db.add(movimiento_tesoreria)
+
+        # ==================== Acreditar en Cuenta de Tesorería ====================
+        # Si viene cuenta_destino_id, actualizamos el saldo de la cuenta y
+        # dejamos trail en movimientos_bancarios. Mismo patrón que
+        # tesoreria_service.crear_movimiento (ver tesoreria_service.py:546-588).
+        if cuenta_destino_id:
+            from app.services.tesoreria_service import (
+                _asegurar_schema_movimientos_bancarios,
+            )
+            _asegurar_schema_movimientos_bancarios(self.db)
+            cuenta = (
+                self.db.query(CuentaBancaria)
+                .filter(CuentaBancaria.id == str(cuenta_destino_id))
+                .first()
+            )
+            if cuenta is None:
+                raise ValueError("Cuenta destino no encontrada")
+
+            saldo_cta_anterior = cuenta.saldo_actual or Decimal("0")
+            saldo_cta_posterior = saldo_cta_anterior + data.monto
+            cuenta.saldo_actual = saldo_cta_posterior
+
+            mov_banco = MovimientoBancario(
+                id=str(uuid4()),
+                cuenta_id=str(cuenta.id),
+                tipo=TipoMovimientoBanco.TRANSFERENCIA_ENTRADA.value,
+                concepto=concepto,
+                monto=data.monto,
+                saldo_anterior=saldo_cta_anterior,
+                saldo_posterior=saldo_cta_posterior,
+                fecha_movimiento=data.fecha,
+                fecha_valor=fecha_valor or data.fecha,
+                numero_comprobante=transferencia_numero or data.referencia_pago,
+                cliente_id=str(data.cliente_id),
+                registrado_por_id=str(usuario_id),
+            )
+            self.db.add(mov_banco)
 
         # Generar recibo
         numero_recibo = self._generar_numero_recibo()
