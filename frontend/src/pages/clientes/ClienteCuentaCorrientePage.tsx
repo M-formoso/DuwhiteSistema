@@ -303,6 +303,24 @@ export default function ClienteCuentaCorrientePage() {
       'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
     ];
+
+    // Para prorratear el total facturado (con IVA) entre los remitos de una
+    // factura consolidada, precalculamos la suma de netos por factura en el
+    // universo visible. Si todos los remitos de la factura caen en el mismo
+    // mes el aporte suma factura.total completo; si cruzan meses, cada mes
+    // recibe su proporción.
+    const sumaNetoPorFactura = new Map<string, number>();
+    for (const mov of movimientosFiltrados || []) {
+      if (mov.tipo === 'cargo' && mov.factura_id) {
+        sumaNetoPorFactura.set(
+          mov.factura_id,
+          (sumaNetoPorFactura.get(mov.factura_id) || 0) + Number(mov.monto),
+        );
+      }
+    }
+    const facturaCuentaConIva = (f: any) =>
+      f && f.total != null && f.estado !== 'anulada' && f.estado !== 'rechazada';
+
     const grupos = new Map<string, { key: string; label: string; movimientos: any[]; cargos: number; pagos: number; saldoFinal: number }>();
     for (const mov of movimientosFiltrados || []) {
       const [anio, mes] = String(mov.fecha_movimiento).slice(0, 10).split('-');
@@ -314,7 +332,19 @@ export default function ClienteCuentaCorrientePage() {
       const g = grupos.get(key)!;
       g.movimientos.push(mov);
       const delta = Number(mov.saldo_posterior) - Number(mov.saldo_anterior);
-      if (mov.tipo === 'cargo' || (mov.tipo === 'ajuste' && delta > 0)) g.cargos += Number(mov.monto);
+      if (mov.tipo === 'cargo' || (mov.tipo === 'ajuste' && delta > 0)) {
+        // Cargo facturado: aporta su proporción del total con IVA.
+        if (mov.tipo === 'cargo' && mov.factura_id && facturaCuentaConIva(mov.factura)) {
+          const sumaTotalFactura = sumaNetoPorFactura.get(mov.factura_id) || Number(mov.monto);
+          const aporte =
+            sumaTotalFactura > 0
+              ? (Number(mov.monto) / sumaTotalFactura) * Number(mov.factura!.total)
+              : Number(mov.monto);
+          g.cargos += aporte;
+        } else {
+          g.cargos += Number(mov.monto);
+        }
+      }
       if (mov.tipo === 'pago' || (mov.tipo === 'ajuste' && delta < 0)) g.pagos += Number(mov.monto);
     }
     return Array.from(grupos.values());
