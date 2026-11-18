@@ -21,6 +21,7 @@ import {
   Loader2,
   PauseCircle,
   Search,
+  ChevronDown,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -91,6 +92,8 @@ export default function ReportesPage() {
   const [agrupacion, setAgrupacion] = useState<Agrupacion>('dia');
   const [activeTab, setActiveTab] = useState('resumen');
   const [clienteFiltroId, setClienteFiltroId] = useState<string | null>(null);
+  // Detalle colapsable de "Ventas por Servicio" (solo afecta a mobile).
+  const [mostrarDetalleServicios, setMostrarDetalleServicios] = useState(false);
 
   // Query de estadísticas rápidas
   const { data: estadisticas, isLoading: loadingEstadisticas } = useQuery({
@@ -715,24 +718,40 @@ export default function ReportesPage() {
                             ))}
                           </Pie>
                           <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                          <Legend />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="space-y-2">
+                    {/* Botón colapsable solo en mobile: la lista actúa como leyenda del pie */}
+                    <div className="lg:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setMostrarDetalleServicios((v) => !v)}
+                        className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium hover:bg-muted"
+                      >
+                        <span>
+                          {mostrarDetalleServicios ? 'Ocultar' : 'Ver'} detalle ({ventasServicios.length} servicios)
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform ${mostrarDetalleServicios ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+                    </div>
+                    <div
+                      className={`space-y-2 lg:block ${mostrarDetalleServicios ? 'block' : 'hidden'}`}
+                    >
                       {ventasServicios.map((servicio, index) => (
                         <div
                           key={servicio.servicio_id}
                           className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50"
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
                             <div
-                              className="w-3 h-3 rounded-full"
+                              className="w-3 h-3 rounded-full shrink-0"
                               style={{ backgroundColor: COLORS[index % COLORS.length] }}
                             />
-                            <span className="font-medium">{servicio.servicio_nombre}</span>
+                            <span className="font-medium truncate">{servicio.servicio_nombre}</span>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0 ml-2">
                             <p className="font-semibold">{formatCurrency(servicio.total)}</p>
                             <p className="text-xs text-muted-foreground">
                               {formatNumber(servicio.unidades_vendidas)} unidades
