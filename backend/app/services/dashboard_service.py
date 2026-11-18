@@ -19,8 +19,14 @@ from app.models.empleado import Empleado, EstadoEmpleado
 from app.models.remito import Remito, EstadoRemito
 
 
-# Estados de remito que representan una venta efectiva (no borrador ni anulado).
-_REMITO_ESTADOS_VENTA = (EstadoRemito.EMITIDO.value, EstadoRemito.ENTREGADO.value)
+# Filtro de remitos considerados "venta del período": activos y no anulados.
+# Mismo criterio que usa /reportes/estadisticas (reporte_service.py:1460) para
+# que Dashboard y Reportes muestren exactamente el mismo número.
+def _filtro_remitos_venta():
+    return and_(
+        Remito.activo == True,  # noqa: E712
+        Remito.estado != EstadoRemito.ANULADO.value,
+    )
 
 # Días de la semana en español (Lun=0 ... Dom=6). Usamos mapeo manual en
 # vez de `strftime("%a")` porque en el servidor el locale es en inglés.
@@ -51,8 +57,9 @@ class DashboardService:
                 func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
-                Remito.fecha_emision >= inicio_mes
+                _filtro_remitos_venta(),
+                Remito.fecha_emision >= inicio_mes,
+                Remito.fecha_emision <= hoy,
             ))
         )
         ventas_mes = ventas_mes_result.one()
@@ -64,7 +71,7 @@ class DashboardService:
                 func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                _filtro_remitos_venta(),
                 Remito.fecha_emision == hoy
             ))
         )
@@ -273,7 +280,7 @@ class DashboardService:
                 func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                _filtro_remitos_venta(),
                 Remito.fecha_emision >= desde,
                 Remito.fecha_emision <= hoy
             ))
@@ -315,7 +322,7 @@ class DashboardService:
                 func.sum(Remito.total).label('total')
             )
             .where(and_(
-                Remito.estado.in_(_REMITO_ESTADOS_VENTA),
+                _filtro_remitos_venta(),
                 Remito.fecha_emision >= desde,
                 Remito.fecha_emision <= hoy
             ))
