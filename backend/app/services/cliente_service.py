@@ -875,10 +875,9 @@ class ClienteService:
             )
             if not proveedor_compensacion:
                 raise ValueError("Proveedor de compensación no encontrado")
-            if (proveedor_compensacion.saldo_cuenta_corriente or Decimal("0")) < data.monto:
-                raise ValueError(
-                    "La deuda actual con el proveedor es menor al monto a compensar"
-                )
+            # Se permite dejar el saldo del proveedor en negativo: si el
+            # cliente le transfirió más de lo que le debíamos, queda como
+            # anticipo a nuestro favor con ese proveedor.
 
         saldo_anterior = cliente.saldo_cuenta_corriente
         saldo_posterior = saldo_anterior - data.monto
