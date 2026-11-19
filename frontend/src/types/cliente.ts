@@ -8,7 +8,7 @@ export type CondicionIVA = 'responsable_inscripto' | 'monotributo' | 'exento' | 
 export type EstadoPedido = 'borrador' | 'confirmado' | 'en_proceso' | 'listo' | 'entregado' | 'facturado' | 'cancelado';
 export type TipoEntrega = 'retiro_local' | 'delivery' | 'envio';
 export type TipoMovimientoCC = 'cargo' | 'pago' | 'ajuste';
-export type MedioPago = 'efectivo' | 'transferencia' | 'tarjeta_debito' | 'tarjeta_credito' | 'cheque' | 'mercado_pago' | 'cuenta_corriente' | 'otro';
+export type MedioPago = 'efectivo' | 'transferencia' | 'tarjeta_debito' | 'tarjeta_credito' | 'cheque' | 'echeq' | 'mercado_pago' | 'cuenta_corriente' | 'otro';
 
 // Cliente
 export interface Cliente {
@@ -336,6 +336,7 @@ export const MEDIOS_PAGO = [
   { value: 'tarjeta_debito', label: 'Tarjeta de Débito' },
   { value: 'tarjeta_credito', label: 'Tarjeta de Crédito' },
   { value: 'cheque', label: 'Cheque' },
+  { value: 'echeq', label: 'eCheq' },
   { value: 'mercado_pago', label: 'Mercado Pago' },
   { value: 'cuenta_corriente', label: 'Cuenta Corriente' },
   { value: 'otro', label: 'Otro' },

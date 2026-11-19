@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import {
   Table,
   TableBody,
@@ -266,14 +267,13 @@ export default function ClienteCuentaCorrientePage() {
   });
 
   // Proveedores activos — para compensación cliente↔proveedor.
-  // Los filtramos a los que tienen deuda (saldo > 0) para no enganchar
-  // a proveedores sin deuda (la compensación no tendría sentido).
+  // Traemos TODOS los activos (con o sin deuda); la UI indica la deuda al
+  // lado del nombre para que el operador tenga el dato a mano.
   const { data: proveedoresCompensacion } = useQuery({
-    queryKey: ['proveedores-con-deuda'],
-    queryFn: () => proveedorService.getProveedores({ limit: 200, solo_activos: true }),
+    queryKey: ['proveedores-activos-compensacion'],
+    queryFn: () => proveedorService.getProveedores({ limit: 500, solo_activos: true }),
     enabled: showPagoModal && esCompensacionProveedor,
-    select: (data) =>
-      (data?.items || []).filter((p) => (p.saldo_cuenta_corriente ?? 0) > 0),
+    select: (data) => data?.items || [],
   });
 
   // Tipos de cuenta válidos según el medio de pago. null => no requiere cuenta
@@ -290,6 +290,7 @@ export default function ClienteCuentaCorrientePage() {
       case 'tarjeta_credito':
         return ['caja_ahorro', 'cuenta_corriente', 'billetera_virtual'];
       case 'cheque':
+      case 'echeq':
       case 'cuenta_corriente':
         return null;
       case 'otro':
@@ -303,6 +304,9 @@ export default function ClienteCuentaCorrientePage() {
   const cuentasFiltradas = (cuentasTesoreria || []).filter(
     (c) => tiposCuentaPermitidos?.includes(String(c.tipo_cuenta)),
   );
+  // Un eCheq es un cheque electrónico: mismo flujo que el físico pero con
+  // tipo fijado. Centralizamos la condición para no duplicarla en cada if.
+  const esMedioCheque = cobranzaMedio === 'cheque' || cobranzaMedio === 'echeq';
 
   // Filtrar localmente por tipo si es necesario
   const movimientosFiltrados = movimientosData?.items?.filter((mov) => {
@@ -615,9 +619,9 @@ export default function ClienteCuentaCorrientePage() {
   const handleRegistrarCobranza = () => {
     if (!cobranzaMonto) return;
 
-    // Compensación con proveedor: exige proveedor y bloquea cheque.
+    // Compensación con proveedor: exige proveedor y bloquea cheque/eCheq.
     if (esCompensacionProveedor) {
-      if (cobranzaMedio === 'cheque') {
+      if (esMedioCheque) {
         toast({
           title: 'Cheque no permitido en compensación',
           description:
@@ -647,7 +651,7 @@ export default function ClienteCuentaCorrientePage() {
     }
 
     // Validación cliente-side de campos obligatorios por medio de pago
-    if (cobranzaMedio === 'cheque') {
+    if (esMedioCheque) {
       if (!chequeNumero.trim() || !chequeBanco || !chequeFechaVencimiento) {
         toast({
           title: 'Faltan datos del cheque',
@@ -704,17 +708,22 @@ export default function ClienteCuentaCorrientePage() {
       estado_facturacion: cobranzaEstadoFacturacion,
       factura_numero: cobranzaFacturaNumero || undefined,
       // Cheque
-      cheque_numero: cobranzaMedio === 'cheque' ? chequeNumero.trim() : undefined,
-      cheque_banco: cobranzaMedio === 'cheque' ? chequeBanco : undefined,
+      cheque_numero: esMedioCheque ? chequeNumero.trim() : undefined,
+      cheque_banco: esMedioCheque ? chequeBanco : undefined,
       cheque_fecha_emision:
-        cobranzaMedio === 'cheque' && chequeFechaEmision ? chequeFechaEmision : undefined,
+        esMedioCheque && chequeFechaEmision ? chequeFechaEmision : undefined,
       cheque_fecha_vencimiento:
-        cobranzaMedio === 'cheque' ? chequeFechaVencimiento : undefined,
+        esMedioCheque ? chequeFechaVencimiento : undefined,
       cheque_librador:
-        cobranzaMedio === 'cheque' && chequeLibrador ? chequeLibrador : undefined,
+        esMedioCheque && chequeLibrador ? chequeLibrador : undefined,
       cheque_cuit_librador:
-        cobranzaMedio === 'cheque' && chequeCuitLibrador ? chequeCuitLibrador : undefined,
-      cheque_tipo: cobranzaMedio === 'cheque' ? chequeTipo : undefined,
+        esMedioCheque && chequeCuitLibrador ? chequeCuitLibrador : undefined,
+      // eCheq fuerza el tipo electrónico; el cheque físico usa lo que eligió el usuario.
+      cheque_tipo: esMedioCheque
+        ? cobranzaMedio === 'echeq'
+          ? 'echeq'
+          : chequeTipo
+        : undefined,
       // Transferencia
       transferencia_banco_origen:
         cobranzaMedio === 'transferencia' && transferenciaBanco ? transferenciaBanco : undefined,
@@ -2143,15 +2152,19 @@ export default function ClienteCuentaCorrientePage() {
               <Tabs defaultValue="basico" className="w-full">
                 <TabsList
                   className={`grid w-full ${
-                    cobranzaMedio === 'cheque' || cobranzaMedio === 'transferencia'
+                    esMedioCheque || cobranzaMedio === 'transferencia'
                       ? 'grid-cols-4'
                       : 'grid-cols-3'
                   }`}
                 >
                   <TabsTrigger value="basico">Datos Básicos</TabsTrigger>
-                  {(cobranzaMedio === 'cheque' || cobranzaMedio === 'transferencia') && (
+                  {(esMedioCheque || cobranzaMedio === 'transferencia') && (
                     <TabsTrigger value="detalle">
-                      {cobranzaMedio === 'cheque' ? 'Cheque' : 'Transferencia'}
+                      {cobranzaMedio === 'echeq'
+                        ? 'eCheq'
+                        : cobranzaMedio === 'cheque'
+                        ? 'Cheque'
+                        : 'Transferencia'}
                     </TabsTrigger>
                   )}
                   <TabsTrigger value="asociar">Asociar a</TabsTrigger>
@@ -2225,28 +2238,25 @@ export default function ClienteCuentaCorrientePage() {
                   {esCompensacionProveedor ? (
                     <div className="space-y-2">
                       <Label>Proveedor al que se le transfirió *</Label>
-                      <Select
-                        value={cobranzaProveedorId}
-                        onValueChange={setCobranzaProveedorId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar proveedor con deuda" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {!proveedoresCompensacion || proveedoresCompensacion.length === 0 ? (
-                            <div className="px-2 py-1.5 text-sm text-gray-500">
-                              No hay proveedores con deuda pendiente.
-                            </div>
-                          ) : (
-                            proveedoresCompensacion.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.nombre_fantasia || p.razon_social} — deuda{' '}
-                                {formatNumber(p.saldo_cuenta_corriente || 0, 'currency')}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        options={(proveedoresCompensacion || []).map((p) => {
+                          const nombre = p.nombre_fantasia || p.razon_social;
+                          const deuda = p.saldo_cuenta_corriente || 0;
+                          return {
+                            value: p.id,
+                            label: nombre,
+                            sublabel:
+                              deuda > 0
+                                ? `Deuda actual: ${formatNumber(deuda, 'currency')}`
+                                : 'Sin deuda pendiente',
+                          };
+                        })}
+                        value={cobranzaProveedorId || null}
+                        onChange={(v) => setCobranzaProveedorId(v || '')}
+                        placeholder="Buscar y seleccionar proveedor..."
+                        searchPlaceholder="Buscar por nombre..."
+                        emptyText="No se encontraron proveedores."
+                      />
                       <p className="text-xs text-gray-500">
                         Se descontará el mismo monto de la deuda del proveedor.
                       </p>
@@ -2313,10 +2323,10 @@ export default function ClienteCuentaCorrientePage() {
                 </TabsContent>
 
                 <TabsContent value="detalle" className="space-y-4 mt-4">
-                  {cobranzaMedio === 'cheque' && (
+                  {esMedioCheque && (
                     <>
                       <p className="text-sm text-gray-500">
-                        Se crea automáticamente un cheque en cartera vinculado a este pago.
+                        Se crea automáticamente un {cobranzaMedio === 'echeq' ? 'eCheq' : 'cheque'} en cartera vinculado a este pago.
                       </p>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -2327,24 +2337,28 @@ export default function ClienteCuentaCorrientePage() {
                             placeholder="12345678"
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label>Tipo *</Label>
-                          <Select
-                            value={chequeTipo}
-                            onValueChange={(v) => setChequeTipo(v as 'fisico' | 'echeq')}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {TIPOS_CHEQUE.map((t) => (
-                                <SelectItem key={t.value} value={t.value}>
-                                  {t.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {/* El tipo queda implícito cuando el medio es 'echeq';
+                            solo pedimos elegir físico/echeq si el medio es 'cheque' genérico. */}
+                        {cobranzaMedio === 'cheque' && (
+                          <div className="space-y-2">
+                            <Label>Tipo *</Label>
+                            <Select
+                              value={chequeTipo}
+                              onValueChange={(v) => setChequeTipo(v as 'fisico' | 'echeq')}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TIPOS_CHEQUE.map((t) => (
+                                  <SelectItem key={t.value} value={t.value}>
+                                    {t.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label>Banco emisor *</Label>

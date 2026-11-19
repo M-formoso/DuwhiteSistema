@@ -862,9 +862,9 @@ class ClienteService:
                 raise ValueError(
                     "Debe seleccionar el proveedor al que el cliente transfirió el pago"
                 )
-            if (data.medio_pago or "").lower() == "cheque":
+            if (data.medio_pago or "").lower() in ("cheque", "echeq"):
                 raise ValueError(
-                    "Las compensaciones con proveedor no soportan cheque: "
+                    "Las compensaciones con proveedor no soportan cheque ni eCheq: "
                     "el cheque debe depositarse antes para ser exigible"
                 )
             from app.models.proveedor import Proveedor
@@ -923,6 +923,10 @@ class ClienteService:
         self.db.add(movimiento)
 
         metodo_pago_norm = (data.medio_pago or "efectivo").lower()
+        # eCheq es un cheque electrónico: a nivel de tesorería/cartera lo
+        # tratamos igual que un cheque físico, solo cambia el campo "tipo"
+        # dentro de la entidad Cheque.
+        es_cheque = metodo_pago_norm in ("cheque", "echeq")
 
         # ==================== Tesorería / Caja / Banco ====================
         # Si NO es compensación: el pago entra como ingreso real en el flujo
@@ -937,6 +941,7 @@ class ClienteService:
                 "efectivo": TipoMovimientoTesoreria.INGRESO_EFECTIVO.value,
                 "transferencia": TipoMovimientoTesoreria.INGRESO_TRANSFERENCIA.value,
                 "cheque": TipoMovimientoTesoreria.INGRESO_CHEQUE.value,
+                "echeq": TipoMovimientoTesoreria.INGRESO_CHEQUE.value,
             }
             tipo_tesoreria = tipo_tesoreria_map.get(
                 metodo_pago_norm, TipoMovimientoTesoreria.INGRESO_EFECTIVO.value
@@ -947,18 +952,18 @@ class ClienteService:
 
             # Validaciones y creación de entidades asociadas según medio
             cheque_creado: Optional[Cheque] = None
-            # cuenta_destino_id aplica a cualquier medio salvo cheque (que va a
+            # cuenta_destino_id aplica a cualquier medio salvo cheque/echeq (van a
             # cartera de cheques, no a una cuenta hasta que se deposite/cobre).
             cuenta_destino_id: Optional[str] = (
                 getattr(data, "cuenta_destino_id", None)
-                if metodo_pago_norm != "cheque"
+                if not es_cheque
                 else None
             )
             transferencia_banco_origen: Optional[str] = None
             transferencia_numero: Optional[str] = None
             fecha_valor: Optional[date] = None
 
-            if metodo_pago_norm == "cheque":
+            if es_cheque:
                 # Requiere al menos número, banco emisor y fecha de vencimiento
                 if not getattr(data, "cheque_numero", None):
                     raise ValueError("Número de cheque es obligatorio para pagos con cheque")
@@ -969,7 +974,12 @@ class ClienteService:
                         "Fecha de vencimiento es obligatoria para pagos con cheque"
                     )
 
-                cheque_tipo_val = getattr(data, "cheque_tipo", None) or TipoCheque.FISICO.value
+                # eCheq fuerza tipo electrónico; con medio 'cheque' se respeta lo
+                # que mandó el frontend (por default físico).
+                if metodo_pago_norm == "echeq":
+                    cheque_tipo_val = TipoCheque.ECHEQ.value
+                else:
+                    cheque_tipo_val = getattr(data, "cheque_tipo", None) or TipoCheque.FISICO.value
                 cheque_creado = Cheque(
                     id=str(uuid4()),
                     numero=str(data.cheque_numero).strip(),
