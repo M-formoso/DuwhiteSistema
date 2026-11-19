@@ -160,7 +160,19 @@ def obtener_historial_vehiculo(
 def listar_vehiculos_locales(
     solo_activos: bool = True,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(REQUIERE_ROL),
+    # Catálogo read-only: lo consumen los selectores de "¿qué vehículo lo
+    # lleva?" durante recolección y conteo, flujos que ejecuta el operador.
+    # Por eso agregamos operador acá (sin abrirle el resto del módulo).
+    current_user: Usuario = Depends(
+        require_permission(
+            "superadmin",
+            "administrador",
+            "jefe_produccion",
+            "comercial",
+            "chofer",
+            "operador",
+        )
+    ),
 ):
     """Catálogo local sincronizado con GeoTrackers (alimenta los selectores)."""
     query = db.query(Vehiculo)
