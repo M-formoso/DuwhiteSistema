@@ -73,6 +73,7 @@ import {
   type RegistrarCobranzaRequest,
 } from '@/services/finanzasAvanzadasService';
 import { getCuentasBancarias } from '@/services/finanzasService';
+import { proveedorService } from '@/services/proveedorService';
 import { historialLavadosService } from '@/services/historialLavadosService';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { toastApiError } from '@/utils/apiErrors';
@@ -196,6 +197,10 @@ export default function ClienteCuentaCorrientePage() {
   const [transferenciaNumero, setTransferenciaNumero] = useState('');
   // Cuenta destino de tesorería donde se acredita el pago
   const [cobranzaCuentaDestinoId, setCobranzaCuentaDestinoId] = useState('');
+  // Compensación con proveedor: el cliente transfirió directo a un proveedor
+  // nuestro. Si es true, se oculta "Acreditar en cuenta" y se pide proveedor.
+  const [esCompensacionProveedor, setEsCompensacionProveedor] = useState(false);
+  const [cobranzaProveedorId, setCobranzaProveedorId] = useState('');
 
   // Query del cliente
   const { data: cliente, isLoading: loadingCliente } = useQuery({
@@ -258,6 +263,17 @@ export default function ClienteCuentaCorrientePage() {
     queryKey: ['cuentas-tesoreria-activas'],
     queryFn: () => getCuentasBancarias(true),
     enabled: showPagoModal,
+  });
+
+  // Proveedores activos — para compensación cliente↔proveedor.
+  // Los filtramos a los que tienen deuda (saldo > 0) para no enganchar
+  // a proveedores sin deuda (la compensación no tendría sentido).
+  const { data: proveedoresCompensacion } = useQuery({
+    queryKey: ['proveedores-con-deuda'],
+    queryFn: () => proveedorService.getProveedores({ limit: 200, solo_activos: true }),
+    enabled: showPagoModal && esCompensacionProveedor,
+    select: (data) =>
+      (data?.items || []).filter((p) => (p.saldo_cuenta_corriente ?? 0) > 0),
   });
 
   // Tipos de cuenta válidos según el medio de pago. null => no requiere cuenta
@@ -592,14 +608,35 @@ export default function ClienteCuentaCorrientePage() {
     setTransferenciaBanco('');
     setTransferenciaNumero('');
     setCobranzaCuentaDestinoId('');
+    setEsCompensacionProveedor(false);
+    setCobranzaProveedorId('');
   };
 
   const handleRegistrarCobranza = () => {
     if (!cobranzaMonto) return;
 
-    // Cuenta destino obligatoria para todos los medios salvo cheque y uso
-    // interno de CC (cheque va a cartera; CC es un asiento interno).
-    if (requiereCuentaDestino && !cobranzaCuentaDestinoId) {
+    // Compensación con proveedor: exige proveedor y bloquea cheque.
+    if (esCompensacionProveedor) {
+      if (cobranzaMedio === 'cheque') {
+        toast({
+          title: 'Cheque no permitido en compensación',
+          description:
+            'El cheque debe depositarse antes para ser exigible. Elegí otro medio de pago.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!cobranzaProveedorId) {
+        toast({
+          title: 'Falta el proveedor',
+          description: 'Seleccioná el proveedor al que el cliente transfirió el pago.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else if (requiereCuentaDestino && !cobranzaCuentaDestinoId) {
+      // Cuenta destino obligatoria para todos los medios salvo cheque y uso
+      // interno de CC (cheque va a cartera; CC es un asiento interno).
       toast({
         title: 'Falta la cuenta destino',
         description:
@@ -687,7 +724,16 @@ export default function ClienteCuentaCorrientePage() {
           : undefined,
       // Cuenta de tesorería donde se acredita el pago (cualquier medio salvo
       // cheque/CC interna). El backend actualiza saldo y crea MovimientoBancario.
-      cuenta_destino_id: cobranzaCuentaDestinoId || undefined,
+      // En compensación con proveedor no aplica (la plata no entra a DUWHITE).
+      cuenta_destino_id: esCompensacionProveedor
+        ? undefined
+        : cobranzaCuentaDestinoId || undefined,
+      // Compensación cliente↔proveedor: el cliente transfirió directo a un
+      // proveedor nuestro; se cancelan dos deudas en la misma transacción.
+      es_compensacion_proveedor: esCompensacionProveedor || undefined,
+      proveedor_compensacion_id: esCompensacionProveedor
+        ? cobranzaProveedorId
+        : undefined,
     });
   };
 
@@ -2149,34 +2195,92 @@ export default function ClienteCuentaCorrientePage() {
                     </div>
                   </div>
 
-                  {requiereCuentaDestino && (
+                  {/* Toggle: compensación con proveedor */}
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <input
+                      id="toggle-compensacion"
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-amber-600"
+                      checked={esCompensacionProveedor}
+                      onChange={(e) => {
+                        setEsCompensacionProveedor(e.target.checked);
+                        setCobranzaCuentaDestinoId('');
+                        setCobranzaProveedorId('');
+                      }}
+                    />
+                    <div className="flex-1">
+                      <Label
+                        htmlFor="toggle-compensacion"
+                        className="cursor-pointer text-sm font-medium"
+                      >
+                        El cliente transfirió directo a un proveedor (compensación de deuda)
+                      </Label>
+                      <p className="mt-0.5 text-xs text-gray-600">
+                        La plata no entra a una cuenta nuestra: baja la deuda del cliente
+                        y la del proveedor por el mismo monto.
+                      </p>
+                    </div>
+                  </div>
+
+                  {esCompensacionProveedor ? (
                     <div className="space-y-2">
-                      <Label>Acreditar en cuenta *</Label>
+                      <Label>Proveedor al que se le transfirió *</Label>
                       <Select
-                        value={cobranzaCuentaDestinoId}
-                        onValueChange={setCobranzaCuentaDestinoId}
+                        value={cobranzaProveedorId}
+                        onValueChange={setCobranzaProveedorId}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar cuenta destino" />
+                          <SelectValue placeholder="Seleccionar proveedor con deuda" />
                         </SelectTrigger>
                         <SelectContent>
-                          {cuentasFiltradas.length === 0 ? (
+                          {!proveedoresCompensacion || proveedoresCompensacion.length === 0 ? (
                             <div className="px-2 py-1.5 text-sm text-gray-500">
-                              No hay cuentas compatibles con este medio de pago.
+                              No hay proveedores con deuda pendiente.
                             </div>
                           ) : (
-                            cuentasFiltradas.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.nombre || c.banco} — {formatNumber(c.saldo_actual || 0, 'currency')}
+                            proveedoresCompensacion.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.nombre_fantasia || p.razon_social} — deuda{' '}
+                                {formatNumber(p.saldo_cuenta_corriente || 0, 'currency')}
                               </SelectItem>
                             ))
                           )}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-gray-500">
-                        El monto se acreditará en el saldo de esta cuenta.
+                        Se descontará el mismo monto de la deuda del proveedor.
                       </p>
                     </div>
+                  ) : (
+                    requiereCuentaDestino && (
+                      <div className="space-y-2">
+                        <Label>Acreditar en cuenta *</Label>
+                        <Select
+                          value={cobranzaCuentaDestinoId}
+                          onValueChange={setCobranzaCuentaDestinoId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar cuenta destino" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {cuentasFiltradas.length === 0 ? (
+                              <div className="px-2 py-1.5 text-sm text-gray-500">
+                                No hay cuentas compatibles con este medio de pago.
+                              </div>
+                            ) : (
+                              cuentasFiltradas.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.nombre || c.banco} — {formatNumber(c.saldo_actual || 0, 'currency')}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500">
+                          El monto se acreditará en el saldo de esta cuenta.
+                        </p>
+                      </div>
+                    )
                   )}
 
                   <div className="space-y-2">

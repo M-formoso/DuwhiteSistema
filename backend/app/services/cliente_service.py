@@ -851,11 +851,46 @@ class ClienteService:
         if not cliente:
             raise ValueError("Cliente no encontrado")
 
+        # Compensación cliente↔proveedor: el cliente transfirió directo a un
+        # proveedor nuestro. Validamos acá para fallar temprano antes de tocar
+        # saldos. La plata nunca entra a DUWHITE, por eso saltamos los
+        # movimientos bancarios/caja/tesorería de ingreso real más abajo.
+        es_compensacion = bool(getattr(data, "es_compensacion_proveedor", False))
+        proveedor_compensacion_id = getattr(data, "proveedor_compensacion_id", None)
+        if es_compensacion:
+            if not proveedor_compensacion_id:
+                raise ValueError(
+                    "Debe seleccionar el proveedor al que el cliente transfirió el pago"
+                )
+            if (data.medio_pago or "").lower() == "cheque":
+                raise ValueError(
+                    "Las compensaciones con proveedor no soportan cheque: "
+                    "el cheque debe depositarse antes para ser exigible"
+                )
+            from app.models.proveedor import Proveedor
+            proveedor_compensacion = (
+                self.db.query(Proveedor)
+                .filter(Proveedor.id == str(proveedor_compensacion_id))
+                .first()
+            )
+            if not proveedor_compensacion:
+                raise ValueError("Proveedor de compensación no encontrado")
+            if (proveedor_compensacion.saldo_cuenta_corriente or Decimal("0")) < data.monto:
+                raise ValueError(
+                    "La deuda actual con el proveedor es menor al monto a compensar"
+                )
+
         saldo_anterior = cliente.saldo_cuenta_corriente
         saldo_posterior = saldo_anterior - data.monto
 
         # Generar concepto según el contexto
-        concepto = f"Pago recibido - {data.medio_pago}"
+        if es_compensacion:
+            concepto = (
+                f"Pago recibido - compensación con proveedor "
+                f"{proveedor_compensacion.razon_social}"
+            )
+        else:
+            concepto = f"Pago recibido - {data.medio_pago}"
         if hasattr(data, 'pedido_id') and data.pedido_id:
             pedido = self.get_pedido(data.pedido_id)
             if pedido:
@@ -887,131 +922,137 @@ class ClienteService:
 
         self.db.add(movimiento)
 
-        # ==================== Tesorería ====================
-        # Cada pago genera un MovimientoTesoreria (ingreso real de plata).
-        # Según el medio_pago, se completan campos específicos y se crean
-        # entidades asociadas (Cheque para cheques, MovimientoCaja para efectivo).
-        tipo_tesoreria_map = {
-            "efectivo": TipoMovimientoTesoreria.INGRESO_EFECTIVO.value,
-            "transferencia": TipoMovimientoTesoreria.INGRESO_TRANSFERENCIA.value,
-            "cheque": TipoMovimientoTesoreria.INGRESO_CHEQUE.value,
-        }
         metodo_pago_norm = (data.medio_pago or "efectivo").lower()
-        tipo_tesoreria = tipo_tesoreria_map.get(
-            metodo_pago_norm, TipoMovimientoTesoreria.INGRESO_EFECTIVO.value
-        )
-        metodo_pago_tesoreria = (
-            metodo_pago_norm if metodo_pago_norm in tipo_tesoreria_map else "efectivo"
-        )
 
-        # Validaciones y creación de entidades asociadas según medio
-        cheque_creado: Optional[Cheque] = None
-        # cuenta_destino_id aplica a cualquier medio salvo cheque (que va a
-        # cartera de cheques, no a una cuenta hasta que se deposite/cobre).
-        cuenta_destino_id: Optional[str] = (
-            getattr(data, "cuenta_destino_id", None)
-            if metodo_pago_norm != "cheque"
-            else None
-        )
-        transferencia_banco_origen: Optional[str] = None
-        transferencia_numero: Optional[str] = None
-        fecha_valor: Optional[date] = None
+        # ==================== Tesorería / Caja / Banco ====================
+        # Si NO es compensación: el pago entra como ingreso real en el flujo
+        # de caja y se refleja en tesorería/bancos. Si ES compensación (cliente
+        # pagó directo a un proveedor), nada de esto ocurre: la plata jamás
+        # pasó por DUWHITE, solo se compensan dos deudas.
+        if not es_compensacion:
+            # Cada pago genera un MovimientoTesoreria (ingreso real de plata).
+            # Según el medio_pago, se completan campos específicos y se crean
+            # entidades asociadas (Cheque para cheques, MovimientoCaja para efectivo).
+            tipo_tesoreria_map = {
+                "efectivo": TipoMovimientoTesoreria.INGRESO_EFECTIVO.value,
+                "transferencia": TipoMovimientoTesoreria.INGRESO_TRANSFERENCIA.value,
+                "cheque": TipoMovimientoTesoreria.INGRESO_CHEQUE.value,
+            }
+            tipo_tesoreria = tipo_tesoreria_map.get(
+                metodo_pago_norm, TipoMovimientoTesoreria.INGRESO_EFECTIVO.value
+            )
+            metodo_pago_tesoreria = (
+                metodo_pago_norm if metodo_pago_norm in tipo_tesoreria_map else "efectivo"
+            )
 
-        if metodo_pago_norm == "cheque":
-            # Requiere al menos número, banco emisor y fecha de vencimiento
-            if not getattr(data, "cheque_numero", None):
-                raise ValueError("Número de cheque es obligatorio para pagos con cheque")
-            if not getattr(data, "cheque_banco", None):
-                raise ValueError("Banco emisor es obligatorio para pagos con cheque")
-            if not getattr(data, "cheque_fecha_vencimiento", None):
-                raise ValueError(
-                    "Fecha de vencimiento es obligatoria para pagos con cheque"
+            # Validaciones y creación de entidades asociadas según medio
+            cheque_creado: Optional[Cheque] = None
+            # cuenta_destino_id aplica a cualquier medio salvo cheque (que va a
+            # cartera de cheques, no a una cuenta hasta que se deposite/cobre).
+            cuenta_destino_id: Optional[str] = (
+                getattr(data, "cuenta_destino_id", None)
+                if metodo_pago_norm != "cheque"
+                else None
+            )
+            transferencia_banco_origen: Optional[str] = None
+            transferencia_numero: Optional[str] = None
+            fecha_valor: Optional[date] = None
+
+            if metodo_pago_norm == "cheque":
+                # Requiere al menos número, banco emisor y fecha de vencimiento
+                if not getattr(data, "cheque_numero", None):
+                    raise ValueError("Número de cheque es obligatorio para pagos con cheque")
+                if not getattr(data, "cheque_banco", None):
+                    raise ValueError("Banco emisor es obligatorio para pagos con cheque")
+                if not getattr(data, "cheque_fecha_vencimiento", None):
+                    raise ValueError(
+                        "Fecha de vencimiento es obligatoria para pagos con cheque"
+                    )
+
+                cheque_tipo_val = getattr(data, "cheque_tipo", None) or TipoCheque.FISICO.value
+                cheque_creado = Cheque(
+                    id=str(uuid4()),
+                    numero=str(data.cheque_numero).strip(),
+                    tipo=cheque_tipo_val,
+                    origen=OrigenCheque.RECIBIDO_CLIENTE.value,
+                    estado=EstadoCheque.EN_CARTERA.value,
+                    monto=data.monto,
+                    fecha_emision=getattr(data, "cheque_fecha_emision", None),
+                    fecha_vencimiento=data.cheque_fecha_vencimiento,
+                    banco_origen=data.cheque_banco,
+                    cliente_id=data.cliente_id,
+                    librador=getattr(data, "cheque_librador", None),
+                    cuit_librador=getattr(data, "cheque_cuit_librador", None),
+                    registrado_por_id=usuario_id,
+                    fecha_registro=datetime.utcnow(),
+                    notas=data.notas,
+                )
+                self.db.add(cheque_creado)
+                self.db.flush()  # asegurar id disponible antes del movimiento
+                fecha_valor = data.cheque_fecha_vencimiento
+
+            elif metodo_pago_norm == "transferencia":
+                transferencia_banco_origen = getattr(data, "transferencia_banco_origen", None)
+                transferencia_numero = (
+                    getattr(data, "transferencia_numero", None) or data.referencia_pago
                 )
 
-            cheque_tipo_val = getattr(data, "cheque_tipo", None) or TipoCheque.FISICO.value
-            cheque_creado = Cheque(
+            movimiento_tesoreria = MovimientoTesoreria(
                 id=str(uuid4()),
-                numero=str(data.cheque_numero).strip(),
-                tipo=cheque_tipo_val,
-                origen=OrigenCheque.RECIBIDO_CLIENTE.value,
-                estado=EstadoCheque.EN_CARTERA.value,
-                monto=data.monto,
-                fecha_emision=getattr(data, "cheque_fecha_emision", None),
-                fecha_vencimiento=data.cheque_fecha_vencimiento,
-                banco_origen=data.cheque_banco,
-                cliente_id=data.cliente_id,
-                librador=getattr(data, "cheque_librador", None),
-                cuit_librador=getattr(data, "cheque_cuit_librador", None),
-                registrado_por_id=usuario_id,
-                fecha_registro=datetime.utcnow(),
-                notas=data.notas,
-            )
-            self.db.add(cheque_creado)
-            self.db.flush()  # asegurar id disponible antes del movimiento
-            fecha_valor = data.cheque_fecha_vencimiento
-
-        elif metodo_pago_norm == "transferencia":
-            transferencia_banco_origen = getattr(data, "transferencia_banco_origen", None)
-            transferencia_numero = (
-                getattr(data, "transferencia_numero", None) or data.referencia_pago
-            )
-
-        movimiento_tesoreria = MovimientoTesoreria(
-            id=str(uuid4()),
-            tipo=tipo_tesoreria,
-            concepto=concepto,
-            monto=data.monto,
-            es_ingreso=True,
-            fecha_movimiento=data.fecha,
-            fecha_valor=fecha_valor,
-            metodo_pago=metodo_pago_tesoreria,
-            cliente_id=data.cliente_id,
-            registrado_por_id=usuario_id,
-            notas=data.notas,
-            comprobante=data.referencia_pago,
-            cheque_id=str(cheque_creado.id) if cheque_creado else None,
-            banco_origen=transferencia_banco_origen,
-            numero_transferencia=transferencia_numero,
-            cuenta_destino_id=cuenta_destino_id,
-        )
-        self.db.add(movimiento_tesoreria)
-
-        # ==================== Acreditar en Cuenta de Tesorería ====================
-        # Si viene cuenta_destino_id, actualizamos el saldo de la cuenta y
-        # dejamos trail en movimientos_bancarios. Mismo patrón que
-        # tesoreria_service.crear_movimiento (ver tesoreria_service.py:546-588).
-        if cuenta_destino_id:
-            from app.services.tesoreria_service import (
-                _asegurar_schema_movimientos_bancarios,
-            )
-            _asegurar_schema_movimientos_bancarios(self.db)
-            cuenta = (
-                self.db.query(CuentaBancaria)
-                .filter(CuentaBancaria.id == str(cuenta_destino_id))
-                .first()
-            )
-            if cuenta is None:
-                raise ValueError("Cuenta destino no encontrada")
-
-            saldo_cta_anterior = cuenta.saldo_actual or Decimal("0")
-            saldo_cta_posterior = saldo_cta_anterior + data.monto
-            cuenta.saldo_actual = saldo_cta_posterior
-
-            mov_banco = MovimientoBancario(
-                id=str(uuid4()),
-                cuenta_id=str(cuenta.id),
-                tipo=TipoMovimientoBanco.TRANSFERENCIA_ENTRADA.value,
+                tipo=tipo_tesoreria,
                 concepto=concepto,
                 monto=data.monto,
-                saldo_anterior=saldo_cta_anterior,
-                saldo_posterior=saldo_cta_posterior,
+                es_ingreso=True,
                 fecha_movimiento=data.fecha,
-                fecha_valor=fecha_valor or data.fecha,
-                numero_comprobante=transferencia_numero or data.referencia_pago,
-                cliente_id=str(data.cliente_id),
-                registrado_por_id=str(usuario_id),
+                fecha_valor=fecha_valor,
+                metodo_pago=metodo_pago_tesoreria,
+                cliente_id=data.cliente_id,
+                registrado_por_id=usuario_id,
+                notas=data.notas,
+                comprobante=data.referencia_pago,
+                cheque_id=str(cheque_creado.id) if cheque_creado else None,
+                banco_origen=transferencia_banco_origen,
+                numero_transferencia=transferencia_numero,
+                cuenta_destino_id=cuenta_destino_id,
             )
-            self.db.add(mov_banco)
+            self.db.add(movimiento_tesoreria)
+
+            # ==================== Acreditar en Cuenta de Tesorería ====================
+            # Si viene cuenta_destino_id, actualizamos el saldo de la cuenta y
+            # dejamos trail en movimientos_bancarios. Mismo patrón que
+            # tesoreria_service.crear_movimiento (ver tesoreria_service.py:546-588).
+            if cuenta_destino_id:
+                from app.services.tesoreria_service import (
+                    _asegurar_schema_movimientos_bancarios,
+                )
+                _asegurar_schema_movimientos_bancarios(self.db)
+                cuenta = (
+                    self.db.query(CuentaBancaria)
+                    .filter(CuentaBancaria.id == str(cuenta_destino_id))
+                    .first()
+                )
+                if cuenta is None:
+                    raise ValueError("Cuenta destino no encontrada")
+
+                saldo_cta_anterior = cuenta.saldo_actual or Decimal("0")
+                saldo_cta_posterior = saldo_cta_anterior + data.monto
+                cuenta.saldo_actual = saldo_cta_posterior
+
+                mov_banco = MovimientoBancario(
+                    id=str(uuid4()),
+                    cuenta_id=str(cuenta.id),
+                    tipo=TipoMovimientoBanco.TRANSFERENCIA_ENTRADA.value,
+                    concepto=concepto,
+                    monto=data.monto,
+                    saldo_anterior=saldo_cta_anterior,
+                    saldo_posterior=saldo_cta_posterior,
+                    fecha_movimiento=data.fecha,
+                    fecha_valor=fecha_valor or data.fecha,
+                    numero_comprobante=transferencia_numero or data.referencia_pago,
+                    cliente_id=str(data.cliente_id),
+                    registrado_por_id=str(usuario_id),
+                )
+                self.db.add(mov_banco)
 
         # Generar recibo
         numero_recibo = self._generar_numero_recibo()
@@ -1039,7 +1080,8 @@ class ClienteService:
         # ==================== Movimiento en Caja (solo efectivo) ====================
         # Si el pago es en efectivo, además se registra un ingreso en la caja
         # abierta (auto-detect si no se pasó caja_id explícita).
-        if metodo_pago_norm == "efectivo":
+        # No aplica en compensaciones (la plata nunca entra a caja).
+        if not es_compensacion and metodo_pago_norm == "efectivo":
             caja_para_ingreso: Optional[Caja] = None
             caja_id_solicitada = getattr(data, "caja_id", None)
             if caja_id_solicitada:
@@ -1109,6 +1151,31 @@ class ClienteService:
         except Exception:
             # Si la aplicación falla, no bloqueamos el pago — queda como anticipo
             pass
+
+        # ==================== Compensación con Proveedor ====================
+        # Misma transacción: baja la deuda del proveedor por el mismo monto.
+        # Si falla, hace rollback de TODO (saldo cliente, movimiento, recibo).
+        if es_compensacion:
+            from app.services.cuenta_corriente_proveedor_service import (
+                CuentaCorrienteProveedorService,
+            )
+            ccp_service = CuentaCorrienteProveedorService(self.db)
+            concepto_prov = (
+                f"Pago vía compensación con cliente "
+                f"{cliente.razon_social or cliente.nombre or ''}".strip(" -")
+            )
+            notas_prov = f"Recibo {numero_recibo}"
+            if data.notas:
+                notas_prov = f"{notas_prov} · {data.notas}"
+            ccp_service.registrar_pago(
+                proveedor_id=str(proveedor_compensacion_id),
+                monto=data.monto,
+                concepto=concepto_prov,
+                fecha_movimiento=data.fecha,
+                usuario_id=usuario_id,
+                notas=notas_prov,
+                commit=False,
+            )
 
         self.db.commit()
         self.db.refresh(recibo)

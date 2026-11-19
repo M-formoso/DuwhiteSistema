@@ -99,6 +99,11 @@ export interface RegistrarCobranzaRequest {
   cuenta_destino_id?: string;
   // Detalle Efectivo
   caja_id?: string;
+  // Compensación cliente↔proveedor: el cliente transfirió directo a un
+  // proveedor nuestro. No hay ingreso real de plata, solo se compensan dos
+  // deudas en la misma transacción.
+  es_compensacion_proveedor?: boolean;
+  proveedor_compensacion_id?: string;
 }
 
 export interface PedidoPendiente {

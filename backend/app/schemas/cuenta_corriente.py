@@ -117,6 +117,13 @@ class RegistrarCobranzaRequest(BaseModel):
     # Efectivo
     caja_id: Optional[str] = None
 
+    # Compensación cliente↔proveedor: el cliente transfirió directamente a
+    # un proveedor nuestro, así que la cobranza no genera ingreso bancario
+    # propio pero sí baja la deuda de ambos (cliente y proveedor) en la
+    # misma transacción. Cheque bloqueado (no hay plata real aún).
+    es_compensacion_proveedor: bool = False
+    proveedor_compensacion_id: Optional[str] = None
+
     @model_validator(mode="after")
     def _validar_fechas_cheque(self) -> "RegistrarCobranzaRequest":
         _validar_fecha_rango(self.cheque_fecha_emision, "Fecha de emisión del cheque")
@@ -189,6 +196,10 @@ class RegistrarPagoRequest(BaseModel):
 
     # Efectivo: caja a la que ingresa (si no se pasa, se toma la caja abierta del día)
     caja_id: Optional[str] = None
+
+    # Compensación cliente↔proveedor (ver RegistrarCobranzaRequest).
+    es_compensacion_proveedor: bool = False
+    proveedor_compensacion_id: Optional[str] = None
 
     @model_validator(mode="after")
     def _validar_fechas_cheque(self) -> "RegistrarPagoRequest":

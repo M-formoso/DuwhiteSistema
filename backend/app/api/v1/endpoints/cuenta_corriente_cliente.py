@@ -885,6 +885,9 @@ def registrar_cobranza(
         cuenta_destino_id=data.cuenta_destino_id,
         # Efectivo
         caja_id=data.caja_id,
+        # Compensación cliente↔proveedor
+        es_compensacion_proveedor=data.es_compensacion_proveedor,
+        proveedor_compensacion_id=data.proveedor_compensacion_id,
     )
 
     try:
