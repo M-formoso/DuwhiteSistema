@@ -9,7 +9,7 @@
  * solo devuelvan lotes del cliente asociado al usuario logueado.
  */
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -24,6 +24,8 @@ import {
   Calendar,
   Filter,
   MapPin,
+  Check,
+  X,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,95 +62,296 @@ function formatTiempo(minutos: number): string {
 }
 
 // ============================================================
-// Tarjeta de lote (read-only, sin acciones)
+// Stepper horizontal por lote (vista principal del cliente)
 // ============================================================
-function LoteCardReadOnly({ lote, columna }: { lote: KanbanLote; columna: KanbanColumna }) {
+// Reemplaza al carrusel de columnas: por cada lote del cliente dibuja
+// una línea de pasos numerados; el paso actual se marca en azul y los
+// anteriores con check. Tocar un paso abre el modal con el detalle.
+function LoteStepper({
+  lote,
+  etapaIdxActual,
+  columnas,
+  onEtapaClick,
+}: {
+  lote: KanbanLote;
+  etapaIdxActual: number;
+  columnas: KanbanColumna[];
+  onEtapaClick: (idx: number) => void;
+}) {
+  const columnaActual = columnas[etapaIdxActual];
+  return (
+    <div
+      className={`rounded-xl border bg-white shadow-sm p-4 ${
+        lote.esta_atrasado ? 'border-red-300 bg-red-50/40' : 'border-gray-200'
+      }`}
+    >
+      {/* Header: nro de lote + badge de estado + "Ver seguimiento" */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono font-bold text-sm">{lote.numero}</span>
+            {lote.etapa_en_proceso ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                EN PROCESO
+              </span>
+            ) : (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
+                EN ESPERA
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-xs text-gray-600">
+            Etapa <span className="font-semibold">{etapaIdxActual + 1}</span> de{' '}
+            <span className="font-semibold">{columnas.length}</span>:{' '}
+            <span className="text-gray-900">{columnaActual?.etapa_nombre}</span>
+          </div>
+        </div>
+        <Link
+          to={`/mi-produccion/seguimiento/${lote.id}`}
+          className="shrink-0 flex items-center gap-1 text-[11px] font-medium text-primary border border-primary/30 rounded-md px-2 py-1 hover:bg-primary/5 transition"
+        >
+          <MapPin className="h-3 w-3" />
+          Ver seguimiento
+        </Link>
+      </div>
+
+      {/* Chips rápidas */}
+      <div className="flex flex-wrap gap-1.5 mb-3 text-xs">
+        {lote.peso_entrada_kg && (
+          <span className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
+            <Scale className="h-3 w-3 text-gray-500" />
+            <span className="font-medium">
+              {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
+            </span>
+          </span>
+        )}
+        {lote.cantidad_prendas != null && (
+          <span className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
+            <Shirt className="h-3 w-3 text-gray-500" />
+            <span className="font-medium">{lote.cantidad_prendas} prendas</span>
+          </span>
+        )}
+        {lote.fecha_compromiso && !lote.esta_atrasado && (
+          <span className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1 text-gray-600">
+            <Calendar className="h-3 w-3" />
+            Entrega: {formatearFecha(lote.fecha_compromiso)}
+          </span>
+        )}
+        {lote.esta_atrasado && (
+          <span className="flex items-center gap-1 bg-red-50 text-red-700 rounded px-2 py-1 font-medium">
+            <AlertTriangle className="h-3 w-3" />
+            Compromiso vencido
+          </span>
+        )}
+      </div>
+
+      {/* Línea de steps horizontal con scroll en mobile si son muchas etapas */}
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="flex items-start min-w-max">
+          {columnas.map((col, idx) => {
+            const estado =
+              idx < etapaIdxActual
+                ? 'completado'
+                : idx === etapaIdxActual
+                ? 'activo'
+                : 'pendiente';
+            return (
+              <Fragment key={col.etapa_id}>
+                {idx > 0 && (
+                  <div
+                    className={`h-0.5 min-w-[28px] flex-1 mt-5 ${
+                      idx <= etapaIdxActual ? 'bg-primary' : 'bg-gray-200'
+                    }`}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => onEtapaClick(idx)}
+                  className="group flex flex-col items-center gap-1.5 min-w-[64px] px-1 focus:outline-none"
+                >
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm transition-transform group-hover:scale-105 ${
+                      estado === 'activo'
+                        ? 'bg-primary text-white ring-4 ring-primary/20'
+                        : estado === 'completado'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-gray-100 text-gray-400 border border-gray-200'
+                    }`}
+                  >
+                    {estado === 'completado' ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      idx + 1
+                    )}
+                  </div>
+                  <span
+                    className={`text-[10px] leading-tight text-center max-w-[70px] truncate ${
+                      estado === 'activo'
+                        ? 'text-gray-900 font-semibold'
+                        : estado === 'completado'
+                        ? 'text-emerald-700'
+                        : 'text-gray-400'
+                    }`}
+                    title={col.etapa_nombre}
+                  >
+                    {col.etapa_nombre}
+                  </span>
+                </button>
+              </Fragment>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Modal: detalle de una etapa al tocar un punto del stepper
+// ============================================================
+function EtapaDetalleModal({
+  lote,
+  columna,
+  etapaIdx,
+  etapaIdxActual,
+  totalEtapas,
+  onClose,
+}: {
+  lote: KanbanLote;
+  columna: KanbanColumna;
+  etapaIdx: number;
+  etapaIdxActual: number;
+  totalEtapas: number;
+  onClose: () => void;
+}) {
+  const estado =
+    etapaIdx < etapaIdxActual
+      ? 'completado'
+      : etapaIdx === etapaIdxActual
+      ? 'activo'
+      : 'pendiente';
+
   const tiempoExcedido =
+    estado === 'activo' &&
     columna.tiempo_estimado_minutos != null &&
     lote.tiempo_en_etapa_minutos > columna.tiempo_estimado_minutos;
 
   return (
     <div
-      className={`rounded-xl border p-3 bg-white shadow-sm transition-all ${
-        lote.esta_atrasado ? 'border-red-300 bg-red-50/60' : 'border-gray-200'
-      } ${lote.etapa_en_proceso ? 'ring-1 ring-primary/30' : ''}`}
+      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="min-w-0">
-          <div className="font-mono font-bold text-sm">{lote.numero}</div>
-        </div>
-        {lote.etapa_en_proceso ? (
-          <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-            EN PROCESO
-          </span>
-        ) : (
-          <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
-            EN ESPERA
-          </span>
-        )}
-      </div>
-
-      {/* Datos */}
-      <div className="grid grid-cols-2 gap-1.5 text-xs">
-        {lote.peso_entrada_kg && (
-          <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-            <Scale className="h-3 w-3 text-gray-500 flex-shrink-0" />
-            <span className="font-medium">
-              {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
-            </span>
-          </div>
-        )}
-        {lote.cantidad_prendas != null && (
-          <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1">
-            <Shirt className="h-3 w-3 text-gray-500 flex-shrink-0" />
-            <span className="font-medium">{lote.cantidad_prendas}</span>
-          </div>
-        )}
-        {lote.tiempo_en_etapa_minutos > 0 && (
-          <div
-            className={`flex items-center gap-1 rounded px-2 py-1 col-span-2 ${
-              tiempoExcedido ? 'bg-amber-50 text-amber-700' : 'bg-gray-50'
-            }`}
-          >
-            <Clock className="h-3 w-3 flex-shrink-0" />
-            <span className="font-medium">
-              {formatTiempo(lote.tiempo_en_etapa_minutos)}
-              {columna.tiempo_estimado_minutos && (
-                <span className="ml-1 text-gray-500 font-normal">
-                  · est. {formatTiempo(columna.tiempo_estimado_minutos)}
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {lote.esta_atrasado && (
-        <div className="mt-2 flex items-center gap-1 text-[11px] text-red-700">
-          <AlertTriangle className="h-3 w-3" />
-          <span>Compromiso vencido</span>
-        </div>
-      )}
-      {lote.fecha_compromiso && !lote.esta_atrasado && (
-        <div className="mt-2 flex items-center gap-1 text-[11px] text-gray-500">
-          <Calendar className="h-3 w-3" />
-          <span>Entrega: {formatearFecha(lote.fecha_compromiso)}</span>
-        </div>
-      )}
-
-      {/* "Ver seguimiento" lleva al mapa full-screen. El endpoint decide
-          qué vehículo mostrar (recolección / entrega / nada todavía) y la
-          página se encarga de los estados vacíos — por eso siempre
-          mostramos el botón, no filtramos acá por estado del lote. */}
-      <Link
-        to={`/mi-produccion/seguimiento/${lote.id}`}
-        className="mt-2 flex items-center justify-center gap-1 text-[11px] font-medium text-primary border border-primary/30 rounded-md px-2 py-1 hover:bg-primary/5 transition"
+      <div
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-xl max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
       >
-        <MapPin className="h-3 w-3" />
-        Ver seguimiento
-      </Link>
+        <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+              Etapa {etapaIdx + 1} de {totalEtapas}
+            </div>
+            <h3 className="font-semibold text-lg mt-0.5">{columna.etapa_nombre}</h3>
+            <div className="font-mono text-xs text-gray-500 mt-0.5">{lote.numero}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+            aria-label="Cerrar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {estado === 'completado' && (
+            <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+              <Check className="h-4 w-4" />
+              <span>Esta etapa ya se completó.</span>
+            </div>
+          )}
+          {estado === 'pendiente' && (
+            <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <Clock className="h-4 w-4" />
+              <span>Esta etapa todavía no comenzó.</span>
+            </div>
+          )}
+          {estado === 'activo' && (
+            <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>
+                {lote.etapa_en_proceso
+                  ? 'En proceso en este momento.'
+                  : 'En espera para procesarse.'}
+              </span>
+            </div>
+          )}
+
+          {/* Datos del lote (relevantes siempre) */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {lote.peso_entrada_kg && (
+              <div className="flex items-center gap-1.5 bg-gray-50 rounded px-2 py-1.5">
+                <Scale className="h-3.5 w-3.5 text-gray-500" />
+                <span className="font-medium">
+                  {formatNumber(Number(lote.peso_entrada_kg), 1)} kg
+                </span>
+              </div>
+            )}
+            {lote.cantidad_prendas != null && (
+              <div className="flex items-center gap-1.5 bg-gray-50 rounded px-2 py-1.5">
+                <Shirt className="h-3.5 w-3.5 text-gray-500" />
+                <span className="font-medium">{lote.cantidad_prendas} prendas</span>
+              </div>
+            )}
+          </div>
+
+          {/* Tiempo en la etapa (solo si es la actual) */}
+          {estado === 'activo' && lote.tiempo_en_etapa_minutos > 0 && (
+            <div
+              className={`flex items-center gap-1.5 rounded px-2 py-1.5 text-xs ${
+                tiempoExcedido ? 'bg-amber-50 text-amber-700' : 'bg-gray-50'
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              <span className="font-medium">
+                {formatTiempo(lote.tiempo_en_etapa_minutos)} en esta etapa
+                {columna.tiempo_estimado_minutos && (
+                  <span className="ml-1 text-gray-500 font-normal">
+                    · estimado {formatTiempo(columna.tiempo_estimado_minutos)}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {estado !== 'activo' && columna.tiempo_estimado_minutos != null && (
+            <div className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs bg-gray-50 text-gray-600">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Duración estimada {formatTiempo(columna.tiempo_estimado_minutos)}</span>
+            </div>
+          )}
+
+          {lote.fecha_compromiso && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-600">
+              <Calendar className="h-3.5 w-3.5" />
+              <span>Entrega comprometida: {formatearFecha(lote.fecha_compromiso)}</span>
+            </div>
+          )}
+          {lote.esta_atrasado && (
+            <div className="flex items-center gap-1.5 text-xs text-red-700 font-medium">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Compromiso vencido
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 pt-0 flex justify-end">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cerrar
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -194,6 +397,25 @@ export default function MiProduccionPage() {
     () => columnas.filter((c) => c.lotes.length > 0),
     [columnas],
   );
+
+  // Vista stepper: colapsamos el kanban en una lista de lotes únicos, cada
+  // uno con su etapa_idx actual. Un lote solo puede estar en UNA columna.
+  const lotesConEtapa = useMemo(() => {
+    const items: { lote: KanbanLote; etapaIdx: number; columna: KanbanColumna }[] = [];
+    columnas.forEach((col, idx) => {
+      col.lotes.forEach((lote) => {
+        items.push({ lote, etapaIdx: idx, columna: col });
+      });
+    });
+    return items;
+  }, [columnas]);
+
+  // Modal de detalle de etapa (abierto al tocar un punto del stepper).
+  const [etapaModal, setEtapaModal] = useState<{
+    lote: KanbanLote;
+    etapaIdx: number;
+    etapaIdxActual: number;
+  } | null>(null);
 
   const totalKgActivos = useMemo(
     () =>
@@ -262,10 +484,9 @@ export default function MiProduccionPage() {
         </div>
       )}
 
-      {/* Kanban — vista formal: se muestran TODAS las etapas del proceso.
-          La columna activa lleva un acento sutil en el borde superior; las
-          demás quedan en gris para no cansar la vista pero indicando que
-          existen. */}
+      {/* Progreso por lote: cada lote como stepper horizontal con los
+          estados del proceso. Tocar un punto abre el modal con el detalle
+          de esa etapa. */}
       {loadingKanban ? (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="h-6 w-6 animate-spin text-primary" />
@@ -280,87 +501,42 @@ export default function MiProduccionPage() {
             </p>
           </CardContent>
         </Card>
+      ) : lotesConEtapa.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center text-gray-500">
+            <Package className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">No tenés pedidos en producción en este momento</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Cuando ingrese un nuevo pedido vas a ver su avance acá.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <>
-          {/* Leyenda mini */}
-          <div className="flex flex-wrap items-center gap-4 text-[11px] text-gray-500">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-              Etapa con tu lote
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
-              Etapa sin lotes tuyos en este momento
-            </div>
-          </div>
+        <div className="space-y-3">
+          {lotesConEtapa.map(({ lote, etapaIdx }) => (
+            <LoteStepper
+              key={lote.id}
+              lote={lote}
+              etapaIdxActual={etapaIdx}
+              columnas={columnas}
+              onEtapaClick={(idx) =>
+                setEtapaModal({ lote, etapaIdx: idx, etapaIdxActual: etapaIdx })
+              }
+            />
+          ))}
+        </div>
+      )}
 
-          <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory md:snap-none">
-            {columnas.map((columna, idx) => {
-              const activa = columna.lotes.length > 0;
-              return (
-                <div
-                  key={columna.etapa_id}
-                  className="flex-shrink-0 w-[80vw] sm:w-64 md:w-56 lg:w-60 snap-start"
-                >
-                  {/* Cabecera formal: fondo blanco, borde superior grueso
-                      (color del sistema si está activa, gris si no). El
-                      color de la etapa se usa como acento fino, no como
-                      fondo lleno. */}
-                  <div
-                    className={`rounded-t-lg border border-b-0 px-3 py-2.5 bg-white ${
-                      activa ? 'border-t-4 border-t-blue-600 border-gray-200' : 'border-t-4 border-t-gray-300 border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                          <span>Etapa {idx + 1}</span>
-                          {activa && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                          )}
-                        </div>
-                        <h3 className={`font-semibold text-sm truncate mt-0.5 ${activa ? 'text-gray-900' : 'text-gray-500'}`}>
-                          {columna.etapa_nombre}
-                        </h3>
-                        {columna.tiempo_estimado_minutos && (
-                          <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-1">
-                            <Clock className="h-2.5 w-2.5" />
-                            Estimado {formatTiempo(columna.tiempo_estimado_minutos)}
-                          </p>
-                        )}
-                      </div>
-                      <div
-                        className={`flex-shrink-0 text-center px-2 py-1 rounded ${
-                          activa ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'
-                        }`}
-                      >
-                        <div className="text-base font-bold leading-none">{columna.lotes.length}</div>
-                        <div className="text-[9px] uppercase tracking-wide mt-0.5">
-                          {columna.lotes.length === 1 ? 'lote' : 'lotes'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Cuerpo */}
-                  <div className="bg-gray-50/60 border border-gray-200 rounded-b-lg p-2 space-y-2 min-h-[120px]">
-                    {columna.lotes.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-24 text-center px-2">
-                        <Package className="h-6 w-6 text-gray-300 mb-1" />
-                        <p className="text-[11px] text-gray-400 leading-tight">
-                          Sin lotes tuyos en esta etapa
-                        </p>
-                      </div>
-                    ) : (
-                      columna.lotes.map((lote) => (
-                        <LoteCardReadOnly key={lote.id} lote={lote} columna={columna} />
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
+      {/* Modal de detalle de etapa — abre al tocar un punto del stepper */}
+      {etapaModal && columnas[etapaModal.etapaIdx] && (
+        <EtapaDetalleModal
+          lote={etapaModal.lote}
+          columna={columnas[etapaModal.etapaIdx]}
+          etapaIdx={etapaModal.etapaIdx}
+          etapaIdxActual={etapaModal.etapaIdxActual}
+          totalEtapas={columnas.length}
+          onClose={() => setEtapaModal(null)}
+        />
       )}
 
       {/* Historial */}
