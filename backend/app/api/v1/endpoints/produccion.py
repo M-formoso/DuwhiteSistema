@@ -273,8 +273,11 @@ def obtener_seguimiento_mi_lote(
         vehiculo = lote.vehiculo_recoleccion
         tipo = "recoleccion"
 
-    # 2. Fase ENTREGA: si el lote generó un remito EMITIDO con vehículo
-    #    asignado, es la entrega al cliente. Tomamos el más reciente.
+    # 2. Fase ENTREGA: si el lote generó un remito con vehículo asignado,
+    #    mostramos la posición del vehículo. Aceptamos tanto EMITIDO (en
+    #    tránsito) como ENTREGADO (recién entregado): mientras el GPS siga
+    #    reportando, el cliente puede ver la última posición conocida.
+    #    Tomamos el remito más reciente.
     if vehiculo is None:
         remito_entrega = (
             db.query(Remito)
@@ -282,7 +285,12 @@ def obtener_seguimiento_mi_lote(
             .filter(
                 Remito.lote_id == lote.id,
                 Remito.activo == True,
-                Remito.estado == EstadoRemito.EMITIDO.value,
+                Remito.estado.in_(
+                    [
+                        EstadoRemito.EMITIDO.value,
+                        EstadoRemito.ENTREGADO.value,
+                    ]
+                ),
                 Remito.vehiculo_id.isnot(None),
             )
             .order_by(Remito.fecha_emision.desc())
@@ -294,10 +302,34 @@ def obtener_seguimiento_mi_lote(
 
     # --- Mensajes contextuales cuando no hay nada que trackear ---
     if vehiculo is None:
+        # ¿Hay algún remito activo del lote aunque sea sin vehículo? Si sí,
+        # el pedido ya está listo para despacho y falta asignar camión.
+        tiene_remito_sin_vehiculo = (
+            db.query(Remito.id)
+            .filter(
+                Remito.lote_id == lote.id,
+                Remito.activo == True,
+                Remito.estado.in_(
+                    [
+                        EstadoRemito.EMITIDO.value,
+                        EstadoRemito.ENTREGADO.value,
+                    ]
+                ),
+                Remito.vehiculo_id.is_(None),
+            )
+            .first()
+            is not None
+        )
+
         if lote.estado == EstadoLote.EN_CAMINO.value:
             base["mensaje"] = (
                 "Tu pedido está pendiente de recolección pero todavía no "
                 "hay un vehículo asignado."
+            )
+        elif tiene_remito_sin_vehiculo:
+            base["mensaje"] = (
+                "Tu pedido ya está listo para ser despachado. "
+                "Apenas se asigne el vehículo vas a poder ver su ubicación en vivo."
             )
         elif lote.estado in (
             EstadoLote.PENDIENTE.value,
