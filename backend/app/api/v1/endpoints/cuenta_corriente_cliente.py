@@ -331,6 +331,9 @@ def _cargar_remito_detalle(db: Session, m) -> Optional[dict]:
         "total": float(remito.total) if remito.total is not None else 0.0,
         "notas": remito.notas,
         "detalles": detalles,
+        # Expuesto para que el frontend pueda cargar las etapas del proceso
+        # del lote asociado (feature "Ver etapas del proceso" en el modal).
+        "lote_id": str(remito.lote_id) if remito.lote_id else None,
     }
 
 

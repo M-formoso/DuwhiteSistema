@@ -3,7 +3,7 @@
  * Vista completa con movimientos paginados, filtros y acciones
  */
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDateTimeAR } from '@/lib/utils';
@@ -75,6 +75,7 @@ import {
 } from '@/services/finanzasAvanzadasService';
 import { getCuentasBancarias } from '@/services/finanzasService';
 import { proveedorService } from '@/services/proveedorService';
+import { produccionService } from '@/services/produccionService';
 import { historialLavadosService } from '@/services/historialLavadosService';
 import { formatNumber, formatDate, getLocalDateString } from '@/utils/formatters';
 import { toastApiError } from '@/utils/apiErrors';
@@ -164,6 +165,9 @@ export default function ClienteCuentaCorrientePage() {
 
   // Estados del modal de detalle y eliminación
   const [movimientoDetalle, setMovimientoDetalle] = useState<any | null>(null);
+  // Expand de "Etapas del proceso" dentro del modal detalle del movimiento.
+  // Solo visible para roles internos (no para el rol cliente).
+  const [verEtapasProceso, setVerEtapasProceso] = useState(false);
   const [movimientoAEliminar, setMovimientoAEliminar] = useState<any | null>(null);
   const [remitoAEliminar, setRemitoAEliminar] = useState<any | null>(null);
   const [mesesAbiertos, setMesesAbiertos] = useState<Set<string>>(new Set());
@@ -264,6 +268,29 @@ export default function ClienteCuentaCorrientePage() {
     queryKey: ['cuentas-tesoreria-activas'],
     queryFn: () => getCuentasBancarias(true),
     enabled: showPagoModal,
+  });
+
+  // Al abrir/cerrar otro movimiento colapsamos la sección "Etapas del proceso"
+  // para no mostrar las etapas del movimiento anterior.
+  useEffect(() => {
+    setVerEtapasProceso(false);
+  }, [movimientoDetalle?.id]);
+
+  // Roles con permiso para ver el desglose de etapas del proceso.
+  // El cliente final (rol "cliente") NO debe verlo.
+  const puedeVerEtapasProceso =
+    !!usuarioActual &&
+    ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'operador'].includes(
+      usuarioActual.rol,
+    );
+
+  // Trae el lote (con etapas) del remito del movimiento abierto cuando se
+  // expande la sección "Ver etapas del proceso".
+  const loteIdExpandido = movimientoDetalle?.remito?.lote_id as string | undefined;
+  const { data: loteEtapas, isLoading: loadingLoteEtapas } = useQuery({
+    queryKey: ['detalle-movimiento-lote-etapas', loteIdExpandido],
+    queryFn: () => produccionService.getLote(loteIdExpandido!),
+    enabled: Boolean(loteIdExpandido) && verEtapasProceso && puedeVerEtapasProceso,
   });
 
   // Proveedores activos — para compensación cliente↔proveedor.
@@ -1622,6 +1649,130 @@ export default function ClienteCuentaCorrientePage() {
                     <p className="text-xs text-gray-500">
                       Peso total: <span className="font-mono">{movimientoDetalle.remito.peso_total_kg} kg</span>
                     </p>
+                  )}
+
+                  {/* Desglose de etapas del proceso del lote asociado.
+                      Visible SOLO para roles internos (no para el cliente final). */}
+                  {puedeVerEtapasProceso && movimientoDetalle.remito.lote_id && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setVerEtapasProceso((v) => !v)}
+                        className="w-full flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Sliders className="h-4 w-4 text-primary" />
+                          {verEtapasProceso ? 'Ocultar' : 'Ver'} etapas del proceso
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform ${verEtapasProceso ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      {verEtapasProceso && (
+                        <div className="mt-3 space-y-2">
+                          {loadingLoteEtapas ? (
+                            <div className="flex items-center justify-center py-6 text-gray-400 text-xs gap-2">
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              Cargando etapas…
+                            </div>
+                          ) : !loteEtapas?.etapas?.length ? (
+                            <p className="text-xs text-gray-400 text-center py-4">
+                              No se encontraron etapas registradas para este lote.
+                            </p>
+                          ) : (
+                            <ol className="space-y-2">
+                              {[...loteEtapas.etapas]
+                                .sort((a, b) => a.orden - b.orden)
+                                .map((et) => {
+                                  const colorPorEstado =
+                                    et.estado === 'completada'
+                                      ? 'border-emerald-200 bg-emerald-50'
+                                      : et.estado === 'en_proceso'
+                                      ? 'border-blue-200 bg-blue-50'
+                                      : 'border-gray-200 bg-white';
+                                  return (
+                                    <li
+                                      key={et.id}
+                                      className={`rounded-lg border p-2.5 ${colorPorEstado}`}
+                                    >
+                                      <div className="flex items-start justify-between gap-2 mb-1">
+                                        <div className="min-w-0 flex items-center gap-2">
+                                          <span
+                                            className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white shrink-0"
+                                            style={{
+                                              backgroundColor: et.etapa_color || '#9CA3AF',
+                                            }}
+                                          >
+                                            {et.orden}
+                                          </span>
+                                          <span className="font-medium text-sm truncate">
+                                            {et.etapa_nombre || '—'}
+                                          </span>
+                                        </div>
+                                        <span
+                                          className={`shrink-0 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${
+                                            et.estado === 'completada'
+                                              ? 'bg-emerald-100 text-emerald-700'
+                                              : et.estado === 'en_proceso'
+                                              ? 'bg-blue-100 text-blue-700'
+                                              : 'bg-gray-100 text-gray-500'
+                                          }`}
+                                        >
+                                          {et.estado.replace('_', ' ')}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-gray-600 pl-8">
+                                        <div>
+                                          <span className="text-gray-400">Operario: </span>
+                                          <span className="text-gray-900">
+                                            {et.responsable_nombre || '—'}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-400">Máquina: </span>
+                                          <span className="text-gray-900">
+                                            {et.maquina_nombre || '—'}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-400">Inicio: </span>
+                                          <span className="font-mono">
+                                            {et.fecha_inicio
+                                              ? formatDateTimeAR(et.fecha_inicio)
+                                              : '—'}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-400">Fin: </span>
+                                          <span className="font-mono">
+                                            {et.fecha_fin
+                                              ? formatDateTimeAR(et.fecha_fin)
+                                              : '—'}
+                                          </span>
+                                        </div>
+                                        {et.duracion_minutos > 0 && (
+                                          <div className="sm:col-span-2">
+                                            <span className="text-gray-400">Duración: </span>
+                                            <span className="font-mono">
+                                              {et.duracion_minutos} min
+                                            </span>
+                                          </div>
+                                        )}
+                                        {et.observaciones && (
+                                          <div className="sm:col-span-2 text-gray-500 italic">
+                                            {et.observaciones}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                            </ol>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
