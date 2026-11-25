@@ -125,6 +125,12 @@ const navSectionsInternal: NavSection[] = [
         icon: Receipt,
         roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'operador'],
       },
+      {
+        title: 'Historial de Remitos',
+        href: '/produccion/historial-remitos',
+        icon: FileText,
+        roles: ['superadmin', 'administrador', 'jefe_produccion', 'comercial', 'contador'],
+      },
     ],
   },
   {

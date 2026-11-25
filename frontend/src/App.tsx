@@ -37,6 +37,7 @@ import EstadoRecursosPage from '@/pages/produccion/EstadoRecursosPage';
 import RecoleccionPage from '@/pages/recoleccion/RecoleccionPage';
 import GeolocalizacionPage from '@/pages/geolocalizacion/GeolocalizacionPage';
 import EntregasEnCursoPage from '@/pages/entregas/EntregasEnCursoPage';
+import RemitosHistorialPage from '@/pages/remitos/RemitosHistorialPage';
 import RemitoManualPage from '@/pages/remitos/RemitoManualPage';
 
 // Clientes
@@ -186,6 +187,9 @@ function App() {
 
         {/* Entregas en curso — remitos emitidos pendientes de entrega */}
         <Route path="/entregas" element={<EntregasEnCursoPage />} />
+
+        {/* Historial de remitos — vista por rango de fechas con hora y detalle */}
+        <Route path="/produccion/historial-remitos" element={<RemitosHistorialPage />} />
 
         {/* Remito manual (sin flujo de producción) */}
         <Route path="/remitos/manual" element={<RemitoManualPage />} />

@@ -73,6 +73,9 @@ class RemitoListResponse(BaseModel):
     tipo: str
     estado: str
     fecha_emision: date
+    # created_at del registro — se expone para mostrar la hora exacta en el
+    # historial (fecha_emision es solo Date).
+    created_at: Optional[datetime] = None
     total: Decimal
     tiene_complemento: bool = False
     # Facturación: si el remito ya fue facturado, se completan los tres campos.

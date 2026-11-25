@@ -191,6 +191,8 @@ export interface RemitoListItem {
   tipo: TipoRemito;
   estado: EstadoRemito;
   fecha_emision: string;
+  // created_at del registro — usado en el historial para mostrar hora exacta.
+  created_at?: string | null;
   total: number;
   tiene_complemento: boolean;
   facturado?: boolean;

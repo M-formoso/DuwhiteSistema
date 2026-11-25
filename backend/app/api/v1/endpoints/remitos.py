@@ -124,6 +124,7 @@ def listar_remitos(
             tipo=r.tipo,
             estado=r.estado,
             fecha_emision=r.fecha_emision,
+            created_at=r.created_at,
             total=r.total,
             tiene_complemento=r.tiene_complemento,
             facturado=r.id in fact_map,
