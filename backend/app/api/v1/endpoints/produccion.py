@@ -2,7 +2,7 @@
 Endpoints de Producción (Lotes, Etapas, Kanban).
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
@@ -1193,8 +1193,12 @@ def eliminar_lote(
     current_user: Usuario = Depends(require_permission("superadmin")),
 ):
     """
-    Elimina un lote de producción (soft delete).
-    Solo disponible para superadmin.
+    Archiva un lote de producción (lo saca del Kanban pero sigue contando
+    en kg lavados / reportes). Solo superadmin.
+
+    Antes esto hacía soft delete (activo=False), pero eso descontaba al lote
+    de las estadísticas operativas. Si se necesita borrar físicamente usar
+    "Purgar >30 días" en Producción → Archivados.
     """
     service = ProduccionService(db)
     lote = service.get_lote(lote_id)
@@ -1208,7 +1212,93 @@ def eliminar_lote(
     numero = lote.numero
     service.delete_lote(lote_id, current_user.id)
 
-    return MessageResponse(message=f"Lote {numero} eliminado correctamente")
+    return MessageResponse(message=f"Lote {numero} archivado correctamente")
+
+
+@router.post("/lotes/restaurar-eliminados", response_model=Dict[str, Any])
+def restaurar_lotes_eliminados(
+    fecha_desde: date = Query(..., description="Desde qué día buscar eliminaciones"),
+    fecha_hasta: date = Query(..., description="Hasta qué día buscar eliminaciones"),
+    archivar_restaurados: bool = Query(
+        True,
+        description=(
+            "Si es True, los lotes restaurados quedan archivados "
+            "(archivado_at=now) para no volver al Kanban. Si es False, "
+            "vuelven al Kanban."
+        ),
+    ),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_permission("superadmin")),
+):
+    """
+    Restaura lotes que fueron soft-deleteados (activo=False) por un bug previo.
+
+    Lee ``logs_actividad`` para identificar los lotes eliminados en el rango,
+    los pone ``activo=True`` y por default los deja archivados (ocultos del
+    Kanban) para que vuelvan a sumar en kg lavados sin molestar la vista.
+    """
+    from app.models.log_actividad import LogActividad
+    from app.models.lote_produccion import LoteProduccion
+    from sqlalchemy import cast, Date
+
+    # Buscar los IDs de lotes eliminados en el rango. Consideramos tanto
+    # la acción vieja "eliminar" como la nueva "archivar" por si se
+    # ejecutara dos veces, pero solo nos interesan los que sigan con
+    # activo=False.
+    logs = (
+        db.query(LogActividad)
+        .filter(
+            LogActividad.modulo == "produccion",
+            LogActividad.entidad_tipo == "LoteProduccion",
+            LogActividad.accion.in_(("eliminar", "archivar")),
+            cast(LogActividad.created_at, Date) >= fecha_desde,
+            cast(LogActividad.created_at, Date) <= fecha_hasta,
+        )
+        .all()
+    )
+
+    lote_ids_vistos = set()
+    restaurados: List[Dict[str, Any]] = []
+    no_encontrados: List[str] = []
+
+    now = datetime.utcnow()
+    for log in logs:
+        if not log.entidad_id or log.entidad_id in lote_ids_vistos:
+            continue
+        lote_ids_vistos.add(log.entidad_id)
+
+        lote = (
+            db.query(LoteProduccion)
+            .filter(LoteProduccion.id == log.entidad_id)
+            .first()
+        )
+        if not lote:
+            no_encontrados.append(str(log.entidad_id))
+            continue
+
+        if lote.activo:
+            # Ya está activo, nada que hacer (puede haber sido restaurado antes).
+            continue
+
+        lote.activo = True
+        if archivar_restaurados and lote.archivado_at is None:
+            lote.archivado_at = now
+        lote.updated_at = now
+        restaurados.append({
+            "id": str(lote.id),
+            "numero": lote.numero,
+            "archivado": archivar_restaurados,
+        })
+
+    db.commit()
+
+    return {
+        "restaurados": len(restaurados),
+        "lotes": restaurados,
+        "no_encontrados": no_encontrados,
+        "fecha_desde": fecha_desde.isoformat(),
+        "fecha_hasta": fecha_hasta.isoformat(),
+    }
 
 
 @router.post("/lotes/{lote_id}/revertir-ultima-accion")

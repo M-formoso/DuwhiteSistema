@@ -323,13 +323,17 @@ export default function LoteDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lotes'] });
       queryClient.invalidateQueries({ queryKey: ['kanban'] });
-      toast({ title: 'Lote eliminado correctamente' });
+      queryClient.invalidateQueries({ queryKey: ['lotes-archivados'] });
+      toast({
+        title: 'Lote archivado',
+        description: 'Podés verlo en Producción → Archivados. Sigue contando en los kg lavados.',
+      });
       navigate('/produccion/lotes');
     },
     onError: () => {
       toast({
         title: 'Error',
-        description: 'No se pudo eliminar el lote',
+        description: 'No se pudo archivar el lote',
         variant: 'destructive',
       });
     },
@@ -466,11 +470,11 @@ export default function LoteDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+              className="text-amber-700 hover:text-amber-800 hover:bg-amber-50 border-amber-300"
               onClick={() => setShowDeleteModal(true)}
             >
               <Trash2 className="h-4 w-4 sm:mr-2" />
-              <span className="ml-2 sm:ml-0">Eliminar</span>
+              <span className="ml-2 sm:ml-0">Archivar</span>
             </Button>
           )}
         </div>
@@ -997,24 +1001,25 @@ export default function LoteDetailPage() {
       {/* Historial / Auditoría del lote */}
       <LoteHistorialPanel loteId={String(id)} />
 
-      {/* Modal de Confirmación de Eliminación */}
+      {/* Modal de Confirmación de Archivado */}
       <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar lote {lote.numero}?</AlertDialogTitle>
+            <AlertDialogTitle>¿Archivar lote {lote.numero}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. El lote será marcado como inactivo
-              y ya no aparecerá en el tablero Kanban ni en los listados.
+              Se moverá a Producción → Archivados y dejará de aparecer en el
+              Kanban. El lote sigue contando en los kg lavados y en los reportes.
+              Podés restaurarlo desde Archivados cuando quieras.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => eliminarLoteMutation.mutate()}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-amber-600 hover:bg-amber-700"
               disabled={eliminarLoteMutation.isPending}
             >
-              {eliminarLoteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              {eliminarLoteMutation.isPending ? 'Archivando...' : 'Archivar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -885,23 +885,34 @@ class ProduccionService:
         return lote
 
     def delete_lote(self, lote_id: UUID, usuario_id: UUID) -> bool:
-        """Elimina un lote (soft delete)."""
+        """Archiva un lote (oculto del Kanban pero sigue contando en stats).
+
+        Antes esto hacía ``activo=False`` lo cual sacaba al lote de todas
+        las queries de kg lavados / reportes. Ahora archiva igual que
+        ``archivar_lote``: lo oculta del Kanban pero el lote sigue siendo
+        ``activo=True`` y por lo tanto suma en los totales operativos.
+
+        Si alguien quiere borrar FÍSICAMENTE un lote archivado puede usar
+        ``purgar_lotes_archivados`` desde Producción → Archivados.
+        """
         lote = self.get_lote(lote_id)
         if not lote:
             return False
 
-        lote.activo = False
-        self.db.commit()
+        ya_archivado = lote.archivado_at is not None
+        if not ya_archivado:
+            lote.archivado_at = datetime.utcnow()
+            self.db.commit()
 
         self.log_service.registrar(
             db=self.db,
             usuario_id=usuario_id,
-            accion="eliminar",
+            accion="archivar",
             modulo="produccion",
             entidad_tipo="LoteProduccion",
             entidad_id=lote.id,
-            datos_anteriores={"numero": lote.numero, "activo": True},
-            datos_nuevos={"activo": False},
+            datos_anteriores={"numero": lote.numero, "archivado_at": None},
+            datos_nuevos={"archivado_at": lote.archivado_at.isoformat() if lote.archivado_at else None},
         )
 
         return True
